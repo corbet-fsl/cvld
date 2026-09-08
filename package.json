@@ -34,6 +34,7 @@
     "@simplewebauthn/server": "14.0.1"
   },
   "devDependencies": {
-    "@levischuck/tiny-cbor": "0.3.6"
+    "@levischuck/tiny-cbor": "0.3.6",
+    "playwright": "1.63.0"
   }
 }

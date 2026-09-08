@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
+import { sealLocalState, openLocalState } from './client.js';
 import { publicBytes } from './admission.js';
 import { presentationRequest } from './requests.js';
 import anoncreds from '@hyperledger/anoncreds-nodejs';
@@ -7,10 +8,21 @@ import { jsonAndRelease } from './encoding.js';
 const { LinkSecret, CredentialRequest, Credential, Presentation } = anoncreds;
 
 // This object belongs in the holder's process, never in the verifier service.
-export function createHolder() {
-  const linkSecret = LinkSecret.create();
-  let credential;
+export function createHolder() { return buildHolder(LinkSecret.create()); }
+export async function restoreHolder({ encryptedState, wrappingKey }) {
+  const data = await openLocalState({ envelope: encryptedState, key: wrappingKey, context: 'cvld.holder.v1' });
+  const state = JSON.parse(new TextDecoder().decode(data));
+  if (state.version !== 1 || typeof state.linkSecret !== 'string' || !/^[0-9]+$/.test(state.linkSecret) || !state.credential) throw new Error('Invalid holder state');
+  const credential = Credential.fromJson(state.credential);
+  try { return buildHolder(state.linkSecret, credential.toJson()); } finally { credential.handle.clear(); }
+}
+function buildHolder(linkSecret, credential) {
   return {
+    async exportState({ wrappingKey }) {
+      if (!credential) throw new Error('No processed holder credential');
+      const data = new TextEncoder().encode(JSON.stringify({ version: 1, linkSecret, credential }));
+      return sealLocalState({ data, key: wrappingKey, context: 'cvld.holder.v1' });
+    },
     request(publicIssuer, offer, memberId) {
       publicBytes(memberId);
       const requestPair = CredentialRequest.create({

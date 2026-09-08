@@ -34,7 +34,7 @@ export function createVerifier(options) {
       pending.delete(input.id);
       // Snapshot external request objects before the asynchronous WebAuthn verifier.
       input = structuredClone(input);
-      if (state.audience !== input.audience || clock() >= state.expiresAt) return false;
+      if (state.audience !== input.audience || clock() >= Math.min(state.expiresAt, state.grantExpiresAt)) return false;
       const encoded = JSON.stringify(input.presentation);
       if (!encoded || Buffer.byteLength(encoded) > maxBytes || typeof input.presentation !== 'object' || input.presentation === null) return false;
       const proof = input.presentation.requested_proof;
@@ -53,7 +53,7 @@ export function createVerifier(options) {
       } finally { presentation.handle.clear(); }
       if (!eligible) return false;
       const result = await verifyAuthenticationResponse({ response: input.authentication, expectedChallenge: state.authentication.challenge, expectedOrigin: origin, expectedRPID: rpID, credential: state.credential, requireUserVerification: requireUV });
-      if (!result.verified || clock() >= state.expiresAt || !store.updateCounter(communityId, state.credential.id, result.authenticationInfo.newCounter)) return false;
+      if (!result.verified || clock() >= Math.min(state.expiresAt, state.grantExpiresAt) || !store.updateCounter(communityId, state.credential.id, result.authenticationInfo.newCounter)) return false;
       const admission = { version: 1, issuerKeyId, communityId, memberId: state.memberId, chatPublicKey: state.chatPublicKey, policyDigest: digest, issuedAt: state.issuedAt, expiresAt: state.grantExpiresAt };
       admission.signature = sign(null, admissionBytes(admission), signingKey).toString('base64url');
       return { eligible: true, communityId, memberId: state.memberId, admission };

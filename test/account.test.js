@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { generateKeyPairSync, randomBytes, verify } from 'node:crypto';
-import { createIssuer, createHolder, createVerifier, createMemoryReceiptStore, createMemoryCredentialStore, createPasskeyService, restoreIssuer } from '../src/index.js';
+import { createIssuer, createHolder, createVerifier, createMemoryReceiptStore, createMemoryCredentialStore, createPasskeyService, restoreIssuer, restoreHolder, createSqliteState } from '../src/index.js';
 import { makeGate, makeAuthenticator, NOW, ORIGIN, RP_ID } from './fixtures.js';
 
 const communityId = 'community.example';
 const policy = { version: 'account', mode: 'any', factors: ['phone'] };
 let common;
-async function setup() {
+async function setup(verifierOptions = {}) {
   if (!common) {
     const gate = makeGate('phone');
     const issuer = createIssuer({ issuerId: 'https://accounts.example/cvld', communityId, policy, attesters: { phone: gate.public }, receiptStore: createMemoryReceiptStore({ maxEntries: 100 }), maxCredentialLifetimeSeconds: 900, clock: () => NOW });
@@ -24,7 +24,7 @@ async function setup() {
   const offer = issuer.offer();
   const pending = holder.request(issuer.public, offer, account.memberId);
   pending.accept(await issuer.issue({ offer, request: pending.request, attestations: [gate.attest(offer, pending.request, policy)] }));
-  const verifier = createVerifier({ publicIssuer: issuer.public, policy, communityId, credentialStore: store, origin: ORIGIN, rpID: RP_ID, clock: () => NOW, challengeLifetimeSeconds: 120, grantLifetimeSeconds: 120, maxPendingChallenges: 100, maxPresentationBytes: 100_000, requireUserVerification: true, grantSigningKey: keys.privateKey.export({ format: 'pem', type: 'pkcs8' }) });
+  const verifier = createVerifier({ publicIssuer: issuer.public, policy, communityId, credentialStore: store, origin: ORIGIN, rpID: RP_ID, clock: () => NOW, challengeLifetimeSeconds: 120, grantLifetimeSeconds: 120, maxPendingChallenges: 100, maxPresentationBytes: 100_000, requireUserVerification: true, grantSigningKey: keys.privateKey.export({ format: 'pem', type: 'pkcs8' }), ...verifierOptions });
   return { ...common, auth, account, holder, verifier };
 }
 const chatKey = () => generateKeyPairSync('ed25519').publicKey.export({ format: 'jwk' }).x;
@@ -73,4 +73,51 @@ test('issuer keys and policy survive an explicitly encrypted export and import',
   const restored = await restoreIssuer({ encryptedState: state, wrappingKey: key, clock: () => NOW, receiptStore: createMemoryReceiptStore({ maxEntries: 100 }) });
   assert.deepEqual(restored.public, issuer.public);
   await assert.rejects(restoreIssuer({ encryptedState: state, wrappingKey: randomBytes(32), clock: () => NOW, receiptStore: createMemoryReceiptStore({ maxEntries: 100 }) }));
+});
+
+test('admission cannot succeed after its shorter grant lifetime has expired', async () => {
+  let now = NOW;
+  const { issuer, auth, account, holder, verifier } = await setup({ clock: () => now, grantLifetimeSeconds: 10 });
+  const challenge = verifier.begin(account.credentialId, ORIGIN, chatKey());
+  const presentation = holder.present(issuer.public, challenge);
+  now += 10;
+  assert.equal(await verifier.authenticate({ id: challenge.id, audience: ORIGIN, presentation, authentication: auth.assert(challenge.authentication.challenge) }), false);
+});
+
+test('an encrypted local holder wallet can be restored and prove the same account', async () => {
+  const { issuer, auth, account, holder, verifier } = await setup();
+  const key = randomBytes(32);
+  const encryptedState = await holder.exportState({ wrappingKey: key });
+  assert.equal(JSON.stringify(encryptedState).includes('linkSecret'), false);
+  const restored = await restoreHolder({ encryptedState, wrappingKey: key });
+  const challenge = verifier.begin(account.credentialId, ORIGIN, chatKey());
+  const result = await verifier.authenticate({ id: challenge.id, audience: ORIGIN, presentation: restored.present(issuer.public, challenge), authentication: auth.assert(challenge.authentication.challenge) });
+  assert.equal(result.memberId, account.memberId);
+  await assert.rejects(restoreHolder({ encryptedState, wrappingKey: randomBytes(32) }));
+});
+
+test('restored issuer and SQLite return the exact credential after a lost response', async () => {
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { issuer, gate, account } = await setup();
+  const directory = mkdtempSync(join(tmpdir(), 'cvld-real-issuer-'));
+  const path = join(directory, 'state.sqlite');
+  const key = randomBytes(32);
+  const exported = await issuer.exportState({ wrappingKey: key });
+  const open = () => createSqliteState({ path, maxReceipts: 100, maxCredentials: 100, busyTimeoutMs: 5000 });
+  let state = open();
+  try {
+    let restored = await restoreIssuer({ encryptedState: exported, wrappingKey: key, clock: () => NOW, receiptStore: state.receipts });
+    const holder = createHolder();
+    const offer = restored.offer();
+    const pending = holder.request(restored.public, offer, account.memberId);
+    const input = { offer, request: pending.request, attestations: [gate.attest(offer, pending.request, policy)] };
+    const issued = await restored.issue(input);
+    state.close(); state = open();
+    restored = await restoreIssuer({ encryptedState: exported, wrappingKey: key, clock: () => NOW, receiptStore: state.receipts });
+    const retried = await restored.issue(input);
+    assert.deepEqual(retried, issued);
+    assert.doesNotThrow(() => pending.accept(retried));
+  } finally { state.close(); rmSync(directory, { recursive: true, force: true }); }
 });

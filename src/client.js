@@ -76,10 +76,13 @@ export async function registerPasskey(options) {
   if (!credential?.getClientExtensionResults().prf?.enabled) throw new Error('This passkey does not support private wallet unlocking');
   return serverResponse(credential, true);
 }
+export async function walletPrfInput(scope) {
+  return new Uint8Array(await crypto.subtle.digest('SHA-256', utf8.encode(JSON.stringify(['cvld.prf.v1', label(scope)]))));
+}
 export async function authenticateWithWallet({ options, scope, envelope }) {
   label(scope);
   const parsed = PublicKeyCredential.parseRequestOptionsFromJSON(options);
-  const input = await crypto.subtle.digest('SHA-256', utf8.encode(JSON.stringify(['cvld.prf.v1', scope])));
+  const input = await walletPrfInput(scope);
   parsed.extensions = { ...parsed.extensions, prf: { eval: { first: input } } };
   const credential = await navigator.credentials.get({ publicKey: parsed });
   const output = credential?.getClientExtensionResults().prf?.results?.first;

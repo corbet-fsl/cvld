@@ -12,6 +12,6 @@ try {
   writeFileSync(join(consumer, 'package.json'), JSON.stringify({ private: true, type: 'module', dependencies: { cvld: `file:${join(work, packed[0].filename)}` } }));
   execFileSync('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund'], { cwd: consumer, stdio: 'inherit' });
   execFileSync(process.execPath, ['node_modules/cvld/scripts/install-native.js'], { cwd: consumer, stdio: 'inherit' });
-  const output = execFileSync(process.execPath, ['--input-type=module', '-e', "import {createHolder} from 'cvld'; if(typeof createHolder().present!=='function') process.exit(1); console.log('packed consumer works')"], { cwd: consumer, encoding: 'utf8' });
+  const output = execFileSync(process.execPath, ['--input-type=module', '-e', "import {createHolder} from 'cvld'; import {verifyAdmission} from 'cvld/admission'; import {createWallet} from 'cvld/client'; if(typeof verifyAdmission!=='function'||typeof createWallet!=='function') process.exit(1); if(typeof createHolder().present!=='function') process.exit(1); console.log('packed consumer works')"], { cwd: consumer, encoding: 'utf8' });
   assert.match(output, /packed consumer works/);
 } finally { rmSync(work, { recursive: true, force: true }); }
