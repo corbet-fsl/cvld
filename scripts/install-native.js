@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { createHash } from 'node:crypto';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';

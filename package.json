@@ -1,8 +1,8 @@
 {
   "name": "cvld",
   "version": "0.1.0-alpha.0",
-  "private": true,
-  "description": "Passkey authentication and holder-bound anonymous eligibility proofs",
+  "private": false,
+  "description": "Experimental passkey authentication, community eligibility and encrypted client wallets",
   "type": "module",
   "exports": {
     ".": "./src/index.js",
@@ -36,5 +36,16 @@
   "devDependencies": {
     "@levischuck/tiny-cbor": "0.3.6",
     "playwright": "1.63.0"
+  },
+  "bin": {
+    "cvld-install-native": "./scripts/install-native.js"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "alpha"
+  },
+  "homepage": "https://github.com/corbet-labs/cvld#readme",
+  "bugs": {
+    "url": "https://github.com/corbet-labs/cvld/issues"
   }
 }
