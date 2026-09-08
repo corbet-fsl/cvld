@@ -1,0 +1,39 @@
+{
+  "name": "cvld",
+  "version": "0.1.0-alpha.0",
+  "private": true,
+  "description": "Passkey authentication and holder-bound anonymous eligibility proofs",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js",
+    "./admission": "./src/admission.js",
+    "./client": "./src/client.js",
+    "./passkeys": "./src/passkeys.js",
+    "./storage": "./src/sqlite.js"
+  },
+  "files": [
+    "src",
+    "LICENSE.md",
+    "README.md",
+    "scripts"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test --test-concurrency=1 test/*.test.js",
+    "prepare:native": "node scripts/install-native.js"
+  },
+  "license": "SEE LICENSE IN LICENSE.md",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/corbet-labs/cvld.git"
+  },
+  "dependencies": {
+    "@hyperledger/anoncreds-nodejs": "0.4.0",
+    "@simplewebauthn/server": "14.0.1"
+  },
+  "devDependencies": {
+    "@levischuck/tiny-cbor": "0.3.6"
+  }
+}
