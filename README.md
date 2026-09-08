@@ -7,10 +7,10 @@ Passkey authentication, independently attested eligibility, and a stable pseudon
 ## Install and native support
 
 ```sh
-npm install --ignore-scripts cvld@0.1.0-alpha.0
+npm install --ignore-scripts @corbet-labs/cvld@0.1.0-alpha.0
 ```
 
-The server and Node holder experiment require **Node 24 or newer on Linux x64 with glibc** (tested on Ubuntu 24.04). The aggregate `cvld` export loads the native AnonCreds library. Install that library explicitly before importing the aggregate export:
+The server and Node holder experiment require **Node 24 or newer on Linux x64 with glibc** (tested on Ubuntu 24.04). The aggregate `@corbet-labs/cvld` export loads the native AnonCreds library. Install that library explicitly before importing the aggregate export:
 
 ```sh
 npm exec --offline -- cvld-install-native
@@ -18,17 +18,17 @@ npm exec --offline -- cvld-install-native
 
 This opt-in command downloads the official AnonCreds Rust 0.2.3 Linux x64 archive from GitHub, verifies the pinned SHA-256, and extracts `libanoncreds.so` into the resolved dependency directory. It requires network access and `tar`. cvld adds no install/postinstall hook or service installation. Its upstream AnonCreds and FFI dependencies do declare install scripts: keep `--ignore-scripts` on the initial install to bypass them, as CI does. A plain npm install may run those upstream installers. The `--offline` flag prevents npm from obtaining a missing command package; the explicitly invoked downloader itself uses the network. The artifact URL and checksum are readable in [`scripts/install-native.js`](https://github.com/corbet-labs/cvld/blob/main/scripts/install-native.js).
 
-macOS, Windows, Linux ARM, musl/Alpine, Android and iOS native holder builds are not supported by this release. `cvld/client` contains portable WebCrypto wallet functions and a browser WebAuthn adapter without Node or native-addon imports. Native mobile adapters are future work; passkey support alone does not guarantee PRF support.
+macOS, Windows, Linux ARM, musl/Alpine, Android and iOS native holder builds are not supported by this release. `@corbet-labs/cvld/client` contains portable WebCrypto wallet functions and a browser WebAuthn adapter without Node or native-addon imports. Native mobile adapters are future work; passkey support alone does not guarantee PRF support.
 
 ## Exports and composition
 
 | Import | Purpose |
 |---|---|
-| `cvld` | Issuer/holder issuance and proofs, passkey service, account-bound verifier and state repositories; loads native AnonCreds |
-| `cvld/passkeys` | SimpleWebAuthn registration and additional-passkey authorization without loading AnonCreds |
-| `cvld/storage` | Durable Node SQLite receipt/result and registered-credential stores |
-| `cvld/admission` | Ed25519 admission verification and canonical bytes using Node crypto; no native addon |
-| `cvld/client` | Client-only PRF wallet wrapping, component storage keys and encrypted state envelopes |
+| `@corbet-labs/cvld` | Issuer/holder issuance and proofs, passkey service, account-bound verifier and state repositories; loads native AnonCreds |
+| `@corbet-labs/cvld/passkeys` | SimpleWebAuthn registration and additional-passkey authorization without loading AnonCreds |
+| `@corbet-labs/cvld/storage` | Durable Node SQLite receipt/result and registered-credential stores |
+| `@corbet-labs/cvld/admission` | Ed25519 admission verification and canonical bytes using Node crypto; no native addon |
+| `@corbet-labs/cvld/client` | Client-only PRF wallet wrapping, component storage keys and encrypted state envelopes |
 
 The host supplies explicit community scope, policy, trusted provider keys, origin/RP ID, clocks, lifetimes, capacities and storage. `createPasskeyService` verifies enrollment into a credential repository. `createVerifier` accepts a registered credential ID, verifies eligibility for the same member and issues an admission certificate bound to the requested chat public key. Registering additional passkeys requires authentication from an existing passkey and preserves the member ID.
 
@@ -37,7 +37,7 @@ The result of `verifier.authenticate(...)` is `{eligible: true, communityId, mem
 A component can verify a certificate independently:
 
 ```js
-import { verifyAdmission } from 'cvld/admission';
+import { verifyAdmission } from '@corbet-labs/cvld/admission';
 
 const admitted = verifyAdmission({
   grant,
@@ -55,7 +55,7 @@ The certificate is public evidence of account/chat-key binding. It is not a secr
 In a supported secure browser context:
 
 ```js
-import { registerPasskey, authenticateWithWallet } from 'cvld/client';
+import { registerPasskey, authenticateWithWallet } from '@corbet-labs/cvld/client';
 
 const registrationResponse = await registerPasskey(registrationOptions);
 // Send registrationResponse to the passkey service and complete enrollment.

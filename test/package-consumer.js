@@ -10,7 +10,7 @@ try {
   const destination = process.env.CVLD_RELEASE_DIR ? resolve(process.env.CVLD_RELEASE_DIR) : work;
   mkdirSync(destination, { recursive: true });
   const [packed] = JSON.parse(execFileSync('npm', ['pack', '--json', '--pack-destination', destination], { encoding: 'utf8' }));
-  assert.equal(packed.name, 'cvld');
+  assert.equal(packed.name, '@corbet-labs/cvld');
   assert.equal(packed.version, '0.1.0-alpha.0');
   for (const file of packed.files) {
     assert.match(file.path, /^(package\.json|README\.md|LICENSE\.md|src\/[A-Za-z0-9._/-]+\.js|scripts\/install-native\.js)$/);
@@ -20,9 +20,10 @@ try {
   const digest = createHash('sha256').update(readFileSync(tarball)).digest('hex');
   const consumer = join(work, 'consumer');
   mkdirSync(consumer);
-  writeFileSync(join(consumer, 'package.json'), JSON.stringify({ private: true, type: 'module', dependencies: { cvld: `file:${tarball}` } }));
+  writeFileSync(join(consumer, 'package.json'), JSON.stringify({ private: true, type: 'module', dependencies: { '@corbet-labs/cvld': `file:${tarball}` } }));
   execFileSync('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund'], { cwd: consumer, stdio: 'inherit' });
-  const manifest = JSON.parse(readFileSync(join(consumer, 'node_modules/cvld/package.json')));
+  const manifest = JSON.parse(readFileSync(join(consumer, 'node_modules/@corbet-labs/cvld/package.json')));
+  assert.equal(manifest.name, '@corbet-labs/cvld');
   assert.equal(manifest.private, false);
   assert.equal(manifest.publishConfig.tag, 'alpha');
   assert.equal(manifest.bin['cvld-install-native'], './scripts/install-native.js');
@@ -31,11 +32,11 @@ try {
   execFileSync('npm', ['exec', '--offline', '--', 'cvld-install-native'], { cwd: consumer, stdio: 'inherit' });
   writeFileSync(join(consumer, 'smoke.mjs'), `
 import assert from 'node:assert/strict';
-import { createHolder } from 'cvld';
-import { verifyAdmission } from 'cvld/admission';
-import { createWallet, unlockWallet } from 'cvld/client';
-import { createPasskeyService } from 'cvld/passkeys';
-import { createSqliteState } from 'cvld/storage';
+import { createHolder } from '@corbet-labs/cvld';
+import { verifyAdmission } from '@corbet-labs/cvld/admission';
+import { createWallet, unlockWallet } from '@corbet-labs/cvld/client';
+import { createPasskeyService } from '@corbet-labs/cvld/passkeys';
+import { createSqliteState } from '@corbet-labs/cvld/storage';
 assert.equal(typeof createHolder().present, 'function');
 assert.equal(verifyAdmission({}), false);
 assert.equal(typeof createPasskeyService, 'function');

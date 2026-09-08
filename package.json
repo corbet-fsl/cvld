@@ -1,5 +1,5 @@
 {
-  "name": "cvld",
+  "name": "@corbet-labs/cvld",
   "version": "0.1.0-alpha.0",
   "private": false,
   "description": "Experimental passkey authentication, community eligibility and encrypted client wallets",

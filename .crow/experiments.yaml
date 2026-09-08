@@ -1,0 +1,29 @@
+# Existing trusted worker only. A maintainer stages the exact Git archive;
+# checksum and embedded commit are verified before dependencies or tests run.
+# Browser/device checks remain separate evidence; this worker needs no browser.
+when:
+  - event: manual
+skip_clone: true
+steps:
+  - name: verified-source-checkout
+    image: bash
+    commands:
+      - |
+        ci_source_dir="/workspaces/component-sources/cvld"
+        ci_source_archive="$ci_source_dir/$CI_COMMIT_SHA.tar"
+        (cd "$ci_source_dir" && sha256sum --check "$CI_COMMIT_SHA.tar.sha256")
+        test "$(git get-tar-commit-id < "$ci_source_archive")" = "$CI_COMMIT_SHA"
+        tar --extract --file "$ci_source_archive" --no-same-owner
+  - name: behavioral-tests
+    image: bash
+    depends_on: [verified-source-checkout]
+    commands:
+      - node --version
+      - npm ci --ignore-scripts --no-audit --no-fund
+      - npm run prepare:native
+      - timeout 600 npm test
+  - name: packed-consumer
+    image: bash
+    depends_on: [behavioral-tests]
+    commands:
+      - GITHUB_SHA="$CI_COMMIT_SHA" CVLD_RELEASE_DIR="/workspaces/component-releases/cvld/$CI_COMMIT_SHA" timeout 600 node test/package-consumer.js
