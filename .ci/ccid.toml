@@ -1,0 +1,12 @@
+schema = 1
+project = "cvld"
+
+# Browser PRF and packed-consumer contracts remain independently selected; native preparation uses existing installed tools.
+
+[checks.native]
+kind = "commands"
+commands = [["npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"], ["npm", "run", "prepare:native"], ["npm", "test"]]
+
+[checks.package]
+kind = "commands"
+commands = [["node", "test/package-consumer.js"]]
