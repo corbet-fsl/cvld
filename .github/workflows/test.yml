@@ -44,7 +44,7 @@ jobs:
           CVLD_RELEASE_DIR: ${{ runner.temp }}/cvld-release
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: corbet-labs-cvld-npm-0.1.0-alpha.0-${{ github.sha }}
+          name: cmtymeet-cvld-npm-0.1.0-alpha.0-${{ github.sha }}
           path: ${{ runner.temp }}/cvld-release/
           if-no-files-found: error
           retention-days: 1

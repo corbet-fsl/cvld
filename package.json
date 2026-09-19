@@ -27,7 +27,7 @@
   "license": "SEE LICENSE IN LICENSE.md",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/corbet-labs/cvld.git"
+    "url": "git+https://github.com/cmtymeet/cvld.git"
   },
   "dependencies": {
     "@hyperledger/anoncreds-nodejs": "0.4.0",
@@ -44,8 +44,8 @@
     "access": "public",
     "tag": "alpha"
   },
-  "homepage": "https://github.com/corbet-labs/cvld#readme",
+  "homepage": "https://github.com/cmtymeet/cvld#readme",
   "bugs": {
-    "url": "https://github.com/corbet-labs/cvld/issues"
+    "url": "https://github.com/cmtymeet/cvld/issues"
   }
 }
