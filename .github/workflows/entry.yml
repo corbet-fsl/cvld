@@ -1,0 +1,67 @@
+name: Voucher passkey entry contract
+on:
+  workflow_dispatch:
+    inputs:
+      resolve_dependencies:
+        description: Resolve first candidate voucher Cargo lock and retain it for review
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.run_id }}
+  cancel-in-progress: false
+jobs:
+  entry:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_TARGET_DIR: ${{ github.workspace }}/.ci/target
+      RESOLVE_DEPENDENCIES: ${{ inputs.resolve_dependencies && '1' || '0' }}
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+      - name: Prepare stable Rust and installed Chromium
+        run: |
+          rustup update stable --no-self-update
+          rustup default stable
+          rustup target add wasm32-unknown-unknown
+          printf 'PLAYWRIGHT_CHROMIUM_EXECUTABLE=%s\n' "$(command -v google-chrome)" >> "$GITHUB_ENV"
+          printf 'CVLD_VOUCHER_EXECUTABLE=%s\n' "$CARGO_TARGET_DIR/release/cvld-voucher-bridge" >> "$GITHUB_ENV"
+          printf 'CMSG_BROWSER_ROOT=%s\n' "$GITHUB_WORKSPACE/.ci/dependencies/cmsg/browser/pkg" >> "$GITHUB_ENV"
+      - name: Real voucher, root authority, WebAuthn and durable entry checks
+        env:
+          ARTIFACT_ROOT: ${{ runner.temp }}/cvld-entry-evidence
+        run: |
+          set -euo pipefail
+          mkdir -p "$ARTIFACT_ROOT"
+          finish() {
+            result=$?
+            trap - EXIT
+            printf '%s\n' "$result" > "$ARTIFACT_ROOT/exit-status.txt"
+            cp package-lock.json "$ARTIFACT_ROOT/npm-package-lock.json"
+            (cd "$ARTIFACT_ROOT"; find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+            exit "$result"
+          }
+          trap finish EXIT
+          rustc --version > "$ARTIFACT_ROOT/rustc-version.txt"
+          node --version > "$ARTIFACT_ROOT/node-version.txt"
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run prepare:native
+          timeout --kill-after=15 240 node --test --test-concurrency=1 test/entry.test.js test/api-keys.test.js test/profile-policy.test.js 2>&1 | tee "$ARTIFACT_ROOT/entry-tests.log"
+          timeout --kill-after=15 1500 bash .ci/prepare-entry.sh 2>&1 | tee "$ARTIFACT_ROOT/entry-build.log"
+          timeout --kill-after=15 240 node test/voucher-entry-browser.js 2>&1 | tee "$ARTIFACT_ROOT/entry-browser.log"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: cvld-entry-${{ github.sha }}
+          path: ${{ runner.temp }}/cvld-entry-evidence
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0

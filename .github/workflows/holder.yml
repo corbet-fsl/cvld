@@ -1,0 +1,71 @@
+name: Browser credential holder contract
+on:
+  workflow_dispatch:
+    inputs:
+      resolve_dependencies:
+        description: Resolve and retain initial holder Cargo dependency candidates
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.run_id }}
+  cancel-in-progress: false
+jobs:
+  holder:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      CI_COMMIT_SHA: ${{ github.sha }}
+      CARGO_BUILD_JOBS: '2'
+      CARGO_TARGET_DIR: ${{ github.workspace }}/.ci/target
+      RESOLVE_DEPENDENCIES: ${{ inputs.resolve_dependencies && '1' || '0' }}
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+      - name: Prepare runner tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup update stable --no-self-update
+          rustup default stable
+          rustup target add wasm32-unknown-unknown
+          printf 'BROWSER_BIN=%s\n' "$(command -v google-chrome || command -v chromium)" >> "$GITHUB_ENV"
+          rustc --version
+          cargo --version
+          node --version
+      - name: Build and verify the browser holder
+        env:
+          ARTIFACT_ROOT: ${{ runner.temp }}/holder-evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$ARTIFACT_ROOT"
+          capture() {
+            local result=$?
+            trap - EXIT
+            printf '%s\n' "$result" > "$ARTIFACT_ROOT/validation-status.txt"
+            if test -d generated/holder; then tar -cf "$ARTIFACT_ROOT/holder-bindings.tar" generated/holder; fi
+            cp package-lock.json "$ARTIFACT_ROOT/package-lock.json"
+            (cd "$ARTIFACT_ROOT"; find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+            exit "$result"
+          }
+          trap capture EXIT
+          npm ci --ignore-scripts --no-audit --no-fund 2>&1 | tee "$ARTIFACT_ROOT/npm-install.log"
+          npm run prepare:native 2>&1 | tee "$ARTIFACT_ROOT/native-install.log"
+          timeout --kill-after=15 1500 bash .ci/prepare-holder.sh 2>&1 | tee "$ARTIFACT_ROOT/holder-build.log"
+          timeout --kill-after=15 600 node test/holder-browser.js 2>&1 | tee "$ARTIFACT_ROOT/holder-browser.log"
+      - name: Retain source, lock and cryptographic evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cvld-holder-${{ github.sha }}
+          path: ${{ runner.temp }}/holder-evidence
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0

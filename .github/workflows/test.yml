@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
@@ -31,29 +31,53 @@ jobs:
   packed-consumer:
     needs: [test, browser-prf]
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 35
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_TARGET_DIR: ${{ github.workspace }}/.ci/target
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '24'
-      - run: node test/package-consumer.js
+      - name: Prepare stable Rust for generated package assets
+        run: |
+          rustup update stable --no-self-update
+          rustup default stable
+          rustup target add wasm32-unknown-unknown
+      - name: Build holder assets and verify the complete packed consumer
         env:
           CVLD_RELEASE_DIR: ${{ runner.temp }}/cvld-release
+          ARTIFACT_ROOT: ${{ runner.temp }}/cvld-release/holder-build
+        run: |
+          set -euo pipefail
+          mkdir -p "$ARTIFACT_ROOT"
+          capture() {
+            result=$?
+            trap - EXIT
+            printf '%s\n' "$result" > "$CVLD_RELEASE_DIR/validation-status.txt"
+            (cd "$CVLD_RELEASE_DIR"; find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
+            exit "$result"
+          }
+          trap capture EXIT
+          rustc --version > "$ARTIFACT_ROOT/rustc-version.txt"
+          timeout --kill-after=15 1500 bash .ci/prepare-holder.sh 2>&1 | tee "$ARTIFACT_ROOT/build.log"
+          timeout --kill-after=15 300 node test/package-consumer.js 2>&1 | tee "$CVLD_RELEASE_DIR/consumer.log"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
         with:
           name: cmtymeet-cvld-npm-0.1.0-alpha.0-${{ github.sha }}
           path: ${{ runner.temp }}/cvld-release/
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 7
           compression-level: 0
   browser-prf:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020

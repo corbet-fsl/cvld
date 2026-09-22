@@ -43,15 +43,15 @@ export function createPasskeyService(options) {
     async finishRegistration({ id, response }) {
       try {
         const state = consume(id, 'registration'); if (!state) return false;
-        const result = await verifyRegistrationResponse({ response, expectedChallenge: state.challenge, expectedOrigin: origin, expectedRPID: rpID, requireUserVerification: requireUV, supportedAlgorithmIDs: [-7] });
+        const result = await verifyRegistrationResponse({ response: structuredClone(response), expectedChallenge: state.challenge, expectedOrigin: origin, expectedRPID: rpID, requireUserVerification: requireUV, supportedAlgorithmIDs: [-7] });
         if (!result.verified || !result.registrationInfo || clock() >= state.expiresAt) return false;
         const credential = result.registrationInfo.credential;
-        if (!store.insert(communityId, state.memberId, credential, maxPerMember)) return false;
+        if (!await store.insert(communityId, state.memberId, credential, maxPerMember)) return false;
         return { memberId: state.memberId, credentialId: credential.id };
       } catch { return false; }
     },
     async beginAdditionalRegistration(credentialId) {
-      const credential = store.get(communityId, credentialId);
+      const credential = await store.get(communityId, credentialId);
       if (!credential) throw new Error('Registered passkey required');
       const challenge = randomBytes(32).toString('base64url');
       const id = reserve({ kind: 'additional', credential, challenge });
@@ -61,7 +61,7 @@ export function createPasskeyService(options) {
       try {
         const state = consume(id, 'additional'); if (!state) return false;
         const result = await verifyAuthenticationResponse({ response, expectedChallenge: state.challenge, expectedOrigin: origin, expectedRPID: rpID, credential: state.credential, requireUserVerification: requireUV });
-        if (!result.verified || clock() >= state.expiresAt || !store.updateCounter(communityId, state.credential.id, result.authenticationInfo.newCounter)) return false;
+        if (!result.verified || clock() >= state.expiresAt || !await store.updateCounter(communityId, state.credential.id, result.authenticationInfo.newCounter)) return false;
         return registration(state.credential.memberId);
       } catch { return false; }
     },

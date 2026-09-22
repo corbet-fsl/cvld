@@ -18,6 +18,7 @@ export function createMemoryCredentialStore({ maxCredentials }) {
       return true;
     },
     get(communityId, id) { const value = records.get(key(communityId, id)); return value ? structuredClone(value) : undefined; },
+    hasMember(communityId, memberId) { return [...records.values()].some((record) => record.communityId === communityId && record.memberId === memberId); },
     updateCounter(communityId, id, counter) {
       const record = records.get(key(communityId, id));
       if (!record || !Number.isSafeInteger(counter) || counter < 0 || ((counter > 0 || record.counter > 0) && counter <= record.counter)) return false;
