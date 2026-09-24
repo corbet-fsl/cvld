@@ -1,0 +1,149 @@
+name: Release
+
+# A pushed v*.*.* tag builds, tests and attaches the npm tarball plus SHA256SUMS
+# to a GitHub release. npm publication is a separate manual step until npm
+# trusted publishing is configured (see docs/releasing.md). No registry token
+# is stored in GitHub. Registry trusted-publisher rules name this file, so keep
+# the path .github/workflows/release.yml.
+#
+# Manual runs: dispatch with --ref <tag> (and tag=<tag>) to rebuild a missing
+# release, or dispatch on main with an empty tag for a rehearsal that stops
+# after the verified bundle artifact.
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, identical to the dispatched ref; leave empty on a branch for a rehearsal without a release
+        required: false
+        default: ""
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: Check the tag against the manifests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.check.outputs.tag }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Require tag == v + package.json version == package-lock.json version
+        id: check
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          version=$(jq -r .version package.json)
+          for field in .version '.packages[""].version'; do
+            locked=$(jq -r "$field" package-lock.json)
+            if [[ "$locked" != "$version" ]]; then
+              echo "::error::package-lock.json $field is $locked, package.json is $version"
+              exit 1
+            fi
+          done
+          tag=""
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then tag="$GITHUB_REF_NAME"; fi
+          if [[ -n "$INPUT_TAG" && "$INPUT_TAG" != "$tag" ]]; then
+            echo "::error::Dispatch with --ref $INPUT_TAG so every job builds the tagged commit"
+            exit 1
+          fi
+          if [[ -n "$tag" ]]; then
+            [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] \
+              || { echo "::error::Not a release tag: $tag"; exit 1; }
+            if [[ "$tag" != "v$version" ]]; then
+              echo "::error::Tag $tag does not match package.json version $version"
+              exit 1
+            fi
+          else
+            echo "::notice::Rehearsal of $version on $GITHUB_REF_NAME; no GitHub release will be created"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  test:
+    name: Tests and packed consumer
+    needs: version
+    permissions:
+      contents: read
+    uses: ./.github/workflows/test.yml
+
+  bundle:
+    name: Verify the tested tarball
+    needs: [version, test]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: cmtymeet-cvld-npm-${{ github.sha }}
+          path: tested
+      - name: Check the packed-consumer evidence and assemble the bundle
+        run: |
+          set -euo pipefail
+          (cd tested && sha256sum --check --strict SHA256SUMS)
+          [[ "$(cat tested/validation-status.txt)" == 0 ]] \
+            || { echo "::error::Packed-consumer validation did not pass"; exit 1; }
+          tarball="corbet-labs-cvld-$VERSION.tgz"
+          packed=$(tar -xOzf "tested/$tarball" package/package.json | jq -r '.name + "@" + .version')
+          if [[ "$packed" != "@corbet-labs/cvld@$VERSION" ]]; then
+            echo "::error::$tarball contains $packed"
+            exit 1
+          fi
+          mkdir bundle
+          cp "tested/$tarball" bundle/
+          (cd bundle && sha256sum "$tarball" > SHA256SUMS && cat SHA256SUMS)
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cvld-release-${{ needs.version.outputs.version }}
+          path: bundle/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+  github-release:
+    name: Create the GitHub release
+    needs: [version, bundle]
+    if: needs.version.outputs.tag != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ needs.version.outputs.tag }}
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: cvld-release-${{ needs.version.outputs.version }}
+          path: bundle
+      - name: Create the release with the tarball and SHA256SUMS if it is missing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Never replace assets of an existing release: the lead may already
+          # have published those exact bytes to npm.
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "Release $RELEASE_TAG already exists; leaving its assets unchanged"
+            exit 0
+          fi
+          prerelease=()
+          if [[ "$RELEASE_TAG" == *-* ]]; then prerelease=(--prerelease); fi
+          gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --verify-tag --generate-notes --title "$RELEASE_TAG" "${prerelease[@]}" \
+            bundle/*.tgz bundle/SHA256SUMS

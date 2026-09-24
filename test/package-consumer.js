@@ -15,7 +15,7 @@ try {
   mkdirSync(destination, { recursive: true });
   for (const file of generated) assert(readFileSync(join('generated/holder', file)).length > 0, 'Generated holder assets required before packing');
   const [packed] = JSON.parse(execFileSync('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', destination], { encoding: 'utf8' }));
-  assert.equal(packed.name, '@corbet-labs/cvld'); assert.equal(packed.version, '0.1.0-alpha.0');
+  assert.equal(packed.name, '@corbet-labs/cvld'); assert.equal(packed.version, sourceManifest.version);
   const names = new Set(packed.files.map(file => file.path));
   for (const file of names) {
     assert.match(file, /^(package\.json|README\.md|LICENSE\.md|src\/[A-Za-z0-9._/-]+\.js|scripts\/install-native\.js|generated\/holder\/cvld_holder(?:_bg\.wasm)?(?:\.js|\.d\.ts)?)$/);

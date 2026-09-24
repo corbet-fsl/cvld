@@ -4,6 +4,8 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # The release workflow reuses these checks and the packed tarball they upload.
+  workflow_call:
 permissions:
   contents: read
 concurrency:
@@ -68,7 +70,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: cmtymeet-cvld-npm-0.1.0-alpha.0-${{ github.sha }}
+          name: cmtymeet-cvld-npm-${{ github.sha }}
           path: ${{ runner.temp }}/cvld-release/
           if-no-files-found: error
           retention-days: 7

@@ -2,12 +2,12 @@
 
 Passkey authentication, independently attested eligibility, and a stable pseudonymous member identity inside one community. cvld binds an authenticated member to a public chat signing key so other components can recognize the same participant.
 
-**Experimental `0.1.0-alpha.0`:** real AnonCreds and WebAuthn integrations with synthetic provider attestations, encrypted wallets and durable SQLite state. No compatible live phone, payment or voucher provider is integrated. External-provider uniqueness, production traffic privacy, recovery and native mobile device compatibility remain incomplete. APIs may change before a stable release.
+**Experimental `0.1.0-alpha.1`:** real AnonCreds and WebAuthn integrations with synthetic provider attestations, encrypted wallets and durable SQLite state. No compatible live phone, payment or voucher provider is integrated. External-provider uniqueness, production traffic privacy, recovery and native mobile device compatibility remain incomplete. APIs may change before a stable release.
 
 ## Install and native support
 
 ```sh
-npm install --ignore-scripts @corbet-labs/cvld@0.1.0-alpha.0
+npm install --ignore-scripts @corbet-labs/cvld@0.1.0-alpha.1
 ```
 
 The server and Node holder experiment require **Node 24 or newer on Linux x64 with glibc** (tested on Ubuntu 24.04). The aggregate `@corbet-labs/cvld` export loads the native AnonCreds library. Install that library explicitly before importing the aggregate export:
