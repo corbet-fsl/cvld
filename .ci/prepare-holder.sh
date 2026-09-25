@@ -19,7 +19,7 @@ fetch_source() {
   printf '%s\n' "$revision" > "$ARTIFACT_ROOT/$name-source.txt"
 }
 fetch_source anoncreds-rs hyperledger/anoncreds-rs "$anoncreds_revision"
-fetch_source cfrm cmtymeet/cfrm "$cfrm_revision"
+fetch_source cfrm corbet-libs/cfrm "$cfrm_revision"
 sha256sum .ci/dependencies/anoncreds-rs/Cargo.toml > "$ARTIFACT_ROOT/anoncreds-manifest-before.sha256"
 node --input-type=module <<'JS'
 import assert from 'node:assert/strict';

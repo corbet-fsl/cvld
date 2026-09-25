@@ -6,8 +6,8 @@ test -n "${CARGO_TARGET_DIR:-}"
 mkdir -p "$ARTIFACT_ROOT" .ci/dependencies
 cmsg_revision=155a8e77c9b6f3a950104863dab50f9bbe483d33
 cvch_revision=dff30de1a72358208e27c0416fb8e7096e64ae04
-grep -Fqx "cvch = { git = \"https://github.com/cmtymeet/cvch.git\", rev = \"$cvch_revision\" }" native/voucher/Cargo.toml
-grep -Fqx "cmsg = { git = \"https://github.com/cmtymeet/cmsg.git\", rev = \"$cmsg_revision\" }" native/voucher/Cargo.toml
+grep -Fqx "cvch = { git = \"https://github.com/corbet-foss/cvch.git\", rev = \"$cvch_revision\" }" native/voucher/Cargo.toml
+grep -Fqx "cmsg = { git = \"https://github.com/corbet-libs/cmsg.git\", rev = \"$cmsg_revision\" }" native/voucher/Cargo.toml
 if test "${RESOLVE_DEPENDENCIES:-0}" = 1; then
   cargo generate-lockfile --manifest-path native/voucher/Cargo.toml
   date -u +%FT%TZ > "$ARTIFACT_ROOT/voucher-dependency-resolution-time.txt"
@@ -16,7 +16,7 @@ cp native/voucher/Cargo.lock "$ARTIFACT_ROOT/voucher-Cargo.lock"
 cargo build --locked --release --manifest-path native/voucher/Cargo.toml
 mkdir .ci/dependencies/cmsg
 git -C .ci/dependencies/cmsg init --quiet
-git -C .ci/dependencies/cmsg remote add origin https://github.com/cmtymeet/cmsg.git
+git -C .ci/dependencies/cmsg remote add origin https://github.com/corbet-libs/cmsg.git
 git -C .ci/dependencies/cmsg fetch --depth=1 origin "$cmsg_revision"
 git -C .ci/dependencies/cmsg -c advice.detachedHead=false checkout --detach FETCH_HEAD
 test "$(git -C .ci/dependencies/cmsg rev-parse HEAD)" = "$cmsg_revision"

@@ -6,8 +6,8 @@ rust-version = "1.97"
 publish = false
 
 [dependencies]
-cvch = { git = "https://github.com/cmtymeet/cvch.git", rev = "dff30de1a72358208e27c0416fb8e7096e64ae04" }
-cmsg = { git = "https://github.com/cmtymeet/cmsg.git", rev = "155a8e77c9b6f3a950104863dab50f9bbe483d33" }
+cvch = { git = "https://github.com/corbet-foss/cvch.git", rev = "dff30de1a72358208e27c0416fb8e7096e64ae04" }
+cmsg = { git = "https://github.com/corbet-libs/cmsg.git", rev = "155a8e77c9b6f3a950104863dab50f9bbe483d33" }
 ed25519-dalek = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

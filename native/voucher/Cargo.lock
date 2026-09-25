@@ -211,7 +211,7 @@ checksum = "0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a"
 [[package]]
 name = "cmsg"
 version = "0.1.0-alpha.1"
-source = "git+https://github.com/cmtymeet/cmsg.git?rev=155a8e77c9b6f3a950104863dab50f9bbe483d33#155a8e77c9b6f3a950104863dab50f9bbe483d33"
+source = "git+https://github.com/corbet-libs/cmsg.git?rev=155a8e77c9b6f3a950104863dab50f9bbe483d33#155a8e77c9b6f3a950104863dab50f9bbe483d33"
 dependencies = [
  "chacha20poly1305",
  "data-encoding",
@@ -409,7 +409,7 @@ dependencies = [
 [[package]]
 name = "cvch"
 version = "0.2.0"
-source = "git+https://github.com/cmtymeet/cvch.git?rev=dff30de1a72358208e27c0416fb8e7096e64ae04#dff30de1a72358208e27c0416fb8e7096e64ae04"
+source = "git+https://github.com/corbet-foss/cvch.git?rev=dff30de1a72358208e27c0416fb8e7096e64ae04#dff30de1a72358208e27c0416fb8e7096e64ae04"
 dependencies = [
  "ed25519-dalek",
  "serde",

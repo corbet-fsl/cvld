@@ -18,7 +18,7 @@ The tarball must come from CI: `generated/holder/` is built there and is not
 committed, so `npm publish` from a checkout would ship an incomplete package.
 
 A rehearsal runs everything except the release:
-`gh workflow run release.yml -R cmtymeet/cvld --ref main`. The verified bundle
+`gh workflow run release.yml -R corbet-libs/cvld --ref main`. The verified bundle
 is kept as the `cvld-release-X.Y.Z` workflow artifact. To recreate a missing
 release, dispatch on the tag: `gh workflow run release.yml --ref vX.Y.Z -f tag=vX.Y.Z`.
 
@@ -31,7 +31,7 @@ release, dispatch on the tag: `gh workflow run release.yml --ref vX.Y.Z -f tag=v
 3. Publish the attached tarball with the npm token from sops:
 
    ```sh
-   gh release download vX.Y.Z -R cmtymeet/cvld -D cvld-release
+   gh release download vX.Y.Z -R corbet-libs/cvld -D cvld-release
    cd cvld-release && sha256sum --check --strict SHA256SUMS
    umask 077; rc=$(mktemp)
    printf '//registry.npmjs.org/:_authToken=%s\n' \
@@ -51,7 +51,7 @@ release, dispatch on the tag: `gh workflow run release.yml --ref vX.Y.Z -f tag=v
 
 ## Trusted publishing
 
-Once npm trusted publishing is configured for `cmtymeet/cvld` with the workflow
+Once npm trusted publishing is configured for `corbet-libs/cvld` with the workflow
 file `release.yml` (it needs the owner's 2FA; planned for December 2026 when
 the stored token expires), add an OIDC `npm publish` job to `release.yml` and
 drop step 3.

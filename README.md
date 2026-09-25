@@ -16,7 +16,7 @@ The server and Node holder experiment require **Node 24 or newer on Linux x64 wi
 npm exec --offline -- cvld-install-native
 ```
 
-This opt-in command downloads the official AnonCreds Rust 0.2.3 Linux x64 archive from GitHub, verifies the pinned SHA-256, and extracts `libanoncreds.so` into the resolved dependency directory. It requires network access and `tar`. cvld adds no install/postinstall hook or service installation. Its upstream AnonCreds and FFI dependencies do declare install scripts: keep `--ignore-scripts` on the initial install to bypass them, as CI does. A plain npm install may run those upstream installers. The `--offline` flag prevents npm from obtaining a missing command package; the explicitly invoked downloader itself uses the network. The artifact URL and checksum are readable in [`scripts/install-native.js`](https://github.com/cmtymeet/cvld/blob/main/scripts/install-native.js).
+This opt-in command downloads the official AnonCreds Rust 0.2.3 Linux x64 archive from GitHub, verifies the pinned SHA-256, and extracts `libanoncreds.so` into the resolved dependency directory. It requires network access and `tar`. cvld adds no install/postinstall hook or service installation. Its upstream AnonCreds and FFI dependencies do declare install scripts: keep `--ignore-scripts` on the initial install to bypass them, as CI does. A plain npm install may run those upstream installers. The `--offline` flag prevents npm from obtaining a missing command package; the explicitly invoked downloader itself uses the network. The artifact URL and checksum are readable in [`scripts/install-native.js`](https://github.com/corbet-libs/cvld/blob/main/scripts/install-native.js).
 
 macOS, Windows, Linux ARM, musl/Alpine, Android and iOS native holder builds are not supported by this release. `@corbet-labs/cvld/client` contains portable WebCrypto wallet functions and a browser WebAuthn adapter without Node or native-addon imports. Native mobile adapters are future work; passkey support alone does not guarantee PRF support.
 
@@ -32,7 +32,7 @@ macOS, Windows, Linux ARM, musl/Alpine, Android and iOS native holder builds are
 
 The host supplies explicit community scope, policy, trusted provider keys, origin/RP ID, clocks, lifetimes, capacities and storage. `createPasskeyService` verifies enrollment into a credential repository. `createVerifier` accepts a registered credential ID, verifies eligibility for the same member and issues an admission certificate bound to the requested chat public key. Registering additional passkeys requires authentication from an existing passkey and preserves the member ID.
 
-The result of `verifier.authenticate(...)` is `{eligible: true, communityId, memberId, admission}` or `false`. `verifier.verify(...)` returns a boolean; either operation consumes its challenge. The [synthetic account integration example](https://github.com/cmtymeet/cvld/blob/main/test/account.test.js) shows the complete issuance and authentication sequence with real signatures and synthetic external facts.
+The result of `verifier.authenticate(...)` is `{eligible: true, communityId, memberId, admission}` or `false`. `verifier.verify(...)` returns a boolean; either operation consumes its challenge. The [synthetic account integration example](https://github.com/corbet-libs/cvld/blob/main/test/account.test.js) shows the complete issuance and authentication sequence with real signatures and synthetic external facts.
 
 A component can verify a certificate independently:
 
@@ -84,10 +84,10 @@ Holder credentials/link secrets and issuer keys/configuration have explicit encr
 
 Public CI verifies genuine credentials, registration/assertion failures, cross-account rejection, encrypted state restoration, SQLite concurrency/restart, Chromium virtual-authenticator PRF behavior and installation from the actual npm tarball. This is executable integration evidence, not a production anonymity or physical-device security claim.
 
-- [Behavioral contract](https://github.com/cmtymeet/cvld/blob/main/docs/contract.md)
-- [Implementation, byte contracts and test evidence](https://github.com/cmtymeet/cvld/blob/main/studies/implementation-status.md)
-- [Independent provider candidates](https://github.com/cmtymeet/cvld/blob/main/studies/independent-providers.md)
-- [Studies](https://github.com/cmtymeet/cvld/blob/main/studies/README.md)
-- [Experiments](https://github.com/cmtymeet/cvld/blob/main/experiments/README.md)
+- [Behavioral contract](https://github.com/corbet-libs/cvld/blob/main/docs/contract.md)
+- [Implementation, byte contracts and test evidence](https://github.com/corbet-libs/cvld/blob/main/studies/implementation-status.md)
+- [Independent provider candidates](https://github.com/corbet-libs/cvld/blob/main/studies/independent-providers.md)
+- [Studies](https://github.com/corbet-libs/cvld/blob/main/studies/README.md)
+- [Experiments](https://github.com/corbet-libs/cvld/blob/main/experiments/README.md)
 
-License: [FSL-1.1-ALv2](https://github.com/cmtymeet/cvld/blob/main/LICENSE.md). Third-party libraries retain their own licenses.
+License: [FSL-1.1-ALv2](https://github.com/corbet-libs/cvld/blob/main/LICENSE.md). Third-party libraries retain their own licenses.
