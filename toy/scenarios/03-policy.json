@@ -1,0 +1,55 @@
+{
+  "title": "Tighter policy lapses members until they pass",
+  "steps": [
+    {
+      "do": "policy",
+      "community": 0,
+      "voucher": false
+    },
+    {
+      "do": "wallet",
+      "name": "holder"
+    },
+    {
+      "do": "join",
+      "wallet": "holder",
+      "member": "member",
+      "community": 0
+    },
+    {
+      "do": "handle",
+      "member": "member",
+      "value": "member_one"
+    },
+    {
+      "do": "issue",
+      "member": "member",
+      "state": "admitted"
+    },
+    {
+      "do": "policy",
+      "community": 0,
+      "voucher": true
+    },
+    {
+      "do": "issue",
+      "member": "member",
+      "state": "lapsed"
+    },
+    {
+      "do": "lobby",
+      "member": "member",
+      "state": "lapsed",
+      "missing": "cvch"
+    },
+    {
+      "do": "voucher",
+      "member": "member"
+    },
+    {
+      "do": "issue",
+      "member": "member",
+      "state": "admitted"
+    }
+  ]
+}

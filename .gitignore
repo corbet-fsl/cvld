@@ -1,6 +1,5 @@
-node_modules/
-*.tgz
-.ci/dependencies/
-.ci/target/
-generated/
-native/*/target/
+/target/
+/clients/ts/node_modules/
+*.db
+*.db-shm
+*.db-wal

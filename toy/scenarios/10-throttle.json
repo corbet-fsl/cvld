@@ -1,0 +1,9 @@
+{
+  "title": "Registration and handle checks are throttled",
+  "burst": 1,
+  "steps": [
+    {
+      "do": "throttle"
+    }
+  ]
+}

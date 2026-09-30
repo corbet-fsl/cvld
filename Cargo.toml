@@ -1,0 +1,53 @@
+[package]
+name = "cvld"
+version = "0.2.0"
+edition = "2024"
+license = "FSL-1.1-ALv2"
+repository = "https://github.com/corbet-libs/cvld"
+description = "The permanent door of the cmtymeet trust stack"
+publish = false
+
+[features]
+default = []
+development-gate = ["cglb/development-gate"]
+
+[dependencies]
+cmnt = { git = "https://github.com/corbet-libs/cmnt", rev = "883eaedfd9f2b9182955f8798054a58ebc63cd49" }
+clbs = { git = "https://github.com/corbet-foss/clbs", rev = "2eeefb351484aadf430cd12083e0f198cde6a5b2" }
+ed25519-dalek = "2.2"
+cpsd = { git = "https://github.com/corbet-foss/cpsd", rev = "b60f2bbff04dbe0a93cb41992006b06dafc798c3", default-features = false, features = ["storage"] }
+crlt = { git = "https://github.com/corbet-foss/crlt", rev = "6b94dacd7fa04aa8847c62c6471a1fc5c0f6c9dc" }
+csgn = { git = "https://github.com/corbet-foss/csgn", rev = "d7203f310c3c129c3f67ef4ef3e34ccf0ae8c93b", features = ["libsql"] }
+cglb = { git = "https://github.com/corbet-libs/cglb", rev = "03d1d8d9437c4f9547e788130cfe83c2a33188ff" }
+cpky = { git = "https://github.com/corbet-foss/cpky", rev = "e0bea9b1a6425fe17b65257e747d2c4621078845" }
+cthl = { git = "https://github.com/corbet-foss/cthl", rev = "7f1a38de4285dee4b15ee8f9e82c1cb257513644" }
+axum = "0.8.9"
+tower-http = { version = "0.6.11", features = ["cors"] }
+utoipa = "6.0.0"
+clap = { version = "4.6.7", features = ["derive", "env", "string"] }
+rmcp = { version = "3.5.0", features = ["server", "client", "transport-io", "transport-child-process"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = "0.4"
+rand = "0.8"
+thiserror = "2"
+zeroize = "1.9"
+subtle = "2.6"
+
+[dev-dependencies]
+cvch = { git = "https://github.com/corbet-foss/cvch", rev = "bf0a5dede0af0680e6c74720cbb51f1c10a812e9" }
+cpns = { git = "https://github.com/corbet-foss/cpns", rev = "23968a9fa338791e70078c6070a6f1f3cf185ff7" }
+tempfile = "3"
+webauthn-authenticator-rs = { version = "0.5.5", default-features = false, features = ["softtoken"] }
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.test]
+opt-level = 1
+
+[lints.rust]
+unsafe_code = "forbid"

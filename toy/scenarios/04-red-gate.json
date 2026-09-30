@@ -1,0 +1,39 @@
+{
+  "title": "A red gate lapses an admitted member",
+  "steps": [
+    {
+      "do": "wallet",
+      "name": "holder"
+    },
+    {
+      "do": "join",
+      "wallet": "holder",
+      "member": "member",
+      "community": 0
+    },
+    {
+      "do": "handle",
+      "member": "member",
+      "value": "member_one"
+    },
+    {
+      "do": "voucher",
+      "member": "member"
+    },
+    {
+      "do": "issue",
+      "member": "member",
+      "state": "admitted"
+    },
+    {
+      "do": "withdraw",
+      "member": "member"
+    },
+    {
+      "do": "lobby",
+      "member": "member",
+      "state": "lapsed",
+      "missing": "cvch"
+    }
+  ]
+}

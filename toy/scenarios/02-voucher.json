@@ -1,0 +1,35 @@
+{
+  "title": "Lobby explains missing voucher and admission",
+  "steps": [
+    {
+      "do": "wallet",
+      "name": "holder"
+    },
+    {
+      "do": "join",
+      "wallet": "holder",
+      "member": "member",
+      "community": 0
+    },
+    {
+      "do": "handle",
+      "member": "member",
+      "value": "member_one"
+    },
+    {
+      "do": "lobby",
+      "member": "member",
+      "missing": "cvch",
+      "warnings": true
+    },
+    {
+      "do": "voucher",
+      "member": "member"
+    },
+    {
+      "do": "issue",
+      "member": "member",
+      "state": "admitted"
+    }
+  ]
+}

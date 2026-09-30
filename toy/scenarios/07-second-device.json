@@ -1,0 +1,33 @@
+{
+  "title": "Second-device protection (currently blocked)",
+  "steps": [
+    {
+      "do": "wallet",
+      "name": "holder"
+    },
+    {
+      "do": "join",
+      "wallet": "holder",
+      "member": "member",
+      "community": 0
+    },
+    {
+      "do": "handle",
+      "member": "member",
+      "value": "member_one"
+    },
+    {
+      "do": "voucher",
+      "member": "member"
+    },
+    {
+      "do": "issue",
+      "member": "member",
+      "state": "admitted"
+    },
+    {
+      "do": "second_device",
+      "member": "member"
+    }
+  ]
+}

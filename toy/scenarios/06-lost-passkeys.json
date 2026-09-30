@@ -1,0 +1,37 @@
+{
+  "title": "Loss of every passkey releases access with NO RETURN",
+  "steps": [
+    {
+      "do": "wallet",
+      "name": "holder"
+    },
+    {
+      "do": "join",
+      "wallet": "holder",
+      "member": "member",
+      "community": 0
+    },
+    {
+      "do": "handle",
+      "member": "member",
+      "value": "member_one"
+    },
+    {
+      "do": "voucher",
+      "member": "member"
+    },
+    {
+      "do": "issue",
+      "member": "member",
+      "state": "admitted"
+    },
+    {
+      "do": "lose_all",
+      "member": "member"
+    },
+    {
+      "do": "no_return",
+      "member": "member"
+    }
+  ]
+}

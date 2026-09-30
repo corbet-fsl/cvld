@@ -1,0 +1,48 @@
+{
+  "title": "Registration expiry frees the handle with NO RETURN",
+  "steps": [
+    {
+      "do": "wallet",
+      "name": "holder"
+    },
+    {
+      "do": "join",
+      "wallet": "holder",
+      "member": "member",
+      "community": 0
+    },
+    {
+      "do": "handle",
+      "member": "member",
+      "value": "member_one"
+    },
+    {
+      "do": "lobby",
+      "member": "member",
+      "warnings": true
+    },
+    {
+      "do": "expire",
+      "member": "member"
+    },
+    {
+      "do": "no_return",
+      "member": "member"
+    },
+    {
+      "do": "wallet",
+      "name": "replacement"
+    },
+    {
+      "do": "join",
+      "wallet": "replacement",
+      "member": "replacement",
+      "community": 0
+    },
+    {
+      "do": "handle",
+      "member": "replacement",
+      "value": "member_one"
+    }
+  ]
+}

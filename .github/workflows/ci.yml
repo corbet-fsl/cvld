@@ -1,0 +1,64 @@
+name: Rust door
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cvld-${{ github.ref }}
+  # Complete release security checks and save the cache across parallel pushes.
+  # GitHub still coalesces pending revisions to the latest commit.
+  cancel-in-progress: false
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARGO_BUILD_JOBS: 2
+      CARGO_TERM_COLOR: never
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          cache-on-failure: true
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - run: rustc --version
+      - run: node --test .github/check-pins.test.mjs
+      - run: cargo metadata --locked --format-version 1 > dependency-metadata.json
+      - run: node .github/check-pins.mjs dependency-metadata.json
+      - run: cargo fmt --all --check
+      - run: cargo clippy --locked --all-targets --features development-gate -- -D warnings
+      - name: Regenerate protocol and client
+        run: |
+          cargo run --locked -- openapi > docs/openapi.json
+          npm ci --prefix clients/ts
+          npm run generate --prefix clients/ts
+          npm run check --prefix clients/ts
+          npm test --prefix clients/ts
+      - run: cargo test --locked --features development-gate --no-fail-fast
+      - run: cargo test --locked --release
+      - name: Prove development gate cannot enter a release binary
+        run: |
+          if cargo check --locked --release --features development-gate > release-gate.log 2>&1; then exit 1; fi
+          grep -q 'development-gate is forbidden in release builds' release-gate.log
+          if CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS=true cargo check --locked --release --features development-gate > release-debug-gate.log 2>&1; then exit 1; fi
+          grep -q 'development-gate is forbidden in release builds' release-debug-gate.log
+      - name: Verify committed protocol and client
+        run: |
+          git ls-files --error-unmatch docs/openapi.json clients/ts/schema.d.ts
+          git diff --exit-code -- docs/openapi.json clients/ts/schema.d.ts
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: generated
+          path: |
+            Cargo.lock
+            docs/openapi.json
+            clients/ts/schema.d.ts

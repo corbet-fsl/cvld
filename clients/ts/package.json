@@ -1,0 +1,17 @@
+{
+  "name": "cvld-client",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "openapi-typescript ../../docs/openapi.json -o schema.d.ts",
+    "check": "tsc --noEmit --project tsconfig.json",
+    "test": "node --experimental-strip-types --test security.test.ts"
+  },
+  "devDependencies": {
+    "openapi-typescript": "7.13.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "openapi-fetch": "^0.17.0"
+  }
+}

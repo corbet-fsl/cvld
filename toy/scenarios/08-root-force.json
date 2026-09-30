@@ -1,0 +1,9 @@
+{
+  "title": "Root force overrides community settings",
+  "steps": [
+    {
+      "do": "force",
+      "community": 0
+    }
+  ]
+}

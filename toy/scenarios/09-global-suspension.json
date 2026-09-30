@@ -1,0 +1,62 @@
+{
+  "title": "Global suspension stops renewal in every community",
+  "communities": 2,
+  "steps": [
+    {
+      "do": "wallet",
+      "name": "holder"
+    },
+    {
+      "do": "join",
+      "wallet": "holder",
+      "member": "member",
+      "community": 0
+    },
+    {
+      "do": "handle",
+      "member": "member",
+      "value": "member_one"
+    },
+    {
+      "do": "voucher",
+      "member": "member"
+    },
+    {
+      "do": "issue",
+      "member": "member",
+      "state": "admitted"
+    },
+    {
+      "do": "join",
+      "wallet": "holder",
+      "member": "second",
+      "community": 1
+    },
+    {
+      "do": "handle",
+      "member": "second",
+      "value": "second_member"
+    },
+    {
+      "do": "voucher",
+      "member": "second"
+    },
+    {
+      "do": "issue",
+      "member": "second",
+      "state": "admitted"
+    },
+    {
+      "do": "suspend",
+      "wallet": "holder"
+    },
+    {
+      "do": "renewal_blocked",
+      "member": "member"
+    },
+    {
+      "do": "renewal_blocked",
+      "member": "second"
+    }
+  ]
+}

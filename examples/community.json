@@ -1,0 +1,36 @@
+{
+  "listen": "127.0.0.1:8081",
+  "domain": "example.test",
+  "community": "example",
+  "database_url": "file:///var/lib/cvld/example.db",
+  "database_token_file": null,
+  "signing_seed_file": "configuration/community-signing.seed",
+  "rulebook_file": "configuration/rulebook.json",
+  "schema_file": "configuration/schema.json",
+  "global_key_ring_file": "configuration/global-ring.cbor",
+  "global_status_file": "configuration/global-status.cose",
+  "minimum_global_epoch": 1,
+  "minimum_global_revision": 1,
+  "global_gates": [
+    "configured-global-gate"
+  ],
+  "root": {
+    "user": "00000000-0000-4000-8000-000000000001",
+    "bootstrap_file": "configuration/root-bootstrap.capability"
+  },
+  "admin": {
+    "user": "00000000-0000-4000-8000-000000000002",
+    "bootstrap_file": "configuration/admin-bootstrap.capability"
+  },
+  "pending_days": 7,
+  "lease_months": 12,
+  "session_seconds": 600,
+  "pending_capacity": 128,
+  "throttle_burst": 20,
+  "throttle_interval_ms": 1000,
+  "publication_seconds": 172800,
+  "signer_max_seconds": 31622400,
+  "minimum_notice_seconds": 86400,
+  "voucher_provider": "sponsor",
+  "voucher_public_key_file": "configuration/voucher-public.key"
+}

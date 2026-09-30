@@ -1,0 +1,20 @@
+{
+  "listen": "127.0.0.1:8080",
+  "domain": "example.test",
+  "database_url": "file:///var/lib/cvld/global.db",
+  "database_token_file": null,
+  "signing_seed_file": "configuration/global-signing.seed",
+  "issuer_key_file": "configuration/passport-issuer.key",
+  "uniqueness_key_file": "configuration/uniqueness.key",
+  "policy_file": "configuration/global-policy.cose",
+  "policy_authority_file": "configuration/policy-authority.cbor",
+  "root_user": "00000000-0000-4000-8000-000000000001",
+  "root_bootstrap_file": "configuration/root-bootstrap.capability",
+  "session_seconds": 600,
+  "pending_capacity": 128,
+  "throttle_burst": 20,
+  "throttle_interval_ms": 1000,
+  "publication_seconds": 172800,
+  "signer_max_seconds": 2592000,
+  "development": false
+}

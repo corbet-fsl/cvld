@@ -1,0 +1,32 @@
+{
+  "title": "Join two communities with independent identities",
+  "communities": 2,
+  "steps": [
+    {
+      "do": "wallet",
+      "name": "holder"
+    },
+    {
+      "do": "join",
+      "wallet": "holder",
+      "member": "member",
+      "community": 0
+    },
+    {
+      "do": "handle",
+      "member": "member",
+      "value": "member_one"
+    },
+    {
+      "do": "join",
+      "wallet": "holder",
+      "member": "second",
+      "community": 1
+    },
+    {
+      "do": "unlinkable",
+      "first": "member",
+      "second": "second"
+    }
+  ]
+}
