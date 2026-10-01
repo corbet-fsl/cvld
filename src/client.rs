@@ -23,27 +23,25 @@ static DOCUMENT: LazyLock<Value> = LazyLock::new(|| {
     }
 });
 
-static RESPONSES: LazyLock<Result<BTreeMap<String, jsonschema::Validator>>> =
-    LazyLock::new(|| {
-        let paths = DOCUMENT["paths"].as_object().ok_or(Error::Reconcile)?;
-        paths
-            .values()
-            .map(|item| {
-                let operation = &item["post"];
-                let name = operation["operationId"].as_str().ok_or(Error::Reconcile)?;
-                let mut schema = operation["responses"]["200"]["content"]["application/json"]
-                    ["schema"]
-                    .clone();
-                schema
-                    .as_object_mut()
-                    .ok_or(Error::Reconcile)?
-                    .insert("components".into(), DOCUMENT["components"].clone());
-                // Network and file resolvers are disabled in Cargo features.
-                let validator = jsonschema::validator_for(&schema).map_err(|_| Error::Reconcile)?;
-                Ok((name.to_owned(), validator))
-            })
-            .collect()
-    });
+static RESPONSES: LazyLock<Result<BTreeMap<String, jsonschema::Validator>>> = LazyLock::new(|| {
+    let paths = DOCUMENT["paths"].as_object().ok_or(Error::Reconcile)?;
+    paths
+        .values()
+        .map(|item| {
+            let operation = &item["post"];
+            let name = operation["operationId"].as_str().ok_or(Error::Reconcile)?;
+            let mut schema =
+                operation["responses"]["200"]["content"]["application/json"]["schema"].clone();
+            schema
+                .as_object_mut()
+                .ok_or(Error::Reconcile)?
+                .insert("components".into(), DOCUMENT["components"].clone());
+            // Network and file resolvers are disabled in Cargo features.
+            let validator = jsonschema::validator_for(&schema).map_err(|_| Error::Reconcile)?;
+            Ok((name.to_owned(), validator))
+        })
+        .collect()
+});
 
 /// Validate a successful response against the exact owner's generated DTO schema.
 /// Malformed replies after dispatch are uncertain, even if JSON parsing succeeds.
