@@ -11,6 +11,49 @@ mod http;
 #[cfg(all(feature = "client-http", not(target_arch = "wasm32")))]
 pub use http::HttpClient;
 
+#[cfg(all(feature = "client-browser", target_arch = "wasm32"))]
+#[path = "client_browser.rs"]
+mod browser;
+#[cfg(all(feature = "client-browser", target_arch = "wasm32"))]
+pub use browser::BrowserClient;
+
+#[cfg(any(feature = "client-http", feature = "client-browser"))]
+fn origin(base: &str, host: &str) -> Result<url::Url> {
+    let url = url::Url::parse(base).map_err(|_| Error::Invalid)?;
+    if !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+        || url.path() != "/"
+    {
+        return Err(Error::Invalid);
+    }
+    let loopback = matches!(url.host_str(), Some("127.0.0.1" | "[::1]" | "localhost"));
+    if url.scheme() != "https" && !(url.scheme() == "http" && loopback) {
+        return Err(Error::Invalid);
+    }
+    if url.scheme() == "https" && url.host_str() != Some(host) {
+        return Err(Error::WrongHost);
+    }
+    Ok(url)
+}
+
+#[cfg(any(feature = "client-http", feature = "client-browser"))]
+fn decode_response(name: &str, status: u16, body: &[u8]) -> Result<Value> {
+    if status != 200 {
+        let error: crate::error::ErrorBody =
+            serde_json::from_slice(body).map_err(|_| Error::Reconcile)?;
+        return Err(if error.error.http_status() == status {
+            error.error
+        } else {
+            Error::Reconcile
+        });
+    }
+    let value: Value = serde_json::from_slice(body).map_err(|_| Error::Reconcile)?;
+    validate_response(name, &value)?;
+    Ok(value)
+}
+
 static DOCUMENT: LazyLock<Value> = LazyLock::new(|| {
     #[cfg(feature = "server")]
     {

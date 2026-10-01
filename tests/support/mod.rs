@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+pub mod client_faults;
 pub mod resident;
 
 use cvld::{

@@ -1,5 +1,12 @@
 /target/
+/tests/browser/target/
 /clients/ts/node_modules/
 *.db
 *.db-shm
 *.db-wal
+
+/browser-fixture.json
+/browser-fixture.json.pending
+/browser-native/
+/browser-native-build.json
+/.browser-tls/

@@ -786,41 +786,30 @@ impl CommunityService {
     }
 }
 async fn publish(facade: &Facade, now: u64) -> Result<TrustFeed> {
-    let mut policy = facade.policy().lock().await;
-    let mut snapshots = Vec::new();
-    for kind in [
-        cplc::SnapshotKind::Settings,
-        cplc::SnapshotKind::Schema,
-        cplc::SnapshotKind::Communities,
-        cplc::SnapshotKind::RevocationList,
-        cplc::SnapshotKind::SchemaVersions,
-    ] {
-        snapshots.push(
-            policy
-                .publish(kind, now)
-                .await
-                .map_err(|_| Error::Unavailable)?,
-        );
-    }
-    let manifest = policy
-        .trust_manifest(now)
+    let feed = facade
+        .policy()
+        .lock()
+        .await
+        .refresh_trust(now)
         .await
         .map_err(|_| Error::Unavailable)?;
-    let ring = policy.key_ring().map_err(|_| Error::Unavailable)?;
-    let verified = ring
-        .verify(&manifest, csgn::Kind::SettingsSnapshot, now)
-        .map_err(|_| Error::Unavailable)?;
-    let view: cplc::TrustManifest =
-        serde_json::from_slice(verified.payload()).map_err(|_| Error::Unavailable)?;
     Ok(TrustFeed {
-        revision: view.revision,
-        policy_epoch: view.policy_epoch,
-        key_ring: ring.to_cbor(),
-        manifest,
-        settings: snapshots.remove(0),
-        schema: snapshots.remove(0),
-        communities: snapshots.remove(0),
-        revocations: snapshots.remove(0),
-        schema_versions: snapshots.remove(0),
+        revision: feed.revision,
+        policy_epoch: feed.policy_epoch,
+        key_ring: feed.key_ring.clone(),
+        key_transitions: feed
+            .key_transitions
+            .iter()
+            .map(|transition| TrustKeyTransition {
+                revision: transition.revision,
+                proof: transition.proof.clone(),
+            })
+            .collect(),
+        manifest: feed.manifest.clone(),
+        settings: feed.settings.clone(),
+        schema: feed.schema.clone(),
+        communities: feed.communities.clone(),
+        revocations: feed.revocations.clone(),
+        schema_versions: feed.schema_versions.clone(),
     })
 }

@@ -1,7 +1,10 @@
 version: 2
 updates:
 - package-ecosystem: cargo
-  directory: /
+  directories:
+  - /
+  - /.github/coverage-runtime
+  - /tests/browser
   schedule:
     interval: daily
   open-pull-requests-limit: 1

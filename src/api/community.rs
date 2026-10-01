@@ -136,12 +136,21 @@ pub struct TrustFeed {
     pub revision: u64,
     pub policy_epoch: u64,
     pub key_ring: Vec<u8>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub key_transitions: Vec<TrustKeyTransition>,
     pub manifest: Vec<u8>,
     pub settings: Vec<u8>,
     pub schema: Vec<u8>,
     pub schema_versions: Vec<u8>,
     pub communities: Vec<u8>,
     pub revocations: Vec<u8>,
+}
+/// Original publishing-key endorsement; routing metadata is not authority.
+#[derive(Clone, Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TrustKeyTransition {
+    pub revision: u64,
+    pub proof: Vec<u8>,
 }
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]

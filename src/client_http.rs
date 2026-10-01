@@ -1,6 +1,6 @@
 //! Native HTTP adapter for the generated door contract.
 use super::Transport;
-use crate::error::{Error, ErrorBody, Result};
+use crate::error::{Error, Result};
 use serde_json::Value;
 
 #[derive(Clone)]
@@ -12,22 +12,7 @@ pub struct HttpClient {
 }
 impl HttpClient {
     pub fn new(base: String, host: String, token: Option<String>) -> Result<Self> {
-        let url = reqwest::Url::parse(&base).map_err(|_| Error::Invalid)?;
-        if !url.username().is_empty()
-            || url.password().is_some()
-            || url.query().is_some()
-            || url.fragment().is_some()
-            || url.path() != "/"
-        {
-            return Err(Error::Invalid);
-        }
-        let loopback = matches!(url.host_str(), Some("127.0.0.1" | "[::1]" | "localhost"));
-        if url.scheme() != "https" && !(url.scheme() == "http" && loopback) {
-            return Err(Error::Invalid);
-        }
-        if url.scheme() == "https" && url.host_str() != Some(host.as_str()) {
-            return Err(Error::WrongHost);
-        }
+        super::origin(&base, &host)?;
         let client = reqwest::Client::builder()
             .user_agent("cvld-client")
             .no_proxy()
@@ -88,17 +73,7 @@ impl HttpClient {
             }
             body.extend_from_slice(&chunk);
         }
-        if status != 200 {
-            let error: ErrorBody = serde_json::from_slice(&body).map_err(|_| Error::Reconcile)?;
-            return Err(if error.error.http_status() == status {
-                error.error
-            } else {
-                Error::Reconcile
-            });
-        }
-        let value: Value = serde_json::from_slice(&body).map_err(|_| Error::Reconcile)?;
-        super::validate_response(name, &value)?;
-        Ok(value)
+        super::decode_response(name, status, &body)
     }
 }
 

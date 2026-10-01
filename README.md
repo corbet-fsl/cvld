@@ -68,8 +68,11 @@ Choose the passport cohort's common expiry at a UTC-day boundary, as required
 by the community gate facade. Global status publication uses whole UTC days
 and a configured lifetime of at least two days. Each blind issuance challenge
 is bound to the verified session with an independent random identifier; bearer
-tokens are never written into issuance storage. Login supplies both the account
-UUID and credential ID, keeping server-side credential lists private.
+tokens are never written into issuance storage. Discoverable sign-in starts with
+`login_discoverable_begin({})`, so a restored device needs no account identifier
+or credential list. Keyhole verifies the authenticator's handle and selected key
+before the existing login completion returns an exact-key session. The older
+identified sign-in still accepts the account UUID and credential ID.
 
 `development-gate` is an opt-in Cargo feature for development builds. Enabling
 it in a release build is a compilation error, including releases with debug
@@ -144,8 +147,11 @@ Legal-order/self-ban authority integration remains unconfigured. The mandatory l
 
 Pin changes use cmbr's sealed cblc interface and remain disabled in the facade
 integration. Initial v2 pins and reads work. Credentials
-require caller-authorized public device keys; this door does not implement a
-separate device-key attestation protocol. Schema changes currently advance the
+require device signing keys bound to a current live passkey by `device_authorize`.
+The issuer reads those bindings independently while holding the member lease;
+requested public keys cannot authorize themselves. Removing the associated
+passkey immediately removes its authority. Full device pairing and restored Keys
+authority remain integration obligations. Schema changes currently advance the
 epoch immediately; archived definitions do not authorize grandfathering.
 
 The optional remote Turso test needs an explicitly supplied disposable database.

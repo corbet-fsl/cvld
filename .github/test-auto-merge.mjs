@@ -5,7 +5,7 @@ import test from 'node:test';
 const source = readFileSync(new URL('./workflows/dependabot-auto-merge.yml', import.meta.url), 'utf8');
 const script = source.split('          script: |\n')[1].split('\n').map(line => line.replace(/^            /, '')).join('\n');
 const execute = new (Object.getPrototypeOf(async function () {}).constructor)('github', 'context', script);
-const names = ["resolve", "dependency-policy", "check", "toy", "coverage"];
+const names = ["resolve", "dependency-policy", "check", "toy", "coverage", "wasm-coverage"];
 const head = 'a'.repeat(40);
 const goodPr = { number: 1, user: { login: 'dependabot[bot]' }, state: 'open', draft: false,
   base: { ref: 'main' }, head: { sha: head, repo: { full_name: 'example/stack' } } };
@@ -41,6 +41,7 @@ test('green exact head uses the protected REST endpoint with an atomic SHA', asy
 for (const [name, override] of [
   ['wrong workflow', { run: { workflow_id: 21 } }],
   ['wrong path', { run: { path: '.github/workflows/untrusted.yml' } }],
+  ['missing browser coverage', { jobs: names.filter(name => name !== 'wasm-coverage').map(name => ({ name, status: 'completed', conclusion: 'success' })) }],
   ['missing coverage', { jobs: names.filter(name => name !== 'coverage').map(name => ({ name, status: 'completed', conclusion: 'success' })) }],
   ['skipped check', { jobs: names.map(name => ({ name, status: 'completed', conclusion: name === 'coverage' ? 'skipped' : 'success' })) }],
   ['unprotected branch', { branch: { protected: false } }],

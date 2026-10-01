@@ -1,0 +1,27 @@
+[package]
+name = "cvld-browser-tests"
+version = "0.0.0"
+edition = "2024"
+license = "FSL-1.1-ALv2"
+publish = false
+autotests = false
+
+# Exercise the production client as a consumer. The native fixture retains the
+# complete server graph and its own lock; no proof-engine features are changed.
+[workspace]
+resolver = "3"
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+cvld = { path = "../..", default-features = false, features = ["client-browser"] }
+gloo-net = { version = "0.7", default-features = false, features = ["http", "json"] }
+serde_json = "1"
+wasm-bindgen-test = "0.3.79"
+browser-coverage-runtime = { path = "../../.github/coverage-runtime" }
+
+[[test]]
+name = "browser_client"
+path = "browser_client.rs"
+
+[lints.rust]
+unsafe_code = "forbid"
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(owned_browser_coverage)"] }
