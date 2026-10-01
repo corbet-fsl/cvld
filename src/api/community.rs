@@ -161,6 +161,20 @@ pub struct RevokePasskey {
     pub credential: Vec<u8>,
 }
 
+/// Bind one actual lineage device key to the current passkey.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DeviceKey {
+    pub key: [u8; 32],
+}
+
+/// Current public signing keys; the authenticated passkey authorizes mutations.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DeviceKeys {
+    pub keys: Vec<[u8; 32]>,
+}
+
 /// Both phases of one session-bound additional-passkey operation.
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(tag = "step", rename_all = "snake_case", deny_unknown_fields)]

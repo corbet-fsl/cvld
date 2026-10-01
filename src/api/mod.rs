@@ -263,6 +263,8 @@ actions! {
     pin_change(PinChange) -> PinResponse, Member, Community, Record, "Change a fingerprint using spent-token evidence";
     passkey_add(AddPasskey) -> AddedPasskey, Member, Community, Record, "Register another UV-required passkey for this membership";
     passkey_revoke(RevokePasskey) -> Empty, Member, Community, Record, "Revoke a community passkey";
+    device_authorize(DeviceKey) -> DeviceKeys, Member, Community, Record, "Authorize the lineage device key with this live passkey";
+    device_keys(Empty) -> DeviceKeys, Member, Community, Check, "Read current passkey-authorized signing keys";
     setting_set(Setting) -> TrustFeed, Admin, Community, Record, "Edit a community setting";
     platform_set(PlatformSetting) -> TrustFeed, Root, Community, Record, "Edit a platform setting or force switch";
     schema_check(SchemaRequest) -> SchemaChanges, Admin, Community, Check, "Classify profile schema changes";

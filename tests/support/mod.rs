@@ -140,6 +140,7 @@ pub struct Member {
     pub user: String,
     pub credential: Vec<u8>,
     pub session: String,
+    pub signing_key: [u8; 32],
 }
 pub async fn enrol(service: &Running, host: &str, bootstrap: Option<&str>) -> Member {
     let client = client(service, host, None);
@@ -195,6 +196,7 @@ pub async fn enrol(service: &Running, host: &str, bootstrap: Option<&str>) -> Me
         user: user.user,
         credential: credential_id,
         session,
+        signing_key: SigningKey::from_bytes(&[13; 32]).verifying_key().to_bytes(),
     }
 }
 pub async fn login(
@@ -587,11 +589,17 @@ pub async fn finish_enrol(service: &Running, host: &str, start: Ceremony) -> Mem
         &credential_id,
     )
     .await;
+    let signing_key = SigningKey::from_bytes(&[13; 32]).verifying_key().to_bytes();
+    client(service, host, Some(&session))
+        .call("device_authorize", json!({"key": signing_key}))
+        .await
+        .unwrap();
     Member {
         authenticator,
         user: user.user,
         credential: credential_id,
         session,
+        signing_key: SigningKey::from_bytes(&[13; 32]).verifying_key().to_bytes(),
     }
 }
 pub fn voucher(community: &str, member: &str, id: &str, valid_until: u64) -> Value {
@@ -613,7 +621,7 @@ pub async fn issue_community(
         client(service, host, Some(&member.session))
             .call(
                 "credential_issue",
-                json!({"presentation":proof,"devices":vec![[13u8;32]]}),
+                json!({"presentation":proof,"devices":[member.signing_key]}),
             )
             .await
             .unwrap(),

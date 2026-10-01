@@ -76,6 +76,23 @@ only if both TURSO_URL and TURSO_TOKEN are nonempty; use a disposable database.
 
 ## Community process
 
+`device_authorize` binds one actual lineage device signing key to the exact
+currently authenticated live passkey through cmbr. Repeating the same binding
+is idempotent; replacing it with another raw public key is refused. Registration
+alone and `credential_issue.devices` do not establish this authority. The door
+drains the durable revocation outbox and republishes the trust feed after a new
+binding. `device_keys` returns only bindings whose passkeys remain live.
+
+cplc obtains those keys independently through cmbr's held membership lease and
+refuses any unbound or removed requested key before signing. Revoking a passkey
+invalidates its sessions and removes its key from that current set immediately.
+This is the server G3 boundary; the device pairing adapter must additionally
+verify the current ckmg root, epoch, exact transition and user confirmation.
+
+The new device-key table is appended after the existing complete migration
+history. Historical passkey table names and migration sequence numbers remain
+unchanged by the server crate rename.
+
 `cvld serve community --config <file>` owns one database for one canonical
 community and its own durable csgn signer. The immutable database identity
 prevents assigning the same file to another community. There is no global
@@ -306,3 +323,33 @@ Upstream webauthn-rs-core 0.5.5 still refuses cross-origin **registration** clie
 data (`crossOrigin: true`) with no public configuration switch. Keyhole therefore
 uses top-level registration until a reviewed upstream API supports the iframe.
 The vault-origin software test runs that top-level case; it is not iframe proof.
+
+## Portable owner client
+
+Feature `client` exposes the original generated OpenAPI operations and a portable
+Client/Transport forwarding port without the server dependency graph. `server`
+remains the default feature and binary requirement. `client-http` reuses the
+native HttpClient that the existing door CLI tests exercise. HTTPS binds the
+host to the selected origin; loopback HTTP supports the real service fixtures.
+The transport disables redirects and proxies, applies a deadline and a 16 MiB
+response bound, and keeps bearer storage in a zeroizing wrapper.
+
+cfyr consumes this client behind cmsg. Generated operation metadata is never an
+authorization capability; the server still checks the exact current session,
+role and scope. Default generated contracts omit the synthetic development gate.
+
+HTTP mutations are never automatically retried (`reqwest::retry::never`). Once
+request execution may have begun, transport/framing/body/JSON failure produces
+Reconcile. Unexpected HTTP status/error combinations do too. Valid owner error
+bodies retain their exact category. A cancelled in-flight client future also has
+an unknown effect; the embedding lifecycle must reconcile, never blindly repeat.
+The native regression actually commits logout through a real door, then corrupts
+or replaces only its response and checks exactly one dispatch plus revoked session.
+
+
+Successful client responses are checked against the door's generated JSON Schema
+with maintained `jsonschema`, with network and file resolution disabled. A reply
+that is valid JSON but has the wrong DTO shape remains an uncertain post-dispatch
+outcome (`Reconcile`); clients never retry a record operation automatically. The
+server build consumes its live registry; portable device builds consume the exact
+committed OpenAPI projection verified by CI.

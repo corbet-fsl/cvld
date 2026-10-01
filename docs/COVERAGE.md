@@ -11,3 +11,12 @@ A configured gate is not a coverage result. The raw report is retained on failur
 The functional toy scenarios run in this same workflow and verify their dependency
 closure against its lock snapshot. The retained 200-holder scale command is for
 Crow execution; public CI does not execute scale or load measurements.
+
+The coverage job exports raw JSON and LCOV from the same actual test execution.
+The gate requires every emitted production DA line and BRDA branch to have a
+nonzero counter, at 100% for both metrics. It cross-checks file inventories,
+summaries and emitted branch locations against the companion JSON. Missing,
+duplicate, empty or malformed evidence cannot pass. Raw JSON totals remain
+as diagnostic evidence for generic instantiations; source coverage does not
+claim every generic instantiation is covered. Both artifacts are retained on
+failure. No production source exclusions are currently approved.

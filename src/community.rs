@@ -111,6 +111,7 @@ impl CommunityService {
             ("cpsd", cmty::storage::SCHEMA),
             ("service", crate::identity::SCHEMA),
             ("global-trust", crate::global_trust::SCHEMA),
+            ("cmbr-device-keys", cmbr::DEVICE_KEYS_SCHEMA),
         ]);
         let migrations: Vec<_> = schemas
             .iter()

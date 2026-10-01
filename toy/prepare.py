@@ -20,7 +20,12 @@ lines.append('cvld = { path = "../..", features = ["development-gate"] }')
 deps = manifest['dependencies'] | manifest['dev-dependencies']
 for name in ['cmty', 'cglb', 'ckyh', 'cpsd', 'csgn', 'cvch', 'ed25519-dalek',
              'serde', 'serde_json', 'tokio', 'tempfile', 'chrono', 'passkey', 'async-trait']:
-    lines.append(f'{name} = {value(deps[name])}')
+    dependency = deps[name]
+    if isinstance(dependency, dict):
+        # The fixture explicitly uses these dependencies. The owner's optional
+        # client/server feature split must not disable them in this separate crate.
+        dependency = {key: val for key, val in dependency.items() if key != 'optional'}
+    lines.append(f'{name} = {value(dependency)}')
 lines.extend(['[profile.dev.package."*"]', 'opt-level = 3',
               '[profile.dev.package.cvld]', 'opt-level = 0',
               '[profile.dev.package.cvld-toy]', 'opt-level = 1'])

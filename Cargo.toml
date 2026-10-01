@@ -8,36 +8,46 @@ description = "The permanent door of the cmtymeet trust stack"
 publish = false
 
 [features]
-default = []
-development-gate = ["cglb/development-gate"]
+default = ["server"]
+server = ["client-http", "dep:cmty", "dep:clbs", "dep:ed25519-dalek", "dep:cpsd", "dep:crlt", "dep:csgn", "dep:cglb", "dep:ckyh", "dep:cthl", "dep:axum", "dep:tower-http", "dep:utoipa", "dep:clap", "dep:rmcp", "dep:tokio", "dep:uuid", "dep:chrono", "dep:rand", "dep:subtle"]
+client = ["dep:jsonschema"]
+client-http = ["client", "dep:reqwest"]
+development-gate = ["server", "cglb/development-gate"]
 
 [dependencies]
-cmty = { git = "https://github.com/corbet-libs/cmty", branch = "main" }
-clbs = { git = "https://github.com/corbet-foss/clbs", branch = "main" }
-ed25519-dalek = "2.2"
-cpsd = { git = "https://github.com/corbet-foss/cpsd", branch = "main", default-features = false, features = ["storage"] }
-crlt = { git = "https://github.com/corbet-foss/crlt", branch = "main" }
-csgn = { git = "https://github.com/corbet-foss/csgn", branch = "main", features = ["libsql"] }
-cglb = { git = "https://github.com/corbet-libs/cglb", branch = "main" }
-ckyh = { git = "https://github.com/corbet-foss/ckyh", branch = "main" }
-cthl = { git = "https://github.com/corbet-foss/cthl", branch = "main" }
-axum = "0.8.9"
-tower-http = { version = "0.6.11", features = ["cors"] }
-utoipa = "6.0.0"
-clap = { version = "4.6.7", features = ["derive", "env", "string"] }
-rmcp = { version = "3.5.0", features = ["server", "client", "transport-io", "transport-child-process"] }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+jsonschema = { version = "0.58", default-features = false, optional = true }
+cmty = { git = "https://github.com/corbet-libs/cmty", branch = "main", optional = true }
+clbs = { git = "https://github.com/corbet-foss/clbs", branch = "main", optional = true }
+ed25519-dalek = { version = "2.2", optional = true }
+cpsd = { git = "https://github.com/corbet-foss/cpsd", branch = "main", default-features = false, features = ["storage"], optional = true }
+crlt = { git = "https://github.com/corbet-foss/crlt", branch = "main", optional = true }
+csgn = { git = "https://github.com/corbet-foss/csgn", branch = "main", features = ["libsql"], optional = true }
+cglb = { git = "https://github.com/corbet-libs/cglb", branch = "main", optional = true }
+ckyh = { git = "https://github.com/corbet-foss/ckyh", branch = "main", optional = true }
+cthl = { git = "https://github.com/corbet-foss/cthl", branch = "main", optional = true }
+axum = { version = "0.8.9", optional = true }
+tower-http = { version = "0.6.11", features = ["cors"], optional = true }
+utoipa = { version = "6.0.0", optional = true }
+clap = { version = "4.6.7", features = ["derive", "env", "string"], optional = true }
+rmcp = { version = "3.5.0", features = ["server", "client", "transport-io", "transport-child-process"], optional = true }
+reqwest = { version = "0.12.28", default-features = false, features = ["json", "rustls-tls"], optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1", features = ["full"] }
-uuid = { version = "1", features = ["v4", "serde"] }
-chrono = "0.4"
-rand = "0.8"
+tokio = { version = "1", features = ["full"], optional = true }
+uuid = { version = "1", features = ["v4", "serde"], optional = true }
+chrono = { version = "0.4", optional = true }
+rand = { version = "0.8", optional = true }
 thiserror = "2"
 zeroize = "1.9"
-subtle = "2.6"
+subtle = { version = "2.6", optional = true }
+
+[[bin]]
+name = "cvld"
+path = "src/main.rs"
+required-features = ["server"]
 
 [dev-dependencies]
+futures-util = "0.3"
 passkey = "0.4"
 async-trait = "0.1"
 cvch = { git = "https://github.com/corbet-foss/cvch", branch = "main" }

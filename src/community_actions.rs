@@ -267,6 +267,48 @@ impl Door {
             .await
     }
 
+    pub(crate) async fn device_authorize(
+        &self,
+        ctx: Context,
+        request: DeviceKey,
+    ) -> Result<DeviceKeys> {
+        let mut community = self.community_backend()?.lock().await;
+        let auth = ctx.member()?;
+        community
+            .facade
+            .membership()
+            .authorize_device_key(auth, request.key)
+            .await
+            .map_err(|_| Error::Refused)?;
+        if community
+            .facade
+            .flush_revocations(ctx.now)
+            .await
+            .map_err(|_| Error::Unavailable)?
+            > 0
+        {
+            community.refresh(ctx.now).await?;
+        }
+        let keys = community
+            .facade
+            .membership()
+            .current_device_keys(auth)
+            .await
+            .map_err(|_| Error::Refused)?;
+        Ok(DeviceKeys { keys })
+    }
+
+    pub(crate) async fn device_keys(&self, ctx: Context, _: Empty) -> Result<DeviceKeys> {
+        let community = self.community_backend()?.lock().await;
+        let keys = community
+            .facade
+            .membership()
+            .current_device_keys(ctx.member()?)
+            .await
+            .map_err(|_| Error::Refused)?;
+        Ok(DeviceKeys { keys })
+    }
+
     pub(crate) async fn passkey_revoke(
         &self,
         ctx: Context,

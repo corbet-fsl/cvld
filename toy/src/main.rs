@@ -318,6 +318,11 @@ impl World {
                     self.now,
                 )?;
                 let account = holder::register(&c.service.cli, None, Some(proof))?;
+                c.service.cli.call(
+                    Some(&account.session),
+                    "device_authorize",
+                    json!({"key":account.device}),
+                )?;
                 require(
                     !self.members.contains_key(&member),
                     "duplicate member alias",
@@ -604,6 +609,11 @@ impl World {
                     let before: Lobby =
                         decode(cli.call(Some(&joined.member.session), "lobby", json!({}))?)?;
                     let mut second = holder::additional(cli, &joined.member)?;
+                    cli.call(
+                        Some(&second.session),
+                        "device_authorize",
+                        json!({"key":second.device}),
+                    )?;
                     cli.call(
                         Some(&second.session),
                         "passkey_revoke",
