@@ -24,7 +24,7 @@ Surveyed crates.io, official documentation and GitHub on 2026-09-30:
 | [cglb](https://github.com/corbet-libs/cglb) | Own global uniqueness, gate execution, suspension and blind issuance. |
 | [cmty](https://github.com/corbet-libs/cmty) | Compose membership, gates and policy without copying their domain logic. |
 | [ed25519-dalek](https://github.com/dalek-cryptography/curve25519-dalek) 2.2 | Parse the configured public sponsor key for cgts; signing and verification stay in the facades and leaves. |
-| [cpky](https://github.com/corbet-foss/cpky) | UV-required wallet/operator WebAuthn; no new passkey implementation. |
+| [ckyh](https://github.com/corbet-foss/ckyh) | UV-required wallet/operator WebAuthn; no new passkey implementation. |
 | [subtle](https://docs.rs/subtle/latest/subtle/trait.ConstantTimeEq.html) 2.6 | Compare bootstrap capability contents without ordinary string-comparison timing; already shared by cryptographic dependencies. |
 | [cthl](https://github.com/corbet-foss/cthl) | Maintained governor-backed throttling with bounded memory. |
 

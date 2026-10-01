@@ -6,6 +6,13 @@ use std::collections::BTreeSet;
 fn openapi_cli_and_mcp_have_exactly_the_registry_actions() {
     let expected: BTreeSet<_> = api::ACTIONS.iter().map(|a| a.name.to_owned()).collect();
     assert_eq!(expected.len(), api::ACTIONS.len());
+    let discovery = api::ACTIONS
+        .iter()
+        .find(|action| action.name == "login_discoverable_begin")
+        .unwrap();
+    assert_eq!(discovery.access, api::Access::Public);
+    assert_eq!(discovery.scope, api::Scope::Both);
+    assert_eq!(discovery.effect, api::Effect::Check);
     assert!(expected.contains("passkey_add"));
     let addition = api::ACTIONS
         .iter()

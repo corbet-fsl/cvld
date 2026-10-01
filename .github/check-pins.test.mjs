@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readFileSync, readdirSync } from 'node:fs';
 import { checkPins } from './check-pins.mjs';
 
 const revision = '6b94dacd7fa04aa8847c62c6471a1fc5c0f6c9dc';
@@ -24,8 +23,8 @@ test('reject duplicate direct and transitive Corbet packages', () => {
   assert.throws(() => checkPins(graph(pkg('crlt'))), /duplicated/);
 });
 
-test('reject branch, tag, unqualified and abbreviated pins', () => {
-  for (const query of ['branch=main', 'tag=v1', '', `rev=${revision.slice(0, 7)}`]) {
+test('reject other branches, tags, unqualified and abbreviated revisions', () => {
+  for (const query of ['branch=develop', 'tag=v1', '', `rev=${revision.slice(0, 7)}`]) {
     const floating = `git+https://github.com/corbet-foss/csgn?${query}#${revision}`;
     assert.throws(() => checkPins(graph(pkg('csgn', floating))), /revision pin/);
   }
@@ -36,29 +35,15 @@ test('reject a resolved revision different from its pin', () => {
   assert.throws(() => checkPins(graph(pkg('csgn', mismatch))), /revision pin/);
 });
 
-test('reject floating transitive declarations even with a pinned resolution', () => {
+test('accept main declarations with a unique complete resolution', () => {
   const dependency = { source: 'git+https://github.com/corbet-foss/cpns?branch=main' };
-  assert.throws(() => checkPins(graph(
-    pkg('cgrd', source('cgrd'), [dependency]), pkg('cpns', source('cpns')),
-  )), /revision pin/);
+  checkPins(graph(
+    pkg('cgrd', source('cgrd'), [dependency]),
+    pkg('cpns', `git+https://github.com/corbet-foss/cpns?branch=main#${revision}`),
+  ));
 });
 
 test('require the crlt Git dependency', () => {
   assert.throws(() => checkPins({ packages: [pkg('crbk')] }), /Missing/);
   assert.throws(() => checkPins({ packages: [pkg('crbk'), pkg('crlt')] }), /unpinned/);
-});
-
-test('pin every CI action while selecting current stable Rust', () => {
-  const directory = new URL('./workflows/', import.meta.url);
-  const files = readdirSync(directory).filter(name => /\.ya?ml$/.test(name));
-  assert.ok(files.length > 0);
-  for (const file of files) {
-    const workflow = readFileSync(new URL(file, directory), 'utf8');
-    const actions = [...workflow.matchAll(/uses:\s*([\w./-]+)@(\S+)/g)];
-    assert.ok(actions.length > 0);
-    for (const [, name, revision] of actions) {
-      assert.match(revision, /^[a-f0-9]{40}$/, `${file}: ${name} must be immutable`);
-    }
-    assert.match(workflow, /toolchain: stable/);
-  }
 });

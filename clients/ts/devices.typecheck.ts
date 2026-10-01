@@ -18,3 +18,9 @@ export const finishLogin = (origin: string, ceremony: string, credential: Record
   client(origin).POST("/v1/login_finish", { body: { ceremony, credential } });
 export const finishRegistration = (origin: string, ceremony: string, credential: Record<string, unknown>) =>
   client(origin).POST("/v1/register_finish", { body: { ceremony, credential } });
+
+export async function beginRestore(origin: string) {
+  const response = await client(origin).POST("/v1/login_discoverable_begin", { body: {} });
+  if (!response.data) throw new Error("challenge required");
+  return { ceremony: response.data.ceremony, options: response.data.options };
+}

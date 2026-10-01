@@ -201,7 +201,7 @@ async fn registration_requires_user_verification_and_ceremonies_are_single_use()
     let client = client(&service, WALLET, None);
     let start: Ceremony =
         serde_json::from_value(client.call("register_begin", json!({})).await.unwrap()).unwrap();
-    let mut challenge: cpky::CreationChallengeResponse =
+    let mut challenge: ckyh::CreationChallengeResponse =
         serde_json::from_value(start.options).unwrap();
     // A hostile client weakens the browser option. The server's pending policy remains Required.
     let mut wire = serde_json::to_value(&challenge).unwrap();
@@ -210,8 +210,17 @@ async fn registration_requires_user_verification_and_ceremonies_are_single_use()
     let mut authenticator = SoftToken::new(false).unwrap().0;
     let credential = authenticator
         .perform_register(
-            cpky::Url::parse(&format!("https://{WALLET}")).unwrap(),
-            challenge.public_key,
+            ckyh::Url::parse(&format!("https://{WALLET}")).unwrap(),
+            {
+                // SoftToken is a legacy non-resident fixture.
+                let mut options = challenge.public_key;
+                options
+                    .authenticator_selection
+                    .as_mut()
+                    .unwrap()
+                    .require_resident_key = false;
+                options
+            },
             300_000,
         )
         .unwrap();
@@ -244,11 +253,11 @@ async fn valid_signature_without_uv_cannot_create_a_session() {
     .unwrap();
     let mut options = begin.options;
     options["publicKey"]["userVerification"] = json!("discouraged");
-    let challenge: cpky::RequestChallengeResponse = serde_json::from_value(options).unwrap();
+    let challenge: ckyh::RequestChallengeResponse = serde_json::from_value(options).unwrap();
     let credential = member
         .authenticator
         .perform_auth(
-            cpky::Url::parse(&format!("https://{WALLET}")).unwrap(),
+            ckyh::Url::parse(&format!("https://{WALLET}")).unwrap(),
             challenge.public_key,
             300_000,
         )

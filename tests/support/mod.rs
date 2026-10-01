@@ -1,4 +1,6 @@
 #![allow(dead_code)]
+pub mod resident;
+
 use cvld::{
     api::*,
     cli::Client,
@@ -152,11 +154,20 @@ pub async fn enrol(service: &Running, host: &str, bootstrap: Option<&str>) -> Me
     )
     .unwrap();
     let mut authenticator = SoftToken::new(true).unwrap().0;
-    let challenge: cpky::CreationChallengeResponse = serde_json::from_value(start.options).unwrap();
+    let challenge: ckyh::CreationChallengeResponse = serde_json::from_value(start.options).unwrap();
     let credential = authenticator
         .perform_register(
-            cpky::Url::parse(&format!("https://{host}")).unwrap(),
-            challenge.public_key,
+            ckyh::Url::parse(&format!("https://{host}")).unwrap(),
+            {
+                // SoftToken is a legacy non-resident fixture.
+                let mut options = challenge.public_key;
+                options
+                    .authenticator_selection
+                    .as_mut()
+                    .unwrap()
+                    .require_resident_key = false;
+                options
+            },
             300_000,
         )
         .unwrap();
@@ -201,10 +212,10 @@ pub async fn login(
             .unwrap(),
     )
     .unwrap();
-    let challenge: cpky::RequestChallengeResponse = serde_json::from_value(start.options).unwrap();
+    let challenge: ckyh::RequestChallengeResponse = serde_json::from_value(start.options).unwrap();
     let credential = authenticator
         .perform_auth(
-            cpky::Url::parse(&format!("https://{host}")).unwrap(),
+            ckyh::Url::parse(&format!("https://{host}")).unwrap(),
             challenge.public_key,
             300_000,
         )
@@ -540,11 +551,20 @@ pub async fn enrol_community(service: &Running, host: &str, passport: &cpsd::Pas
 }
 pub async fn finish_enrol(service: &Running, host: &str, start: Ceremony) -> Member {
     let mut authenticator = SoftToken::new(true).unwrap().0;
-    let challenge: cpky::CreationChallengeResponse = serde_json::from_value(start.options).unwrap();
+    let challenge: ckyh::CreationChallengeResponse = serde_json::from_value(start.options).unwrap();
     let credential = authenticator
         .perform_register(
-            cpky::Url::parse(&format!("https://{host}")).unwrap(),
-            challenge.public_key,
+            ckyh::Url::parse(&format!("https://{host}")).unwrap(),
+            {
+                // SoftToken is a legacy non-resident fixture.
+                let mut options = challenge.public_key;
+                options
+                    .authenticator_selection
+                    .as_mut()
+                    .unwrap()
+                    .require_resident_key = false;
+                options
+            },
             300_000,
         )
         .unwrap();

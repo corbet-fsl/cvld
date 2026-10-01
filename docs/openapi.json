@@ -1120,6 +1120,70 @@
         "x-scope": "both"
       }
     },
+    "/v1/login_discoverable_begin": {
+      "post": {
+        "operationId": "login_discoverable_begin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "A usernameless challenge; identity is returned only after verification.",
+                  "properties": {
+                    "ceremony": {
+                      "type": "string"
+                    },
+                    "options": {}
+                  },
+                  "required": [
+                    "ceremony",
+                    "options"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [],
+        "summary": "Begin usernameless sign-in with a synced passkey",
+        "x-effect": "check",
+        "x-role": "public",
+        "x-scope": "both"
+      }
+    },
     "/v1/login_finish": {
       "post": {
         "operationId": "login_finish",

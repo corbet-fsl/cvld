@@ -88,3 +88,21 @@ test("additional passkey phases use one authenticated public action", async () =
     ]);
   } finally { globalThis.fetch = original; }
 });
+
+
+test("restore begins without a saved user or credential and preserves server options", async () => {
+  const original = globalThis.fetch;
+  const options = { publicKey: { challenge: "synthetic-challenge", rpId: "alpha.example.test", allowCredentials: [], userVerification: "required", extensions: { uvm: true } } };
+  globalThis.fetch = async (request) => {
+    assert.ok(request instanceof Request);
+    assert.equal(request.url, "https://api.alpha.example.test/v1/login_discoverable_begin");
+    assert.equal(request.headers.get("authorization"), null);
+    assert.deepEqual(await request.json(), {});
+    return Response.json({ ceremony: "synthetic-ceremony", options });
+  };
+  try {
+    const result = await client("https://api.alpha.example.test").POST("/v1/login_discoverable_begin", { body: {} });
+    assert.deepEqual(result.data?.options, options);
+    assert.equal(result.data?.ceremony, "synthetic-ceremony");
+  } finally { globalThis.fetch = original; }
+});

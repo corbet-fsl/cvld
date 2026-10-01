@@ -273,7 +273,7 @@ impl Door {
         request: RevokePasskey,
     ) -> Result<Empty> {
         let mut community = self.community_backend()?.lock().await;
-        let credential: cpky::CredentialID = request.credential.into();
+        let credential: ckyh::CredentialID = request.credential.into();
         community
             .facade
             .membership()

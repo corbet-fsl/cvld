@@ -21,7 +21,7 @@ impl GlobalService {
         db.migrate(&[
             Migration::new(1, "global", cglb::storage::SCHEMA),
             Migration::new(2, "signing", csgn::SCHEMA),
-            Migration::new(3, "passkeys", cpky::LIBSQL_SCHEMA),
+            Migration::new(3, "passkeys", ckyh::LIBSQL_SCHEMA),
             Migration::new(4, "service", crate::identity::SCHEMA),
             Migration::new(5, "passport-challenges", cpsd::storage::libsql::SCHEMA),
             Migration::new(

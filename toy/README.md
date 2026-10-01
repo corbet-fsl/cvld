@@ -122,3 +122,10 @@ for six isolated databases. This optional smoke run is not a remote scale test,
 and the local C row meter does not measure remote reads. No database provisioning,
 paid gate, deployment or registry publication is performed. The run uses current
 wall time for remote TLS validation and leaves the disposable remote data in place.
+
+The holder uses a test-only resident software authenticator with real PRF
+computation. Server options are preserved, only the test PRF input is added, and
+PRF outputs are removed before every public CLI call. Scenario 7 restores the
+surviving synced passkey without sending a saved member or credential ID and
+checks the same local PRF output and membership. This proves the server key flow;
+it does not simulate DHT vault storage or browser iframe compatibility.

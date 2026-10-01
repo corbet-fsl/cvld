@@ -20,15 +20,25 @@ fn register(
     token: &mut SoftToken,
     host: &str,
     options: Value,
-) -> cpky::RegisterPublicKeyCredential {
-    let options: cpky::CreationChallengeResponse = serde_json::from_value(options).unwrap();
+) -> ckyh::RegisterPublicKeyCredential {
+    let options: ckyh::CreationChallengeResponse = serde_json::from_value(options).unwrap();
     token
         .perform_register(
-            cpky::Url::parse(&format!("https://{host}")).unwrap(),
-            options.public_key,
+            ckyh::Url::parse(&format!("https://{host}")).unwrap(),
+            {
+                // SoftToken is a legacy non-resident fixture.
+                let mut options = options.public_key;
+                options
+                    .authenticator_selection
+                    .as_mut()
+                    .unwrap()
+                    .require_resident_key = false;
+                options
+            },
             300_000,
         )
         .unwrap()
+        .into()
 }
 
 #[tokio::test(flavor = "multi_thread")]

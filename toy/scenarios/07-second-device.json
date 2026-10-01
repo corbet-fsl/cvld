@@ -1,5 +1,5 @@
 {
-  "title": "Second-device enrolment and surviving-device access",
+  "title": "Second-device enrolment and synced-passkey restore",
   "steps": [
     {
       "do": "wallet",

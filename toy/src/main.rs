@@ -613,7 +613,7 @@ impl World {
                         cli.call(Some(&joined.member.session), "lobby", json!({})),
                         &["authentication required"],
                     )?;
-                    holder::login(cli, &mut second)?;
+                    holder::restore(cli, &mut second)?;
                     let after: Lobby =
                         decode(cli.call(Some(&second.session), "lobby", json!({}))?)?;
                     require(

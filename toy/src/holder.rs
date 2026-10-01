@@ -6,13 +6,36 @@ use cvld::api::*;
 use ed25519_dalek::{Signer, SigningKey};
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
-use webauthn_authenticator_rs::{AuthenticatorBackend, softtoken::SoftToken};
+#[path = "../../tests/support/resident.rs"]
+mod resident;
+use resident::{Resident, strip_prf};
+
+fn passkey_ceremony(
+    token: &mut Resident,
+    options: Value,
+    create: bool,
+    host: &str,
+) -> (Value, Value) {
+    let mut response = tokio::task::block_in_place(|| {
+        tokio::runtime::Handle::current().block_on(token.ceremony(
+            options,
+            create,
+            &format!("https://{host}"),
+        ))
+    });
+    let prf = strip_prf(&mut response);
+    if create {
+        assert_eq!(prf["enabled"], true);
+    }
+    (response, prf["results"].clone())
+}
 
 pub fn decode<T: DeserializeOwned>(v: Value) -> Result<T> {
     serde_json::from_value(v).map_err(|_| "unexpected public response shape".into())
 }
 pub struct Member {
-    pub token: SoftToken,
+    pub token: Resident,
+    prf: Value,
     pub user: String,
     pub credential: Vec<u8>,
     pub session: String,
@@ -28,18 +51,10 @@ pub fn register(
         "register_begin",
         json!({"bootstrap":bootstrap,"passport":passport}),
     )?)?;
-    let mut token = SoftToken::new(true)
-        .map_err(|_| "software authenticator")?
-        .0;
-    let options: cpky::CreationChallengeResponse = decode(start.options)?;
-    let credential = token
-        .perform_register(
-            cpky::Url::parse(&format!("https://{}", cli.host)).unwrap(),
-            options.public_key,
-            300_000,
-        )
-        .map_err(|_| "software passkey registration")?;
-    let credential_id = credential.raw_id.as_ref().to_vec();
+    let mut token = Resident::default();
+    let (credential, prf) = passkey_ceremony(&mut token, start.options, true, &cli.host);
+    let parsed: ckyh::RegisterPublicKeyCredential = decode(credential.clone())?;
+    let credential_id = parsed.raw_id.as_ref().to_vec();
     let user: User = decode(cli.call(
         None,
         "register_finish",
@@ -49,6 +64,7 @@ pub fn register(
     cpsd::rand::RngCore::fill_bytes(&mut cpsd::rand::rngs::OsRng, &mut seed);
     let mut member = Member {
         token,
+        prf,
         user: user.user,
         credential: credential_id,
         session: String::new(),
@@ -75,18 +91,10 @@ pub fn additional(cli: &Cli, existing: &Member) -> Result<Member> {
     if user != existing.user {
         return Err("addition changed membership".into());
     }
-    let mut token = SoftToken::new(true)
-        .map_err(|_| "software authenticator")?
-        .0;
-    let options: cpky::CreationChallengeResponse = decode(options)?;
-    let response = token
-        .perform_register(
-            cpky::Url::parse(&format!("https://{}", cli.host)).unwrap(),
-            options.public_key,
-            300_000,
-        )
-        .map_err(|_| "software additional passkey registration")?;
-    let credential_id = response.raw_id.as_ref().to_vec();
+    let mut token = Resident::default();
+    let (response, prf) = passkey_ceremony(&mut token, options, true, &cli.host);
+    let parsed: ckyh::RegisterPublicKeyCredential = decode(response.clone())?;
+    let credential_id = parsed.raw_id.as_ref().to_vec();
     let result: AddedPasskey = decode(cli.call(
         Some(&existing.session),
         "passkey_add",
@@ -102,6 +110,7 @@ pub fn additional(cli: &Cli, existing: &Member) -> Result<Member> {
     cpsd::rand::RngCore::fill_bytes(&mut cpsd::rand::rngs::OsRng, &mut seed);
     let mut member = Member {
         token,
+        prf,
         user,
         credential,
         session: String::new(),
@@ -116,20 +125,39 @@ pub fn login(cli: &Cli, member: &mut Member) -> Result<()> {
         "login_begin",
         json!({"user":member.user,"credential":member.credential}),
     )?)?;
-    let options: cpky::RequestChallengeResponse = decode(start.options)?;
-    let response = member
-        .token
-        .perform_auth(
-            cpky::Url::parse(&format!("https://{}", cli.host)).unwrap(),
-            options.public_key,
-            300_000,
-        )
-        .map_err(|_| "software passkey authentication")?;
+    let (response, prf) = passkey_ceremony(&mut member.token, start.options, false, &cli.host);
+    if prf != member.prf {
+        return Err("passkey PRF changed".into());
+    }
     let session: Session = decode(cli.call(
         None,
         "login_finish",
         json!({"ceremony":start.ceremony,"credential":response}),
     )?)?;
+    member.session = session.token;
+    Ok(())
+}
+/// Simulate a fresh phone with synced authenticator storage and no saved IDs.
+pub fn restore(cli: &Cli, member: &mut Member) -> Result<()> {
+    let mut phone = member.token.clone();
+    let start: DiscoverableCeremony =
+        decode(cli.call(None, "login_discoverable_begin", json!({}))?)?;
+    if start.options["publicKey"]["allowCredentials"] != json!([]) {
+        return Err("discovery disclosed credentials".into());
+    }
+    let (response, prf) = passkey_ceremony(&mut phone, start.options, false, &cli.host);
+    if prf != member.prf {
+        return Err("synced passkey PRF changed".into());
+    }
+    let session: Session = decode(cli.call(
+        None,
+        "login_finish",
+        json!({"ceremony":start.ceremony,"credential":response}),
+    )?)?;
+    if session.user != member.user {
+        return Err("restore changed membership".into());
+    }
+    member.token = phone;
     member.session = session.token;
     Ok(())
 }

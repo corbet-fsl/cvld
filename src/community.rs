@@ -48,16 +48,20 @@ mod devices;
 
 struct Pending<T> {
     value: T,
-    user: cpky::Uuid,
+    user: ckyh::Uuid,
+    until: u64,
+}
+struct PendingLogin {
+    value: cmbr::PendingLogin,
     until: u64,
 }
 struct Challenge {
     value: cmty::Challenge,
-    owner: Option<cpky::Uuid>,
+    owner: Option<ckyh::Uuid>,
     until: u64,
 }
 struct SessionState {
-    authentication: Arc<cpky::Authentication>,
+    authentication: Arc<ckyh::Authentication>,
     grant: Grant,
 }
 pub struct CommunityService {
@@ -70,7 +74,7 @@ pub struct CommunityService {
     voucher: cgts::gates::VoucherGate,
     challenges: HashMap<String, Challenge>,
     registrations: HashMap<String, Pending<cmbr::PendingRegistration>>,
-    logins: HashMap<String, Pending<cmbr::PendingLogin>>,
+    logins: HashMap<String, PendingLogin>,
     additions: HashMap<String, devices::PendingAddition>,
     sessions: HashMap<String, SessionState>,
 }
@@ -216,8 +220,10 @@ impl CommunityService {
                 lease_months: config.lease_months,
                 rp_id: format!("{scope}.{}", config.domain),
                 origins: vec![
-                    cpky::Url::parse(&format!("https://{host}")).map_err(|_| Error::Invalid)?,
-                    cpky::Url::parse(&format!("https://{scope}.{}", config.domain))
+                    ckyh::Url::parse(&format!("https://{host}")).map_err(|_| Error::Invalid)?,
+                    ckyh::Url::parse(&format!("https://{scope}.{}", config.domain))
+                        .map_err(|_| Error::Invalid)?,
+                    ckyh::Url::parse(&format!("https://vault.{scope}.{}", config.domain))
                         .map_err(|_| Error::Invalid)?,
                 ],
             },
@@ -339,7 +345,7 @@ impl CommunityService {
         &mut self,
         token: &str,
         now: u64,
-    ) -> Result<(Grant, Arc<cpky::Authentication>)> {
+    ) -> Result<(Grant, Arc<ckyh::Authentication>)> {
         self.prune(now);
         let session = self.sessions.get(token).ok_or(Error::Unauthorized)?;
         if !self
@@ -355,7 +361,7 @@ impl CommunityService {
     }
     pub async fn challenge(
         &mut self,
-        owner: Option<cpky::Uuid>,
+        owner: Option<ckyh::Uuid>,
         now: u64,
     ) -> Result<PresentationChallenge> {
         self.refresh_global(now).await?;
@@ -406,7 +412,7 @@ impl CommunityService {
             .verify(&mut cpsd::rand::rngs::OsRng, &challenge.value, &proof, now)
             .await
             .map_err(|_| Error::Refused)?;
-        let user = cpky::Uuid::new_v4();
+        let user = ckyh::Uuid::new_v4();
         let (options, value) = self
             .facade
             .begin_registration(passport, user, now)
@@ -447,7 +453,7 @@ impl CommunityService {
         if self.logins.len() >= self.config.pending_capacity {
             return Err(Error::Throttled);
         }
-        let user = cpky::Uuid::parse_str(&request.user).map_err(|_| Error::Invalid)?;
+        let user = ckyh::Uuid::parse_str(&request.user).map_err(|_| Error::Invalid)?;
         let (options, value) = self
             .facade
             .membership()
@@ -457,15 +463,38 @@ impl CommunityService {
         let id = token();
         self.logins.insert(
             id.clone(),
-            Pending {
+            PendingLogin {
                 value,
-                user,
                 until: now + 300,
             },
         );
         Ok(Ceremony {
             ceremony: id,
             user: user.to_string(),
+            options: serde_json::to_value(options).map_err(|_| Error::Unavailable)?,
+        })
+    }
+    pub async fn login_discoverable_begin(&mut self, now: u64) -> Result<DiscoverableCeremony> {
+        self.prune(now);
+        if self.logins.len() >= self.config.pending_capacity {
+            return Err(Error::Throttled);
+        }
+        let (options, value) = self
+            .facade
+            .membership()
+            .begin_discoverable_login()
+            .await
+            .map_err(|_| Error::Unauthorized)?;
+        let id = token();
+        self.logins.insert(
+            id.clone(),
+            PendingLogin {
+                value,
+                until: now + 300,
+            },
+        );
+        Ok(DiscoverableCeremony {
+            ceremony: id,
             options: serde_json::to_value(options).map_err(|_| Error::Unavailable)?,
         })
     }
@@ -532,7 +561,7 @@ impl CommunityService {
         )
         .map_err(|_| Error::Unavailable)
     }
-    pub async fn lobby(&self, auth: &cpky::Authentication, now: u64) -> Result<Lobby> {
+    pub async fn lobby(&self, auth: &ckyh::Authentication, now: u64) -> Result<Lobby> {
         use cgts::Gate;
         let policy = self.facade.policy().lock().await;
         let settings = policy
@@ -621,7 +650,7 @@ impl CommunityService {
     }
     pub async fn voucher(
         &self,
-        auth: &cpky::Authentication,
+        auth: &ckyh::Authentication,
         request: Voucher,
         now: u64,
     ) -> Result<()> {
@@ -657,7 +686,7 @@ impl CommunityService {
     }
     pub async fn issue(
         &mut self,
-        auth: &cpky::Authentication,
+        auth: &ckyh::Authentication,
         request: CredentialRequest,
         withdrawal: Option<(String, String)>,
         now: u64,

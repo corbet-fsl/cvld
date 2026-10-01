@@ -169,7 +169,7 @@ pub enum AddPasskey {
     Finish {
         ceremony: String,
         #[schema(value_type = std::collections::BTreeMap<String, Value>, additional_properties = true)]
-        credential: Box<cpky::RegisterPublicKeyCredential>,
+        credential: Box<ckyh::RegisterPublicKeyCredential>,
     },
 }
 #[derive(Serialize, Deserialize, ToSchema)]

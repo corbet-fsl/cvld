@@ -4,14 +4,14 @@ use super::*;
 pub(super) struct PendingAddition {
     pub value: cmbr::PendingAdditionalRegistration,
     pub session_id: [u8; 32],
-    pub credential: cpky::CredentialID,
+    pub credential: ckyh::CredentialID,
     pub until: u64,
 }
 
 impl CommunityService {
     pub async fn add_passkey(
         &mut self,
-        authentication: &cpky::Authentication,
+        authentication: &ckyh::Authentication,
         grant: &Grant,
         request: AddPasskey,
         now: u64,
@@ -78,7 +78,7 @@ impl CommunityService {
         }
     }
 
-    pub fn revoke_sessions(&mut self, credential: &cpky::CredentialID) {
+    pub fn revoke_sessions(&mut self, credential: &ckyh::CredentialID) {
         self.sessions
             .retain(|_, session| session.grant.credential != *credential);
         self.additions
