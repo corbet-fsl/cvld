@@ -4,7 +4,7 @@ The permanent door of the cmtymeet trust stack. One Rust library and binary,
 FSL-1.1-ALv2. The JavaScript/AnonCreds prototype is preserved at annotated tag
 `js-prototype-0.1.0-alpha.0`. This package is not published to any registry.
 
-The door composes the global `cglb` and community `cmnt` facades. Separate
+The door composes the global `cglb` and community `cmty` facades. Separate
 processes and databases preserve their information boundary. The API registry
 owns actions, roles and check/record classification; HTTP, OpenAPI, MCP and CLI
 are projections of that registry.
@@ -22,7 +22,7 @@ Surveyed crates.io, official documentation and GitHub on 2026-09-30:
 | [clap](https://github.com/clap-rs/clap) 4.6 | Build subcommands directly from action metadata. |
 | [openapi-typescript](https://github.com/openapi-ts/openapi-typescript) 7.13 | Generate the TypeScript interface from the emitted OpenAPI. |
 | [cglb](https://github.com/corbet-libs/cglb) | Own global uniqueness, gate execution, suspension and blind issuance. |
-| [cmnt](https://github.com/corbet-libs/cmnt) | Compose membership, gates and policy without copying their domain logic. |
+| [cmty](https://github.com/corbet-libs/cmty) | Compose membership, gates and policy without copying their domain logic. |
 | [ed25519-dalek](https://github.com/dalek-cryptography/curve25519-dalek) 2.2 | Parse the configured public sponsor key for cgts; signing and verification stay in the facades and leaves. |
 | [cpky](https://github.com/corbet-foss/cpky) | UV-required wallet/operator WebAuthn; no new passkey implementation. |
 | [subtle](https://docs.rs/subtle/latest/subtle/trait.ConstantTimeEq.html) 2.6 | Compare bootstrap capability contents without ordinary string-comparison timing; already shared by cryptographic dependencies. |
@@ -128,16 +128,22 @@ freshness without restarting. Public epoch/revision floors persist across
 restart, so replaying an older signed file fails closed. Installing a different
 issuer key requires explicit configuration and restart.
 
+A live community session can use `passkey_add` with `step: "begin"` and then
+`step: "finish"` to register another UV-required passkey for the same membership.
+The ceremony is bound to that session and expires after five minutes. Removing
+a key through `passkey_revoke` immediately invalidates its sessions; other
+passkeys retain access. There is no manual approval or recovery identity.
+Removing the last passkey permanently releases membership under NO RETURN.
+
 ## Current limits
 
 Production global gate providers are not configured by this door yet; the only
 interactive global gate adapter in this build is the development feature. The
 community voucher gate is real and requires a configured sponsor public key.
-Legal-order/self-ban authority integration and additional-device enrolment remain
-unconfigured. The mandatory legal veto still runs on every community gate check.
+Legal-order/self-ban authority integration remains unconfigured. The mandatory legal veto still runs on every community gate check.
 
-Pin changes use cmbr's sealed cblc interface and fail closed while the required
-cblc proof extensions are unavailable. Initial v2 pins and reads work. Credentials
+Pin changes use cmbr's sealed cblc interface and remain disabled in the facade
+integration. Initial v2 pins and reads work. Credentials
 require caller-authorized public device keys; this door does not implement a
 separate device-key attestation protocol. Schema changes currently advance the
 epoch immediately; archived definitions do not authorize grandfathering.

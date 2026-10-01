@@ -1133,6 +1133,7 @@
                     "type": "string"
                   },
                   "credential": {
+                    "additionalProperties": true,
                     "type": "object"
                   }
                 },
@@ -1262,6 +1263,152 @@
         "x-effect": "check",
         "x-role": "authenticated",
         "x-scope": "both"
+      }
+    },
+    "/v1/passkey_add": {
+      "post": {
+        "operationId": "passkey_add",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "Both phases of one session-bound additional-passkey operation.",
+                "oneOf": [
+                  {
+                    "properties": {
+                      "step": {
+                        "enum": [
+                          "begin"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "step"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "properties": {
+                      "ceremony": {
+                        "type": "string"
+                      },
+                      "credential": {
+                        "additionalProperties": true,
+                        "type": "object"
+                      },
+                      "step": {
+                        "enum": [
+                          "finish"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "ceremony",
+                      "credential",
+                      "step"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "ceremony": {
+                          "type": "string"
+                        },
+                        "options": {},
+                        "step": {
+                          "enum": [
+                            "challenge"
+                          ],
+                          "type": "string"
+                        },
+                        "user": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "ceremony",
+                        "user",
+                        "options",
+                        "step"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "credential": {
+                          "items": {
+                            "format": "int32",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "type": "array"
+                        },
+                        "step": {
+                          "enum": [
+                            "registered"
+                          ],
+                          "type": "string"
+                        },
+                        "user": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "user",
+                        "credential",
+                        "step"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Register another UV-required passkey for this membership",
+        "x-effect": "record",
+        "x-role": "member",
+        "x-scope": "community"
       }
     },
     "/v1/passkey_revoke": {
@@ -2062,6 +2209,7 @@
                     "type": "string"
                   },
                   "credential": {
+                    "additionalProperties": true,
                     "type": "object"
                   }
                 },

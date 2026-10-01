@@ -63,20 +63,15 @@ prints a short description. Unexpected errors or assertion failures exit nonzero
 | `04-red-gate.json` | Withdrawing the required gate lapses an admitted member and invalidates the previously issued credential. |
 | `05-expiry.json` | At the registration deadline, maintenance frees the reserved handle, and a different holder reserves it. A fresh proof of the same pseudonym cannot register again: **NO RETURN**. |
 | `06-lost-passkeys.json` | Revoking the last passkey releases access, rejects its existing session and credential, and permanently refuses re-registration. Physical loss cannot be observed by a server; this exercises explicit loss/revocation of every registered key. |
-| `07-second-device.json` | **BLOCKED:** the current public door and membership facade provide no additional-passkey enrolment operation. The script proves both attempted registration paths refuse it, then reports the blocker. It does **not** claim to prove surviving-device access. |
+| `07-second-device.json` | Register a second UV-required passkey through `passkey_add`, revoke the first and refuse its session, log in with the surviving key, preserve the member and handle, and obtain a fresh independently verified credential. |
 | `08-root-force.json` | Root forces a setting; an admin's community override cannot change the effective value, and an admin cannot use the root action. |
 | `09-global-suspension.json` | A warned wallet is suspended. It cannot renew its passport, and both communities refuse its next credential renewal after consuming the updated signed global epoch. |
 | `10-throttle.json` | With a one-request burst, registration and handle checks independently exhaust their aggregate quotas. |
 | `11-offline.json` | A cfrm stand-in pulls all five signed snapshots and the manifest. After every service stops, it verifies the credential locally and refuses tampering, expiry and foreign-community trust. |
 
-Scenario 7 is reported as `BLOCKED` in both the transcript and `scenarios.json`,
-separately from passes. CI remains green when the implemented assertions pass
-and this documented capability is still absent. If the attempted device flow
-starts succeeding, the blocker assertion fails so it must be replaced by the
-positive second-device scenario. Completing that scenario requires an
-authenticated, single-use, session-bound device ceremony owned by membership and
-exposed in the common action registry; writing passkey rows from the toy would
-not validate the client contract.
+Scenario 7 uses the common public CLI action for both ceremony phases and real
+WebAuthn user verification. It asserts access through the surviving passkey after
+the original is removed, including fresh credential issuance and verification.
 
 ## Scale and row metering
 

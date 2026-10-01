@@ -208,6 +208,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/passkey_add": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Register another UV-required passkey for this membership */
+        post: operations["passkey_add"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/passkey_revoke": {
         parameters: {
             query?: never;
@@ -959,7 +976,9 @@ export interface operations {
             content: {
                 "application/json": {
                     ceremony: string;
-                    credential: Record<string, never>;
+                    credential: {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };
@@ -1012,6 +1031,62 @@ export interface operations {
                 };
                 content: {
                     "application/json": Record<string, never>;
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    passkey_add: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    step: "begin";
+                } | {
+                    ceremony: string;
+                    credential: {
+                        [key: string]: unknown;
+                    };
+                    /** @enum {string} */
+                    step: "finish";
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ceremony: string;
+                        options: unknown;
+                        /** @enum {string} */
+                        step: "challenge";
+                        user: string;
+                    } | {
+                        credential: number[];
+                        /** @enum {string} */
+                        step: "registered";
+                        user: string;
+                    };
                 };
             };
             /** @description Fixed redacted error category */
@@ -1403,7 +1478,9 @@ export interface operations {
             content: {
                 "application/json": {
                     ceremony: string;
-                    credential: Record<string, never>;
+                    credential: {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };

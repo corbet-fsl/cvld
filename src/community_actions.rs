@@ -4,7 +4,7 @@ use crate::{
     error::{Error, Result},
     service::{Context, Door},
 };
-use cmnt::{cplc, cplc::crbk};
+use cmty::{cplc, cplc::crbk};
 
 impl Door {
     pub(crate) async fn presentation_challenge(
@@ -250,18 +250,37 @@ impl Door {
             changed: revision > request.revision,
         })
     }
+    pub(crate) async fn passkey_add(
+        &self,
+        ctx: Context,
+        request: AddPasskey,
+    ) -> Result<AddedPasskey> {
+        self.community_backend()?
+            .lock()
+            .await
+            .add_passkey(
+                ctx.member()?,
+                ctx.grant.as_ref().ok_or(Error::Unauthorized)?,
+                request,
+                ctx.now,
+            )
+            .await
+    }
+
     pub(crate) async fn passkey_revoke(
         &self,
         ctx: Context,
         request: RevokePasskey,
     ) -> Result<Empty> {
         let mut community = self.community_backend()?.lock().await;
+        let credential: cpky::CredentialID = request.credential.into();
         community
             .facade
             .membership()
-            .revoke_passkey(ctx.member()?, request.credential.into())
+            .revoke_passkey(ctx.member()?, credential.clone())
             .await
             .map_err(|_| Error::Refused)?;
+        community.revoke_sessions(&credential);
         community
             .facade
             .flush_revocations(ctx.now)

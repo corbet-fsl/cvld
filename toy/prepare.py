@@ -18,7 +18,7 @@ lines = ['[package]', 'name = "cvld-toy"', 'version = "0.0.0"',
          '[[bin]]', 'name = "cvld-toy"', 'path = "../src/main.rs"', '[dependencies]']
 lines.append('cvld = { path = "../..", features = ["development-gate"] }')
 deps = manifest['dependencies'] | manifest['dev-dependencies']
-for name in ['cmnt', 'cglb', 'cpky', 'cpsd', 'csgn', 'cvch', 'ed25519-dalek',
+for name in ['cmty', 'cglb', 'cpky', 'cpsd', 'csgn', 'cvch', 'ed25519-dalek',
              'serde', 'serde_json', 'tokio', 'tempfile', 'chrono', 'webauthn-authenticator-rs']:
     lines.append(f'{name} = {value(deps[name])}')
 lines.extend(['[profile.dev.package."*"]', 'opt-level = 3',

@@ -6,6 +6,19 @@ use std::collections::BTreeSet;
 fn openapi_cli_and_mcp_have_exactly_the_registry_actions() {
     let expected: BTreeSet<_> = api::ACTIONS.iter().map(|a| a.name.to_owned()).collect();
     assert_eq!(expected.len(), api::ACTIONS.len());
+    assert!(expected.contains("passkey_add"));
+    let addition = api::ACTIONS
+        .iter()
+        .find(|action| action.name == "passkey_add")
+        .unwrap();
+    assert_eq!(addition.access, api::Access::Member);
+    assert_eq!(addition.scope, api::Scope::Community);
+    let tool = mcp::tools()
+        .into_iter()
+        .find(|tool| tool.name == "passkey_add")
+        .unwrap();
+    assert_eq!(tool.input_schema["type"], "object");
+    assert_eq!(tool.output_schema.as_ref().unwrap()["type"], "object");
     let openapi = serde_json::to_value(api::openapi()).unwrap();
     let openapi: BTreeSet<_> = openapi["paths"]
         .as_object()

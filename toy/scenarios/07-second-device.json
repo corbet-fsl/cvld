@@ -1,5 +1,5 @@
 {
-  "title": "Second-device protection (currently blocked)",
+  "title": "Second-device enrolment and surviving-device access",
   "steps": [
     {
       "do": "wallet",

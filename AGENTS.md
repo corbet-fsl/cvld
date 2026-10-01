@@ -1,6 +1,6 @@
 # cvld development
 
-One Rust package, library and binary. Compose cglb and cmnt; domain decisions
+One Rust package, library and binary. Compose cglb and cmty; domain decisions
 belong in their facades and leaves. Define actions once in src/api. HTTP,
 OpenAPI, CLI and MCP must expose exactly that registry. Keep generated clients
 in sync. Never publish to npm or crates.io.

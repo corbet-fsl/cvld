@@ -57,6 +57,59 @@ pub fn register(
     login(cli, &mut member)?;
     Ok(member)
 }
+/// Enrol through the same public CLI action available to any authenticated member.
+pub fn additional(cli: &Cli, existing: &Member) -> Result<Member> {
+    let start: AddedPasskey = decode(cli.call(
+        Some(&existing.session),
+        "passkey_add",
+        json!({"step":"begin"}),
+    )?)?;
+    let AddedPasskey::Challenge {
+        ceremony,
+        user,
+        options,
+    } = start
+    else {
+        return Err("additional passkey challenge expected".into());
+    };
+    if user != existing.user {
+        return Err("addition changed membership".into());
+    }
+    let mut token = SoftToken::new(true)
+        .map_err(|_| "software authenticator")?
+        .0;
+    let options: cpky::CreationChallengeResponse = decode(options)?;
+    let response = token
+        .perform_register(
+            cpky::Url::parse(&format!("https://{}", cli.host)).unwrap(),
+            options.public_key,
+            300_000,
+        )
+        .map_err(|_| "software additional passkey registration")?;
+    let credential_id = response.raw_id.as_ref().to_vec();
+    let result: AddedPasskey = decode(cli.call(
+        Some(&existing.session),
+        "passkey_add",
+        json!({"step":"finish","ceremony":ceremony,"credential":response}),
+    )?)?;
+    let AddedPasskey::Registered { user, credential } = result else {
+        return Err("additional passkey result expected".into());
+    };
+    if user != existing.user || credential != credential_id {
+        return Err("addition changed identity".into());
+    }
+    let mut seed = [0; 32];
+    cpsd::rand::RngCore::fill_bytes(&mut cpsd::rand::rngs::OsRng, &mut seed);
+    let mut member = Member {
+        token,
+        user,
+        credential,
+        session: String::new(),
+        device: SigningKey::from_bytes(&seed).verifying_key().to_bytes(),
+    };
+    login(cli, &mut member)?;
+    Ok(member)
+}
 pub fn login(cli: &Cli, member: &mut Member) -> Result<()> {
     let start: Ceremony = decode(cli.call(
         None,

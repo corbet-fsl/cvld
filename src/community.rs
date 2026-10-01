@@ -6,8 +6,8 @@ use crate::{
     error::{Error, Result},
     service::Clock,
 };
-use cmnt::cplc::crbk;
-use cmnt::{cgts, cmbr, cplc};
+use cmty::cplc::crbk;
+use cmty::{cgts, cmbr, cplc};
 use std::{
     collections::{BTreeSet, HashMap},
     sync::Arc,
@@ -32,9 +32,9 @@ impl clbs::Clock for CommunityClock {
             .map_err(|_| clbs::Error::Denied)
     }
 }
-type Rules = cmnt::adapters::SharedRulebook<crbk::LibsqlStore>;
-pub type Facade = cmnt::Community<
-    cmnt::storage::LibsqlStorage,
+type Rules = cmty::adapters::SharedRulebook<crbk::LibsqlStore>;
+pub type Facade = cmty::Community<
+    cmty::storage::LibsqlStorage,
     cmbr::LibsqlStorage,
     UnconfiguredAuthority,
     CommunityClock,
@@ -44,13 +44,15 @@ pub type Facade = cmnt::Community<
     cplc::LibsqlStore,
     csgn::LibsqlStore,
 >;
+mod devices;
+
 struct Pending<T> {
     value: T,
     user: cpky::Uuid,
     until: u64,
 }
 struct Challenge {
-    value: cmnt::Challenge,
+    value: cmty::Challenge,
     owner: Option<cpky::Uuid>,
     until: u64,
 }
@@ -69,6 +71,7 @@ pub struct CommunityService {
     challenges: HashMap<String, Challenge>,
     registrations: HashMap<String, Pending<cmbr::PendingRegistration>>,
     logins: HashMap<String, Pending<cmbr::PendingLogin>>,
+    additions: HashMap<String, devices::PendingAddition>,
     sessions: HashMap<String, SessionState>,
 }
 impl CommunityService {
@@ -101,7 +104,7 @@ impl CommunityService {
             ("crbk", crbk::SCHEMA),
             ("cplc", cplc::SCHEMA),
             ("csgn", csgn::SCHEMA),
-            ("cpsd", cmnt::storage::SCHEMA),
+            ("cpsd", cmty::storage::SCHEMA),
             ("service", crate::identity::SCHEMA),
             ("global-trust", crate::global_trust::SCHEMA),
         ]);
@@ -164,7 +167,7 @@ impl CommunityService {
                 policy_store,
                 signer,
                 cplc::Config {
-                    credential_action: cmnt::ADMISSION_ACTION.into(),
+                    credential_action: cmty::ADMISSION_ACTION.into(),
                     snapshot_validity: config.publication_seconds,
                 },
             )
@@ -208,7 +211,7 @@ impl CommunityService {
             cmbr::LibsqlStorage::new(db, scope).map_err(|_| Error::Unavailable)?,
             cmbr::Config {
                 pending_days: config.pending_days,
-                membership_action: cmnt::ADMISSION_ACTION.into(),
+                membership_action: cmty::ADMISSION_ACTION.into(),
                 release_period: Default::default(),
                 lease_months: config.lease_months,
                 rp_id: format!("{scope}.{}", config.domain),
@@ -232,8 +235,8 @@ impl CommunityService {
             ),
         )
         .map_err(|_| Error::Invalid)?;
-        let facade = cmnt::Community::new(
-            cmnt::storage::LibsqlStorage::new(
+        let facade = cmty::Community::new(
+            cmty::storage::LibsqlStorage::new(
                 db,
                 cpsd::CommunityId::new(scope.as_bytes()).map_err(|_| Error::Invalid)?,
                 config.pending_capacity,
@@ -243,13 +246,13 @@ impl CommunityService {
                 cpsd::IssuerPublicKey::from_bytes(&status.issuer_public_key)
                     .map_err(|_| Error::Invalid)?,
             ],
-            cmnt::Parts {
+            cmty::Parts {
                 membership,
                 gates,
                 policy,
             },
-            cmnt::Config {
-                passport: cmnt::PassportPolicy {
+            cmty::Config {
+                passport: cmty::PassportPolicy {
                     epoch: status.epoch,
                     valid_until: status.shared_expiry,
                     gates: config
@@ -286,6 +289,7 @@ impl CommunityService {
             challenges: HashMap::new(),
             registrations: HashMap::new(),
             logins: HashMap::new(),
+            additions: HashMap::new(),
             sessions: HashMap::new(),
         })
     }
@@ -307,7 +311,7 @@ impl CommunityService {
         }
         self.facade
             .refresh_passport_policy(
-                cmnt::PassportPolicy {
+                cmty::PassportPolicy {
                     epoch: global.status.epoch,
                     valid_until: global.status.shared_expiry,
                     gates: self
@@ -328,6 +332,7 @@ impl CommunityService {
         self.challenges.retain(|_, p| p.until > now);
         self.registrations.retain(|_, p| p.until > now);
         self.logins.retain(|_, p| p.until > now);
+        self.additions.retain(|_, p| p.until > now);
         self.sessions.retain(|_, s| s.grant.expires > now);
     }
     pub async fn authenticate(
@@ -504,7 +509,10 @@ impl CommunityService {
         })
     }
     pub fn logout(&mut self, token: &str) {
-        self.sessions.remove(token);
+        if let Some(session) = self.sessions.remove(token) {
+            self.additions
+                .retain(|_, p| p.session_id != session.grant.session_id);
+        }
     }
     pub async fn reserved(&self, now: u64) -> Result<Vec<String>> {
         let policy = self
@@ -553,7 +561,7 @@ impl CommunityService {
         let context = cgts::Context {
             snapshot: snapshot.settings(),
             subject: row.subject(),
-            action: cmnt::ADMISSION_ACTION,
+            action: cmty::ADMISSION_ACTION,
             now: now as i64,
         };
         // No cached global assertion: a credential always requires a fresh passport.
@@ -637,7 +645,7 @@ impl CommunityService {
                 cgts::Context {
                     snapshot: &policy.rules,
                     subject: row.subject(),
-                    action: cmnt::ADMISSION_ACTION,
+                    action: cmty::ADMISSION_ACTION,
                     now: now as i64,
                 },
                 &self.voucher,
@@ -678,7 +686,7 @@ impl CommunityService {
                 &mut cpsd::rand::rngs::OsRng,
                 &challenge.value,
                 &proof,
-                cmnt::Admission {
+                cmty::Admission {
                     authentication: auth,
                     devices: &request.devices,
                     lease,
@@ -694,9 +702,9 @@ impl CommunityService {
             .await
             .map_err(|_| Error::Refused)?;
         let credential = match result {
-            cmnt::Outcome::Issued(value) => Some(value.cose),
-            cmnt::Outcome::Missing(_) => None,
-            cmnt::Outcome::Vetoed => return Err(Error::Forbidden),
+            cmty::Outcome::Issued(value) => Some(value.cose),
+            cmty::Outcome::Missing(_) => None,
+            cmty::Outcome::Vetoed => return Err(Error::Forbidden),
         };
         if self
             .facade

@@ -1,4 +1,4 @@
-use cmnt::{cplc, cplc::crbk};
+use cmty::{cplc, cplc::crbk};
 use cvld::{
     api::GlobalPublic,
     config::{CommunityConfig, Config, Operator},
@@ -87,7 +87,7 @@ pub fn community_rules() -> crbk::Rulebook {
         (
             crbk::GateLevel::Global,
             "development",
-            cmnt::PASSPORT_PROVIDER,
+            cmty::PASSPORT_PROVIDER,
         ),
         (crbk::GateLevel::Community, "cvch", "sponsor"),
     ] {
@@ -112,7 +112,7 @@ pub fn community_rules() -> crbk::Rulebook {
     }
     rules
         .define(
-            crbk::action_key(cmnt::ADMISSION_ACTION),
+            crbk::action_key(cmty::ADMISSION_ACTION),
             crbk::Setting {
                 value_type: crbk::SettingType::Policy,
                 nullable: false,

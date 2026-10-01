@@ -1,6 +1,6 @@
 //! A small cfrm stand-in: all verification takes only already-pulled bytes.
 use crate::process::Result;
-use cmnt::cplc::{self, SnapshotKind};
+use cmty::cplc::{self, SnapshotKind};
 use cvld::api::TrustFeed;
 use serde_json::Value;
 use std::collections::BTreeMap;

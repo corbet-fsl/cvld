@@ -69,14 +69,14 @@ pub struct CredentialResponse {
 pub struct PinRequest {
     pub field: String,
     #[schema(value_type = PinEnvelope)]
-    pub pin: cmnt::cmbr::PinV2,
+    pub pin: cmty::cmbr::PinV2,
 }
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PinChange {
     pub field: String,
     #[schema(value_type = PinEnvelope)]
-    pub pin: cmnt::cmbr::PinV2,
+    pub pin: cmty::cmbr::PinV2,
     pub evidence: Vec<u8>,
 }
 /// Wire schema of cmbr's versioned pin capability; cmbr validates every binding.
@@ -123,7 +123,7 @@ pub struct PlatformSetting {
 #[serde(deny_unknown_fields)]
 pub struct SchemaRequest {
     #[schema(value_type = Object)]
-    pub schema: cmnt::cplc::cshm::Schema,
+    pub schema: cmty::cplc::cshm::Schema,
 }
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
@@ -159,4 +159,29 @@ pub struct Announcement {
 #[serde(deny_unknown_fields)]
 pub struct RevokePasskey {
     pub credential: Vec<u8>,
+}
+
+/// Both phases of one session-bound additional-passkey operation.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(tag = "step", rename_all = "snake_case", deny_unknown_fields)]
+pub enum AddPasskey {
+    Begin,
+    Finish {
+        ceremony: String,
+        #[schema(value_type = std::collections::BTreeMap<String, Value>, additional_properties = true)]
+        credential: Box<cpky::RegisterPublicKeyCredential>,
+    },
+}
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(tag = "step", rename_all = "snake_case", deny_unknown_fields)]
+pub enum AddedPasskey {
+    Challenge {
+        ceremony: String,
+        user: String,
+        options: Value,
+    },
+    Registered {
+        user: String,
+        credential: Vec<u8>,
+    },
 }

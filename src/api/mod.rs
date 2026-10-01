@@ -71,7 +71,7 @@ pub struct Ceremony {
 #[serde(deny_unknown_fields)]
 pub struct RegisterFinish {
     pub ceremony: String,
-    #[schema(value_type = Object)]
+    #[schema(value_type = std::collections::BTreeMap<String, Value>, additional_properties = true)]
     pub credential: cpky::RegisterPublicKeyCredential,
 }
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -95,7 +95,7 @@ pub struct LoginStart {
 #[serde(deny_unknown_fields)]
 pub struct LoginFinish {
     pub ceremony: String,
-    #[schema(value_type = Object)]
+    #[schema(value_type = std::collections::BTreeMap<String, Value>, additional_properties = true)]
     pub credential: cpky::PublicKeyCredential,
 }
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -195,6 +195,9 @@ fn schema<T: ToSchema>() -> Value {
         root["$defs"] = Value::Object(defs);
     }
     refs(&mut root);
+    // Door actions exchange objects, including tagged unions of object variants.
+    // MCP requires the top-level input and output schema type to be explicit.
+    root["type"] = Value::String("object".into());
     root
 }
 
@@ -250,6 +253,7 @@ actions! {
     pin_set(PinRequest) -> PinResponse, Member, Community, Record, "Seal an initial profile fingerprint";
     pin_get(Field) -> PinResponse, Member, Community, Check, "Read a sealed fingerprint";
     pin_change(PinChange) -> PinResponse, Member, Community, Record, "Change a fingerprint using spent-token evidence";
+    passkey_add(AddPasskey) -> AddedPasskey, Member, Community, Record, "Register another UV-required passkey for this membership";
     passkey_revoke(RevokePasskey) -> Empty, Member, Community, Record, "Revoke a community passkey";
     setting_set(Setting) -> TrustFeed, Admin, Community, Record, "Edit a community setting";
     platform_set(PlatformSetting) -> TrustFeed, Root, Community, Record, "Edit a platform setting or force switch";

@@ -1,0 +1,43 @@
+name: Refresh dependency lock
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CARGO_HTTP_USER_AGENT: dependency-lock-ci
+      CARGO_BUILD_JOBS: 2
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+        with:
+          cache-on-failure: true
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Resolve the declared revisions
+        run: |
+          cargo update --workspace
+          if [ -f fuzz/Cargo.toml ]; then cargo update --workspace --manifest-path fuzz/Cargo.toml; fi
+      - run: python3 .github/check-first-party.py
+      - name: Generate the public contract from the action registry
+        run: |
+          cargo run --locked -- openapi > docs/openapi.json
+          npm ci --prefix clients/ts
+          npm run generate --prefix clients/ts
+          npm run check --prefix clients/ts
+          npm test --prefix clients/ts
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: refreshed-lock
+          path: |
+            Cargo.lock
+            fuzz/Cargo.lock
+            docs/openapi.json
+            clients/ts/schema.d.ts

@@ -1,6 +1,6 @@
 #![cfg(feature = "development-gate")]
 mod support;
-use cmnt::cplc;
+use cmty::cplc;
 use cvld::api::*;
 use serde_json::{Value, json};
 use support::*;
@@ -9,7 +9,7 @@ fn verified_feed(
     feed: &TrustFeed,
     community: &str,
     now: u64,
-) -> cplc::Snapshot<cmnt::cplc::crbk::Values> {
+) -> cplc::Snapshot<cmty::cplc::crbk::Values> {
     let ring = csgn::KeyRing::from_cbor(&feed.key_ring).unwrap();
     let manifest = ring
         .verify(&feed.manifest, csgn::Kind::SettingsSnapshot, now)
@@ -127,7 +127,7 @@ async fn two_communities_admission_policy_lapse_and_release_over_http() {
                 .credential
                 .is_none()
         );
-        let sealed = cmnt::cmbr::PinV2::seal(
+        let sealed = cmty::cmbr::PinV2::seal(
             &cpns::FingerprintContext {
                 community: name,
                 member: &expected,
@@ -148,7 +148,7 @@ async fn two_communities_admission_policy_lapse_and_release_over_http() {
         )
         .unwrap();
         assert_eq!(pin.pin.unwrap().revision, 1);
-        let changed_pin = cmnt::cmbr::PinV2::seal(
+        let changed_pin = cmty::cmbr::PinV2::seal(
             &cpns::FingerprintContext {
                 community: name,
                 member: &expected,
@@ -520,7 +520,7 @@ async fn free_fields_refuse_pins_without_changing_public_member_metadata() {
     let pseudonym = passport
         .pseudonym(&cpsd::CommunityId::new("seals").unwrap())
         .to_hex();
-    let pin = cmnt::cmbr::PinV2::seal(
+    let pin = cmty::cmbr::PinV2::seal(
         &cpns::FingerprintContext {
             community: "seals",
             member: &pseudonym,

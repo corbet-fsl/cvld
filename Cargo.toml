@@ -12,15 +12,15 @@ default = []
 development-gate = ["cglb/development-gate"]
 
 [dependencies]
-cmnt = { git = "https://github.com/corbet-libs/cmnt", rev = "883eaedfd9f2b9182955f8798054a58ebc63cd49" }
-clbs = { git = "https://github.com/corbet-foss/clbs", rev = "2eeefb351484aadf430cd12083e0f198cde6a5b2" }
+cmty = { git = "https://github.com/corbet-libs/cmty", rev = "8998171ccf1f169d4ac13506af97c95f65cc71dd" }
+clbs = { git = "https://github.com/corbet-foss/clbs", rev = "873f2dd7388c6d5e025a27b4c55447c4b4892a2d" }
 ed25519-dalek = "2.2"
-cpsd = { git = "https://github.com/corbet-foss/cpsd", rev = "b60f2bbff04dbe0a93cb41992006b06dafc798c3", default-features = false, features = ["storage"] }
-crlt = { git = "https://github.com/corbet-foss/crlt", rev = "6b94dacd7fa04aa8847c62c6471a1fc5c0f6c9dc" }
-csgn = { git = "https://github.com/corbet-foss/csgn", rev = "d7203f310c3c129c3f67ef4ef3e34ccf0ae8c93b", features = ["libsql"] }
-cglb = { git = "https://github.com/corbet-libs/cglb", rev = "03d1d8d9437c4f9547e788130cfe83c2a33188ff" }
-cpky = { git = "https://github.com/corbet-foss/cpky", rev = "e0bea9b1a6425fe17b65257e747d2c4621078845" }
-cthl = { git = "https://github.com/corbet-foss/cthl", rev = "7f1a38de4285dee4b15ee8f9e82c1cb257513644" }
+cpsd = { git = "https://github.com/corbet-foss/cpsd", rev = "0d314b97bce9aeaffb5424159e8255ce34acee1e", default-features = false, features = ["storage"] }
+crlt = { git = "https://github.com/corbet-foss/crlt", rev = "80dc046d6ab53b3ea530c45bf3d7038c8b2c61b2" }
+csgn = { git = "https://github.com/corbet-foss/csgn", rev = "3ea958b522a15fecf65630aae1f9944135105497", features = ["libsql"] }
+cglb = { git = "https://github.com/corbet-libs/cglb", rev = "f6fc32ff2a0f5b71147df8fe277ca908d04e4ad7" }
+cpky = { git = "https://github.com/corbet-foss/cpky", rev = "65f93bb78d103d9ee3c25b80ed873130ecf2a6d7" }
+cthl = { git = "https://github.com/corbet-foss/cthl", rev = "a41533a255cefc0757078205bff87c03e6c7bbbe" }
 axum = "0.8.9"
 tower-http = { version = "0.6.11", features = ["cors"] }
 utoipa = "6.0.0"
@@ -38,8 +38,8 @@ zeroize = "1.9"
 subtle = "2.6"
 
 [dev-dependencies]
-cvch = { git = "https://github.com/corbet-foss/cvch", rev = "bf0a5dede0af0680e6c74720cbb51f1c10a812e9" }
-cpns = { git = "https://github.com/corbet-foss/cpns", rev = "23968a9fa338791e70078c6070a6f1f3cf185ff7" }
+cvch = { git = "https://github.com/corbet-foss/cvch", rev = "37ee0cba6c8be767c8e8ecd286ec225a21b564e1" }
+cpns = { git = "https://github.com/corbet-foss/cpns", rev = "d68a3f3a2df322c513d0e754e452ee02aab7a5b9" }
 tempfile = "3"
 webauthn-authenticator-rs = { version = "0.5.5", default-features = false, features = ["softtoken"] }
 

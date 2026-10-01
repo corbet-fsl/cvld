@@ -55,3 +55,36 @@ test("enforce privacy options after caller overrides", async () => {
     });
   } finally { globalThis.fetch = original; }
 });
+
+
+test("additional passkey phases use one authenticated public action", async () => {
+  const original = globalThis.fetch;
+  const seen: unknown[] = [];
+  globalThis.fetch = async (request) => {
+    assert.ok(request instanceof Request);
+    assert.equal(request.url, "https://api.example.test/v1/passkey_add");
+    assert.equal(request.method, "POST");
+    assert.equal(request.headers.get("authorization"), "Bearer synthetic-session");
+    assert.equal(request.credentials, "omit");
+    const body = await request.json();
+    seen.push(body);
+    return Response.json(body.step === "begin"
+      ? { step: "challenge", ceremony: "synthetic-ceremony", user: "same-member", options: {} }
+      : { step: "registered", user: "same-member", credential: [1, 2, 3] });
+  };
+  try {
+    const api = client("https://api.example.test", "synthetic-session");
+    const start = await api.POST("/v1/passkey_add", { body: { step: "begin" } });
+    assert.equal(start.data?.step, "challenge");
+    if (start.data?.step !== "challenge") throw new Error("challenge expected");
+    const finish = await api.POST("/v1/passkey_add", { body: {
+      step: "finish", ceremony: start.data.ceremony, credential: { id: "synthetic-key" },
+    } });
+    assert.equal(finish.data?.step, "registered");
+    assert.equal(finish.data?.user, start.data.user);
+    assert.deepEqual(seen, [
+      { step: "begin" },
+      { step: "finish", ceremony: "synthetic-ceremony", credential: { id: "synthetic-key" } },
+    ]);
+  } finally { globalThis.fetch = original; }
+});
