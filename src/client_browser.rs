@@ -78,7 +78,7 @@ impl BrowserClient {
             .get_reader()
             .dyn_into::<web_sys::ReadableStreamDefaultReader>()
             .map_err(|_| Error::Reconcile)?;
-        let mut bytes = Vec::new();
+        let mut bytes = zeroize::Zeroizing::new(Vec::new());
         loop {
             let next = JsFuture::from(reader.read())
                 .await
@@ -118,5 +118,11 @@ impl Transport for BrowserClient {
     async fn send(&mut self, path: &str, request: Value) -> Result<Value> {
         let name = path.strip_prefix("/v1/").ok_or(Error::Invalid)?;
         self.call(name, request).await
+    }
+}
+
+impl super::SessionTransport for BrowserClient {
+    fn adopt_session(&mut self, token: zeroize::Zeroizing<String>) {
+        self.token = Some(token);
     }
 }

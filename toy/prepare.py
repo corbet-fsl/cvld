@@ -17,7 +17,10 @@ lines = ['[package]', 'name = "cvld-toy"', 'version = "0.0.0"',
          'edition = "2024"', 'publish = false', '[workspace]',
          '[[bin]]', 'name = "cvld-toy"', 'path = "../src/main.rs"', '[dependencies]']
 lines.append('cvld = { path = "../..", features = ["development-gate"] }')
-deps = manifest['dependencies'] | manifest['dev-dependencies']
+# The toy runs natively; its authenticator and storage fixtures follow the
+# owner's native-only development dependencies after the browser feature split.
+deps = (manifest['dependencies'] | manifest.get('dev-dependencies', {})
+        | manifest['target']['cfg(not(target_arch = "wasm32"))']['dev-dependencies'])
 for name in ['cmty', 'cglb', 'ckyh', 'cpsd', 'csgn', 'cvch', 'ed25519-dalek',
              'serde', 'serde_json', 'tokio', 'tempfile', 'chrono', 'passkey', 'async-trait']:
     dependency = deps[name]

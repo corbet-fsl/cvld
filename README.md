@@ -97,7 +97,7 @@ opens a global database, issuer secret or uniqueness key. The global process
 never opens a community database or accepts community domain actions.
 
 Member calls use `api.<community>.<domain>`, administrators use
-`api.admin.<community>.<domain>`, and root uses `api.root.<domain>`. Each listener
+`api.admin.<community>.<domain>`, and root uses `api.admin.root.<domain>`. Each listener
 serves one configured backend. Sessions belong to that process and exact host;
 operators authenticate directly, without cfrm. A TLS ingress must direct each
 operator request to its selected backend and preserve the exact Host header.

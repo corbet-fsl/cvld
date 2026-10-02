@@ -94,6 +94,18 @@ impl Context {
         .map_err(|_| Error::Invalid)
     }
 }
+// Portal and API are explicit origins under the same scope-specific RP. An
+// admin portal never broadens member or operator passkeys to the shared base.
+fn operator_origins(host: &str) -> Result<Vec<ckyh::Url>> {
+    let mut origins =
+        vec![ckyh::Url::parse(&format!("https://{host}")).map_err(|_| Error::Invalid)?];
+    if let Some(scope) = host.strip_prefix("api.admin.") {
+        origins
+            .push(ckyh::Url::parse(&format!("https://admin.{scope}")).map_err(|_| Error::Invalid)?);
+    }
+    Ok(origins)
+}
+
 impl Door {
     pub async fn global(config: Config, clock: Arc<dyn Clock>) -> Result<Self> {
         if config.domain.is_empty()
@@ -119,7 +131,7 @@ impl Door {
         let published = Published::Global(global.changes.subscribe());
         let mut hosts = BTreeMap::new();
         let wallet = format!("wallet.{}", config.domain);
-        let root = format!("api.root.{}", config.domain);
+        let root = format!("api.admin.root.{}", config.domain);
         for (host, role, scope, operator) in [
             (wallet, Role::Member, "wallet", None),
             (
@@ -133,8 +145,8 @@ impl Door {
                 ckyh::LibsqlStore::new(&db, scope, tokio::runtime::Handle::current())
                     .map_err(|_| Error::Unavailable)?,
                 scope,
-                &host,
-                &[ckyh::Url::parse(&format!("https://{host}")).map_err(|_| Error::Invalid)?],
+                host.strip_prefix("api.admin.").unwrap_or(&host),
+                &operator_origins(&host)?,
             )
             .map_err(|_| Error::Invalid)?;
             let bootstrap = if operator.is_some() {
@@ -273,7 +285,7 @@ impl Door {
                 &config.admin,
             ),
             (
-                format!("api.root.{}", config.domain),
+                format!("api.admin.root.{}", config.domain),
                 Role::Root,
                 "operator:root",
                 &config.root,
@@ -283,8 +295,8 @@ impl Door {
                 ckyh::LibsqlStore::new(&db, scope, tokio::runtime::Handle::current())
                     .map_err(|_| Error::Unavailable)?,
                 scope,
-                &host,
-                &[ckyh::Url::parse(&format!("https://{host}")).map_err(|_| Error::Invalid)?],
+                host.strip_prefix("api.admin.").unwrap_or(&host),
+                &operator_origins(&host)?,
             )
             .map_err(|_| Error::Invalid)?;
             let bootstrap = operator
@@ -340,6 +352,10 @@ impl Door {
     pub(crate) fn allows_origin(&self, host: &str, origin: &str) -> bool {
         (self.inner.hosts.contains_key(host) || self.inner.member_host.as_deref() == Some(host))
             && (origin == format!("https://{host}")
+                || (self.inner.hosts.contains_key(host)
+                    && host
+                        .strip_prefix("api.admin.")
+                        .is_some_and(|scope| origin == format!("https://admin.{scope}")))
                 || (self.inner.member_host.as_deref() == Some(host)
                     && host.strip_prefix("api.").is_some_and(|canonical| {
                         origin == format!("https://{canonical}")

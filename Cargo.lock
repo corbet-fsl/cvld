@@ -893,7 +893,7 @@ checksum = "f079e83a288787bcd14a6aea84cee5c87a67c5a3e660c30f557a3d24761b3527"
 [[package]]
 name = "cglb"
 version = "0.0.0"
-source = "git+https://github.com/corbet-libs/cglb?branch=main#1ed3789b427ff9877e05a45f610ca411be05fb74"
+source = "git+https://github.com/corbet-libs/cglb?branch=main#b68e9f4d2681cb863914c49f84b9a9435ce50819"
 dependencies = [
  "cbcn",
  "cpsd",

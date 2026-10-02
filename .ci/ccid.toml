@@ -1,0 +1,10 @@
+schema = 1
+project = "cvld"
+
+[checks.native]
+kind = "commands"
+commands = [["bash", ".ci/native-check.sh"]]
+
+[checks.protocol]
+kind = "commands"
+commands = [["bash", ".ci/protocol-check.sh"]]

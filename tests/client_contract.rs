@@ -9,6 +9,50 @@ use serde_json::json;
 use support::*;
 
 #[tokio::test(flavor = "multi_thread")]
+async fn authentication_adopts_the_real_session_without_exporting_its_bearer() {
+    let service = global(100).await;
+    let mut member = enrol(&service, WALLET, None).await;
+    let request = login_request(
+        &service,
+        WALLET,
+        &mut member.authenticator,
+        &member.user,
+        &member.credential,
+    )
+    .await;
+    let mut api = Client::new(client(&service, WALLET, None));
+    assert!(cvld::client::forwarding_action("login_finish").is_none());
+    assert!(cvld::client::forwarding_action("global_public").is_some());
+    assert!(cvld::client::forwarding_action("unknown").is_none());
+    assert!(cvld::client::forwarding_contract()["paths"]["/v1/login_finish"].is_null());
+    assert!(matches!(
+        api.forward("login_finish", request.clone()).await,
+        Err(Error::Invalid)
+    ));
+    let mut foreign = Client::new(client(&service, ROOT, None));
+    assert!(matches!(
+        foreign.authenticate(request.clone()).await,
+        Err(Error::Unauthorized)
+    ));
+    let info = api.authenticate(request.clone()).await.unwrap();
+    assert_eq!(info.user, member.user);
+    assert_eq!(info.role, "member");
+    assert!(info.expires > NOW);
+    let safe = serde_json::to_value(&info).unwrap();
+    assert!(safe.get("token").is_none());
+    assert_eq!(safe.as_object().unwrap().len(), 3);
+    assert!(matches!(
+        api.authenticate(request).await,
+        Err(Error::Unauthorized)
+    ));
+    api.forward("logout", json!({})).await.unwrap();
+    assert!(matches!(
+        api.forward("logout", json!({})).await,
+        Err(Error::Unauthorized)
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn generated_client_forwards_real_public_member_and_root_calls() {
     let service = global(100).await;
     let mut public =

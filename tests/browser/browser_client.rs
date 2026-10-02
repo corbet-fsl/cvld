@@ -23,6 +23,20 @@ async fn generated_browser_client_reaches_the_real_keyhole_and_door() {
         .unwrap();
     let session = fixture["session"].as_str().unwrap().to_owned();
     let mut public = Client::new(BrowserClient::new(BASE.into(), HOST.into(), None).unwrap());
+    assert!(matches!(
+        public
+            .forward("login_finish", fixture["authentication"].clone())
+            .await,
+        Err(Error::Invalid)
+    ));
+    let info = public
+        .authenticate(fixture["authentication"].clone())
+        .await
+        .unwrap();
+    assert_eq!(info.user, fixture["user"].as_str().unwrap());
+    assert_eq!(info.role, "member");
+    assert!(serde_json::to_value(&info).unwrap().get("token").is_none());
+    public.forward("logout", json!({})).await.unwrap();
     let metadata = action("global_public").unwrap();
     assert_eq!(metadata.path(), "/v1/global_public");
     assert_eq!(metadata.schema()["x-role"], "public");

@@ -21,7 +21,7 @@ use webauthn_authenticator_rs::{AuthenticatorBackend, softtoken::SoftToken};
 pub const NOW: u64 = 1_800_000_000;
 pub const DOMAIN: &str = "example.test";
 pub const WALLET: &str = "wallet.example.test";
-pub const ROOT: &str = "api.root.example.test";
+pub const ROOT: &str = "api.admin.root.example.test";
 pub struct TestClock(pub AtomicU64);
 impl Clock for TestClock {
     fn now(&self) -> u64 {
@@ -207,6 +207,24 @@ pub async fn login(
     user: &str,
     credential: &[u8],
 ) -> String {
+    let body = login_request(service, host, authenticator, user, credential).await;
+    let session: Session = serde_json::from_value(
+        client(service, host, None)
+            .call("login_finish", body)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    session.token
+}
+
+pub async fn login_request(
+    service: &Running,
+    host: &str,
+    authenticator: &mut SoftToken,
+    user: &str,
+    credential: &[u8],
+) -> Value {
     let client = client(service, host, None);
     let start: Ceremony = serde_json::from_value(
         client
@@ -223,17 +241,7 @@ pub async fn login(
             300_000,
         )
         .unwrap();
-    let session: Session = serde_json::from_value(
-        client
-            .call(
-                "login_finish",
-                json!({"ceremony":start.ceremony,"credential":credential}),
-            )
-            .await
-            .unwrap(),
-    )
-    .unwrap();
-    session.token
+    json!({"ceremony":start.ceremony,"credential":credential})
 }
 pub async fn call_status(
     service: &Running,

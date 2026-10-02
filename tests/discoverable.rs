@@ -271,3 +271,69 @@ async fn operator_discovery_keeps_the_configured_identity_and_root_host() {
         .await
         .unwrap();
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn root_garden_uses_its_scope_rp_and_exact_portal_origin() {
+    let service = global(100).await;
+    let origin = "https://admin.root.example.test";
+    let http = reqwest::Client::new();
+    for (host, candidate, allowed) in [
+        (ROOT, origin, true),
+        (ROOT, "https://admin.alpha.example.test", false),
+        (ROOT, "https://admin.root.example.test.evil.test", false),
+        ("api.root.example.test", origin, false),
+    ] {
+        let response = http
+            .post(format!("{}/v1/login_discoverable_begin", service.base))
+            .header("host", host)
+            .header("origin", candidate)
+            .json(&json!({}))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status().is_success(), allowed);
+        assert_eq!(
+            response
+                .headers()
+                .contains_key("access-control-allow-origin"),
+            allowed
+        );
+    }
+    let api = client(&service, ROOT, None);
+    let begin: Ceremony = serde_json::from_value(
+        api.call(
+            "register_begin",
+            json!({
+                "bootstrap":"synthetic-operator-enrolment-capability"
+            }),
+        )
+        .await
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(begin.options["publicKey"]["rp"]["id"], "root.example.test");
+    let mut device = Resident::default();
+    let mut response = device.ceremony(begin.options, true, origin).await;
+    strip_prf(&mut response);
+    let user: User = serde_json::from_value(
+        api.call(
+            "register_finish",
+            json!({
+                "ceremony":begin.ceremony,"credential":response
+            }),
+        )
+        .await
+        .unwrap(),
+    )
+    .unwrap();
+    let (ceremony, mut response) = discover(&service, ROOT, &mut device, origin).await;
+    strip_prf(&mut response);
+    let mut foyer = cvld::client::Client::new(api);
+    let session = foyer
+        .authenticate(json!({"ceremony":ceremony,"credential":response}))
+        .await
+        .unwrap();
+    assert_eq!(session.user, user.user);
+    assert_eq!(session.role, "root");
+    foyer.forward("logout", json!({})).await.unwrap();
+}

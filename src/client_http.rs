@@ -66,7 +66,7 @@ impl HttpClient {
         {
             return Err(Error::Reconcile);
         }
-        let mut body = Vec::new();
+        let mut body = zeroize::Zeroizing::new(Vec::new());
         while let Some(chunk) = response.chunk().await.map_err(|_| Error::Reconcile)? {
             if chunk.len() > LIMIT - body.len() {
                 return Err(Error::Reconcile);
@@ -81,5 +81,11 @@ impl Transport for HttpClient {
     async fn send(&mut self, path: &str, request: Value) -> Result<Value> {
         let name = path.strip_prefix("/v1/").ok_or(Error::Invalid)?;
         self.call(name, request).await
+    }
+}
+
+impl super::SessionTransport for HttpClient {
+    fn adopt_session(&mut self, token: zeroize::Zeroizing<String>) {
+        self.token = Some(token);
     }
 }

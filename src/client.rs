@@ -66,6 +66,14 @@ static DOCUMENT: LazyLock<Value> = LazyLock::new(|| {
     }
 });
 
+static FORWARD_DOCUMENT: LazyLock<Value> = LazyLock::new(|| {
+    let mut document = DOCUMENT.clone();
+    if let Some(paths) = document["paths"].as_object_mut() {
+        paths.retain(|_, item| item["post"]["x-client-access"] == "forward");
+    }
+    document
+});
+
 static RESPONSES: LazyLock<Result<BTreeMap<String, jsonschema::Validator>>> = LazyLock::new(|| {
     let paths = DOCUMENT["paths"].as_object().ok_or(Error::Reconcile)?;
     paths
@@ -102,6 +110,12 @@ pub fn contract() -> &'static Value {
     &DOCUMENT
 }
 
+/// Owner-derived device surface. Missing visibility metadata fails closed.
+/// Trusted authentication results are consumed privately instead of forwarded.
+pub fn forwarding_contract() -> &'static Value {
+    &FORWARD_DOCUMENT
+}
+
 /// A borrowed operation from the generated contract, never a caller-built grant.
 #[derive(Clone, Copy)]
 pub struct Action {
@@ -133,12 +147,36 @@ pub fn action(name: &str) -> Option<Action> {
         })
 }
 
+/// Look up only operations whose raw responses may leave the trusted runtime.
+pub fn forwarding_action(name: &str) -> Option<Action> {
+    action(name).filter(|action| action.schema()["x-client-access"] == "forward")
+}
+
 /// An authenticated HTTP runtime selected by the trusted device composition.
 /// Request JSON contains public assertions and opaque signed bytes, never PRF
 /// results or roots. The server independently checks all roles and authority.
 pub trait Transport {
     /// Send exactly the owner's path to the selected pinned door origin.
     fn send(&mut self, path: &str, request: Value) -> impl Future<Output = Result<Value>>;
+}
+
+/// Trusted transport capability for installing a freshly verified bearer.
+/// Implementations retain it privately and never return it through device JSON.
+pub trait SessionTransport: Transport {
+    /// Replace this origin's session, wiping the previous bearer on drop.
+    fn adopt_session(&mut self, token: zeroize::Zeroizing<String>);
+}
+
+/// Public result of authentication; the server bearer stays in its transport.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SessionInfo {
+    /// Community-local authenticated user.
+    pub user: String,
+    /// Role verified by the owner's response contract.
+    pub role: String,
+    /// Exclusive server session deadline.
+    pub expires: u64,
 }
 
 /// Portable generated-contract client; runtime credentials stay in its transport.
@@ -158,5 +196,33 @@ impl<T: Transport> Client<T> {
         let response = self.transport.send(action.path(), request).await?;
         validate_response(name, &response)?;
         Ok(response)
+    }
+
+    /// Forward only owner-marked shell-safe responses, before any dispatch.
+    pub async fn forward(&mut self, name: &str, request: Value) -> Result<Value> {
+        forwarding_action(name).ok_or(Error::Invalid)?;
+        self.call(name, request).await
+    }
+}
+
+impl<T: SessionTransport> Client<T> {
+    /// Finish a real passkey login and adopt its session at the same pinned origin.
+    /// The request contains the public assertion from Passkeys, never its PRF.
+    pub async fn authenticate(&mut self, request: Value) -> Result<SessionInfo> {
+        let action = action("login_finish").ok_or(Error::Invalid)?;
+        if action.schema()["x-client-access"] != "trusted" {
+            return Err(Error::Invalid);
+        }
+        let response = self.call("login_finish", request).await?;
+        let Value::Object(mut fields) = response else {
+            return Err(Error::Reconcile);
+        };
+        let Some(Value::String(token)) = fields.remove("token") else {
+            return Err(Error::Reconcile);
+        };
+        let token = zeroize::Zeroizing::new(token);
+        let info = serde_json::from_value(Value::Object(fields)).map_err(|_| Error::Reconcile)?;
+        self.transport.adopt_session(token);
+        Ok(info)
     }
 }

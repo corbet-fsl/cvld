@@ -103,7 +103,22 @@ async fn main() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let faults = format!("http://{}", listener.local_addr().unwrap());
     let task = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
-    let data = json!({ "upstream": service.base, "faults": faults, "session": member.session, "fault_sessions": sessions });
+    let authentication = login_request(
+        &service,
+        WALLET,
+        &mut member.authenticator,
+        &member.user,
+        &member.credential,
+    )
+    .await;
+    let data = json!({
+        "upstream": service.base,
+        "faults": faults,
+        "session": member.session,
+        "fault_sessions": sessions,
+        "authentication": authentication,
+        "user": member.user,
+    });
     let temporary = format!("{path}.pending");
     let mut options = std::fs::OpenOptions::new();
     options.write(true).create_new(true);
