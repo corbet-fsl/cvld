@@ -1,6 +1,14 @@
 //! Wire corruption after a real door mutation; shared native/browser vectors.
 use axum::{body::Body, response::Response};
 
+/// Both values have the real schema's type. Ordinary Value decoding would
+/// silently retain the second issuer and accept this ambiguous owner response.
+pub fn duplicate_public_response(value: &serde_json::Value) -> Response {
+    let body = serde_json::to_string(value).unwrap();
+    assert!(body.starts_with('{'));
+    Response::new(Body::from(format!(r#"{{"issuer":[],{}"#, &body[1..])))
+}
+
 pub fn corrupted_response(mode: usize) -> Response {
     match mode {
         0 => Response::new(Body::from("{")),
@@ -35,6 +43,13 @@ pub fn corrupted_response(mode: usize) -> Response {
             tokio::time::sleep(std::time::Duration::from_secs(31)).await;
             Ok::<_, std::io::Error>(axum::body::Bytes::from_static(b"{}"))
         }))),
+        11 => Response::builder()
+            .status(401)
+            .body(Body::from(
+                r#"{"error":"unavailable","error":"unauthorized"}"#,
+            ))
+            .unwrap(),
+        12 => Response::new(Body::from(r#"{"duplicate":false,"duplicate":true}"#)),
         _ => panic!("unknown wire-corruption vector"),
     }
 }

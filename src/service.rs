@@ -376,7 +376,12 @@ impl Door {
                     .is_some_and(|(host, origin)| door.allows_origin(host, origin))
             }))
             .allow_methods([Method::POST])
-            .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE])
+            .allow_headers([
+                header::AUTHORIZATION,
+                header::CONTENT_TYPE,
+                header::CACHE_CONTROL,
+                header::PRAGMA,
+            ])
             .max_age(Duration::from_secs(600))
     }
     fn auth(&self, host: &str) -> Result<Arc<Mutex<Auth>>> {

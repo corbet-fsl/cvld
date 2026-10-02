@@ -51,13 +51,13 @@ def main():
                 address = match.group()
         if address is None:
             raise RuntimeError("upstream test server startup timed out")
-        fixture_path = Path("browser-fixture.json").resolve()
+        fixture_path = Path(os.environ.get("CVLD_BROWSER_FIXTURE", "browser-fixture.json")).resolve()
         fixture = json.loads(fixture_path.read_text())
         if not re.fullmatch(r"http://127\.0\.0\.1:[0-9]+", fixture["upstream"]):
             raise RuntimeError("fixture must use an actual loopback door")
         if not re.fullmatch(r"http://127\.0\.0\.1:[0-9]+", fixture["faults"]):
             raise RuntimeError("fault proxy must use loopback")
-        tls = Path(".browser-tls").resolve()
+        tls = Path(os.environ.get("CVLD_BROWSER_TLS", ".browser-tls")).resolve()
         certificate, key = tls / "cert.pem", tls / "key.pem"
         config = tls / "Caddyfile"
         config.write_text("""{
@@ -68,6 +68,9 @@ https://wallet.example.test {
     bind 127.0.0.1
     tls CERT KEY
     handle /v1/logout {
+        reverse_proxy FAULTS
+    }
+    handle /v1/global_public {
         reverse_proxy FAULTS
     }
     handle /__faults {
@@ -115,7 +118,9 @@ https://wallet.example.test {
         # Only this ephemeral fixture key is accepted; no global TLS bypass.
         options.add_argument("--ignore-certificate-errors-spki-list=" + pinned_fixture_key)
         options.set_capability("goog:loggingPrefs", {"browser": "ALL"})
-        driver = webdriver.Chrome(service=Service("/usr/bin/chromedriver"), options=options)
+        if os.environ.get("CHROME_BIN"):
+            options.binary_location = os.environ["CHROME_BIN"]
+        driver = webdriver.Chrome(service=Service(os.environ.get("CHROMEDRIVER", "/usr/bin/chromedriver")), options=options)
         driver.set_page_load_timeout(120)
         driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {"source": """
             window.__coverageLog = [];
@@ -155,6 +160,9 @@ https://wallet.example.test {
             if state["error"] or "test result: FAILED" in state["text"]:
                 raise RuntimeError(state["error"] or "upstream browser tests failed")
             if re.search(r"test result: ok\. [1-9][0-9]* passed", state["text"]):
+                if os.environ.get("CVLD_BROWSER_COVERAGE", "1") == "0":
+                    print(state["text"], flush=True)
+                    return
                 driver.set_script_timeout(30)
                 captured = driver.execute_async_script("""
                     const done = arguments[0];

@@ -358,6 +358,7 @@
           }
         ],
         "summary": "Present a passport and request admission or renewal",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
@@ -446,6 +447,7 @@
           }
         ],
         "summary": "Authorize the lineage device key with this live passkey",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
@@ -520,6 +522,7 @@
           }
         ],
         "summary": "Read current passkey-authorized signing keys",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "member",
         "x-scope": "community"
@@ -641,6 +644,7 @@
           }
         ],
         "summary": "Verify a member-bound voucher",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
@@ -733,6 +737,7 @@
           }
         ],
         "summary": "Withdraw a retained community gate",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
@@ -817,6 +822,7 @@
         },
         "security": [],
         "summary": "Read authenticated global issuer material",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "public",
         "x-scope": "global"
@@ -888,6 +894,7 @@
           }
         ],
         "summary": "Temporarily suspend and advance the global epoch",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "root",
         "x-scope": "global"
@@ -953,6 +960,7 @@
           }
         ],
         "summary": "Record the warning preceding temporary suspension",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "root",
         "x-scope": "global"
@@ -1022,6 +1030,7 @@
         },
         "security": [],
         "summary": "Check a community handle",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "public",
         "x-scope": "community"
@@ -1124,6 +1133,7 @@
           }
         ],
         "summary": "Reserve a community handle",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
@@ -1218,6 +1228,7 @@
           }
         ],
         "summary": "Read enrolment and missing requirements",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "member",
         "x-scope": "community"
@@ -1302,6 +1313,7 @@
         },
         "security": [],
         "summary": "Begin credential-first passkey authentication",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "public",
         "x-scope": "both"
@@ -1366,6 +1378,7 @@
         },
         "security": [],
         "summary": "Begin usernameless sign-in with a synced passkey",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "public",
         "x-scope": "both"
@@ -1414,6 +1427,9 @@
                       "$ref": "#/components/schemas/Role"
                     },
                     "token": {
+                      "maxLength": 64,
+                      "minLength": 64,
+                      "pattern": "^[0-9a-f]{64}$",
                       "type": "string"
                     },
                     "user": {
@@ -1454,6 +1470,7 @@
         },
         "security": [],
         "summary": "Verify user and counter; create an ephemeral session",
+        "x-client-access": "trusted",
         "x-effect": "record",
         "x-role": "public",
         "x-scope": "both"
@@ -1511,6 +1528,7 @@
           }
         ],
         "summary": "End this ephemeral session",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "authenticated",
         "x-scope": "both"
@@ -1657,6 +1675,7 @@
           }
         ],
         "summary": "Register another UV-required passkey for this membership",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
@@ -1727,6 +1746,7 @@
           }
         ],
         "summary": "Revoke a community passkey",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
@@ -1797,6 +1817,7 @@
           }
         ],
         "summary": "Reserve a blind passport issuance challenge",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "global"
@@ -1889,6 +1910,7 @@
           }
         ],
         "summary": "Issue a blind passport after global policy checks",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "global"
@@ -1979,6 +2001,7 @@
           }
         ],
         "summary": "Change a fingerprint using spent-token evidence",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
@@ -2056,6 +2079,7 @@
           }
         ],
         "summary": "Read a sealed fingerprint",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "member",
         "x-scope": "community"
@@ -2137,6 +2161,7 @@
           }
         ],
         "summary": "Seal an initial profile fingerprint",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
@@ -2291,6 +2316,7 @@
           }
         ],
         "summary": "Edit a platform setting or force switch",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "root",
         "x-scope": "community"
@@ -2361,6 +2387,7 @@
         },
         "security": [],
         "summary": "Begin a signed community passport presentation",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "public",
         "x-scope": "community"
@@ -2448,6 +2475,7 @@
         },
         "security": [],
         "summary": "Begin UV-required passkey registration",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "public",
         "x-scope": "both"
@@ -2522,6 +2550,7 @@
         },
         "security": [],
         "summary": "Verify and store the first passkey",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "public",
         "x-scope": "both"
@@ -2593,6 +2622,7 @@
           }
         ],
         "summary": "Classify profile schema changes",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "admin",
         "x-scope": "community"
@@ -2743,6 +2773,7 @@
           }
         ],
         "summary": "Publish a profile schema",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "admin",
         "x-scope": "community"
@@ -2907,6 +2938,7 @@
           }
         ],
         "summary": "Edit a community setting",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "admin",
         "x-scope": "community"
@@ -2990,6 +3022,7 @@
         },
         "security": [],
         "summary": "Wait for a public revision announcement",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "public",
         "x-scope": "community"
@@ -3128,6 +3161,7 @@
         },
         "security": [],
         "summary": "Read signed public trust snapshots",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "public",
         "x-scope": "community"

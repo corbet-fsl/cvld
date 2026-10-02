@@ -25,7 +25,7 @@ async fn main() {
         .await
         .unwrap();
     let mut sessions = Vec::new();
-    for _ in 0..11 {
+    for _ in 0..13 {
         sessions.push(
             login(
                 &service,
@@ -45,7 +45,25 @@ async fn main() {
     );
     let stats = cases.clone();
     let upstream = service.base.clone();
+    let public = client(&service, WALLET, None);
     let router = Router::new()
+        .route(
+            "/v1/global_public",
+            post(move |headers: HeaderMap| {
+                let public = public.clone();
+                async move {
+                    let value = public.call("global_public", json!({})).await.unwrap();
+                    if headers
+                        .get("authorization")
+                        .is_some_and(|v| v == "Bearer duplicate-public-fixture")
+                    {
+                        support::client_faults::duplicate_public_response(&value)
+                    } else {
+                        Response::new(Body::from(serde_json::to_vec(&value).unwrap()))
+                    }
+                }
+            }),
+        )
         .route(
             "/__faults",
             get(move || {

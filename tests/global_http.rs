@@ -314,7 +314,10 @@ async fn cors_never_authorizes_a_foreign_origin_or_host() {
             .header("host", host)
             .header("origin", origin)
             .header("access-control-request-method", "POST")
-            .header("access-control-request-headers", "content-type")
+            .header(
+                "access-control-request-headers",
+                "content-type,cache-control,pragma",
+            )
             .send()
             .await
             .unwrap();
@@ -324,6 +327,24 @@ async fn cors_never_authorizes_a_foreign_origin_or_host() {
                 .get("access-control-allow-origin")
                 .is_some(),
             allowed
+        );
+        let headers = response
+            .headers()
+            .get("access-control-allow-headers")
+            .unwrap()
+            .to_str()
+            .unwrap();
+        let headers: std::collections::BTreeSet<_> = headers.split(',').map(str::trim).collect();
+        assert_eq!(
+            headers,
+            ["authorization", "content-type", "cache-control", "pragma"]
+                .into_iter()
+                .collect()
+        );
+        assert!(
+            !response
+                .headers()
+                .contains_key("access-control-allow-credentials")
         );
     }
     let response = http

@@ -3,7 +3,7 @@ set -euo pipefail
 : "${CI:?CI only}"
 : "${CARGO_TARGET_DIR:?persistent target required}"
 : "${CI_COMMIT_SHA:?exact source required}"
-reports="$CARGO_TARGET_DIR/ci-receipts/$CI_COMMIT_SHA"
+reports="${CI_ACCEPTANCE_ARTIFACTS:-$CARGO_TARGET_DIR/ci-receipts/$CI_COMMIT_SHA}"
 mkdir -p "$reports"
 rustc --version > "$reports/protocol-runtime.txt"
 cargo --version >> "$reports/protocol-runtime.txt"
@@ -11,11 +11,19 @@ sha256sum Cargo.lock >> "$reports/protocol-runtime.txt"
 cp docs/openapi.json "$reports/openapi.before.json"
 cp clients/ts/schema.d.ts "$reports/schema.before.d.ts"
 cargo run --locked -- openapi > "$reports/openapi.json"
-cp "$reports/openapi.json" docs/openapi.json
-npm ci --prefix clients/ts
-npm run generate --prefix clients/ts
-npm run check --prefix clients/ts
-npm test --prefix clients/ts
-cp clients/ts/schema.d.ts "$reports/schema.d.ts"
+# npm installs and generated output belong outside the immutable source tree.
+# Preserve the exact relative OpenAPI path used by the original generator.
+protocol_copy="$reports/protocol-inputs"
+test ! -e "$protocol_copy"
+mkdir -p "$protocol_copy/clients" "$protocol_copy/docs"
+cp -R clients/ts "$protocol_copy/clients/ts"
+cp "$reports/openapi.json" "$protocol_copy/docs/openapi.json"
+sha256sum clients/ts/package-lock.json > "$reports/npm-lock.before.sha256"
+npm ci --prefix "$protocol_copy/clients/ts"
+npm run generate --prefix "$protocol_copy/clients/ts"
+npm run check --prefix "$protocol_copy/clients/ts"
+npm test --prefix "$protocol_copy/clients/ts"
+cmp clients/ts/package-lock.json "$protocol_copy/clients/ts/package-lock.json"
+cp "$protocol_copy/clients/ts/schema.d.ts" "$reports/schema.d.ts"
 cmp "$reports/openapi.before.json" "$reports/openapi.json"
 cmp "$reports/schema.before.d.ts" "$reports/schema.d.ts"

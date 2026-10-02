@@ -9,6 +9,32 @@ use serde_json::json;
 use support::*;
 
 #[tokio::test(flavor = "multi_thread")]
+async fn schema_valid_duplicate_response_keys_are_refused_on_the_real_wire() {
+    use axum::{Router, routing::post};
+    let service = global(100).await;
+    let upstream = client(&service, WALLET, None);
+    let router = Router::new().route(
+        "/v1/global_public",
+        post(move || {
+            let upstream = upstream.clone();
+            async move {
+                let value = upstream.call("global_public", json!({})).await.unwrap();
+                support::client_faults::duplicate_public_response(&value)
+            }
+        }),
+    );
+    let socket = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", socket.local_addr().unwrap());
+    let task = tokio::spawn(async move { axum::serve(socket, router).await.unwrap() });
+    let proxy = HttpClient::new(base, WALLET.into(), None).unwrap();
+    assert!(matches!(
+        proxy.call("global_public", json!({})).await,
+        Err(Error::Reconcile)
+    ));
+    task.abort();
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn authentication_adopts_the_real_session_without_exporting_its_bearer() {
     let service = global(100).await;
     let mut member = enrol(&service, WALLET, None).await;
@@ -135,7 +161,7 @@ async fn committed_logout_with_a_lost_or_malformed_response_is_unknown_and_never
         Some("synthetic-operator-enrolment-capability"),
     )
     .await;
-    for mode in 0..10 {
+    for mode in (0..10).chain(11..13) {
         let session = login(
             &service,
             ROOT,

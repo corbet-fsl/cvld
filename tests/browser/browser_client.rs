@@ -42,6 +42,16 @@ async fn generated_browser_client_reaches_the_real_keyhole_and_door() {
     assert_eq!(metadata.schema()["x-role"], "public");
     assert_eq!(contract()["info"]["title"], "cvld");
     assert!(public.call("global_public", json!({})).await.unwrap()["issuer"].is_array());
+    let ambiguous = BrowserClient::new(
+        BASE.into(),
+        HOST.into(),
+        Some("duplicate-public-fixture".into()),
+    )
+    .unwrap();
+    assert!(matches!(
+        ambiguous.call("global_public", json!({})).await,
+        Err(Error::Reconcile)
+    ));
     assert!(matches!(
         validate_response("unknown", &json!({})),
         Err(Error::Invalid)
@@ -110,7 +120,7 @@ async fn generated_browser_client_reaches_the_real_keyhole_and_door() {
         .json()
         .await
         .unwrap();
-    assert_eq!(counts, vec![1; 11]);
+    assert_eq!(counts, vec![1; 13]);
 }
 
 #[wasm_bindgen_test]

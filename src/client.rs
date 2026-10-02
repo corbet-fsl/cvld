@@ -5,6 +5,10 @@ use crate::error::{Error, Result};
 use serde_json::Value;
 use std::{collections::BTreeMap, future::Future, sync::LazyLock};
 
+#[cfg(any(feature = "client-http", feature = "client-browser"))]
+#[path = "client_json.rs"]
+mod json;
+
 #[cfg(all(feature = "client-http", not(target_arch = "wasm32")))]
 #[path = "client_http.rs"]
 mod http;
@@ -41,15 +45,14 @@ fn origin(base: &str, host: &str) -> Result<url::Url> {
 #[cfg(any(feature = "client-http", feature = "client-browser"))]
 fn decode_response(name: &str, status: u16, body: &[u8]) -> Result<Value> {
     if status != 200 {
-        let error: crate::error::ErrorBody =
-            serde_json::from_slice(body).map_err(|_| Error::Reconcile)?;
+        let error: crate::error::ErrorBody = json::decode(body)?;
         return Err(if error.error.http_status() == status {
             error.error
         } else {
             Error::Reconcile
         });
     }
-    let value: Value = serde_json::from_slice(body).map_err(|_| Error::Reconcile)?;
+    let value: Value = json::decode(body)?;
     validate_response(name, &value)?;
     Ok(value)
 }
