@@ -9,6 +9,52 @@ processes and databases preserve their information boundary. The API registry
 owns actions, roles and check/record classification; HTTP, OpenAPI, MCP and CLI
 are projections of that registry.
 
+## Scope
+
+### Purpose
+
+cvld is the permanent server door for identity, admission, and permanent state: it answers whether a subject may perform an action given proofs, keeping the check separate from the record.
+
+### Owns
+
+| Area | What cvld owns |
+|---|---|
+| Action registry | The single typed registry of actions, roles, service scopes, and check-versus-record classification, defined once and projected to HTTP/OpenAPI, MCP, CLI, and a TypeScript client for root, admin, and member callers. |
+| Services | Two separately deployed services, global (`cglb`, with its own database) and community (`cmty`, with one database per community), each holding exactly one `crlt` connection for its lifetime. |
+| Binding | Nested host and session binding per scope; each session belongs to one process and exact host, and admin and root actions arrive directly without passing through `cfrm`. |
+| Trust endpoints | The public `trust_feed` and `trust_changes` endpoints only; assembling and caching their content belongs to `cbcn` Beacon. |
+| Compatibility | Publishing the minimum client version below which clients refuse to run. |
+| Abuse containment | Cheap rejection before expensive work through aggregate quotas (`cthl`), and cutting off a community with excessive issues without affecting others. |
+| Membership query | A private query for upstream builders whether a member holds a gate; display, badges, and visibility are decided upstream. |
+
+### Never
+
+- Assumes anything about a product; any gate combination must stay expressible.
+- Needs `cfrm` or `cmsg` to do its job, or calls them.
+- Answers member lookups at runtime for `cfrm`; trust traffic never carries a member identifier.
+- Offers frontends a path that bypasses the Foyer or favours any client.
+- Holds domain logic; decisions belong to `cplc`, gate work to `cgts` and `cglb`, and state to the specialist leaves.
+- Logs requests, bodies, network identifiers, login dates, or member metrics, and keeps no raw gate data, profile values, or evidence.
+- Offers recovery, support-desk, or override paths, including for the platform owner; there is no return after expiry or loss of all passkeys.
+- Grows a separate protocol or statements library; the action registry is the protocol.
+- Enables a paid provider or a production test gate without approval.
+
+### States
+
+cvld keeps no domain state of its own. It keeps only service, ceremony, and session state: service is Starting, then Ready, or Refused on misconfiguration or a database bound to another community or service; a ceremony is Pending for single use with a short expiry in process memory, then Consumed or Expired; a session is bound to the exact passkey, host, and process, then Ended by logout, expiry, or revocation of that passkey. A restart discards ceremonies and sessions.
+
+### Test obligations
+
+- Registry parity across HTTP, OpenAPI, CLI, MCP, and TypeScript; unknown actions and unknown envelope fields are refused.
+- Wrong host, wrong role, cross-community or cross-process sessions, replayed or expired ceremonies, and sessions whose passkey was revoked mid-session are refused with fixed error categories and no identifiers.
+- Process firewall: the global process never opens a community database or accepts a community action; the community process holds no global secret, uniqueness key, or global person identity; a database file cannot be reassigned to another community.
+- Trust feed: ordinary enrolment, login, and renewal do not change feed bytes; requests carry no member identifier; rolled-back epochs or revisions are refused after restart.
+- Abuse handling: floods are refused before body allocation, database, or proof work; one community at quota is cut off while another stays usable.
+- Retention: after a full scenario the databases hold no login dates, network identifiers, request logs, raw gate data, profile values, or salts.
+- End to end: revoking the last passkey releases membership and rejoining is refused; a synced passkey on a new device signs in through discoverable sign-in and keeps its membership.
+- Release builds contain no development gate route, command, tool, or schema.
+- Full coverage with real round trips and no mocks of own logic; storage only through `crlt` with index-backed queries; clock, randomness, secrets, and storage injected; signing keys come from the platform secret store.
+
 ## Dependency choices
 
 Surveyed crates.io, official documentation and GitHub on 2026-09-30:
