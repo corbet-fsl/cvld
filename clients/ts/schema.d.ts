@@ -1530,6 +1530,8 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** @description Original optional Balance publication, authenticated with the manifest. */
+                        balance?: number[] | null;
                         communities: number[];
                         key_ring: number[];
                         key_transitions?: components["schemas"]["TrustKeyTransition"][];
@@ -1539,6 +1541,8 @@ export interface operations {
                         /** Format: int64 */
                         revision: number;
                         revocations: number[];
+                        /** @description Original optional Policy publication, authenticated with the manifest. */
+                        root_board?: number[] | null;
                         schema: number[];
                         schema_versions: number[];
                         settings: number[];
@@ -1742,6 +1746,8 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** @description Original optional Balance publication, authenticated with the manifest. */
+                        balance?: number[] | null;
                         communities: number[];
                         key_ring: number[];
                         key_transitions?: components["schemas"]["TrustKeyTransition"][];
@@ -1751,6 +1757,8 @@ export interface operations {
                         /** Format: int64 */
                         revision: number;
                         revocations: number[];
+                        /** @description Original optional Policy publication, authenticated with the manifest. */
+                        root_board?: number[] | null;
                         schema: number[];
                         schema_versions: number[];
                         settings: number[];
@@ -1797,6 +1805,8 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** @description Original optional Balance publication, authenticated with the manifest. */
+                        balance?: number[] | null;
                         communities: number[];
                         key_ring: number[];
                         key_transitions?: components["schemas"]["TrustKeyTransition"][];
@@ -1806,6 +1816,8 @@ export interface operations {
                         /** Format: int64 */
                         revision: number;
                         revocations: number[];
+                        /** @description Original optional Policy publication, authenticated with the manifest. */
+                        root_board?: number[] | null;
                         schema: number[];
                         schema_versions: number[];
                         settings: number[];
@@ -1889,6 +1901,8 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** @description Original optional Balance publication, authenticated with the manifest. */
+                        balance?: number[] | null;
                         communities: number[];
                         key_ring: number[];
                         key_transitions?: components["schemas"]["TrustKeyTransition"][];
@@ -1898,6 +1912,8 @@ export interface operations {
                         /** Format: int64 */
                         revision: number;
                         revocations: number[];
+                        /** @description Original optional Policy publication, authenticated with the manifest. */
+                        root_board?: number[] | null;
                         schema: number[];
                         schema_versions: number[];
                         settings: number[];

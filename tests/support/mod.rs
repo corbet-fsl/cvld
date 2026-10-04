@@ -395,34 +395,38 @@ pub fn community_schema(community: &str, version: u32) -> cplc::cshm::Schema {
 pub async fn community(name: &str, public: &GlobalPublic) -> Running {
     community_with_burst(name, public, 100).await
 }
-pub async fn community_with_burst(name: &str, public: &GlobalPublic, burst: u32) -> Running {
-    let dir = tempfile::tempdir().unwrap();
-    let config = CommunityConfig {
+pub fn community_config(
+    dir: &Path,
+    name: &str,
+    public: &GlobalPublic,
+    burst: u32,
+) -> CommunityConfig {
+    CommunityConfig {
         listen: "127.0.0.1:0".into(),
         domain: DOMAIN.into(),
         community: name.into(),
-        database_url: format!("file://{}", dir.path().join("community.db").display()),
+        database_url: format!("file://{}", dir.join("community.db").display()),
         database_token_file: None,
-        signing_seed_file: write(dir.path(), "signer", &[name.as_bytes()[0]; 32]),
+        signing_seed_file: write(dir, "signer", &[name.as_bytes()[0]; 32]),
         rulebook_file: write(
-            dir.path(),
+            dir,
             "rulebook",
             &serde_json::to_vec(&community_rules()).unwrap(),
         ),
         schema_file: write(
-            dir.path(),
+            dir,
             "schema",
             &serde_json::to_vec(&community_schema(name, 1)).unwrap(),
         ),
-        global_key_ring_file: write(dir.path(), "global-ring", &public.key_ring),
-        global_status_file: write(dir.path(), "global-status", &public.status),
+        global_key_ring_file: write(dir, "global-ring", &public.key_ring),
+        global_status_file: write(dir, "global-status", &public.status),
         minimum_global_epoch: 1,
         minimum_global_revision: 1,
         global_gates: vec!["development".into()],
         root: Operator {
             user: "00000000-0000-4000-8000-000000000001".into(),
             bootstrap_file: Some(write(
-                dir.path(),
+                dir,
                 "root-bootstrap",
                 b"synthetic-root-enrolment-capability",
             )),
@@ -430,7 +434,7 @@ pub async fn community_with_burst(name: &str, public: &GlobalPublic, burst: u32)
         admin: Operator {
             user: "00000000-0000-4000-8000-000000000002".into(),
             bootstrap_file: Some(write(
-                dir.path(),
+                dir,
                 "admin-bootstrap",
                 b"synthetic-admin-enrolment-capability",
             )),
@@ -446,11 +450,15 @@ pub async fn community_with_burst(name: &str, public: &GlobalPublic, burst: u32)
         minimum_notice_seconds: 0,
         voucher_provider: "sponsor".into(),
         voucher_public_key_file: write(
-            dir.path(),
+            dir,
             "voucher-key",
             SigningKey::from_bytes(&[9; 32]).verifying_key().as_bytes(),
         ),
-    };
+    }
+}
+pub async fn community_with_burst(name: &str, public: &GlobalPublic, burst: u32) -> Running {
+    let dir = tempfile::tempdir().unwrap();
+    let config = community_config(dir.path(), name, public, burst);
     write(
         dir.path(),
         "config.json",

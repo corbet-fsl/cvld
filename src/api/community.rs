@@ -142,6 +142,12 @@ pub struct TrustFeed {
     pub settings: Vec<u8>,
     pub schema: Vec<u8>,
     pub schema_versions: Vec<u8>,
+    /// Original optional Policy publication, authenticated with the manifest.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub root_board: Option<Vec<u8>>,
+    /// Original optional Balance publication, authenticated with the manifest.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub balance: Option<Vec<u8>>,
     pub communities: Vec<u8>,
     pub revocations: Vec<u8>,
 }

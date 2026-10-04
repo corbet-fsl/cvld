@@ -2200,6 +2200,18 @@
                 "schema": {
                   "additionalProperties": false,
                   "properties": {
+                    "balance": {
+                      "description": "Original optional Balance publication, authenticated with the manifest.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
                     "communities": {
                       "items": {
                         "format": "int32",
@@ -2247,6 +2259,18 @@
                         "type": "integer"
                       },
                       "type": "array"
+                    },
+                    "root_board": {
+                      "description": "Original optional Policy publication, authenticated with the manifest.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     },
                     "schema": {
                       "items": {
@@ -2657,6 +2681,18 @@
                 "schema": {
                   "additionalProperties": false,
                   "properties": {
+                    "balance": {
+                      "description": "Original optional Balance publication, authenticated with the manifest.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
                     "communities": {
                       "items": {
                         "format": "int32",
@@ -2704,6 +2740,18 @@
                         "type": "integer"
                       },
                       "type": "array"
+                    },
+                    "root_board": {
+                      "description": "Original optional Policy publication, authenticated with the manifest.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     },
                     "schema": {
                       "items": {
@@ -2822,6 +2870,18 @@
                 "schema": {
                   "additionalProperties": false,
                   "properties": {
+                    "balance": {
+                      "description": "Original optional Balance publication, authenticated with the manifest.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
                     "communities": {
                       "items": {
                         "format": "int32",
@@ -2869,6 +2929,18 @@
                         "type": "integer"
                       },
                       "type": "array"
+                    },
+                    "root_board": {
+                      "description": "Original optional Policy publication, authenticated with the manifest.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     },
                     "schema": {
                       "items": {
@@ -3049,6 +3121,18 @@
                 "schema": {
                   "additionalProperties": false,
                   "properties": {
+                    "balance": {
+                      "description": "Original optional Balance publication, authenticated with the manifest.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
                     "communities": {
                       "items": {
                         "format": "int32",
@@ -3096,6 +3180,18 @@
                         "type": "integer"
                       },
                       "type": "array"
+                    },
+                    "root_board": {
+                      "description": "Original optional Policy publication, authenticated with the manifest.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     },
                     "schema": {
                       "items": {

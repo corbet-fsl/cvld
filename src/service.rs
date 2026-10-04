@@ -3,7 +3,7 @@ use crate::{
     api::*,
     auth::{Auth, Grant},
     community::CommunityService,
-    config::{CommunityConfig, Config},
+    config::{CommunityConfig, Config, RootCommunityConfig},
     error::{Error, Result},
     global::GlobalService,
 };
@@ -53,6 +53,7 @@ struct Inner {
     hosts: BTreeMap<String, Arc<Mutex<Auth>>>,
     backend: Backend,
     member_host: Option<String>,
+    root_board_admin_host: Option<String>,
     throttle: cthl::Throttle<cthl::MemoryStore>,
     clock: Arc<dyn Clock>,
 }
@@ -94,14 +95,19 @@ impl Context {
         .map_err(|_| Error::Invalid)
     }
 }
-// Portal and API are explicit origins under the same scope-specific RP. An
-// admin portal never broadens member or operator passkeys to the shared base.
+// Portal, API and top-level vault ceremony use exact origins under the same
+// scope-specific RP. No shared-base RP or crossOrigin WebAuthn override.
 fn operator_origins(host: &str) -> Result<Vec<ckyh::Url>> {
     let mut origins =
         vec![ckyh::Url::parse(&format!("https://{host}")).map_err(|_| Error::Invalid)?];
     if let Some(scope) = host.strip_prefix("api.admin.") {
         origins
             .push(ckyh::Url::parse(&format!("https://admin.{scope}")).map_err(|_| Error::Invalid)?);
+        origins
+            .push(ckyh::Url::parse(&format!("https://vault.{scope}")).map_err(|_| Error::Invalid)?);
+    } else {
+        origins
+            .push(ckyh::Url::parse(&format!("https://vault.{host}")).map_err(|_| Error::Invalid)?);
     }
     Ok(origins)
 }
@@ -198,6 +204,7 @@ impl Door {
                 hosts,
                 backend: Backend::Global(Box::new(Mutex::new(global))),
                 member_host: None,
+                root_board_admin_host: None,
                 throttle,
                 clock,
             }),
@@ -254,6 +261,21 @@ impl Door {
         }
     }
     pub async fn community(config: CommunityConfig, clock: Arc<dyn Clock>) -> Result<Self> {
+        Self::community_selected(config, clock, None).await
+    }
+
+    /// Internal root board: mandatory joint admission and a roots-only garden.
+    /// This trusted constructor is never selected by a member action or host.
+    pub async fn root_board(config: RootCommunityConfig, clock: Arc<dyn Clock>) -> Result<Self> {
+        let (community, descriptor) = config.into_parts()?;
+        Self::community_selected(community, clock, Some(descriptor)).await
+    }
+
+    async fn community_selected(
+        config: CommunityConfig,
+        clock: Arc<dyn Clock>,
+        root_board: Option<cpsd::RootBoardPublicKey>,
+    ) -> Result<Self> {
         if config.domain.is_empty()
             || !config
                 .domain
@@ -274,23 +296,32 @@ impl Door {
             .map_err(|_| Error::Unavailable)?;
         let mut hosts = BTreeMap::new();
         let member_host = format!("api.{}.{}", config.community, config.domain);
-        let community = CommunityService::open(&db, config, clock.clone()).await?;
+        let system_root = root_board.is_some();
+        let community = match root_board {
+            Some(descriptor) => {
+                CommunityService::open_root_board(&db, config, clock.clone(), descriptor).await?
+            }
+            None => CommunityService::open(&db, config, clock.clone()).await?,
+        };
         let published = Published::Community(community.changes.subscribe());
         let config = &community.config;
-        for (host, role, scope, operator) in [
-            (
+        let root_board_admin_host =
+            system_root.then(|| format!("api.admin.root.{}", config.domain));
+        let mut operators = vec![(
+            format!("api.admin.root.{}", config.domain),
+            Role::Root,
+            "operator:root",
+            &config.root,
+        )];
+        if !system_root {
+            operators.push((
                 format!("api.admin.{}.{}", config.community, config.domain),
                 Role::Admin,
                 "operator:admin",
                 &config.admin,
-            ),
-            (
-                format!("api.admin.root.{}", config.domain),
-                Role::Root,
-                "operator:root",
-                &config.root,
-            ),
-        ] {
+            ));
+        }
+        for (host, role, scope, operator) in operators {
             let passkeys = ckyh::Passkeys::new(
                 ckyh::LibsqlStore::new(&db, scope, tokio::runtime::Handle::current())
                     .map_err(|_| Error::Unavailable)?,
@@ -310,17 +341,22 @@ impl Door {
                     })
                 })
                 .transpose()?;
-            hosts.insert(
-                host,
-                Arc::new(Mutex::new(Auth::new(
-                    passkeys,
-                    role,
-                    Some(uuid::Uuid::parse_str(&operator.user).map_err(|_| Error::Invalid)?),
-                    bootstrap,
-                    config.pending_capacity,
-                    config.session_seconds,
-                )?)),
-            );
+            if hosts
+                .insert(
+                    host,
+                    Arc::new(Mutex::new(Auth::new(
+                        passkeys,
+                        role,
+                        Some(uuid::Uuid::parse_str(&operator.user).map_err(|_| Error::Invalid)?),
+                        bootstrap,
+                        config.pending_capacity,
+                        config.session_seconds,
+                    )?)),
+                )
+                .is_some()
+            {
+                return Err(Error::Invalid);
+            }
         }
         let limit = cthl::Limit::new(
             config.throttle_burst,
@@ -344,6 +380,7 @@ impl Door {
                 hosts,
                 backend: Backend::Community(Box::new(Mutex::new(community))),
                 member_host: Some(member_host),
+                root_board_admin_host,
                 throttle,
                 clock,
             }),
@@ -353,9 +390,13 @@ impl Door {
         (self.inner.hosts.contains_key(host) || self.inner.member_host.as_deref() == Some(host))
             && (origin == format!("https://{host}")
                 || (self.inner.hosts.contains_key(host)
-                    && host
-                        .strip_prefix("api.admin.")
-                        .is_some_and(|scope| origin == format!("https://admin.{scope}")))
+                    && match host.strip_prefix("api.admin.") {
+                        Some(scope) => {
+                            origin == format!("https://admin.{scope}")
+                                || origin == format!("https://vault.{scope}")
+                        }
+                        None => origin == format!("https://vault.{host}"),
+                    })
                 || (self.inner.member_host.as_deref() == Some(host)
                     && host.strip_prefix("api.").is_some_and(|canonical| {
                         origin == format!("https://{canonical}")
@@ -506,7 +547,11 @@ impl Door {
             let allowed = match action.access {
                 Access::Authenticated => true,
                 Access::Member => grant.role == Role::Member,
-                Access::Admin => grant.role == Role::Admin,
+                Access::Admin => {
+                    grant.role == Role::Admin
+                        || (grant.role == Role::Root
+                            && self.inner.root_board_admin_host.as_deref() == Some(host.as_str()))
+                }
                 Access::Root => grant.role == Role::Root,
                 Access::Public => true,
             };
