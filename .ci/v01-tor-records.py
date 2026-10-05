@@ -22,9 +22,9 @@ MESH_URL = "https://github.com/corbet-libs/cmsh"
 TOR_URL = "https://github.com/corbet-foss/ctrn"
 FERRY_URL = "https://github.com/corbet-foss/cfry"
 CANDIDATES = {
-    RECORDS_URL: "29abb03db90770ed7b3f03ba9c26af000a6f9f2b",
-    MESH_URL: "72a63e7c386e507314f304d4f17b20f8a1d37873",
-    TOR_URL: "56efa3448421458c6a337b378e2a7e8593b9eb0b",
+    RECORDS_URL: "c1cd8d6e21bd74cafdb0e8f16aea493bc0e2c684",
+    MESH_URL: "032bd5c2f82a19195a08418d72068b72a404ae87",
+    TOR_URL: "18820fbdf669ebbe42302629164dda40cb8afb6b",
     "https://github.com/corbet-foss/ckmg": "3bbddd1118b42c573111d2eff6ac02798af929a7",
 }
 # The remaining 35 manifest entries, including exact Ferry, are preserved from
@@ -41,6 +41,9 @@ ORACLE_IGNORED = {
 # Each row is (source path, Rust test module prefix, positive count).
 # These are source inventory expectations; only observed native results pass.
 INVENTORIES = {
+    "ctrn": {
+        "node_info": [("tests/node_info.rs", "", 9)],
+    },
     "cdht": {
         "lib": [
             ("tests/support/backend_state.rs", "backend::tests::", 1),
@@ -61,6 +64,7 @@ INVENTORIES = {
             ("tests/support/address_unit.rs", "address::tests::", 3),
             ("tests/support/error_unit.rs", "error::tests::", 1),
             ("tests/support/property_unit.rs", "property::tests::", 3),
+            ("tests/support/pump.rs", "mesh::pump_tests::", 1),
         ],
         "contracts": [("tests/contracts.rs", "", 8)],
         "tor_port": [("tests/tor_port.rs", "", 1)],
@@ -130,7 +134,7 @@ def inventory(label, directory, evidence):
             source = directory / name
             positive = []
             for attributes, function in pattern.findall(source.read_text()):
-                if not re.search(r"#\[test\]|not\(target_arch = \"wasm32\"\), (?:tokio::)?test", attributes):
+                if not re.search(r"#\[(?:tokio::)?test\]|not\(target_arch = \"wasm32\"\), (?:tokio::)?test", attributes):
                     continue
                 name_in_binary = prefix + function
                 reason = re.search(r'#\[ignore = "([^"\n]+)"\]', attributes)
@@ -172,7 +176,7 @@ def native_receipt(label, expected, evidence):
 def qualify(label, repository, features, sources, config, environment, evidence, stages, receipt, tools):
     directory = sources[repository]["root"]
     expected = inventory(label, directory, evidence)
-    targets = ["--lib"]
+    targets = ["--lib"] if "lib" in expected["targets"] else []
     for target in expected["targets"]:
         if target != "lib":
             targets.extend(["--test", target])
@@ -191,19 +195,30 @@ def qualify(label, repository, features, sources, config, environment, evidence,
     h.metadata_receipt(metadata, sources, evidence, label)
     resolved = json.loads(metadata.read_text())
     optimized = [package for package in resolved["packages"] if package["name"] == "veilid-core-optimized"]
-    h.require(len(optimized) == 1 and optimized[0]["source"] == VEILID_SOURCE,
-              "actual maintained VLD0 fixture must resolve the exact reviewed upstream commit")
+    if label in ("cdht", "cmsh"):
+        h.require(len(optimized) == 1 and optimized[0]["source"] == VEILID_SOURCE,
+                  "actual maintained VLD0 fixture must resolve the exact reviewed upstream commit")
+    else:
+        veilid = [package for package in resolved["packages"]
+                  if package["name"].startswith("veilid")
+                  or (package.get("source") or "").startswith("git+https://gitlab.com/veilid/veilid.git")]
+        h.require(label == "ctrn" and not veilid,
+                  "the Tor endpoint owner must not add a Veilid dependency")
     root = next(node for node in resolved["resolve"]["nodes"] if node["id"] == resolved["resolve"]["root"])
-    if label == "cmsh":
-        h.require({"tor", "tor-records"}.issubset(root["features"]) and "veilid" not in root["features"],
-                  "Mesh must select tor-records without the native Veilid adapter")
-        for url in (RECORDS_URL, TOR_URL, FERRY_URL):
+    if label in ("ctrn", "cmsh"):
+        owner_paths = (FERRY_URL,)
+        if label == "cmsh":
+            owner_paths = (RECORDS_URL, TOR_URL, FERRY_URL)
+        for url in owner_paths:
             name = url.rsplit("/", 1)[-1]
             packages = [package for package in resolved["packages"] if package["name"] == name]
             h.require(len(packages) == 1 and packages[0]["source"] is None
                       and Path(packages[0]["manifest_path"]).resolve() == sources[url]["root"] / "Cargo.toml"
                       and any(dep["name"] == name and dep["pkg"] == packages[0]["id"] for dep in root["deps"]),
-                      "Mesh resolved the wrong original owner path: " + name)
+                      "wrong original owner path: " + name)
+    if label == "cmsh":
+        h.require({"tor", "tor-records"}.issubset(root["features"]) and "veilid" not in root["features"],
+                  "Mesh must select tor-records without the native Veilid adapter")
     h.require(lockfile.is_file() and not h.manifest(lockfile).get("patch", {}).get("unused"),
               "resolved lock is missing or contains unused candidate patches")
     lock_hash = h.sha256(lockfile)
@@ -227,7 +242,10 @@ def qualify(label, repository, features, sources, config, environment, evidence,
         elif stage.startswith("wasm-check-"):
             receipt.setdefault("wasm_compilation", {})[label] = {
                 "targets": list(expected["targets"]), "triple": WASM_TARGET,
-                "command": "cargo check --locked", "execution": False, "linked_test_binaries": False}
+                "command": "cargo check --locked", "execution": False, "linked_test_binaries": False,
+                "native_only_tests_not_compiled":
+                    ["mesh::pump_tests::consumer_shutdown_terminates_a_real_listener_pump"]
+                    if label == "cmsh" else []}
         elif stage == "check-tor-discovery-example":
             receipt["tor_discovery_example"] = {"compiled": True, "execution": False}
 
@@ -348,17 +366,18 @@ def main():
                 h.require(isinstance(formats, list) and len(formats) == 2
                           and {h.url(value) for value in formats} == {RECORDS_URL, MESH_URL},
                           "format_urls must select exactly CDHT and CMSH")
-                for repository in sorted((RECORDS_URL, MESH_URL)):
+                for repository in sorted((RECORDS_URL, MESH_URL, TOR_URL)):
                     name = repository.rsplit("/", 1)[-1]
                     unchanged_tools(tools, environment)
                     h.run("fmt-" + name, ["cargo", "fmt", "--package", name, "--check"],
                           sources[repository]["root"], environment, evidence, stages)
+                qualify("ctrn", TOR_URL, [], sources, config, environment, evidence, stages, receipt, tools)
                 qualify("cdht", RECORDS_URL, [], sources, config, environment, evidence, stages, receipt, tools)
                 qualify("cmsh", MESH_URL, ["--features", "tor-records"], sources, config,
                         environment, evidence, stages, receipt, tools)
                 unchanged_tools(tools, environment)
                 receipt["status"] = "passed-selected-native-components-and-wasm-compilation"
-                receipt["scope"] = "81 CDHT tests, two exact oracle ignores, 16 Mesh tests; corresponding Wasm check and native discovery example check only"
+                receipt["scope"] = "9 CTRN endpoint tests, 81 CDHT tests, two exact oracle ignores, 17 Mesh tests; selected Wasm check (native-only pump test excluded) and native discovery example check only"
     except BaseException as error:
         receipt["status"] = "failed"
         receipt["failure"] = f"{type(error).__name__}: {error}"
