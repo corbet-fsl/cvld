@@ -274,6 +274,8 @@ actions! {
     passkey_revoke(RevokePasskey) -> Empty, Member, Community, Record, Forward, "Revoke a community passkey";
     device_authorize(DeviceKey) -> DeviceKeys, Member, Community, Record, Forward, "Authorize the lineage device key with this live passkey";
     device_keys(Empty) -> DeviceKeys, Member, Community, Check, Forward, "Read current passkey-authorized signing keys";
+    member_role(Empty) -> MemberRole, Member, Community, Check, Forward, "Read the current local membership role";
+    member_role_set(SetMemberRole) -> Empty, Member, Community, Record, Forward, "Change a member role under current membership authority";
     setting_set(Setting) -> TrustFeed, Admin, Community, Record, Forward, "Edit a community setting";
     platform_set(PlatformSetting) -> TrustFeed, Root, Community, Record, Forward, "Edit a platform setting or force switch";
     schema_check(SchemaRequest) -> SchemaChanges, Admin, Community, Check, Forward, "Classify profile schema changes";

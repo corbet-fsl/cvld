@@ -309,6 +309,63 @@ impl Door {
         Ok(DeviceKeys { keys })
     }
 
+    pub(crate) async fn member_role(&self, ctx: Context, _: Empty) -> Result<MemberRole> {
+        let community = self.community_backend()?.lock().await;
+        crate::service::live_time(async {
+            let lease = community
+                .facade
+                .membership()
+                .role(ctx.member()?)
+                .await
+                .map_err(|_| Error::Refused)?;
+            let now = self.current_time();
+            let grant = ctx.grant.as_ref().ok_or(Error::Unauthorized)?;
+            if now < ctx.now || now < lease.checked_at() || now >= grant.expires {
+                return Err(Error::Unauthorized);
+            }
+            if now >= lease.valid_until() {
+                return Err(Error::Refused);
+            }
+            Ok(MemberRole {
+                member: lease.member().into(),
+                role: match lease.role() {
+                    cmty::cmbr::Role::Member => Role::Member,
+                    cmty::cmbr::Role::Admin => Role::Admin,
+                    cmty::cmbr::Role::Root => Role::Root,
+                },
+            })
+        })
+        .await
+    }
+
+    pub(crate) async fn member_role_set(
+        &self,
+        ctx: Context,
+        request: SetMemberRole,
+    ) -> Result<Empty> {
+        let community = self.community_backend()?.lock().await;
+        let grant = ctx.grant.as_ref().ok_or(Error::Unauthorized)?;
+        let now = self.current_time();
+        if now < ctx.now || now >= grant.expires {
+            return Err(Error::Unauthorized);
+        }
+        let role = match request.role {
+            Role::Member => cmty::cmbr::Role::Member,
+            Role::Admin => cmty::cmbr::Role::Admin,
+            Role::Root => cmty::cmbr::Role::Root,
+        };
+        crate::service::live_time(community.facade.membership().set_member_role(
+            ctx.member()?,
+            &request.member,
+            role,
+            ctx.now,
+            grant.expires,
+        ))
+        .await
+        .map_err(|_| Error::Refused)?;
+        Ok(Empty {})
+    }
+
     pub(crate) async fn passkey_revoke(
         &self,
         ctx: Context,

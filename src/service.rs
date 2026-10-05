@@ -20,15 +20,21 @@ pub trait Clock: Send + Sync {
     fn now(&self) -> u64;
 }
 tokio::task_local! {
-    static OPERATION_TIME: u64;
+    static OPERATION_TIME: Option<u64>;
 }
 pub(crate) async fn at<T>(now: u64, operation: impl std::future::Future<Output = T>) -> T {
-    OPERATION_TIME.scope(now, operation).await
+    OPERATION_TIME.scope(Some(now), operation).await
+}
+// Privileged membership operations must observe time again after awaited reads.
+pub(crate) async fn live_time<T>(operation: impl std::future::Future<Output = T>) -> T {
+    OPERATION_TIME.scope(None, operation).await
 }
 pub(crate) fn operation_time(clock: &dyn Clock) -> u64 {
     OPERATION_TIME
         .try_with(|time| *time)
-        .unwrap_or_else(|_| clock.now())
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| clock.now())
 }
 pub struct SystemClock;
 impl Clock for SystemClock {
@@ -113,6 +119,9 @@ fn operator_origins(host: &str) -> Result<Vec<ckyh::Url>> {
 }
 
 impl Door {
+    pub(crate) fn current_time(&self) -> u64 {
+        self.inner.clock.now()
+    }
     pub async fn global(config: Config, clock: Arc<dyn Clock>) -> Result<Self> {
         if config.domain.is_empty()
             || !config

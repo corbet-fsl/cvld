@@ -76,6 +76,21 @@ only if both TURSO_URL and TURSO_TOKEN are nonempty; use a disposable database.
 
 ## Community process
 
+`member_role` reads the authenticated member's current original register role.
+`member_role_set` takes a target community pseudonym and desired role. Both use
+member sessions; a static operator grant is not membership authority. Membership
+checks the actor and target under UUID-ordered locks: admins may assign/remove
+admins, and only roots may assign/remove roots. A demotion takes effect on the
+next request even with an existing session. The service's check time and exclusive
+session deadline bound the mutation; live time and both membership deadlines are
+checked immediately before the durable write. Responses contain no role history
+or cross-community identity, and roles never become profile credentials. Missing,
+lapsed, revoked and unauthorized actors or targets are refused.
+
+These operations manage existing admitted members. The first Root's real
+passport/passkey-bound voucher bootstrap and production private root-board
+credential issuance remain separate requirements.
+
 `device_authorize` binds one actual lineage device signing key to the exact
 currently authenticated live passkey through cmbr. Repeating the same binding
 is idempotent; replacing it with another raw public key is refused. Registration

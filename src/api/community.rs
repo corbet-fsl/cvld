@@ -19,6 +19,20 @@ pub struct Handle {
 pub struct Available {
     pub available: bool,
 }
+/// Current local register role, not a credential or a public profile badge.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct MemberRole {
+    pub member: String,
+    pub role: super::Role,
+}
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SetMemberRole {
+    /// Target's community pseudonym, as returned by the enrolment lobby.
+    pub member: String,
+    pub role: super::Role,
+}
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Lobby {

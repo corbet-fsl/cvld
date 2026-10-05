@@ -1534,6 +1534,148 @@
         "x-scope": "both"
       }
     },
+    "/v1/member_role": {
+      "post": {
+        "operationId": "member_role",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "Current local register role, not a credential or a public profile badge.",
+                  "properties": {
+                    "member": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "$ref": "#/components/schemas/Role"
+                    }
+                  },
+                  "required": [
+                    "member",
+                    "role"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Read the current local membership role",
+        "x-client-access": "forward",
+        "x-effect": "check",
+        "x-role": "member",
+        "x-scope": "community"
+      }
+    },
+    "/v1/member_role_set": {
+      "post": {
+        "operationId": "member_role_set",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "member": {
+                    "description": "Target's community pseudonym, as returned by the enrolment lobby.",
+                    "type": "string"
+                  },
+                  "role": {
+                    "$ref": "#/components/schemas/Role"
+                  }
+                },
+                "required": [
+                  "member",
+                  "role"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Change a member role under current membership authority",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "member",
+        "x-scope": "community"
+      }
+    },
     "/v1/passkey_add": {
       "post": {
         "operationId": "passkey_add",
