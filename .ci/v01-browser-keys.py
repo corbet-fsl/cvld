@@ -22,7 +22,7 @@ HELPERS_SHA256 = "86da5ecd1eb81f11ead3ed3f300239c31eddb8937049e7bcff50cc1039af89
 KEYS_URL = "https://github.com/corbet-foss/ckmg"
 TOR_URL = "https://github.com/corbet-foss/ctrn"
 CANDIDATES = {
-    KEYS_URL: "2b268206f1ac01af400fe1774fe095b4897ad4a6",
+    KEYS_URL: "3bbddd1118b42c573111d2eff6ac02798af929a7",
     TOR_URL: "56efa3448421458c6a337b378e2a7e8593b9eb0b",
 }
 WASM_TARGET = "wasm32-unknown-unknown"
@@ -270,14 +270,18 @@ def execute_browser(directory, environment, evidence, work, stages, config, sour
         driver_log = evidence / (target + "-chromedriver.log")
         browser_log = evidence / (target + "-chromium.log")
         runner_build = evidence / (target + "-runner-build")
-        runner_temporary = work / (target + "-runner-temp")
+        # Chromium creates its Unix-domain socket below TMPDIR (108-byte limit).
+        # This caller-owned short /tmp directory lives through diagnostics and cleanup.
+        browser_scratch = Path(environment["CMEET_BROWSER_CACHE"])
+        runner_temporary = browser_scratch / target
+        h.require(len(os.fsencode(runner_temporary)) <= 40, "browser socket parent path is too long")
         runner_temporary.mkdir()
         webdriver = evidence / (target + "-webdriver.json")
         arguments = ["--no-sandbox", "--disable-dev-shm-usage", "--no-first-run", "--no-default-browser-check",
                      "--disable-background-networking", "--disable-component-update", "--disable-sync", "--no-proxy-server",
                      "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1",
                      "--enable-logging", "--v=1", "--log-file=" + str(browser_log),
-                     "--user-data-dir=" + str(work / (target + "-browser-profile"))]
+                     "--user-data-dir=" + str(browser_scratch / (target + "-profile"))]
         h.save(webdriver, {"goog:chromeOptions": {"binary": environment["BROWSER_BIN"], "args": arguments},
                            "goog:loggingPrefs": {"browser": "ALL", "performance": "ALL"}})
         browser_environment = environment.copy()
@@ -360,7 +364,7 @@ def main():
             except BlockingIOError as error:
                 raise h.Refused("another qualification holds the dedicated target cache") from error
             with tempfile.TemporaryDirectory(prefix="v01-browser-keys-", dir=scratch) as temporary, \
-                 tempfile.TemporaryDirectory(prefix="v01-browser-keys-fonts-", dir="/tmp") as fonts:
+                 tempfile.TemporaryDirectory(prefix="v01-k-", dir="/tmp") as fonts:
                 work = Path(temporary)
                 environment["CMEET_BROWSER_CACHE"] = fonts
                 settings = [("credential.helper", "")]
