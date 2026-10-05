@@ -1784,6 +1784,14 @@
                     },
                     {
                       "properties": {
+                        "certificate": {
+                          "items": {
+                            "format": "int32",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "type": "array"
+                        },
                         "credential": {
                           "items": {
                             "format": "int32",
@@ -1805,6 +1813,7 @@
                       "required": [
                         "user",
                         "credential",
+                        "certificate",
                         "step"
                       ],
                       "type": "object"
@@ -1841,6 +1850,77 @@
           }
         ],
         "summary": "Register another UV-required passkey for this membership",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "member",
+        "x-scope": "community"
+      }
+    },
+    "/v1/passkey_certificate": {
+      "post": {
+        "operationId": "passkey_certificate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "bytes": {
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "bytes"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Renew the authenticated registered passkey certificate",
         "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
@@ -2704,7 +2784,19 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": false,
+                  "description": "Registration response. A community returns its genuine registered-key\ncertificate; the global passport service has no community pseudonym certificate.",
                   "properties": {
+                    "certificate": {
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
                     "user": {
                       "type": "string"
                     }

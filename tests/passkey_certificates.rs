@@ -300,6 +300,115 @@ async fn revocation_refuses_renewal_and_retains_the_other_registered_key() {
     );
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn revocations_union_members_stay_community_scoped_and_survive_reopen() {
+    fn verified_revocations(feed: &TrustFeed, community: &str) -> cplc::Revocations {
+        let ring = csgn::KeyRing::from_cbor(&feed.key_ring).unwrap();
+        let snapshot: cplc::Snapshot<cplc::Revocations> = cplc::verify_snapshot(
+            &ring,
+            &feed.revocations,
+            cplc::SnapshotExpectation {
+                community,
+                kind: cplc::SnapshotKind::RevocationList,
+                minimum_revision: 1,
+                policy_epoch: feed.policy_epoch,
+                now: NOW,
+            },
+        )
+        .unwrap();
+        snapshot.content
+    }
+
+    let global = global(100).await;
+    let (_, first_passport, _) = wallet_passport(&global).await;
+    let (_, second_passport, _) = wallet_passport(&global).await;
+    let (_, live_passport, public) = wallet_passport(&global).await;
+    let mut alpha = community("alpha", &public).await;
+    let beta = community("beta", &public).await;
+    let ah = "api.alpha.example.test";
+    let bh = "api.beta.example.test";
+    let first = enrol_community(&alpha, ah, &first_passport).await;
+    let second = enrol_community(&alpha, ah, &second_passport).await;
+    let mut live = enrol_community(&alpha, ah, &live_passport).await;
+    let foreign = enrol_community(&beta, bh, &first_passport).await;
+    let live_member = lobby(&alpha, ah, &live.session).await.member_id;
+    assert_ne!(first.user, second.user);
+    assert_ne!(first.credential, second.credential);
+    let initial = feed(&alpha, ah).await;
+    assert!(verified_revocations(&initial, "alpha").passkeys.is_empty());
+
+    client(&alpha, ah, Some(&first.session))
+        .call("passkey_revoke", json!({"credential":first.credential}))
+        .await
+        .unwrap();
+    let first_feed = feed(&alpha, ah).await;
+    assert!(first_feed.policy_epoch > initial.policy_epoch);
+    assert_eq!(
+        verified_revocations(&first_feed, "alpha").passkeys,
+        std::collections::BTreeSet::from([first.credential.clone()])
+    );
+
+    client(&beta, bh, Some(&foreign.session))
+        .call("passkey_revoke", json!({"credential":foreign.credential}))
+        .await
+        .unwrap();
+    let beta_feed = feed(&beta, bh).await;
+    assert_eq!(
+        verified_revocations(&beta_feed, "beta").passkeys,
+        std::collections::BTreeSet::from([foreign.credential.clone()])
+    );
+    let isolated = feed(&alpha, ah).await;
+    assert_eq!(isolated.policy_epoch, first_feed.policy_epoch);
+    assert_eq!(isolated.revocations, first_feed.revocations);
+
+    // This is another member's outbox event, so scanning only the latest
+    // member cannot reconstruct the first member's previously published ID.
+    client(&alpha, ah, Some(&second.session))
+        .call("passkey_revoke", json!({"credential":second.credential}))
+        .await
+        .unwrap();
+    let retained = feed(&alpha, ah).await;
+    let expected =
+        std::collections::BTreeSet::from([first.credential.clone(), second.credential.clone()]);
+    let revocations = verified_revocations(&retained, "alpha");
+    assert!(retained.policy_epoch > first_feed.policy_epoch);
+    assert_eq!(revocations.passkeys, expected);
+    assert!(!revocations.passkeys.contains(&live.credential));
+    assert!(!revocations.passkeys.contains(&foreign.credential));
+
+    // Stop the original HTTP task and construct a new Door from the same
+    // database. No in-memory session or Policy writer supplies the next feed.
+    alpha.task.abort();
+    assert!((&mut alpha.task).await.unwrap_err().is_cancelled());
+    let config =
+        cvld::config::CommunityConfig::read(alpha.dir.path().join("config.json").to_str().unwrap())
+            .unwrap();
+    alpha.door = cvld::service::Door::community(config, alpha.clock.clone())
+        .await
+        .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    alpha.base = format!("http://{}", listener.local_addr().unwrap());
+    let router = cvld::api::router(alpha.door.clone());
+    alpha.task = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
+
+    let reopened = feed(&alpha, ah).await;
+    assert_eq!(reopened.policy_epoch, retained.policy_epoch);
+    assert_eq!(verified_revocations(&reopened, "alpha").passkeys, expected);
+    assert_eq!(feed(&beta, bh).await.revocations, beta_feed.revocations);
+    let session = login(
+        &alpha,
+        ah,
+        &mut live.authenticator,
+        &live.user,
+        &live.credential,
+    )
+    .await;
+    let certificate = renew(&alpha, ah, &session).await;
+    let ring = csgn::KeyRing::from_cbor(&reopened.key_ring).unwrap();
+    let certificate = ckyh::certificate::verify(&ring, &certificate, &live_member, NOW).unwrap();
+    assert_eq!(certificate.credential_id(), live.credential);
+}
+
 mod awaited_registration_clock {
     use super::*;
     use cmty::cmbr;

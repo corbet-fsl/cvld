@@ -28,6 +28,7 @@ ROOT_URL = "https://github.com/corbet-libs/cvld"
 VAULT_URL = "https://github.com/corbet-libs/cvlt"
 STORE_URL = "https://github.com/corbet-foss/cwst"
 KEYHOLE_URL = "https://github.com/corbet-foss/ckyh"
+MEMBERSHIP_URL = "https://github.com/corbet-libs/cmbr"
 FIRST_PARTY = ("corbet-foss", "corbet-libs", "corbet-labs", "cmtymeet")
 MAX_SOURCES = 96
 MAX_FILES = 100_000
@@ -535,8 +536,8 @@ def main():
                         "commit": entry["commit"], "archive_sha256": entry["sha256"],
                         "packages": {name: str(path.relative_to(location)) for name, path in packages.items()},
                         "skipped_nonprimary_packages": skipped})
-                require(all(item in sources for item in (VAULT_URL, STORE_URL, KEYHOLE_URL)),
-                        "Vault, Store and Keyhole sources are required")
+                require(all(item in sources for item in (VAULT_URL, STORE_URL, KEYHOLE_URL, MEMBERSHIP_URL)),
+                        "Vault, Store, Keyhole and Membership sources are required")
                 root = sources[ROOT_URL]["root"]
                 require(sha256(root / ".ci/v01-certificates.py") == sha256(Path(__file__).resolve()),
                         "executed harness differs from root source archive")
@@ -576,6 +577,7 @@ def main():
                     run(f"fmt-{name}", ["cargo", "fmt", "--all", "--check"],
                         sources[repository]["root"], environment, evidence, stages)
                 selections = [
+                    ("cmbr", MEMBERSHIP_URL, [], ["--lib"], 1),
                     ("cvld", ROOT_URL, ["--features", "development-gate"],
                      ["--test", "passkey_certificates", "--test", "devices",
                       "--test", "discoverable", "--test", "operator_vault",

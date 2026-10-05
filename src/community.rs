@@ -171,7 +171,9 @@ impl CommunityService {
             return Err(Error::Invalid);
         }
         let signer = if saved.is_some() {
-            csgn::PersistentSigner::open(signer_store, scope, secret, now).await
+            // Policy uses day-aligned issuance throughout. Reopening at the
+            // wall-clock second would advance the signer beyond its next issue.
+            csgn::PersistentSigner::open(signer_store, scope, secret, cplc::day(now)).await
         } else {
             csgn::PersistentSigner::create(
                 signer_store,
