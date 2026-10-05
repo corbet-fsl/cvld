@@ -130,7 +130,11 @@ impl Auth {
             options: serde_json::to_value(options).map_err(|_| Error::Unavailable)?,
         })
     }
-    pub async fn register_finish(&mut self, request: RegisterFinish, now: u64) -> Result<User> {
+    pub async fn register_finish(
+        &mut self,
+        request: RegisterFinish,
+        now: u64,
+    ) -> Result<RegisteredUser> {
         self.prune(now);
         let pending = self
             .registrations
@@ -153,8 +157,9 @@ impl Auth {
         if self.operator.is_some() {
             self.bootstrap = None;
         }
-        Ok(User {
+        Ok(RegisteredUser {
             user: pending.user.to_string(),
+            certificate: None,
         })
     }
     pub async fn login_begin(&mut self, request: LoginStart, now: u64) -> Result<Ceremony> {

@@ -137,6 +137,7 @@ pub fn client(service: &Running, host: &str, token: Option<&str>) -> Client {
     Client::new(service.base.clone(), host.into(), token.map(str::to_owned)).unwrap()
 }
 pub struct Member {
+    pub certificate: Option<Vec<u8>>,
     pub authenticator: SoftToken,
     pub user: String,
     pub credential: Vec<u8>,
@@ -174,7 +175,7 @@ pub async fn enrol(service: &Running, host: &str, bootstrap: Option<&str>) -> Me
         )
         .unwrap();
     let credential_id = credential.raw_id.as_ref().to_vec();
-    let user: User = serde_json::from_value(
+    let user: RegisteredUser = serde_json::from_value(
         client
             .call(
                 "register_finish",
@@ -193,6 +194,7 @@ pub async fn enrol(service: &Running, host: &str, bootstrap: Option<&str>) -> Me
     )
     .await;
     Member {
+        certificate: user.certificate,
         authenticator,
         user: user.user,
         credential: credential_id,
@@ -588,7 +590,7 @@ pub async fn finish_enrol(service: &Running, host: &str, start: Ceremony) -> Mem
         )
         .unwrap();
     let credential_id = credential.raw_id.as_ref().to_vec();
-    let user: User = serde_json::from_value(
+    let user: RegisteredUser = serde_json::from_value(
         client(service, host, None)
             .call(
                 "register_finish",
@@ -612,6 +614,7 @@ pub async fn finish_enrol(service: &Running, host: &str, start: Ceremony) -> Mem
         .await
         .unwrap();
     Member {
+        certificate: user.certificate,
         authenticator,
         user: user.user,
         credential: credential_id,

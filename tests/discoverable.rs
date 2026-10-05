@@ -52,7 +52,7 @@ async fn wallet_discovers_a_synced_passkey_with_one_ceremony_and_refuses_prf_at_
     );
     let prf = strip_prf(&mut response);
     assert_eq!(prf["enabled"], true);
-    let user: User = serde_json::from_value(
+    let user: RegisteredUser = serde_json::from_value(
         api.call(
             "register_finish",
             json!({"ceremony":begin.ceremony,"credential":response}),
@@ -156,7 +156,7 @@ async fn community_restore_from_the_vault_origin_preserves_membership_and_revoca
     let credential: ckyh::RegisterPublicKeyCredential =
         serde_json::from_value(response.clone()).unwrap();
     let credential_id = credential.raw_id.as_ref().to_vec();
-    let user: User = serde_json::from_value(
+    let user: RegisteredUser = serde_json::from_value(
         api.call(
             "register_finish",
             json!({"ceremony":begin.ceremony,"credential":response}),
@@ -315,7 +315,7 @@ async fn root_garden_uses_its_scope_rp_and_exact_portal_origin() {
     let mut device = Resident::default();
     let mut response = device.ceremony(begin.options, true, origin).await;
     strip_prf(&mut response);
-    let user: User = serde_json::from_value(
+    let user: RegisteredUser = serde_json::from_value(
         api.call(
             "register_finish",
             json!({

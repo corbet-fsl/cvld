@@ -1,7 +1,7 @@
 #![cfg(feature = "development-gate")]
 
 mod support;
-use cvld::api::{Ceremony, DiscoverableCeremony, GlobalPublic, Role, Session, User};
+use cvld::api::{Ceremony, DiscoverableCeremony, GlobalPublic, RegisteredUser, Role, Session};
 use serde_json::{Value, json};
 use support::{
     resident::{Resident, strip_prf},
@@ -89,7 +89,7 @@ async fn global_and_operator_vault_origins_complete_real_discoverable_login_with
         let mut resident = Resident::default();
         let mut credential = resident.ceremony(start.options, true, &origin).await;
         drop(strip_prf(&mut credential));
-        let user: User = serde_json::from_value(
+        let user: RegisteredUser = serde_json::from_value(
             success(
                 service,
                 host,

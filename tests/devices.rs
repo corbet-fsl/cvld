@@ -164,6 +164,7 @@ async fn additional_device_is_session_bound_and_survives_original_revocation() {
     let AddedPasskey::Registered {
         user,
         credential: registered,
+        certificate,
     } = added
     else {
         panic!("registration result")
@@ -176,6 +177,7 @@ async fn additional_device_is_session_bound_and_survives_original_revocation() {
     );
     let session = login(&service, host, &mut second, &user, &credential).await;
     let second = Member {
+        certificate: Some(certificate),
         authenticator: second,
         user,
         credential,

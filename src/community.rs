@@ -488,19 +488,24 @@ impl CommunityService {
             options: serde_json::to_value(options).map_err(|_| Error::Unavailable)?,
         })
     }
-    pub async fn register_finish(&mut self, request: RegisterFinish, now: u64) -> Result<User> {
+    pub async fn register_finish(
+        &mut self,
+        request: RegisterFinish,
+        now: u64,
+    ) -> Result<RegisteredUser> {
         self.prune(now);
         let pending = self
             .registrations
             .remove(&request.ceremony)
             .ok_or(Error::Unauthorized)?;
-        self.facade
-            .membership()
-            .finish_registration(pending.value, request.credential)
+        let certificate = self
+            .facade
+            .finish_registration(pending.value, request.credential, now)
             .await
             .map_err(|_| Error::Refused)?;
-        Ok(User {
+        Ok(RegisteredUser {
             user: pending.user.to_string(),
+            certificate: Some(certificate),
         })
     }
     pub async fn login_begin(&mut self, request: LoginStart, now: u64) -> Result<Ceremony> {

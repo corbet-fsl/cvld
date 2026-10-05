@@ -255,16 +255,45 @@ impl Door {
         ctx: Context,
         request: AddPasskey,
     ) -> Result<AddedPasskey> {
-        self.community_backend()?
-            .lock()
-            .await
-            .add_passkey(
-                ctx.member()?,
-                ctx.grant.as_ref().ok_or(Error::Unauthorized)?,
-                request,
-                ctx.now,
-            )
-            .await
+        let mut community = self.community_backend()?.lock().await;
+        let grant = ctx.grant.as_ref().ok_or(Error::Unauthorized)?;
+        let now = self.current_time();
+        if now < ctx.now || now >= grant.expires {
+            return Err(Error::Unauthorized);
+        }
+        crate::service::live_time(async {
+            let response = community
+                .add_passkey(ctx.member()?, grant, request, now)
+                .await?;
+            let completed = self.current_time();
+            if completed < now || completed >= grant.expires {
+                return Err(Error::Unauthorized);
+            }
+            Ok(response)
+        })
+        .await
+    }
+
+    pub(crate) async fn passkey_certificate(&self, ctx: Context, _: Empty) -> Result<Bytes> {
+        let community = self.community_backend()?.lock().await;
+        let grant = ctx.grant.as_ref().ok_or(Error::Unauthorized)?;
+        let now = self.current_time();
+        if now < ctx.now || now >= grant.expires {
+            return Err(Error::Unauthorized);
+        }
+        crate::service::live_time(async {
+            let certificate = community
+                .facade
+                .passkey_certificate(ctx.member()?, now)
+                .await
+                .map_err(|_| Error::Refused)?;
+            let completed = self.current_time();
+            if completed < now || completed >= grant.expires {
+                return Err(Error::Unauthorized);
+            }
+            Ok(Bytes { bytes: certificate })
+        })
+        .await
     }
 
     pub(crate) async fn device_authorize(

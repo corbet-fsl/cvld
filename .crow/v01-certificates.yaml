@@ -1,0 +1,60 @@
+# Temporary manual qualification; remove when permanent CI is available.
+when:
+  - event: manual
+    branch: foreman/v01-certificates-20261005
+labels:
+  backend: local
+skip_clone: true
+variables:
+  SOURCE_ARCHIVE: {default: ""}
+  SOURCE_SHA256: {default: ""}
+  V01_SOURCE_BUNDLE: {default: ""}
+  V01_SOURCE_BUNDLE_SHA256: {default: ""}
+  WORKER_TOOL_PATH: {default: ""}
+  WORKER_TEMP_ROOT: {default: ""}
+  PKG_CONFIG_PATH: {default: ""}
+  CI_JOBS: {default: "2"}
+  CI_MIN_AVAILABLE_MB: {default: "8192"}
+steps:
+  - name: certificates-and-checkpoints
+    image: bash
+    commands:
+      - |
+        set -eu
+        export PATH="$${WORKER_TOOL_PATH:?Provisioned tools required}:$${PATH}"
+        test "$$CI_REPO_CLONE_URL" = https://forge.corbet.ch/corbet-libs/cvld.git
+        exec python3 - <<'PYTHON'
+        import hashlib, os, pathlib, re, subprocess, tarfile, tempfile
+        env = os.environ
+        commit, run = env['CI_COMMIT_SHA'], env['CI_PIPELINE_NUMBER']
+        assert re.fullmatch('[0-9a-f]{40}', commit) and run.isdigit()
+        available = next(int(line.split()[1]) for line in pathlib.Path('/proc/meminfo').read_text().splitlines() if line.startswith('MemAvailable:'))
+        assert available >= int(env.get('CI_MIN_AVAILABLE_MB', '8192')) * 1024
+        archive = pathlib.Path(env['SOURCE_ARCHIVE'])
+        with archive.open('rb') as stream:
+            assert hashlib.file_digest(stream, 'sha256').hexdigest() == env['SOURCE_SHA256']
+            stream.seek(0)
+            assert subprocess.check_output(['git', 'get-tar-commit-id'], stdin=stream, text=True).strip() == commit
+        cargo = pathlib.Path(env['CARGO_HOME'])
+        assert cargo.is_dir()
+        cache = cargo / 'v01-certificates'
+        evidence = cache / 'evidence' / commit / run
+        evidence.mkdir(parents=True, exist_ok=False)
+        env['V01_EVIDENCE_DIR'] = str(evidence)
+        env['CARGO_TARGET_DIR'] = str(cache / 'target')
+        env['V01_ROOT_SOURCE_ARCHIVE'] = str(archive)
+        env['V01_ROOT_SOURCE_SHA256'] = env['SOURCE_SHA256']
+        env['V01_ROOT_SOURCE_COMMIT'] = commit
+        env['npm_config_cache'] = str(cargo.parent / 'npm')
+        with tempfile.TemporaryDirectory(prefix='v01-certificates-', dir=env['WORKER_TEMP_ROOT']) as temporary:
+            env['RUNNER_TEMP'] = env['TMPDIR'] = temporary
+            with tarfile.open(archive, mode='r:') as source:
+                matches = [item for item in source if item.name == '.ci/v01-certificates.py']
+                assert len(matches) == 1 and matches[0].isreg() and matches[0].size <= 131072
+                payload = source.extractfile(matches[0]).read()
+            harness = pathlib.Path(temporary) / 'v01-certificates.py'
+            harness.write_bytes(payload)
+            result = subprocess.run(['python3', str(harness)], cwd=temporary)
+            print('Qualification evidence: ' + str(evidence), flush=True)
+            raise SystemExit(result.returncode)
+        PYTHON

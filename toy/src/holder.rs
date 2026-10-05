@@ -55,7 +55,7 @@ pub fn register(
     let (credential, prf) = passkey_ceremony(&mut token, start.options, true, &cli.host);
     let parsed: ckyh::RegisterPublicKeyCredential = decode(credential.clone())?;
     let credential_id = parsed.raw_id.as_ref().to_vec();
-    let user: User = decode(cli.call(
+    let user: RegisteredUser = decode(cli.call(
         None,
         "register_finish",
         json!({"ceremony":start.ceremony,"credential":credential}),
@@ -100,7 +100,12 @@ pub fn additional(cli: &Cli, existing: &Member) -> Result<Member> {
         "passkey_add",
         json!({"step":"finish","ceremony":ceremony,"credential":response}),
     )?)?;
-    let AddedPasskey::Registered { user, credential } = result else {
+    let AddedPasskey::Registered {
+        user,
+        credential,
+        certificate: _,
+    } = result
+    else {
         return Err("additional passkey result expected".into());
     };
     if user != existing.user || credential != credential_id {

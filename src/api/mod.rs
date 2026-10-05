@@ -93,6 +93,14 @@ pub struct RegisterFinish {
 pub struct User {
     pub user: String,
 }
+/// Registration response. A community returns its genuine registered-key
+/// certificate; the global passport service has no community pseudonym certificate.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RegisteredUser {
+    pub user: String,
+    pub certificate: Option<Vec<u8>>,
+}
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PresentationInput {
@@ -252,7 +260,7 @@ macro_rules! actions {
 
 actions! {
     register_begin(RegisterStart) -> Ceremony, Public, Both, Record, Forward, "Begin UV-required passkey registration";
-    register_finish(RegisterFinish) -> User, Public, Both, Record, Forward, "Verify and store the first passkey";
+    register_finish(RegisterFinish) -> RegisteredUser, Public, Both, Record, Forward, "Verify and store the first passkey";
     login_begin(LoginStart) -> Ceremony, Public, Both, Check, Forward, "Begin credential-first passkey authentication";
     login_discoverable_begin(Empty) -> DiscoverableCeremony, Public, Both, Check, Forward, "Begin usernameless sign-in with a synced passkey";
     login_finish(LoginFinish) -> Session, Public, Both, Record, Trusted, "Verify user and counter; create an ephemeral session";
@@ -271,6 +279,7 @@ actions! {
     pin_get(Field) -> PinResponse, Member, Community, Check, Forward, "Read a sealed fingerprint";
     pin_change(PinChange) -> PinResponse, Member, Community, Record, Forward, "Change a fingerprint using spent-token evidence";
     passkey_add(AddPasskey) -> AddedPasskey, Member, Community, Record, Forward, "Register another UV-required passkey for this membership";
+    passkey_certificate(Empty) -> Bytes, Member, Community, Record, Forward, "Renew the authenticated registered passkey certificate";
     passkey_revoke(RevokePasskey) -> Empty, Member, Community, Record, Forward, "Revoke a community passkey";
     device_authorize(DeviceKey) -> DeviceKeys, Member, Community, Record, Forward, "Authorize the lineage device key with this live passkey";
     device_keys(Empty) -> DeviceKeys, Member, Community, Check, Forward, "Read current passkey-authorized signing keys";

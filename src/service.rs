@@ -599,14 +599,14 @@ impl Door {
         &self,
         ctx: Context,
         request: RegisterFinish,
-    ) -> Result<User> {
+    ) -> Result<RegisteredUser> {
         if self.inner.member_host.as_deref() == Some(ctx.host.as_str()) {
-            return self
-                .community_backend()?
-                .lock()
-                .await
-                .register_finish(request, ctx.now)
-                .await;
+            let mut community = self.community_backend()?.lock().await;
+            let now = self.current_time();
+            if now < ctx.now {
+                return Err(Error::Unauthorized);
+            }
+            return live_time(community.register_finish(request, now)).await;
         }
         self.auth(&ctx.host)?
             .lock()

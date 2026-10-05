@@ -228,5 +228,6 @@ pub enum AddedPasskey {
     Registered {
         user: String,
         credential: Vec<u8>,
+        certificate: Vec<u8>,
     },
 }
