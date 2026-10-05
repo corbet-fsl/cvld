@@ -794,9 +794,9 @@ impl CommunityService {
                 .await
         }
         .map_err(|_| Error::Refused)?;
-        let credential = match result {
-            cmty::Outcome::Issued(value) => Some(value.cose),
-            cmty::Outcome::Missing(_) => None,
+        let (credential, passkey_binding) = match result {
+            cmty::Outcome::Issued(value) => (Some(value.cose), Some(value.passkey_binding)),
+            cmty::Outcome::Missing(_) => (None, None),
             cmty::Outcome::Vetoed => return Err(Error::Forbidden),
         };
         if self
@@ -809,7 +809,11 @@ impl CommunityService {
             self.refresh(now).await?;
         }
         let lobby = self.lobby(auth, now).await?;
-        Ok(CredentialResponse { credential, lobby })
+        Ok(CredentialResponse {
+            credential,
+            passkey_binding,
+            lobby,
+        })
     }
     pub async fn refresh(&mut self, now: u64) -> Result<()> {
         if let Some(issuer) = &self.root_board_issuer {

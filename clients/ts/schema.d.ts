@@ -662,6 +662,8 @@ export interface operations {
                     "application/json": {
                         credential?: number[] | null;
                         lobby: components["schemas"]["Lobby"];
+                        /** @description Original Policy-signed live passkey binding; present only with credential. */
+                        passkey_binding?: number[] | null;
                     };
                 };
             };
@@ -830,6 +832,8 @@ export interface operations {
                     "application/json": {
                         credential?: number[] | null;
                         lobby: components["schemas"]["Lobby"];
+                        /** @description Original Policy-signed live passkey binding; present only with credential. */
+                        passkey_binding?: number[] | null;
                     };
                 };
             };

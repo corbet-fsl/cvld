@@ -121,12 +121,9 @@ async fn two_communities_admission_policy_lapse_and_release_over_http() {
             .call("handle_reserve", json!({"handle":"member_one"}))
             .await
             .unwrap();
-        assert!(
-            issue_community(service, host, member, &passport)
-                .await
-                .credential
-                .is_none()
-        );
+        let missing = issue_community(service, host, member, &passport).await;
+        assert!(missing.credential.is_none());
+        assert!(missing.passkey_binding.is_none());
         let sealed = cmty::cmbr::PinV2::seal(
             &cpns::FingerprintContext {
                 community: name,
@@ -191,6 +188,39 @@ async fn two_communities_admission_policy_lapse_and_release_over_http() {
         assert_eq!(credential.community, name);
         assert_eq!(credential.policy_epoch, feed.policy_epoch);
         assert_eq!(credential.pins.len(), 1);
+        // Retain the original owner's signed descriptor, never reconstruct it
+        // from shell JSON or confuse the server user UUID with the pseudonym.
+        let signed_binding = issued.passkey_binding.unwrap();
+        let binding_envelope = ring
+            .verify(&signed_binding, csgn::Kind::Credential, NOW)
+            .unwrap();
+        let binding: cplc::PasskeyBinding =
+            serde_json::from_slice(binding_envelope.payload()).unwrap();
+        assert!(matches!(
+            binding.purpose,
+            cplc::PasskeyBindingPurpose::LineageV1
+        ));
+        assert_eq!(binding.community, name);
+        assert_eq!(binding.member, expected);
+        assert_ne!(binding.member, member.user);
+        assert_eq!(binding.policy_epoch, feed.policy_epoch);
+        assert_eq!(binding.credential.community(), name);
+        assert_eq!(binding.credential.credential_id(), &member.credential);
+        assert!(!binding.credential.spki().is_empty());
+        assert_eq!(binding.credential.rp_id(), format!("{name}.{DOMAIN}"));
+        assert!(
+            binding
+                .credential
+                .origins()
+                .contains(&format!("https://{host}"))
+        );
+        assert!(
+            ring.verify(&signed_binding, csgn::Kind::SettingsSnapshot, NOW)
+                .is_err()
+        );
+        let mut tampered = signed_binding;
+        *tampered.last_mut().unwrap() ^= 1;
+        assert!(ring.verify(&tampered, csgn::Kind::Credential, NOW).is_err());
     }
     assert_ne!(ids[0], ids[1]);
     assert_ne!(a.user, b.user);
@@ -304,6 +334,7 @@ async fn two_communities_admission_policy_lapse_and_release_over_http() {
     assert!(archive.content.versions[1].changes.is_some());
     let live = issue_community(&alpha, ah, &a, &passport).await;
     assert!(live.credential.is_some());
+    assert!(live.passkey_binding.is_some());
     let before_withdraw: TrustFeed =
         serde_json::from_value(ac.call("trust_feed", json!({})).await.unwrap()).unwrap();
     let proof = presentation(&alpha, ah, Some(&a.session), &passport).await;
@@ -311,6 +342,7 @@ async fn two_communities_admission_policy_lapse_and_release_over_http() {
         "gate":"cvch", "provider":"sponsor", "credential":{"presentation":proof,"devices":vec![[42u8;32]]}
     })).await.unwrap()).unwrap();
     assert!(lapsed.credential.is_none());
+    assert!(lapsed.passkey_binding.is_none());
     assert_eq!(lapsed.lobby.state, "lapsed");
     let lapsed_feed: TrustFeed =
         serde_json::from_value(ac.call("trust_feed", json!({})).await.unwrap()).unwrap();

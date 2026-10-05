@@ -76,6 +76,8 @@ pub struct CredentialRequest {
 #[serde(deny_unknown_fields)]
 pub struct CredentialResponse {
     pub credential: Option<Vec<u8>>,
+    /// Original Policy-signed live passkey binding; present only with credential.
+    pub passkey_binding: Option<Vec<u8>>,
     pub lobby: Lobby,
 }
 #[derive(Serialize, Deserialize, ToSchema)]

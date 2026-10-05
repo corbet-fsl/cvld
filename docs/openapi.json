@@ -321,6 +321,18 @@
                     },
                     "lobby": {
                       "$ref": "#/components/schemas/Lobby"
+                    },
+                    "passkey_binding": {
+                      "description": "Original Policy-signed live passkey binding; present only with credential.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
@@ -700,6 +712,18 @@
                     },
                     "lobby": {
                       "$ref": "#/components/schemas/Lobby"
+                    },
+                    "passkey_binding": {
+                      "description": "Original Policy-signed live passkey binding; present only with credential.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
