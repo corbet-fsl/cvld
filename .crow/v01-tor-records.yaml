@@ -1,0 +1,84 @@
+# Temporary manual component qualification; remove when permanent CI exists.
+when:
+  - event: manual
+    branch: foreman/v01-tor-records-ci-20261005
+labels:
+  backend: local
+skip_clone: true
+variables:
+  SOURCE_ARCHIVE: {default: ""}
+  SOURCE_SHA256: {default: ""}
+  V01_SOURCE_BUNDLE: {default: ""}
+  V01_SOURCE_BUNDLE_SHA256: {default: ""}
+  WORKER_TOOL_PATH: {default: ""}
+  WORKER_TEMP_ROOT: {default: ""}
+  PKG_CONFIG_PATH: {default: ""}
+  CI_JOBS: {default: "2"}
+  CI_MIN_AVAILABLE_MB: {default: "8192"}
+steps:
+  - name: tor-records-components
+    image: bash
+    commands:
+      - |
+        set -eu
+        export PATH="$${WORKER_TOOL_PATH:?Provisioned tools required}:$${PATH}"
+        test "$$CI_REPO_CLONE_URL" = https://forge.corbet.ch/corbet-libs/cvld.git
+        export PYTHONDONTWRITEBYTECODE=1
+        exec python3 - <<'PYTHON'
+        import hashlib, os, pathlib, re, signal, subprocess, tarfile, tempfile
+        env = os.environ
+        commit, run = env['CI_COMMIT_SHA'], env['CI_PIPELINE_NUMBER']
+        assert re.fullmatch('[0-9a-f]{40}', commit) and run.isdigit()
+        available = next(int(line.split()[1]) for line in pathlib.Path('/proc/meminfo').read_text().splitlines() if line.startswith('MemAvailable:'))
+        assert available >= int(env.get('CI_MIN_AVAILABLE_MB', '8192')) * 1024
+        archive = pathlib.Path(env['SOURCE_ARCHIVE'])
+        assert archive.is_absolute() and archive.is_file() and not archive.is_symlink()
+        assert re.fullmatch('[0-9a-f]{64}', env['SOURCE_SHA256'])
+        with archive.open('rb') as stream:
+            assert hashlib.file_digest(stream, 'sha256').hexdigest() == env['SOURCE_SHA256']
+            stream.seek(0)
+            assert subprocess.check_output(['git', 'get-tar-commit-id'], stdin=stream, text=True, timeout=30).strip() == commit
+        cargo = pathlib.Path(env['CARGO_HOME'])
+        assert cargo.is_absolute() and cargo.is_dir()
+        cache = cargo / 'v01-tor-records'
+        evidence = cache / 'evidence' / commit / run
+        evidence.mkdir(parents=True, exist_ok=False)
+        env['V01_EVIDENCE_DIR'] = str(evidence)
+        env['CARGO_TARGET_DIR'] = str(cache / 'target')
+        env['V01_ROOT_SOURCE_ARCHIVE'] = str(archive)
+        env['V01_ROOT_SOURCE_SHA256'] = env['SOURCE_SHA256']
+        env['V01_ROOT_SOURCE_COMMIT'] = commit
+        with tempfile.TemporaryDirectory(prefix='v01-tor-records-', dir=env['WORKER_TEMP_ROOT']) as temporary:
+            env['RUNNER_TEMP'] = env['TMPDIR'] = temporary
+            with tarfile.open(archive, mode='r:') as source:
+                for name in ('v01-tor-records.py', 'v01-records.py'):
+                    matches = [item for item in source.getmembers() if item.name == '.ci/' + name]
+                    assert len(matches) == 1 and matches[0].isreg() and matches[0].size <= 131072
+                    payload = source.extractfile(matches[0]).read()
+                    (pathlib.Path(temporary) / name).write_bytes(payload)
+            def interrupted(signum, frame):
+                raise KeyboardInterrupt('qualification wrapper interrupted')
+            signal.signal(signal.SIGTERM, interrupted)
+            process = subprocess.Popen(['python3', str(pathlib.Path(temporary) / 'v01-tor-records.py')],
+                                       cwd=temporary, start_new_session=True)
+            status = 1
+            try:
+                status = process.wait(timeout=10800)
+            finally:
+                signal.signal(signal.SIGTERM, signal.SIG_IGN)
+                try:
+                    os.killpg(process.pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+                try:
+                    process.wait(timeout=35)
+                except subprocess.TimeoutExpired:
+                    pass
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                process.wait(timeout=10)
+                print('Tor Records component evidence: ' + str(evidence), flush=True)
+            raise SystemExit(status)
+        PYTHON
