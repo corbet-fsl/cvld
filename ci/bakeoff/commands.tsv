@@ -1,0 +1,3 @@
+check	cargo check --locked --workspace
+test	cargo test --locked --workspace
+clippy	cargo clippy --locked --workspace --all-targets -- -D warnings

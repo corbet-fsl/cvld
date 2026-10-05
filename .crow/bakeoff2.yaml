@@ -1,0 +1,17 @@
+when:
+  - event: manual
+    branch: ci-bakeoff
+labels:
+  backend: local
+variables:
+  VARIANT:
+    default: A0
+  SCENARIO:
+    default: setup
+  REPETITION:
+    default: '1'
+steps:
+  - name: measure
+    image: bash
+    commands:
+      - sh ci/bakeoff/worker2.sh $VARIANT
