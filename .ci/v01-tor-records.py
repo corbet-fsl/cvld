@@ -24,7 +24,7 @@ FERRY_URL = "https://github.com/corbet-foss/cfry"
 CANDIDATES = {
     RECORDS_URL: "c1cd8d6e21bd74cafdb0e8f16aea493bc0e2c684",
     MESH_URL: "032bd5c2f82a19195a08418d72068b72a404ae87",
-    TOR_URL: "18820fbdf669ebbe42302629164dda40cb8afb6b",
+    TOR_URL: "ca0fab894dbd496a95095fbc1bdc363d70109651",
     "https://github.com/corbet-foss/ckmg": "3bbddd1118b42c573111d2eff6ac02798af929a7",
 }
 # The remaining 35 manifest entries, including exact Ferry, are preserved from
