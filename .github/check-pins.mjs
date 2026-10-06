@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { resolve } from 'node:path';
 
 const corbetSource = /^git\+https:\/\/github\.com\/(?:corbet-(?:foss|libs)|cmtymeet)\//;
 
@@ -11,8 +12,8 @@ function checkSource(source, resolved) {
   }
 }
 
-export function checkPins(metadata) {
-  const names = new Set(['crlt']);
+export function checkPins(metadata, required = ['crlt']) {
+  const names = new Set(required);
   for (const pkg of metadata.packages) {
     if (corbetSource.test(pkg.source ?? '')) {
       names.add(pkg.name);
@@ -33,7 +34,23 @@ export function checkPins(metadata) {
   }
 }
 
+export function checkBrowser(metadata, root) {
+  checkPins(metadata, []);
+  const owners = metadata.packages.filter(pkg => pkg.name === 'cvld');
+  if (owners.length !== 1 || owners[0].source !== null
+      || resolve(owners[0].manifest_path) !== resolve(root, 'Cargo.toml')) {
+    throw new Error('Browser must exercise the exact local production cvld source');
+  }
+  const owner = metadata.resolve.nodes.find(node => node.id === owners[0].id);
+  if (!owner?.features.includes('client-browser')
+      || owner.features.some(feature => ['server', 'client-http', 'development-gate'].includes(feature))) {
+    throw new Error('Browser consumer must resolve only the portable owner client');
+  }
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  checkPins(JSON.parse(readFileSync(process.argv[2], 'utf8')));
+  const metadata = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+  if (process.argv[3] === '--browser') checkBrowser(metadata, process.cwd());
+  else checkPins(metadata);
   console.log('Corbet dependencies resolve once each to a complete source revision');
 }

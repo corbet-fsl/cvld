@@ -17,5 +17,14 @@
         ".ci/run-cached.sh"
       ]
     }
+  },
+  "push_consumers": {
+    "cmsg-v01": {
+      "consumer": "https://git.corbet.ch/corbet-libs/cmsg.git",
+      "branch": "v01",
+      "consumer_branch": "v01",
+      "job": "v01-push",
+      "self_name": "cvld"
+    }
   }
 }

@@ -65,14 +65,20 @@ impl CommunityService {
                     .additions
                     .remove(&ceremony)
                     .ok_or(Error::Unauthorized)?;
-                let record = self
+                let (credential, certificate) = self
                     .facade
-                    .finish_additional_registration(authentication, pending.value, *credential)
+                    .finish_additional_registration_certified(
+                        authentication,
+                        pending.value,
+                        *credential,
+                        now,
+                    )
                     .await
                     .map_err(|_| Error::Refused)?;
                 Ok(AddedPasskey::Registered {
-                    user: record.member().to_string(),
-                    credential: record.credential_id().as_ref().to_vec(),
+                    user: authentication.member().to_string(),
+                    credential,
+                    certificate,
                 })
             }
         }

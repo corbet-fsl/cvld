@@ -228,6 +228,30 @@
           "effective_at"
         ],
         "type": "object"
+      },
+      "TrustKeyTransition": {
+        "additionalProperties": false,
+        "description": "Original publishing-key endorsement; routing metadata is not authority.",
+        "properties": {
+          "proof": {
+            "items": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "revision": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "revision",
+          "proof"
+        ],
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -297,6 +321,18 @@
                     },
                     "lobby": {
                       "$ref": "#/components/schemas/Lobby"
+                    },
+                    "passkey_binding": {
+                      "description": "Original Policy-signed live passkey binding; present only with credential.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
@@ -334,6 +370,7 @@
           }
         ],
         "summary": "Present a passport and request admission or renewal",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
@@ -422,6 +459,7 @@
           }
         ],
         "summary": "Authorize the lineage device key with this live passkey",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
@@ -496,6 +534,7 @@
           }
         ],
         "summary": "Read current passkey-authorized signing keys",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "member",
         "x-scope": "community"
@@ -617,6 +656,7 @@
           }
         ],
         "summary": "Verify a member-bound voucher",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
@@ -672,6 +712,18 @@
                     },
                     "lobby": {
                       "$ref": "#/components/schemas/Lobby"
+                    },
+                    "passkey_binding": {
+                      "description": "Original Policy-signed live passkey binding; present only with credential.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     }
                   },
                   "required": [
@@ -709,6 +761,7 @@
           }
         ],
         "summary": "Withdraw a retained community gate",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
@@ -793,6 +846,7 @@
         },
         "security": [],
         "summary": "Read authenticated global issuer material",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "public",
         "x-scope": "global"
@@ -864,6 +918,7 @@
           }
         ],
         "summary": "Temporarily suspend and advance the global epoch",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "root",
         "x-scope": "global"
@@ -929,6 +984,7 @@
           }
         ],
         "summary": "Record the warning preceding temporary suspension",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "root",
         "x-scope": "global"
@@ -998,6 +1054,7 @@
         },
         "security": [],
         "summary": "Check a community handle",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "public",
         "x-scope": "community"
@@ -1100,6 +1157,7 @@
           }
         ],
         "summary": "Reserve a community handle",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
@@ -1194,6 +1252,7 @@
           }
         ],
         "summary": "Read enrolment and missing requirements",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "member",
         "x-scope": "community"
@@ -1278,6 +1337,7 @@
         },
         "security": [],
         "summary": "Begin credential-first passkey authentication",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "public",
         "x-scope": "both"
@@ -1342,6 +1402,7 @@
         },
         "security": [],
         "summary": "Begin usernameless sign-in with a synced passkey",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "public",
         "x-scope": "both"
@@ -1390,6 +1451,9 @@
                       "$ref": "#/components/schemas/Role"
                     },
                     "token": {
+                      "maxLength": 64,
+                      "minLength": 64,
+                      "pattern": "^[0-9a-f]{64}$",
                       "type": "string"
                     },
                     "user": {
@@ -1430,6 +1494,7 @@
         },
         "security": [],
         "summary": "Verify user and counter; create an ephemeral session",
+        "x-client-access": "trusted",
         "x-effect": "record",
         "x-role": "public",
         "x-scope": "both"
@@ -1487,9 +1552,152 @@
           }
         ],
         "summary": "End this ephemeral session",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "authenticated",
         "x-scope": "both"
+      }
+    },
+    "/v1/member_role": {
+      "post": {
+        "operationId": "member_role",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "Current local register role, not a credential or a public profile badge.",
+                  "properties": {
+                    "member": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "$ref": "#/components/schemas/Role"
+                    }
+                  },
+                  "required": [
+                    "member",
+                    "role"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Read the current local membership role",
+        "x-client-access": "forward",
+        "x-effect": "check",
+        "x-role": "member",
+        "x-scope": "community"
+      }
+    },
+    "/v1/member_role_set": {
+      "post": {
+        "operationId": "member_role_set",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "member": {
+                    "description": "Target's community pseudonym, as returned by the enrolment lobby.",
+                    "type": "string"
+                  },
+                  "role": {
+                    "$ref": "#/components/schemas/Role"
+                  }
+                },
+                "required": [
+                  "member",
+                  "role"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Change a member role under current membership authority",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "member",
+        "x-scope": "community"
       }
     },
     "/v1/passkey_add": {
@@ -1576,6 +1784,14 @@
                     },
                     {
                       "properties": {
+                        "certificate": {
+                          "items": {
+                            "format": "int32",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "type": "array"
+                        },
                         "credential": {
                           "items": {
                             "format": "int32",
@@ -1597,6 +1813,7 @@
                       "required": [
                         "user",
                         "credential",
+                        "certificate",
                         "step"
                       ],
                       "type": "object"
@@ -1633,6 +1850,78 @@
           }
         ],
         "summary": "Register another UV-required passkey for this membership",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "member",
+        "x-scope": "community"
+      }
+    },
+    "/v1/passkey_certificate": {
+      "post": {
+        "operationId": "passkey_certificate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "bytes": {
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "bytes"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Renew the authenticated registered passkey certificate",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
@@ -1703,6 +1992,7 @@
           }
         ],
         "summary": "Revoke a community passkey",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
@@ -1773,6 +2063,7 @@
           }
         ],
         "summary": "Reserve a blind passport issuance challenge",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "global"
@@ -1865,6 +2156,7 @@
           }
         ],
         "summary": "Issue a blind passport after global policy checks",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "global"
@@ -1955,6 +2247,7 @@
           }
         ],
         "summary": "Change a fingerprint using spent-token evidence",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
@@ -2032,6 +2325,7 @@
           }
         ],
         "summary": "Read a sealed fingerprint",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "member",
         "x-scope": "community"
@@ -2113,6 +2407,7 @@
           }
         ],
         "summary": "Seal an initial profile fingerprint",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
@@ -2151,6 +2446,18 @@
                 "schema": {
                   "additionalProperties": false,
                   "properties": {
+                    "balance": {
+                      "description": "Original optional Balance publication, authenticated with the manifest.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
                     "communities": {
                       "items": {
                         "format": "int32",
@@ -2164,6 +2471,12 @@
                         "format": "int32",
                         "minimum": 0,
                         "type": "integer"
+                      },
+                      "type": "array"
+                    },
+                    "key_transitions": {
+                      "items": {
+                        "$ref": "#/components/schemas/TrustKeyTransition"
                       },
                       "type": "array"
                     },
@@ -2192,6 +2505,18 @@
                         "type": "integer"
                       },
                       "type": "array"
+                    },
+                    "root_board": {
+                      "description": "Original optional Policy publication, authenticated with the manifest.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     },
                     "schema": {
                       "items": {
@@ -2261,6 +2586,7 @@
           }
         ],
         "summary": "Edit a platform setting or force switch",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "root",
         "x-scope": "community"
@@ -2331,6 +2657,7 @@
         },
         "security": [],
         "summary": "Begin a signed community passport presentation",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "public",
         "x-scope": "community"
@@ -2418,6 +2745,7 @@
         },
         "security": [],
         "summary": "Begin UV-required passkey registration",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "public",
         "x-scope": "both"
@@ -2456,7 +2784,19 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": false,
+                  "description": "Registration response. A community returns its genuine registered-key\ncertificate; the global passport service has no community pseudonym certificate.",
                   "properties": {
+                    "certificate": {
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
                     "user": {
                       "type": "string"
                     }
@@ -2492,6 +2832,7 @@
         },
         "security": [],
         "summary": "Verify and store the first passkey",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "public",
         "x-scope": "both"
@@ -2563,6 +2904,7 @@
           }
         ],
         "summary": "Classify profile schema changes",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "admin",
         "x-scope": "community"
@@ -2597,6 +2939,18 @@
                 "schema": {
                   "additionalProperties": false,
                   "properties": {
+                    "balance": {
+                      "description": "Original optional Balance publication, authenticated with the manifest.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
                     "communities": {
                       "items": {
                         "format": "int32",
@@ -2610,6 +2964,12 @@
                         "format": "int32",
                         "minimum": 0,
                         "type": "integer"
+                      },
+                      "type": "array"
+                    },
+                    "key_transitions": {
+                      "items": {
+                        "$ref": "#/components/schemas/TrustKeyTransition"
                       },
                       "type": "array"
                     },
@@ -2638,6 +2998,18 @@
                         "type": "integer"
                       },
                       "type": "array"
+                    },
+                    "root_board": {
+                      "description": "Original optional Policy publication, authenticated with the manifest.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     },
                     "schema": {
                       "items": {
@@ -2707,6 +3079,7 @@
           }
         ],
         "summary": "Publish a profile schema",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "admin",
         "x-scope": "community"
@@ -2755,6 +3128,18 @@
                 "schema": {
                   "additionalProperties": false,
                   "properties": {
+                    "balance": {
+                      "description": "Original optional Balance publication, authenticated with the manifest.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
                     "communities": {
                       "items": {
                         "format": "int32",
@@ -2768,6 +3153,12 @@
                         "format": "int32",
                         "minimum": 0,
                         "type": "integer"
+                      },
+                      "type": "array"
+                    },
+                    "key_transitions": {
+                      "items": {
+                        "$ref": "#/components/schemas/TrustKeyTransition"
                       },
                       "type": "array"
                     },
@@ -2796,6 +3187,18 @@
                         "type": "integer"
                       },
                       "type": "array"
+                    },
+                    "root_board": {
+                      "description": "Original optional Policy publication, authenticated with the manifest.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     },
                     "schema": {
                       "items": {
@@ -2865,6 +3268,7 @@
           }
         ],
         "summary": "Edit a community setting",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "admin",
         "x-scope": "community"
@@ -2948,6 +3352,7 @@
         },
         "security": [],
         "summary": "Wait for a public revision announcement",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "public",
         "x-scope": "community"
@@ -2974,6 +3379,18 @@
                 "schema": {
                   "additionalProperties": false,
                   "properties": {
+                    "balance": {
+                      "description": "Original optional Balance publication, authenticated with the manifest.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
                     "communities": {
                       "items": {
                         "format": "int32",
@@ -2987,6 +3404,12 @@
                         "format": "int32",
                         "minimum": 0,
                         "type": "integer"
+                      },
+                      "type": "array"
+                    },
+                    "key_transitions": {
+                      "items": {
+                        "$ref": "#/components/schemas/TrustKeyTransition"
                       },
                       "type": "array"
                     },
@@ -3015,6 +3438,18 @@
                         "type": "integer"
                       },
                       "type": "array"
+                    },
+                    "root_board": {
+                      "description": "Original optional Policy publication, authenticated with the manifest.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     },
                     "schema": {
                       "items": {
@@ -3080,6 +3515,7 @@
         },
         "security": [],
         "summary": "Read signed public trust snapshots",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "public",
         "x-scope": "community"

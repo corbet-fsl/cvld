@@ -68,6 +68,9 @@ pub struct CommunityService {
     pub facade: Facade,
     db: crlt::Db,
     issuer_public_key: Vec<u8>,
+    // Operator-configured purpose key. Epoch and cohort are always projected
+    // from current Policy/time, so a static config survives policy changes.
+    root_board_issuer: Option<cpsd::IssuerPublicKey>,
     pub config: CommunityConfig,
     pub public: TrustFeed,
     pub changes: tokio::sync::watch::Sender<Arc<TrustFeed>>,
@@ -84,6 +87,24 @@ impl CommunityService {
         config: CommunityConfig,
         clock: Arc<dyn Clock>,
     ) -> Result<Self> {
+        Self::open_selected(db, config, clock, None).await
+    }
+
+    pub(crate) async fn open_root_board(
+        db: &crlt::Db,
+        config: CommunityConfig,
+        clock: Arc<dyn Clock>,
+        descriptor: cpsd::RootBoardPublicKey,
+    ) -> Result<Self> {
+        Self::open_selected(db, config, clock, Some(descriptor)).await
+    }
+
+    async fn open_selected(
+        db: &crlt::Db,
+        config: CommunityConfig,
+        clock: Arc<dyn Clock>,
+        root_board: Option<cpsd::RootBoardPublicKey>,
+    ) -> Result<Self> {
         use cplc::Storage;
         use csgn::Store;
         let now = clock.now();
@@ -93,13 +114,18 @@ impl CommunityService {
                 .community
                 .bytes()
                 .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
-            || ["root", "admin", "api", "www", "mail", "mcp", "wallet"]
-                .contains(&config.community.as_str())
+            || ["admin", "api", "www", "mail", "mcp", "wallet"].contains(&config.community.as_str())
+            || (config.community == "root") != root_board.is_some()
             || config.pending_capacity == 0
             || config.session_seconds == 0
             || config.session_seconds > 3600
             || config.lease_months == 0
         {
+            return Err(Error::Invalid);
+        }
+        if root_board.as_ref().is_some_and(|descriptor| {
+            descriptor.community().as_bytes() != config.community.as_bytes()
+        }) {
             return Err(Error::Invalid);
         }
         let mut schemas = cmbr::SCHEMAS.to_vec();
@@ -145,7 +171,9 @@ impl CommunityService {
             return Err(Error::Invalid);
         }
         let signer = if saved.is_some() {
-            csgn::PersistentSigner::open(signer_store, scope, secret, now).await
+            // Policy uses day-aligned issuance throughout. Reopening at the
+            // wall-clock second would advance the signer beyond its next issue.
+            csgn::PersistentSigner::open(signer_store, scope, secret, cplc::day(now)).await
         } else {
             csgn::PersistentSigner::create(
                 signer_store,
@@ -210,6 +238,21 @@ impl CommunityService {
                 .await
                 .map_err(|_| Error::Refused)?;
         }
+        if let Some(descriptor) = &root_board {
+            if descriptor.issuer().to_bytes() == status.issuer_public_key {
+                return Err(Error::Invalid);
+            }
+            let current = root_descriptor(
+                descriptor.issuer(),
+                scope,
+                policy.epoch(now).await.map_err(|_| Error::Unavailable)?,
+                now,
+            )?;
+            policy
+                .publish_root_board(&current, now)
+                .await
+                .map_err(|_| Error::Refused)?;
+        }
         let host = format!("api.{}.{}", scope, config.domain);
         let membership = cmbr::Membership::new(
             db,
@@ -242,7 +285,12 @@ impl CommunityService {
             ),
         )
         .map_err(|_| Error::Invalid)?;
-        let facade = cmty::Community::new(
+        let compose = if root_board.is_some() {
+            cmty::Community::new_root_board
+        } else {
+            cmty::Community::new
+        };
+        let facade = compose(
             cmty::storage::LibsqlStorage::new(
                 db,
                 cpsd::CommunityId::new(scope.as_bytes()).map_err(|_| Error::Invalid)?,
@@ -289,6 +337,7 @@ impl CommunityService {
             facade,
             db: db.clone(),
             issuer_public_key: status.issuer_public_key,
+            root_board_issuer: root_board.map(|descriptor| descriptor.issuer().clone()),
             config,
             public,
             changes,
@@ -407,12 +456,19 @@ impl CommunityService {
         if challenge.owner.is_some() {
             return Err(Error::Forbidden);
         }
-        let proof = cpsd::Presentation::from_bytes(&input.proof).map_err(|_| Error::Invalid)?;
-        let passport = self
-            .facade
-            .verify(&mut cpsd::rand::rngs::OsRng, &challenge.value, &proof, now)
-            .await
-            .map_err(|_| Error::Refused)?;
+        let passport = if challenge.value.root_board_request().is_some() {
+            let proof = cpsd::RootBoardPresentation::from_bytes(&input.proof)
+                .map_err(|_| Error::Invalid)?;
+            self.facade
+                .verify_root_board(&challenge.value, &proof, now)
+                .await
+        } else {
+            let proof = cpsd::Presentation::from_bytes(&input.proof).map_err(|_| Error::Invalid)?;
+            self.facade
+                .verify(&mut cpsd::rand::rngs::OsRng, &challenge.value, &proof, now)
+                .await
+        }
+        .map_err(|_| Error::Refused)?;
         let user = ckyh::Uuid::new_v4();
         let (options, value) = self
             .facade
@@ -434,19 +490,24 @@ impl CommunityService {
             options: serde_json::to_value(options).map_err(|_| Error::Unavailable)?,
         })
     }
-    pub async fn register_finish(&mut self, request: RegisterFinish, now: u64) -> Result<User> {
+    pub async fn register_finish(
+        &mut self,
+        request: RegisterFinish,
+        now: u64,
+    ) -> Result<RegisteredUser> {
         self.prune(now);
         let pending = self
             .registrations
             .remove(&request.ceremony)
             .ok_or(Error::Unauthorized)?;
-        self.facade
-            .membership()
-            .finish_registration(pending.value, request.credential)
+        let certificate = self
+            .facade
+            .finish_registration(pending.value, request.credential, now)
             .await
             .map_err(|_| Error::Refused)?;
-        Ok(User {
+        Ok(RegisteredUser {
             user: pending.user.to_string(),
+            certificate: Some(certificate),
         })
     }
     pub async fn login_begin(&mut self, request: LoginStart, now: u64) -> Result<Ceremony> {
@@ -702,38 +763,47 @@ impl CommunityService {
         if challenge.owner != Some(auth.member()) {
             return Err(Error::Forbidden);
         }
-        let proof = cpsd::Presentation::from_bytes(&request.presentation.proof)
-            .map_err(|_| Error::Invalid)?;
         let date = chrono::DateTime::from_timestamp(now as i64, 0)
             .ok_or(Error::Invalid)?
             .checked_add_months(chrono::Months::new(self.config.lease_months))
             .ok_or(Error::Invalid)?;
         let lease = cmbr::YearMonth::new(date.year() as u16, date.month() as u8)
             .map_err(|_| Error::Invalid)?;
-        let result = self
-            .facade
-            .finish_with(
-                &mut cpsd::rand::rngs::OsRng,
-                &challenge.value,
-                &proof,
-                cmty::Admission {
-                    authentication: auth,
-                    devices: &request.devices,
-                    lease,
-                },
-                now,
-                async |gates, context| {
-                    if let Some((gate, provider)) = withdrawal {
-                        gates.withdraw(context.subject, &gate, &provider).await?;
-                    }
-                    Ok(Vec::new())
-                },
-            )
-            .await
-            .map_err(|_| Error::Refused)?;
-        let credential = match result {
-            cmty::Outcome::Issued(value) => Some(value.cose),
-            cmty::Outcome::Missing(_) => None,
+        let admission = cmty::Admission {
+            authentication: auth,
+            devices: &request.devices,
+            lease,
+        };
+        let checks = async |gates: &cgts::Gatekeeper<_, _>, context: cgts::Context<'_>| {
+            if let Some((gate, provider)) = withdrawal {
+                gates.withdraw(context.subject, &gate, &provider).await?;
+            }
+            Ok(Vec::new())
+        };
+        let result = if challenge.value.root_board_request().is_some() {
+            let proof = cpsd::RootBoardPresentation::from_bytes(&request.presentation.proof)
+                .map_err(|_| Error::Invalid)?;
+            self.facade
+                .finish_root_board_with(&challenge.value, &proof, admission, now, checks)
+                .await
+        } else {
+            let proof = cpsd::Presentation::from_bytes(&request.presentation.proof)
+                .map_err(|_| Error::Invalid)?;
+            self.facade
+                .finish_with(
+                    &mut cpsd::rand::rngs::OsRng,
+                    &challenge.value,
+                    &proof,
+                    admission,
+                    now,
+                    checks,
+                )
+                .await
+        }
+        .map_err(|_| Error::Refused)?;
+        let (credential, passkey_binding) = match result {
+            cmty::Outcome::Issued(value) => (Some(value.cose), Some(value.passkey_binding)),
+            cmty::Outcome::Missing(_) => (None, None),
             cmty::Outcome::Vetoed => return Err(Error::Forbidden),
         };
         if self
@@ -746,9 +816,28 @@ impl CommunityService {
             self.refresh(now).await?;
         }
         let lobby = self.lobby(auth, now).await?;
-        Ok(CredentialResponse { credential, lobby })
+        Ok(CredentialResponse {
+            credential,
+            passkey_binding,
+            lobby,
+        })
     }
     pub async fn refresh(&mut self, now: u64) -> Result<()> {
+        if let Some(issuer) = &self.root_board_issuer {
+            let mut policy = self.facade.policy().lock().await;
+            let descriptor = root_descriptor(
+                issuer,
+                &self.config.community,
+                policy.epoch(now).await.map_err(|_| Error::Unavailable)?,
+                now,
+            )?;
+            // Original Policy enforces the immutable issuer and cohort floor.
+            // Advancing metadata does not renew any holder's credential.
+            policy
+                .publish_root_board(&descriptor, now)
+                .await
+                .map_err(|_| Error::Unavailable)?;
+        }
         self.public = publish(&self.facade, now).await?;
         self.changes.send_replace(Arc::new(self.public.clone()));
         Ok(())
@@ -778,49 +867,59 @@ impl CommunityService {
             .verify(&self.public.manifest, csgn::Kind::SettingsSnapshot, now)
             .map(|s| s.valid_until() > now + self.config.publication_seconds / 2)
             .unwrap_or(false);
+        let root_fresh = self.root_board_issuer.is_none()
+            || policy
+                .root_board_descriptor(now)
+                .await
+                .is_ok_and(|value| value.is_some());
         drop(policy);
-        if !fresh || epoch != self.public.policy_epoch {
+        if !fresh || !root_fresh || epoch != self.public.policy_epoch {
             self.refresh(now).await?;
         }
         Ok(())
     }
 }
+fn root_descriptor(
+    issuer: &cpsd::IssuerPublicKey,
+    community: &str,
+    epoch: u64,
+    now: u64,
+) -> Result<cpsd::RootBoardPublicKey> {
+    cpsd::RootBoardPublicKey::from_authenticated_beacon(
+        issuer.clone(),
+        cpsd::CommunityId::new(community).map_err(|_| Error::Invalid)?,
+        epoch,
+        now / cpsd::ROOT_BOARD_COHORT_SECONDS * cpsd::ROOT_BOARD_COHORT_SECONDS,
+    )
+    .map_err(|_| Error::Invalid)
+}
 async fn publish(facade: &Facade, now: u64) -> Result<TrustFeed> {
-    let mut policy = facade.policy().lock().await;
-    let mut snapshots = Vec::new();
-    for kind in [
-        cplc::SnapshotKind::Settings,
-        cplc::SnapshotKind::Schema,
-        cplc::SnapshotKind::Communities,
-        cplc::SnapshotKind::RevocationList,
-        cplc::SnapshotKind::SchemaVersions,
-    ] {
-        snapshots.push(
-            policy
-                .publish(kind, now)
-                .await
-                .map_err(|_| Error::Unavailable)?,
-        );
-    }
-    let manifest = policy
-        .trust_manifest(now)
+    let feed = facade
+        .policy()
+        .lock()
+        .await
+        .refresh_trust(now)
         .await
         .map_err(|_| Error::Unavailable)?;
-    let ring = policy.key_ring().map_err(|_| Error::Unavailable)?;
-    let verified = ring
-        .verify(&manifest, csgn::Kind::SettingsSnapshot, now)
-        .map_err(|_| Error::Unavailable)?;
-    let view: cplc::TrustManifest =
-        serde_json::from_slice(verified.payload()).map_err(|_| Error::Unavailable)?;
     Ok(TrustFeed {
-        revision: view.revision,
-        policy_epoch: view.policy_epoch,
-        key_ring: ring.to_cbor(),
-        manifest,
-        settings: snapshots.remove(0),
-        schema: snapshots.remove(0),
-        communities: snapshots.remove(0),
-        revocations: snapshots.remove(0),
-        schema_versions: snapshots.remove(0),
+        revision: feed.revision,
+        policy_epoch: feed.policy_epoch,
+        key_ring: feed.key_ring.clone(),
+        key_transitions: feed
+            .key_transitions
+            .iter()
+            .map(|transition| TrustKeyTransition {
+                revision: transition.revision,
+                proof: transition.proof.clone(),
+            })
+            .collect(),
+        manifest: feed.manifest.clone(),
+        settings: feed.settings.clone(),
+        schema: feed.schema.clone(),
+        communities: feed.communities.clone(),
+        revocations: feed.revocations.clone(),
+        schema_versions: feed.schema_versions.clone(),
+        root_board: feed.root_board.clone(),
+        balance: feed.balance.clone(),
     })
 }

@@ -15,10 +15,17 @@ jobs:
         ref: ${{ github.event.pull_request.head.sha || github.sha }}
         persist-credentials: false
     - uses: dtolnay/rust-toolchain@stable
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      with:
+        node-version: 22
     - name: Check the committed dependency graph before refresh
       run: python3 .github/check-first-party.py
     - name: Resolve one fresh dependency snapshot
       run: 'cargo update
+
+        cargo update --manifest-path tests/browser/Cargo.toml
+
+        npm update --prefix clients/ts --package-lock-only --ignore-scripts
 
         rustc --version > resolver.txt
 
@@ -26,11 +33,19 @@ jobs:
 
         date -u +%FT%TZ >> resolver.txt
 
-        sha256sum Cargo.lock >> resolver.txt'
+        node --version >> resolver.txt
+
+        npm --version >> resolver.txt
+
+        sha256sum Cargo.lock tests/browser/Cargo.lock clients/ts/package-lock.json >> resolver.txt'
     - uses: actions/upload-artifact@v7
       with:
         name: resolved-lock
         path: 'Cargo.lock
+
+          tests/browser/Cargo.lock
+
+          clients/ts/package-lock.json
 
           resolver.txt'
         retention-days: 7
@@ -52,9 +67,12 @@ jobs:
       with:
         tool: cargo-deny
     - run: cargo deny --locked check advisories
+    - run: cargo deny --manifest-path tests/browser/Cargo.toml --locked check advisories
     - name: Preserve formatting feedback
       if: failure()
       run: 'cargo fmt --all
+
+        cargo fmt --manifest-path tests/browser/Cargo.toml --all
 
         git diff --binary > formatting.patch'
     - uses: actions/upload-artifact@v7
@@ -83,6 +101,9 @@ jobs:
     - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
       with:
         cache-on-failure: true
+        workspaces: |
+          . -> target
+          tests/browser -> target
     - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
       with:
         node-version: 22
@@ -91,10 +112,13 @@ jobs:
     - run: cargo metadata --locked --format-version 1 > dependency-metadata.json
     - run: node .github/check-pins.mjs dependency-metadata.json
     - run: cargo fmt --all --check
+    - run: cargo fmt --manifest-path tests/browser/Cargo.toml --all --check
     - run: cargo clippy --locked --all-targets --features development-gate -- -D warnings
     - name: Check portable owner client without server dependencies
-      run: cargo clippy --locked --no-default-features --features client --lib --target wasm32-unknown-unknown
-        -- -D warnings
+      run: |
+        cargo metadata --manifest-path tests/browser/Cargo.toml --locked --format-version 1 > browser-dependency-metadata.json
+        node .github/check-pins.mjs browser-dependency-metadata.json --browser
+        cargo clippy --manifest-path tests/browser/Cargo.toml --locked --all-targets --target wasm32-unknown-unknown -- -D warnings
     - name: Regenerate protocol and client
       run: 'cargo run --locked -- openapi > docs/openapi.json
 
@@ -107,7 +131,33 @@ jobs:
         npm test --prefix clients/ts
 
         '
+    - name: Verify committed protocol and client
+      run: 'git ls-files --error-unmatch docs/openapi.json clients/ts/schema.d.ts
+
+        git diff --exit-code -- docs/openapi.json clients/ts/schema.d.ts
+
+        '
     - run: cargo test --locked --features development-gate --no-fail-fast
+    - name: Build the real browser fixture with the already checked native graph
+      run: |
+        cargo build --locked --features development-gate --example browser-fixture --message-format=json > browser-native-build.json
+        python3 - <<'PYCODE'
+        import json, shutil
+        from pathlib import Path
+        candidates = [row['executable'] for line in Path('browser-native-build.json').read_text().splitlines()
+                      if (row := json.loads(line)).get('reason') == 'compiler-artifact'
+                      and row.get('target', {}).get('name') == 'browser-fixture' and row.get('executable')]
+        assert len(candidates) == 1
+        Path('browser-native').mkdir()
+        shutil.copy2(candidates[0], 'browser-native/browser-fixture')
+        shutil.copy2('browser-native-build.json', 'browser-native/build.json')
+        shutil.copy2('Cargo.lock', 'browser-native/Cargo.lock')
+        PYCODE
+    - uses: actions/upload-artifact@v7
+      with:
+        name: browser-native
+        path: browser-native/
+        retention-days: 7
     - run: cargo test --locked --release
     - name: Prove development gate cannot enter a release binary
       run: 'if cargo check --locked --release --features development-gate > release-gate.log 2>&1; then
@@ -121,17 +171,13 @@ jobs:
         grep -q ''development-gate is forbidden in release builds'' release-debug-gate.log
 
         '
-    - name: Verify committed protocol and client
-      run: 'git ls-files --error-unmatch docs/openapi.json clients/ts/schema.d.ts
-
-        git diff --exit-code -- docs/openapi.json clients/ts/schema.d.ts
-
-        '
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       if: always()
       with:
         name: generated
         path: 'Cargo.lock
+
+          clients/ts/package-lock.json
 
           docs/openapi.json
 
@@ -141,6 +187,8 @@ jobs:
     - name: Preserve formatting feedback
       if: failure()
       run: 'cargo fmt --all
+
+        cargo fmt --manifest-path tests/browser/Cargo.toml --all
 
         git diff --binary > formatting.patch'
     - uses: actions/upload-artifact@v7
@@ -262,6 +310,104 @@ jobs:
 
           coverage.txt'
         retention-days: 7
+  wasm-coverage:
+    needs: [check, dependency-policy, resolve, toy]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARGO_BUILD_JOBS: 2
+      CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS: -Zno-profiler-runtime -Clink-args=--no-gc-sections --cfg=owned_browser_coverage
+      WASM_BINDGEN_TEST_ONLY_WEB: "1"
+      WASM_BINDGEN_SPLIT_LINKED_MODULES: "1"
+      CHROMEDRIVER: /usr/bin/chromedriver
+      CC_wasm32_unknown_unknown: clang
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        ref: ${{ github.event.pull_request.head.sha || github.sha }}
+        persist-credentials: false
+    - uses: actions/download-artifact@v8
+      with:
+        name: resolved-lock
+    - name: Use an absolute test runner path for the consumer workspace
+      run: echo "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=python3 $GITHUB_WORKSPACE/.github/browser-coverage-runner.py" >> "$GITHUB_ENV"
+    - uses: dtolnay/rust-toolchain@nightly
+      with:
+        targets: wasm32-unknown-unknown
+        components: llvm-tools-preview
+    - uses: Swatinem/rust-cache@v2
+      with:
+        key: browser-coverage
+        cache-on-failure: true
+        workspaces: tests/browser -> target
+    - id: binding-version
+      run: |
+        python3 - <<'PYCODE'
+        import os, tomllib
+        packages = tomllib.load(open('tests/browser/Cargo.lock', 'rb'))['package']
+        versions = [p['version'] for p in packages if p['name'] == 'wasm-bindgen']
+        assert len(versions) == 1
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+            output.write('version=' + versions[0] + '\n')
+        PYCODE
+    - uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-llvm-cov,wasm-bindgen-cli@${{ steps.binding-version.outputs.version }}
+    - name: Install browser and ephemeral TLS fixture tools
+      run: |
+        python3 -m pip install -r .github/requirements.txt
+        sudo apt-get update -qq
+        sudo apt-get install -y caddy libcap2-bin
+        sudo systemctl stop caddy || true
+        sudo setcap cap_net_bind_service=+ep "$(command -v caddy)"
+        mkdir -m 700 .browser-tls
+        openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=wallet.example.test \
+          -addext subjectAltName=DNS:wallet.example.test \
+          -keyout .browser-tls/key.pem -out .browser-tls/cert.pem 2>/dev/null
+    - uses: actions/download-artifact@v8
+      with:
+        name: browser-native
+        path: browser-native
+    - name: Check the native fixture used this run's server dependency snapshot
+      run: |
+        cmp Cargo.lock browser-native/Cargo.lock
+        chmod +x browser-native/browser-fixture
+    - name: Exercise the browser through real TLS and the real door
+      run: |
+        set -euo pipefail
+        browser-native/browser-fixture browser-fixture.json &
+        fixture_pid=$!
+        trap 'kill "$fixture_pid" 2>/dev/null || true' EXIT
+        for attempt in $(seq 1 120); do
+          test -s browser-fixture.json && break
+          kill -0 "$fixture_pid"
+          sleep 1
+        done
+        test -s browser-fixture.json
+        cargo llvm-cov test --manifest-path tests/browser/Cargo.toml --locked --dep-coverage cvld --test browser_client \
+          --branch --coverage-target-only --target wasm32-unknown-unknown --json --output-path wasm-coverage.json \
+          --ignore-filename-regex '(/tests/|/\.github/coverage-runtime/)'
+    - name: Export browser source counters from the same execution
+      if: always()
+      run: cargo llvm-cov report --manifest-path tests/browser/Cargo.toml --locked --dep-coverage cvld --target wasm32-unknown-unknown --lcov --output-path wasm-coverage.lcov --ignore-filename-regex '(/tests/|/\.github/coverage-runtime/)'
+    - name: Export independent browser source locations
+      if: always()
+      run: cargo llvm-cov report --manifest-path tests/browser/Cargo.toml --locked --dep-coverage cvld --target wasm32-unknown-unknown --text --output-path wasm-coverage.txt --ignore-filename-regex '(/tests/|/\.github/coverage-runtime/)'
+    - name: Require every actual browser source line and branch
+      run: python3 .github/check-source-coverage.py wasm-coverage.lcov wasm-coverage.json wasm-coverage.txt
+    - uses: actions/upload-artifact@v7
+      if: always()
+      with:
+        name: wasm-coverage
+        path: |
+          wasm-coverage.lcov
+          wasm-coverage.json
+          wasm-coverage.txt
+          Cargo.lock
+          tests/browser/Cargo.lock
+          resolver.txt
+          browser-native/build.json
+
 'on':
   push:
     branches:

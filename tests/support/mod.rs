@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+pub mod client_faults;
 pub mod resident;
 
 use cvld::{
@@ -20,7 +21,7 @@ use webauthn_authenticator_rs::{AuthenticatorBackend, softtoken::SoftToken};
 pub const NOW: u64 = 1_800_000_000;
 pub const DOMAIN: &str = "example.test";
 pub const WALLET: &str = "wallet.example.test";
-pub const ROOT: &str = "api.root.example.test";
+pub const ROOT: &str = "api.admin.root.example.test";
 pub struct TestClock(pub AtomicU64);
 impl Clock for TestClock {
     fn now(&self) -> u64 {
@@ -136,6 +137,7 @@ pub fn client(service: &Running, host: &str, token: Option<&str>) -> Client {
     Client::new(service.base.clone(), host.into(), token.map(str::to_owned)).unwrap()
 }
 pub struct Member {
+    pub certificate: Option<Vec<u8>>,
     pub authenticator: SoftToken,
     pub user: String,
     pub credential: Vec<u8>,
@@ -173,7 +175,7 @@ pub async fn enrol(service: &Running, host: &str, bootstrap: Option<&str>) -> Me
         )
         .unwrap();
     let credential_id = credential.raw_id.as_ref().to_vec();
-    let user: User = serde_json::from_value(
+    let user: RegisteredUser = serde_json::from_value(
         client
             .call(
                 "register_finish",
@@ -192,6 +194,7 @@ pub async fn enrol(service: &Running, host: &str, bootstrap: Option<&str>) -> Me
     )
     .await;
     Member {
+        certificate: user.certificate,
         authenticator,
         user: user.user,
         credential: credential_id,
@@ -206,6 +209,24 @@ pub async fn login(
     user: &str,
     credential: &[u8],
 ) -> String {
+    let body = login_request(service, host, authenticator, user, credential).await;
+    let session: Session = serde_json::from_value(
+        client(service, host, None)
+            .call("login_finish", body)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    session.token
+}
+
+pub async fn login_request(
+    service: &Running,
+    host: &str,
+    authenticator: &mut SoftToken,
+    user: &str,
+    credential: &[u8],
+) -> Value {
     let client = client(service, host, None);
     let start: Ceremony = serde_json::from_value(
         client
@@ -222,17 +243,7 @@ pub async fn login(
             300_000,
         )
         .unwrap();
-    let session: Session = serde_json::from_value(
-        client
-            .call(
-                "login_finish",
-                json!({"ceremony":start.ceremony,"credential":credential}),
-            )
-            .await
-            .unwrap(),
-    )
-    .unwrap();
-    session.token
+    json!({"ceremony":start.ceremony,"credential":credential})
 }
 pub async fn call_status(
     service: &Running,
@@ -386,34 +397,38 @@ pub fn community_schema(community: &str, version: u32) -> cplc::cshm::Schema {
 pub async fn community(name: &str, public: &GlobalPublic) -> Running {
     community_with_burst(name, public, 100).await
 }
-pub async fn community_with_burst(name: &str, public: &GlobalPublic, burst: u32) -> Running {
-    let dir = tempfile::tempdir().unwrap();
-    let config = CommunityConfig {
+pub fn community_config(
+    dir: &Path,
+    name: &str,
+    public: &GlobalPublic,
+    burst: u32,
+) -> CommunityConfig {
+    CommunityConfig {
         listen: "127.0.0.1:0".into(),
         domain: DOMAIN.into(),
         community: name.into(),
-        database_url: format!("file://{}", dir.path().join("community.db").display()),
+        database_url: format!("file://{}", dir.join("community.db").display()),
         database_token_file: None,
-        signing_seed_file: write(dir.path(), "signer", &[name.as_bytes()[0]; 32]),
+        signing_seed_file: write(dir, "signer", &[name.as_bytes()[0]; 32]),
         rulebook_file: write(
-            dir.path(),
+            dir,
             "rulebook",
             &serde_json::to_vec(&community_rules()).unwrap(),
         ),
         schema_file: write(
-            dir.path(),
+            dir,
             "schema",
             &serde_json::to_vec(&community_schema(name, 1)).unwrap(),
         ),
-        global_key_ring_file: write(dir.path(), "global-ring", &public.key_ring),
-        global_status_file: write(dir.path(), "global-status", &public.status),
+        global_key_ring_file: write(dir, "global-ring", &public.key_ring),
+        global_status_file: write(dir, "global-status", &public.status),
         minimum_global_epoch: 1,
         minimum_global_revision: 1,
         global_gates: vec!["development".into()],
         root: Operator {
             user: "00000000-0000-4000-8000-000000000001".into(),
             bootstrap_file: Some(write(
-                dir.path(),
+                dir,
                 "root-bootstrap",
                 b"synthetic-root-enrolment-capability",
             )),
@@ -421,7 +436,7 @@ pub async fn community_with_burst(name: &str, public: &GlobalPublic, burst: u32)
         admin: Operator {
             user: "00000000-0000-4000-8000-000000000002".into(),
             bootstrap_file: Some(write(
-                dir.path(),
+                dir,
                 "admin-bootstrap",
                 b"synthetic-admin-enrolment-capability",
             )),
@@ -437,11 +452,15 @@ pub async fn community_with_burst(name: &str, public: &GlobalPublic, burst: u32)
         minimum_notice_seconds: 0,
         voucher_provider: "sponsor".into(),
         voucher_public_key_file: write(
-            dir.path(),
+            dir,
             "voucher-key",
             SigningKey::from_bytes(&[9; 32]).verifying_key().as_bytes(),
         ),
-    };
+    }
+}
+pub async fn community_with_burst(name: &str, public: &GlobalPublic, burst: u32) -> Running {
+    let dir = tempfile::tempdir().unwrap();
+    let config = community_config(dir.path(), name, public, burst);
     write(
         dir.path(),
         "config.json",
@@ -571,7 +590,7 @@ pub async fn finish_enrol(service: &Running, host: &str, start: Ceremony) -> Mem
         )
         .unwrap();
     let credential_id = credential.raw_id.as_ref().to_vec();
-    let user: User = serde_json::from_value(
+    let user: RegisteredUser = serde_json::from_value(
         client(service, host, None)
             .call(
                 "register_finish",
@@ -595,6 +614,7 @@ pub async fn finish_enrol(service: &Running, host: &str, start: Ceremony) -> Mem
         .await
         .unwrap();
     Member {
+        certificate: user.certificate,
         authenticator,
         user: user.user,
         credential: credential_id,

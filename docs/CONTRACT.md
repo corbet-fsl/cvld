@@ -28,7 +28,7 @@ or expiring; restarting the process discards them.
 `cvld serve global --config <file>` owns one crlt database, cgbl's issuer,
 uniqueness key and durable csgn signer. Wallet authentication uses ckyh at
 `wallet.<domain>`. Root authentication uses a separate RP and namespace at
-`api.root.<domain>`. Hosts match exactly; forwarded-host headers are ignored.
+`api.admin.root.<domain>`. Hosts match exactly; forwarded-host headers are ignored.
 Only UV-verified passkeys create sessions. Each use rechecks its exact credential
 for revocation. A member cannot request an operator role. Operator UUIDs and a
 one-time initial registration capability are explicit service configuration.
@@ -76,12 +76,28 @@ only if both TURSO_URL and TURSO_TOKEN are nonempty; use a disposable database.
 
 ## Community process
 
+`member_role` reads the authenticated member's current original register role.
+`member_role_set` takes a target community pseudonym and desired role. Both use
+member sessions; a static operator grant is not membership authority. Membership
+checks the actor and target under UUID-ordered locks: admins may assign/remove
+admins, and only roots may assign/remove roots. A demotion takes effect on the
+next request even with an existing session. The service's check time and exclusive
+session deadline bound the mutation; live time and both membership deadlines are
+checked immediately before the durable write. Responses contain no role history
+or cross-community identity, and roles never become profile credentials. Missing,
+lapsed, revoked and unauthorized actors or targets are refused.
+
+These operations manage existing admitted members. The first Root's real
+passport/passkey-bound voucher bootstrap and production private root-board
+credential issuance remain separate requirements.
+
 `device_authorize` binds one actual lineage device signing key to the exact
 currently authenticated live passkey through cmbr. Repeating the same binding
 is idempotent; replacing it with another raw public key is refused. Registration
 alone and `credential_issue.devices` do not establish this authority. The door
-drains the durable revocation outbox and republishes the trust feed after a new
-binding. `device_keys` returns only bindings whose passkeys remain live.
+drains the durable revocation outbox and republishes the trust feed only when
+revocations were actually flushed. Adding a binding alone leaves public feed
+bytes unchanged. `device_keys` returns only bindings whose passkeys remain live.
 
 cplc obtains those keys independently through cmbr's held membership lease and
 refuses any unbound or removed requested key before signing. Revoking a passkey
@@ -153,12 +169,18 @@ and change classification remain cshm rules; no profile values are collected.
 
 `trust_feed` serves five signed snapshots (settings, current schema, schema
 versions and their cshm change classifications, public community directory,
-revocations), the public key ring and a signed manifest.
+revocations), the public key ring, original signed ring-transition history and a
+signed manifest. Beacon under Policy owns aggregation and verification; the door
+only copies its original signed bytes into the registered transport response.
+Empty transition history is omitted for existing wire compatibility.
 The manifest's fixed `cplc.trust.v1` purpose separates it from flat settings;
 it binds community, durable revision, effective epoch, key ring and schema
 version. Each snapshot has its own revision and the same effective policy epoch.
-Consumers authenticate the origin/ring, verify the protected COSE kind and scope,
-and retain monotonic revision and epoch floors.
+Consumers obtain the initial publishing ring from trusted deployment configuration,
+verify original csgn transitions against the exact installed predecessor, verify
+protected COSE kinds and scope, and retain monotonic ring/revision/epoch floors.
+Transport TLS does not grant authority to a response-provided ring. The door
+does not reinterpret transition proofs or implement cryptography.
 
 `trust_changes` accepts a public revision and returns an announcement immediately
 when newer material exists, or after a bounded 25-second wait. cfrm pulls this
@@ -289,7 +311,7 @@ identity, lease extension or login-date record.
 
 The action registry exposes discovery uniformly over HTTP, OpenAPI, CLI, MCP and
 the generated TypeScript client. The door serializes ckyh's server-built options
-without rebuilding them. Keyhole must preserve those options (including user ID,
+without rebuilding them. Device Passkeys (`cpky`) preserves those options (including user ID,
 RP, challenge, required UV/residency and lists), adding only its local PRF input.
 It strips the entire `prf` client-extension entry before forwarding any response,
 and passes the secret only into the local vault capability. A missing PRF can
@@ -305,7 +327,7 @@ Only removing PRF on the device prevents it from reaching the network at all.
 
 Community configuration constructs RP `<scope>.<domain>` directly and explicitly
 allows `https://vault.<scope>.<domain>` alongside the canonical page/API origins.
-Wallet RP is `wallet.<domain>` and root RP is `api.root.<domain>`; none accepts a
+Wallet RP is `wallet.<domain>` and root RP is `api.admin.root.<domain>`; none accepts a
 caller-supplied parent-domain RP or wildcard origins. Each community keeps its
 own bound database and the wallet its separate global database. A custom page
 must invoke WebAuthn at the configured canonical vault origin. This server
@@ -353,3 +375,64 @@ that is valid JSON but has the wrong DTO shape remains an uncertain post-dispatc
 outcome (`Reconcile`); clients never retry a record operation automatically. The
 server build consumes its live registry; portable device builds consume the exact
 committed OpenAPI projection verified by CI.
+
+
+### Browser transport
+
+The optional `client-browser` adapter uses the maintained
+[wasm-bindgen Fetch bindings](https://wasm-bindgen.github.io/wasm-bindgen/examples/fetch.html)
+and the browser's standard Web Streams reader through `web-sys`.
+Browser Fetch supplies TLS, origin/CORS enforcement and streaming; the adapter
+selects the configured origin, disables redirects, ambient credentials, cache and
+referrers, aborts cancelled requests, and bounds the complete reply to30seconds
+and16MiB. It defines no networking protocol or proxy route. Browser network
+configuration remains controlled by the browser environment.
+The adapter requires a browser Window. It implements no HTTP or stream-framing
+primitive; Fetch and the browser own both the request and streaming response.
+Using those maintained bindings directly also avoids coupling the native server
+resolver to the minimum JavaScript versions of optional convenience wrappers.
+
+The explicit redirect mode follows the
+[Fetch standard](https://fetch.spec.whatwg.org/#request-redirect-mode); the
+[reqwest Wasm builder](https://docs.rs/reqwest/latest/wasm32-unknown-unknown/reqwest/struct.RequestBuilder.html)
+does not expose this control. Native and browser transports share the exact
+owner response-schema validator and uncertain-outcome classification. A native
+compile or client-only lint is not evidence of browser execution; real browser
+round trips and their coverage remain required before acceptance.
+
+The actual browser fixture reuses the native client's ten response-corruption
+cases after the original door has committed a real logout. Browser vectors
+require `Reconcile`, one dispatch per mutation and independent session invalidation
+for malformed JSON/schema, mismatched error status, redirect, oversized length,
+truncated stream and streaming body overflow. This is a test-only intermediary;
+it does not replace server authentication or lifecycle logic.
+An additional browser vector holds the reply open after the real commit until
+the production 30-second deadline aborts it, then verifies the session is gone
+and only one mutation was sent. The test does not shorten the adapter's deadline.
+
+## Trusted device authentication
+
+The single registry marks every operation with `x-client-access`. `forward`
+allows the raw response to reach a device shell; `trusted` requires private
+runtime consumption. Missing or unknown metadata is never permission. The
+portable client's forwarding contract and action lookup derive their surface
+from these marks; they do not contain another action table.
+
+`login_finish` is trusted. `Client::authenticate` validates its original server
+response, adopts the bearer in that same pinned transport, and returns only
+`SessionInfo { user, role, expires }`. The forwarding path rejects it before
+dispatch. Failed or ambiguous authentication never installs a proposed session.
+The native and browser transports wipe response buffers and replaced bearers.
+Raw server APIs remain available to trusted integrations; product shells consume
+Foyer through cmsg and must never expose raw authentication responses.
+
+Check/Record describes permanent writes, not whether an operation is read-only:
+login challenges and logout can change ephemeral state. A forwarding shell must
+not infer a read-only tool hint from `x-effect=check`.
+
+The platform garden uses `admin.root.<base>` and the exact door host
+`api.admin.root.<base>`. The former `api.root.<base>` is refused. Operator
+ceremonies use the scope RP (`root.<base>` or `<community>.<base>`) and explicitly
+allow their own API and garden origins. No sibling garden or wildcard origin is
+accepted. Member Vault ceremonies remain at `vault.<community>.<base>` under
+that community's RP; the global wallet keeps its separate RP.

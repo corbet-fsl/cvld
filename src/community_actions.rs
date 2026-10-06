@@ -255,16 +255,45 @@ impl Door {
         ctx: Context,
         request: AddPasskey,
     ) -> Result<AddedPasskey> {
-        self.community_backend()?
-            .lock()
-            .await
-            .add_passkey(
-                ctx.member()?,
-                ctx.grant.as_ref().ok_or(Error::Unauthorized)?,
-                request,
-                ctx.now,
-            )
-            .await
+        let mut community = self.community_backend()?.lock().await;
+        let grant = ctx.grant.as_ref().ok_or(Error::Unauthorized)?;
+        let now = self.current_time();
+        if now < ctx.now || now >= grant.expires {
+            return Err(Error::Unauthorized);
+        }
+        crate::service::live_time(async {
+            let response = community
+                .add_passkey(ctx.member()?, grant, request, now)
+                .await?;
+            let completed = self.current_time();
+            if completed < now || completed >= grant.expires {
+                return Err(Error::Unauthorized);
+            }
+            Ok(response)
+        })
+        .await
+    }
+
+    pub(crate) async fn passkey_certificate(&self, ctx: Context, _: Empty) -> Result<Bytes> {
+        let community = self.community_backend()?.lock().await;
+        let grant = ctx.grant.as_ref().ok_or(Error::Unauthorized)?;
+        let now = self.current_time();
+        if now < ctx.now || now >= grant.expires {
+            return Err(Error::Unauthorized);
+        }
+        crate::service::live_time(async {
+            let certificate = community
+                .facade
+                .passkey_certificate(ctx.member()?, now)
+                .await
+                .map_err(|_| Error::Refused)?;
+            let completed = self.current_time();
+            if completed < now || completed >= grant.expires {
+                return Err(Error::Unauthorized);
+            }
+            Ok(Bytes { bytes: certificate })
+        })
+        .await
     }
 
     pub(crate) async fn device_authorize(
@@ -307,6 +336,63 @@ impl Door {
             .await
             .map_err(|_| Error::Refused)?;
         Ok(DeviceKeys { keys })
+    }
+
+    pub(crate) async fn member_role(&self, ctx: Context, _: Empty) -> Result<MemberRole> {
+        let community = self.community_backend()?.lock().await;
+        crate::service::live_time(async {
+            let lease = community
+                .facade
+                .membership()
+                .role(ctx.member()?)
+                .await
+                .map_err(|_| Error::Refused)?;
+            let now = self.current_time();
+            let grant = ctx.grant.as_ref().ok_or(Error::Unauthorized)?;
+            if now < ctx.now || now < lease.checked_at() || now >= grant.expires {
+                return Err(Error::Unauthorized);
+            }
+            if now >= lease.valid_until() {
+                return Err(Error::Refused);
+            }
+            Ok(MemberRole {
+                member: lease.member().into(),
+                role: match lease.role() {
+                    cmty::cmbr::Role::Member => Role::Member,
+                    cmty::cmbr::Role::Admin => Role::Admin,
+                    cmty::cmbr::Role::Root => Role::Root,
+                },
+            })
+        })
+        .await
+    }
+
+    pub(crate) async fn member_role_set(
+        &self,
+        ctx: Context,
+        request: SetMemberRole,
+    ) -> Result<Empty> {
+        let community = self.community_backend()?.lock().await;
+        let grant = ctx.grant.as_ref().ok_or(Error::Unauthorized)?;
+        let now = self.current_time();
+        if now < ctx.now || now >= grant.expires {
+            return Err(Error::Unauthorized);
+        }
+        let role = match request.role {
+            Role::Member => cmty::cmbr::Role::Member,
+            Role::Admin => cmty::cmbr::Role::Admin,
+            Role::Root => cmty::cmbr::Role::Root,
+        };
+        crate::service::live_time(community.facade.membership().set_member_role(
+            ctx.member()?,
+            &request.member,
+            role,
+            ctx.now,
+            grant.expires,
+        ))
+        .await
+        .map_err(|_| Error::Refused)?;
+        Ok(Empty {})
     }
 
     pub(crate) async fn passkey_revoke(

@@ -3,7 +3,7 @@ name = "cvld"
 version = "0.2.0"
 edition = "2024"
 license = "FSL-1.1-ALv2"
-repository = "https://github.com/corbet-libs/cvld"
+repository = "https://git.corbet.ch/corbet-libs/cvld.git"
 description = "The permanent door of the cmtymeet trust stack"
 publish = false
 
@@ -11,20 +11,22 @@ publish = false
 default = ["server"]
 server = ["client-http", "dep:cmty", "dep:clbs", "dep:ed25519-dalek", "dep:cpsd", "dep:crlt", "dep:csgn", "dep:cgbl", "dep:ckyh", "dep:cthl", "dep:axum", "dep:tower-http", "dep:utoipa", "dep:clap", "dep:rmcp", "dep:tokio", "dep:uuid", "dep:chrono", "dep:rand", "dep:subtle"]
 client = ["dep:jsonschema"]
-client-http = ["client", "dep:reqwest"]
+client-http = ["client", "dep:reqwest", "dep:url"]
+client-browser = ["client", "dep:url", "dep:gloo-timers", "dep:web-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys"]
 development-gate = ["server", "cgbl/development-gate"]
 
 [dependencies]
+url = { version = "2.5", optional = true }
 jsonschema = { version = "0.58", default-features = false, optional = true }
-cmty = { git = "https://github.com/corbet-libs/cmty", branch = "main", optional = true }
-clbs = { git = "https://github.com/corbet-foss/clbs", branch = "main", optional = true }
+cmty = { git = "https://git.corbet.ch/corbet-libs/cmty.git", branch = "v01", optional = true }
+clbs = { git = "https://git.corbet.ch/corbet-foss/clbs.git", branch = "v01", optional = true }
 ed25519-dalek = { version = "2.2", optional = true }
-cpsd = { git = "https://github.com/corbet-foss/cpsd", branch = "main", default-features = false, features = ["storage"], optional = true }
-crlt = { git = "https://github.com/corbet-foss/crlt", branch = "main", optional = true }
-csgn = { git = "https://github.com/corbet-foss/csgn", branch = "main", features = ["libsql"], optional = true }
-cgbl = { git = "https://git.corbet.ch/corbet-libs/cgbl.git", rev = "6e99d662f5620d69362ae4b17a3bd17293289dc6", optional = true }
-ckyh = { git = "https://github.com/corbet-foss/ckyh", branch = "main", optional = true }
-cthl = { git = "https://github.com/corbet-foss/cthl", branch = "main", optional = true }
+cpsd = { git = "https://git.corbet.ch/corbet-foss/cpsd.git", branch = "v01", default-features = false, features = ["storage"], optional = true }
+crlt = { git = "https://git.corbet.ch/corbet-foss/crlt.git", branch = "v01", optional = true }
+csgn = { git = "https://git.corbet.ch/corbet-foss/csgn.git", branch = "v01", features = ["libsql"], optional = true }
+cgbl = { git = "https://git.corbet.ch/corbet-libs/cgbl.git", branch = "v01", optional = true }
+ckyh = { git = "https://git.corbet.ch/corbet-foss/ckyh.git", branch = "v01", optional = true }
+cthl = { git = "https://git.corbet.ch/corbet-foss/cthl.git", branch = "v01", optional = true }
 axum = { version = "0.8.9", optional = true }
 tower-http = { version = "0.6.11", features = ["cors"], optional = true }
 utoipa = { version = "6.0.0", optional = true }
@@ -46,12 +48,20 @@ name = "cvld"
 path = "src/main.rs"
 required-features = ["server"]
 
-[dev-dependencies]
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+gloo-timers = { version = "0.3", optional = true }
+web-sys = { version = "0.3", features = ["AbortController", "AbortSignal", "Headers", "Request", "RequestInit", "RequestMode", "Response", "Window", "ReadableStream", "ReadableStreamDefaultReader", "RequestRedirect", "RequestCredentials", "RequestCache", "ReferrerPolicy"], optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+js-sys = { version = "0.3", optional = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+crgs = { git = "https://git.corbet.ch/corbet-foss/crgs.git", branch = "v01" }
 futures-util = "0.3"
 passkey = "0.4"
 async-trait = "0.1"
-cvch = { git = "https://github.com/corbet-foss/cvch", branch = "main" }
-cpns = { git = "https://github.com/corbet-foss/cpns", branch = "main" }
+cvch = { git = "https://git.corbet.ch/corbet-foss/cvch.git", branch = "v01" }
+cpns = { git = "https://git.corbet.ch/corbet-foss/cpns.git", branch = "v01" }
 tempfile = "3"
 webauthn-authenticator-rs = { version = "0.5.5", default-features = false, features = ["softtoken"] }
 
@@ -63,3 +73,9 @@ opt-level = 1
 
 [lints.rust]
 unsafe_code = "forbid"
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(owned_browser_coverage)"] }
+
+[[example]]
+name = "browser-fixture"
+path = "tests/support/browser-fixture.rs"
+required-features = ["development-gate"]

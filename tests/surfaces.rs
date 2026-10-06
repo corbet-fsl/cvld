@@ -13,6 +13,22 @@ fn openapi_cli_and_mcp_have_exactly_the_registry_actions() {
     assert_eq!(discovery.access, api::Access::Public);
     assert_eq!(discovery.scope, api::Scope::Both);
     assert_eq!(discovery.effect, api::Effect::Check);
+    for action in api::ACTIONS {
+        let projected = cvld::client::forwarding_action(action.name);
+        assert_eq!(
+            projected.is_some(),
+            action.client_access == api::ClientAccess::Forward
+        );
+        let original = cvld::client::action(action.name).unwrap();
+        assert_eq!(
+            original.schema()["x-client-access"],
+            format!("{:?}", action.client_access).to_lowercase()
+        );
+    }
+    assert_eq!(
+        api::action("login_finish").unwrap().client_access,
+        api::ClientAccess::Trusted
+    );
     assert!(expected.contains("passkey_add"));
     let addition = api::ACTIONS
         .iter()

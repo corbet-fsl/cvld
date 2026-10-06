@@ -19,6 +19,20 @@ pub struct Handle {
 pub struct Available {
     pub available: bool,
 }
+/// Current local register role, not a credential or a public profile badge.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct MemberRole {
+    pub member: String,
+    pub role: super::Role,
+}
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SetMemberRole {
+    /// Target's community pseudonym, as returned by the enrolment lobby.
+    pub member: String,
+    pub role: super::Role,
+}
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Lobby {
@@ -62,6 +76,8 @@ pub struct CredentialRequest {
 #[serde(deny_unknown_fields)]
 pub struct CredentialResponse {
     pub credential: Option<Vec<u8>>,
+    /// Original Policy-signed live passkey binding; present only with credential.
+    pub passkey_binding: Option<Vec<u8>>,
     pub lobby: Lobby,
 }
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -136,12 +152,27 @@ pub struct TrustFeed {
     pub revision: u64,
     pub policy_epoch: u64,
     pub key_ring: Vec<u8>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub key_transitions: Vec<TrustKeyTransition>,
     pub manifest: Vec<u8>,
     pub settings: Vec<u8>,
     pub schema: Vec<u8>,
     pub schema_versions: Vec<u8>,
+    /// Original optional Policy publication, authenticated with the manifest.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub root_board: Option<Vec<u8>>,
+    /// Original optional Balance publication, authenticated with the manifest.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub balance: Option<Vec<u8>>,
     pub communities: Vec<u8>,
     pub revocations: Vec<u8>,
+}
+/// Original publishing-key endorsement; routing metadata is not authority.
+#[derive(Clone, Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TrustKeyTransition {
+    pub revision: u64,
+    pub proof: Vec<u8>,
 }
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
@@ -197,5 +228,6 @@ pub enum AddedPasskey {
     Registered {
         user: String,
         credential: Vec<u8>,
+        certificate: Vec<u8>,
     },
 }

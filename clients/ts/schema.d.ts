@@ -259,6 +259,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/member_role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read the current local membership role */
+        post: operations["member_role"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/member_role_set": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Change a member role under current membership authority */
+        post: operations["member_role_set"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/passkey_add": {
         parameters: {
             query?: never;
@@ -270,6 +304,23 @@ export interface paths {
         put?: never;
         /** Register another UV-required passkey for this membership */
         post: operations["passkey_add"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/passkey_certificate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Renew the authenticated registered passkey certificate */
+        post: operations["passkey_certificate"];
         delete?: never;
         options?: never;
         head?: never;
@@ -588,6 +639,12 @@ export interface components {
             /** @description Explicit null is a value. Set inherit to remove this layer's row. */
             value: unknown;
         };
+        /** @description Original publishing-key endorsement; routing metadata is not authority. */
+        TrustKeyTransition: {
+            proof: number[];
+            /** Format: int64 */
+            revision: number;
+        };
     };
     responses: never;
     parameters: never;
@@ -622,6 +679,8 @@ export interface operations {
                     "application/json": {
                         credential?: number[] | null;
                         lobby: components["schemas"]["Lobby"];
+                        /** @description Original Policy-signed live passkey binding; present only with credential. */
+                        passkey_binding?: number[] | null;
                     };
                 };
             };
@@ -790,6 +849,8 @@ export interface operations {
                     "application/json": {
                         credential?: number[] | null;
                         lobby: components["schemas"]["Lobby"];
+                        /** @description Original Policy-signed live passkey binding; present only with credential. */
+                        passkey_binding?: number[] | null;
                     };
                 };
             };
@@ -1211,6 +1272,83 @@ export interface operations {
             };
         };
     };
+    member_role: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        member: string;
+                        role: components["schemas"]["Role"];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    member_role_set: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Target's community pseudonym, as returned by the enrolment lobby. */
+                    member: string;
+                    role: components["schemas"]["Role"];
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
     passkey_add: {
         parameters: {
             query?: never;
@@ -1247,10 +1385,48 @@ export interface operations {
                         step: "challenge";
                         user: string;
                     } | {
+                        certificate: number[];
                         credential: number[];
                         /** @enum {string} */
                         step: "registered";
                         user: string;
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    passkey_certificate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        bytes: number[];
                     };
                 };
             };
@@ -1524,14 +1700,19 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** @description Original optional Balance publication, authenticated with the manifest. */
+                        balance?: number[] | null;
                         communities: number[];
                         key_ring: number[];
+                        key_transitions?: components["schemas"]["TrustKeyTransition"][];
                         manifest: number[];
                         /** Format: int64 */
                         policy_epoch: number;
                         /** Format: int64 */
                         revision: number;
                         revocations: number[];
+                        /** @description Original optional Policy publication, authenticated with the manifest. */
+                        root_board?: number[] | null;
                         schema: number[];
                         schema_versions: number[];
                         settings: number[];
@@ -1657,6 +1838,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        certificate?: number[] | null;
                         user: string;
                     };
                 };
@@ -1735,14 +1917,19 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** @description Original optional Balance publication, authenticated with the manifest. */
+                        balance?: number[] | null;
                         communities: number[];
                         key_ring: number[];
+                        key_transitions?: components["schemas"]["TrustKeyTransition"][];
                         manifest: number[];
                         /** Format: int64 */
                         policy_epoch: number;
                         /** Format: int64 */
                         revision: number;
                         revocations: number[];
+                        /** @description Original optional Policy publication, authenticated with the manifest. */
+                        root_board?: number[] | null;
                         schema: number[];
                         schema_versions: number[];
                         settings: number[];
@@ -1789,14 +1976,19 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** @description Original optional Balance publication, authenticated with the manifest. */
+                        balance?: number[] | null;
                         communities: number[];
                         key_ring: number[];
+                        key_transitions?: components["schemas"]["TrustKeyTransition"][];
                         manifest: number[];
                         /** Format: int64 */
                         policy_epoch: number;
                         /** Format: int64 */
                         revision: number;
                         revocations: number[];
+                        /** @description Original optional Policy publication, authenticated with the manifest. */
+                        root_board?: number[] | null;
                         schema: number[];
                         schema_versions: number[];
                         settings: number[];
@@ -1880,14 +2072,19 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** @description Original optional Balance publication, authenticated with the manifest. */
+                        balance?: number[] | null;
                         communities: number[];
                         key_ring: number[];
+                        key_transitions?: components["schemas"]["TrustKeyTransition"][];
                         manifest: number[];
                         /** Format: int64 */
                         policy_epoch: number;
                         /** Format: int64 */
                         revision: number;
                         revocations: number[];
+                        /** @description Original optional Policy publication, authenticated with the manifest. */
+                        root_board?: number[] | null;
                         schema: number[];
                         schema_versions: number[];
                         settings: number[];

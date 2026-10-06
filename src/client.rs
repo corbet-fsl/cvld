@@ -5,11 +5,57 @@ use crate::error::{Error, Result};
 use serde_json::Value;
 use std::{collections::BTreeMap, future::Future, sync::LazyLock};
 
+#[cfg(any(feature = "client-http", feature = "client-browser"))]
+#[path = "client_json.rs"]
+mod json;
+
 #[cfg(all(feature = "client-http", not(target_arch = "wasm32")))]
 #[path = "client_http.rs"]
 mod http;
 #[cfg(all(feature = "client-http", not(target_arch = "wasm32")))]
 pub use http::HttpClient;
+
+#[cfg(all(feature = "client-browser", target_arch = "wasm32"))]
+#[path = "client_browser.rs"]
+mod browser;
+#[cfg(all(feature = "client-browser", target_arch = "wasm32"))]
+pub use browser::BrowserClient;
+
+#[cfg(any(feature = "client-http", feature = "client-browser"))]
+fn origin(base: &str, host: &str) -> Result<url::Url> {
+    let url = url::Url::parse(base).map_err(|_| Error::Invalid)?;
+    if !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+        || url.path() != "/"
+    {
+        return Err(Error::Invalid);
+    }
+    let loopback = matches!(url.host_str(), Some("127.0.0.1" | "[::1]" | "localhost"));
+    if url.scheme() != "https" && !(url.scheme() == "http" && loopback) {
+        return Err(Error::Invalid);
+    }
+    if url.scheme() == "https" && url.host_str() != Some(host) {
+        return Err(Error::WrongHost);
+    }
+    Ok(url)
+}
+
+#[cfg(any(feature = "client-http", feature = "client-browser"))]
+fn decode_response(name: &str, status: u16, body: &[u8]) -> Result<Value> {
+    if status != 200 {
+        let error: crate::error::ErrorBody = json::decode(body)?;
+        return Err(if error.error.http_status() == status {
+            error.error
+        } else {
+            Error::Reconcile
+        });
+    }
+    let value: Value = json::decode(body)?;
+    validate_response(name, &value)?;
+    Ok(value)
+}
 
 static DOCUMENT: LazyLock<Value> = LazyLock::new(|| {
     #[cfg(feature = "server")]
@@ -21,6 +67,14 @@ static DOCUMENT: LazyLock<Value> = LazyLock::new(|| {
         serde_json::from_str(include_str!("../docs/openapi.json"))
             .expect("the checked generated door contract is JSON")
     }
+});
+
+static FORWARD_DOCUMENT: LazyLock<Value> = LazyLock::new(|| {
+    let mut document = DOCUMENT.clone();
+    if let Some(paths) = document["paths"].as_object_mut() {
+        paths.retain(|_, item| item["post"]["x-client-access"] == "forward");
+    }
+    document
 });
 
 static RESPONSES: LazyLock<Result<BTreeMap<String, jsonschema::Validator>>> = LazyLock::new(|| {
@@ -59,6 +113,12 @@ pub fn contract() -> &'static Value {
     &DOCUMENT
 }
 
+/// Owner-derived device surface. Missing visibility metadata fails closed.
+/// Trusted authentication results are consumed privately instead of forwarded.
+pub fn forwarding_contract() -> &'static Value {
+    &FORWARD_DOCUMENT
+}
+
 /// A borrowed operation from the generated contract, never a caller-built grant.
 #[derive(Clone, Copy)]
 pub struct Action {
@@ -90,12 +150,36 @@ pub fn action(name: &str) -> Option<Action> {
         })
 }
 
+/// Look up only operations whose raw responses may leave the trusted runtime.
+pub fn forwarding_action(name: &str) -> Option<Action> {
+    action(name).filter(|action| action.schema()["x-client-access"] == "forward")
+}
+
 /// An authenticated HTTP runtime selected by the trusted device composition.
 /// Request JSON contains public assertions and opaque signed bytes, never PRF
 /// results or roots. The server independently checks all roles and authority.
 pub trait Transport {
     /// Send exactly the owner's path to the selected pinned door origin.
     fn send(&mut self, path: &str, request: Value) -> impl Future<Output = Result<Value>>;
+}
+
+/// Trusted transport capability for installing a freshly verified bearer.
+/// Implementations retain it privately and never return it through device JSON.
+pub trait SessionTransport: Transport {
+    /// Replace this origin's session, wiping the previous bearer on drop.
+    fn adopt_session(&mut self, token: zeroize::Zeroizing<String>);
+}
+
+/// Public result of authentication; the server bearer stays in its transport.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SessionInfo {
+    /// Community-local authenticated user.
+    pub user: String,
+    /// Role verified by the owner's response contract.
+    pub role: String,
+    /// Exclusive server session deadline.
+    pub expires: u64,
 }
 
 /// Portable generated-contract client; runtime credentials stay in its transport.
@@ -115,5 +199,33 @@ impl<T: Transport> Client<T> {
         let response = self.transport.send(action.path(), request).await?;
         validate_response(name, &response)?;
         Ok(response)
+    }
+
+    /// Forward only owner-marked shell-safe responses, before any dispatch.
+    pub async fn forward(&mut self, name: &str, request: Value) -> Result<Value> {
+        forwarding_action(name).ok_or(Error::Invalid)?;
+        self.call(name, request).await
+    }
+}
+
+impl<T: SessionTransport> Client<T> {
+    /// Finish a real passkey login and adopt its session at the same pinned origin.
+    /// The request contains the public assertion from Passkeys, never its PRF.
+    pub async fn authenticate(&mut self, request: Value) -> Result<SessionInfo> {
+        let action = action("login_finish").ok_or(Error::Invalid)?;
+        if action.schema()["x-client-access"] != "trusted" {
+            return Err(Error::Invalid);
+        }
+        let response = self.call("login_finish", request).await?;
+        let Value::Object(mut fields) = response else {
+            return Err(Error::Reconcile);
+        };
+        let Some(Value::String(token)) = fields.remove("token") else {
+            return Err(Error::Reconcile);
+        };
+        let token = zeroize::Zeroizing::new(token);
+        let info = serde_json::from_value(Value::Object(fields)).map_err(|_| Error::Reconcile)?;
+        self.transport.adopt_session(token);
+        Ok(info)
     }
 }
