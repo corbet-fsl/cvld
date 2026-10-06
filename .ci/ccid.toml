@@ -1,0 +1,44 @@
+schema = 1
+project = "cvld"
+
+# .ci/ccid.toml for corbet-libs/cvld — runtime adapter.
+# Ports ALL Linux gates from .github/workflows/ci.yml (jobs resolve,
+# dependency-policy, check, toy, coverage) into .ci/verify.sh in CI
+# ordering, environment, and flags, plus always-fresh advisories.
+# kind="cargo" is not used: gates need --locked/--features/--target/--release
+# selection, the openapi/client regenerate-and-diff gates, release-gate
+# probes with exact log greps, the toy lock-subset assert, and a nightly
+# coverage toolchain that the cargo kind cannot express.
+# Pure resolve-job selftests preserved in verify: resolve's committed-graph
+# `check-first-party.py`, plus dependency-policy's `test-source-coverage.py`
+# and `node --test test-auto-merge.mjs`, plus check's
+# `node --test check-pins.test.mjs` (cargo-update refresh and
+# dependabot-auto-merge are separate, excluded).
+# Native link/link-time deps (lock-evidenced, Ubuntu-image capabilities the
+# job must supply explicitly): openssl-sys via the webauthn stack and
+# aws-lc-sys/cmake via rustls/reqwest/quinn (cmake edges also from
+# libsql-ffi/wasmer), pkg-config discovery, cc via the shell stdenv
+# (Ubuntu gcc). libclang is NOT supplied: bindgen edges in the lock are
+# optional features (off by default) and the Ubuntu CI image this job
+# mirrors ships no libclang. Both checks execute inside this shell
+# (see run-cached.sh).
+
+[checks.verify]
+kind = "commands"
+commands = [["bash", ".ci/verify.sh"]]
+cache_tools = [["rustc", "-vV"], ["cargo", "--version"], ["rustup", "run", "nightly", "rustc", "-vV"], ["rustup", "run", "nightly", "cargo", "llvm-cov", "--version"], ["node", "--version"], ["python3", "--version"], ["cc", "--version"], ["pkg-config", "--version"], ["openssl", "version"], ["cmake", "--version"]]
+cache_env = ["PKG_CONFIG_PATH", "NIX_CFLAGS_COMPILE", "NIX_LDFLAGS", "LD_LIBRARY_PATH"]
+cache_outputs = ["coverage.json", "coverage.lcov", "coverage.txt", "dependency-metadata.json"]
+
+[checks.advisories]
+kind = "commands"
+commands = [["cargo", "deny", "--locked", "check", "advisories"]]
+
+[render]
+tool_revision = "77a5ac18542750de020ebf753d22c3200530282b"
+
+[jobs.verify]
+scheduler = "crow"
+checks = ["verify", "advisories"]
+workflow = "repository-jobs"
+command = ["bash", ".ci/run-cached.sh"]
