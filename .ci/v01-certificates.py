@@ -24,11 +24,11 @@ import time
 import tomllib
 
 
-ROOT_URL = "https://github.com/corbet-libs/cvld"
-VAULT_URL = "https://github.com/corbet-libs/cvlt"
-STORE_URL = "https://github.com/corbet-foss/cwst"
-KEYHOLE_URL = "https://github.com/corbet-foss/ckyh"
-MEMBERSHIP_URL = "https://github.com/corbet-libs/cmbr"
+ROOT_URL = "https://git.corbet.ch/corbet-libs/cvld"
+VAULT_URL = "https://git.corbet.ch/corbet-libs/cvlt"
+STORE_URL = "https://git.corbet.ch/corbet-foss/cwst"
+KEYHOLE_URL = "https://git.corbet.ch/corbet-foss/ckyh"
+MEMBERSHIP_URL = "https://git.corbet.ch/corbet-libs/cmbr"
 FIRST_PARTY = ("corbet-foss", "corbet-libs", "corbet-labs", "cmtymeet")
 MAX_SOURCES = 96
 MAX_FILES = 100_000
@@ -39,7 +39,7 @@ HEX40 = re.compile(r"[0-9a-f]{40}\Z")
 HEX64 = re.compile(r"[0-9a-f]{64}\Z")
 PACKAGE = re.compile(r"[A-Za-z0-9_-]+\Z")
 REPOSITORY = re.compile(
-    r"https://github\.com/(corbet-foss|corbet-libs|corbet-labs|cmtymeet)/"
+    r"https://git\.corbet\.ch/(corbet-foss|corbet-libs|corbet-labs|cmtymeet)/"
     r"[A-Za-z0-9_.-]+(?:\.git)?\Z"
 )
 
