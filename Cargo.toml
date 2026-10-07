@@ -3,7 +3,7 @@ name = "cvld"
 version = "0.2.0"
 edition = "2024"
 license = "FSL-1.1-ALv2"
-repository = "https://github.com/corbet-libs/cvld"
+repository = "https://git.corbet.ch/corbet-libs/cvld"
 description = "The permanent door of the cmtymeet trust stack"
 publish = false
 
@@ -16,15 +16,15 @@ development-gate = ["server", "cgbl/development-gate"]
 
 [dependencies]
 jsonschema = { version = "0.58", default-features = false, optional = true }
-cmty = { git = "https://github.com/corbet-libs/cmty", branch = "main", optional = true }
-clbs = { git = "https://github.com/corbet-foss/clbs", branch = "main", optional = true }
+cmty = { git = "https://git.corbet.ch/corbet-libs/cmty", branch = "main", optional = true }
+clbs = { git = "https://git.corbet.ch/corbet-foss/clbs", branch = "main", optional = true }
 ed25519-dalek = { version = "2.2", optional = true }
-cpsd = { git = "https://github.com/corbet-foss/cpsd", branch = "main", default-features = false, features = ["storage"], optional = true }
-crlt = { git = "https://github.com/corbet-foss/crlt", branch = "main", optional = true }
-csgn = { git = "https://github.com/corbet-foss/csgn", branch = "main", features = ["libsql"], optional = true }
+cpsd = { git = "https://git.corbet.ch/corbet-foss/cpsd", branch = "main", default-features = false, features = ["storage"], optional = true }
+crlt = { git = "https://git.corbet.ch/corbet-foss/crlt", branch = "main", optional = true }
+csgn = { git = "https://git.corbet.ch/corbet-foss/csgn", branch = "main", features = ["libsql"], optional = true }
 cgbl = { git = "https://git.corbet.ch/corbet-libs/cgbl.git", rev = "6e99d662f5620d69362ae4b17a3bd17293289dc6", optional = true }
-ckyh = { git = "https://github.com/corbet-foss/ckyh", branch = "main", optional = true }
-cthl = { git = "https://github.com/corbet-foss/cthl", branch = "main", optional = true }
+ckyh = { git = "https://git.corbet.ch/corbet-foss/ckyh", branch = "main", optional = true }
+cthl = { git = "https://git.corbet.ch/corbet-foss/cthl", branch = "main", optional = true }
 axum = { version = "0.8.9", optional = true }
 tower-http = { version = "0.6.11", features = ["cors"], optional = true }
 utoipa = { version = "6.0.0", optional = true }
@@ -50,8 +50,8 @@ required-features = ["server"]
 futures-util = "0.3"
 passkey = "0.4"
 async-trait = "0.1"
-cvch = { git = "https://github.com/corbet-foss/cvch", branch = "main" }
-cpns = { git = "https://github.com/corbet-foss/cpns", branch = "main" }
+cvch = { git = "https://git.corbet.ch/corbet-foss/cvch", branch = "main" }
+cpns = { git = "https://git.corbet.ch/corbet-foss/cpns", branch = "main" }
 tempfile = "3"
 webauthn-authenticator-rs = { version = "0.5.5", default-features = false, features = ["softtoken"] }
 
