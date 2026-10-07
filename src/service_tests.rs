@@ -202,3 +202,189 @@ async fn in_flight_limits_are_nonwaiting_and_watch_capacity_is_separate() {
         assert!(service.door.admit_request(action).await.is_ok());
     }
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_passkey_revoked_underneath_a_live_global_session_ends_it() {
+    let service = global(100).await;
+    let member = enrol(&service, WALLET, None).await;
+    let passkeys = service
+        .door
+        .auth(WALLET)
+        .unwrap()
+        .lock()
+        .await
+        .passkeys
+        .clone();
+    let user = ckyh::Uuid::parse_str(&member.user).unwrap();
+    let credential = ckyh::CredentialID::from(member.credential.clone());
+    tokio::task::spawn_blocking(move || passkeys.revoke(user, &credential))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        call_status(
+            &service,
+            WALLET,
+            Some(&member.session),
+            "passport_challenge",
+            json!({})
+        )
+        .await,
+        401
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_passkey_revoked_underneath_a_live_community_session_ends_it() {
+    let global = global(100).await;
+    let (_, passport, public) = wallet_passport(&global).await;
+    let service = community("underneath", &public).await;
+    let host = "api.underneath.example.test";
+    let member = enrol_community(&service, host, &passport).await;
+    {
+        let mut backend = service.door.community_backend().unwrap().lock().await;
+        let (grant, authentication) = backend.authenticate(&member.session, NOW).await.unwrap();
+        backend
+            .facade
+            .membership()
+            .revoke_passkey(&authentication, grant.credential.clone())
+            .await
+            .unwrap();
+        // Logging out a session that no longer exists changes nothing.
+        backend.logout("synthetic-unknown-session");
+    }
+    assert_eq!(
+        call_status(&service, host, Some(&member.session), "lobby", json!({})).await,
+        401
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn each_door_refuses_the_other_scope_without_touching_its_backend() {
+    let global = global(100).await;
+    let public: GlobalPublic = serde_json::from_value(
+        client(&global, WALLET, None)
+            .call("global_public", json!({}))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let scoped = community("scoped", &public).await;
+    assert!(matches!(
+        global.door.community_backend(),
+        Err(Error::WrongHost)
+    ));
+    assert!(matches!(
+        global.door.community_public(),
+        Err(Error::WrongHost)
+    ));
+    assert!(matches!(
+        scoped.door.global_backend(),
+        Err(Error::WrongHost)
+    ));
+    let context = Context {
+        host: WALLET.into(),
+        grant: None,
+        token: None,
+        now: NOW,
+        authentication: None,
+    };
+    assert!(matches!(
+        scoped.door.global_public(context, Empty {}).await,
+        Err(Error::WrongHost)
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn sessions_need_usable_limits_and_operators_need_a_long_capability() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = crlt::Db::open(crlt::Config::new(
+        format!("file://{}", dir.path().join("auth.db").display()),
+        "",
+    ))
+    .await
+    .unwrap();
+    db.migrate(&[crlt::Migration::new(1, "passkeys", ckyh::LIBSQL_SCHEMA)])
+        .await
+        .unwrap();
+    let passkeys = || {
+        ckyh::Passkeys::new(
+            ckyh::LibsqlStore::new(&db, "limits", tokio::runtime::Handle::current()).unwrap(),
+            "limits",
+            "auth.example.test",
+            &[ckyh::Url::parse("https://auth.example.test").unwrap()],
+        )
+        .unwrap()
+    };
+    let capability = |text: &str| Some(zeroize::Zeroizing::new(text.to_owned()));
+    for (capacity, lifetime, bootstrap) in [
+        (0, 600, None),
+        (1, 0, None),
+        (1, 3_601, None),
+        (1, 600, capability("short")),
+    ] {
+        assert!(matches!(
+            Auth::new(
+                passkeys(),
+                Role::Member,
+                None,
+                bootstrap,
+                capacity,
+                lifetime
+            ),
+            Err(Error::Invalid)
+        ));
+    }
+    assert!(
+        Auth::new(
+            passkeys(),
+            Role::Root,
+            Some(ckyh::Uuid::nil()),
+            capability("c".repeat(32).as_str()),
+            1,
+            600
+        )
+        .is_ok()
+    );
+}
+
+#[tokio::test]
+async fn the_unconfigured_authority_denies_every_order_and_unrepresentable_time_is_denied() {
+    use clbs::Verifier;
+    let order = || clbs::SignedOrder {
+        order: clbs::Order {
+            community: "synthetic".into(),
+            id: "order".into(),
+            subject: "subject".into(),
+            reference: "reference".into(),
+            entered_by: "operator".into(),
+            kind: clbs::OrderKind::SelfBan,
+            scope: clbs::Scope::All,
+            period: clbs::Period {
+                starts_at: 0,
+                ends_at: None,
+            },
+        },
+        proof: Vec::new(),
+    };
+    let authority = crate::community::UnconfiguredAuthority;
+    assert!(matches!(
+        authority.verify_legal(&order()).await,
+        Err(clbs::Error::Denied)
+    ));
+    assert!(matches!(
+        authority.verify_self_ban(&order()).await,
+        Err(clbs::Error::Denied)
+    ));
+    let overflow = crate::community::CommunityClock(Arc::new(TestClock(
+        std::sync::atomic::AtomicU64::new(u64::MAX),
+    )));
+    assert!(matches!(
+        clbs::Clock::now(&overflow),
+        Err(clbs::Error::Denied)
+    ));
+    let current = crate::community::CommunityClock(Arc::new(TestClock(
+        std::sync::atomic::AtomicU64::new(NOW),
+    )));
+    assert_eq!(clbs::Clock::now(&current).unwrap(), NOW as i64);
+}

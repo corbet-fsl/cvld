@@ -44,13 +44,33 @@ impl Drop for Running {
         self.task.abort();
     }
 }
-fn write(dir: &Path, name: &str, bytes: &[u8]) -> String {
+pub fn write(dir: &Path, name: &str, bytes: &[u8]) -> String {
     let path = dir.join(name);
     std::fs::write(&path, bytes).unwrap();
     path.to_str().unwrap().to_owned()
 }
 pub async fn global(burst: u32) -> Running {
+    global_at(burst, NOW).await
+}
+/// A global door whose signed material and clock start at `now`.
+pub async fn global_at(burst: u32, now: u64) -> Running {
     let dir = tempfile::tempdir().unwrap();
+    let config = global_config(dir.path(), burst, now).await;
+    global_from(dir, config, now).await
+}
+/// A global door after the caller adjusts the otherwise valid configuration.
+pub async fn global_tuned(burst: u32, tune: impl FnOnce(&mut Config)) -> Running {
+    let dir = tempfile::tempdir().unwrap();
+    let mut config = global_config(dir.path(), burst, NOW).await;
+    tune(&mut config);
+    global_from(dir, config, NOW).await
+}
+/// Copy a configuration so a second door can open the same database.
+pub fn duplicate<T: serde::Serialize + serde::de::DeserializeOwned>(value: &T) -> T {
+    serde_json::from_value(serde_json::to_value(value).unwrap()).unwrap()
+}
+/// Write every file of a valid global configuration into `dir`, plus `config.json`.
+pub async fn global_config(dir: &Path, burst: u32, now: u64) -> Config {
     let mut rng = cpsd::rand::rngs::OsRng;
     let issuer = cpsd::IssuerKey::generate(
         &mut rng,
@@ -63,7 +83,7 @@ pub async fn global(burst: u32) -> Running {
         scope: "global".into(),
         revision: 1,
         epoch: 1,
-        shared_expiry: (NOW / 86_400 + 40) * 86_400,
+        shared_expiry: (now / 86_400 + 40) * 86_400,
         gates: vec![cgbl::GatePolicy {
             gate: "development".into(),
             provider: "cgbl.test".into(),
@@ -74,7 +94,7 @@ pub async fn global(burst: u32) -> Running {
         csgn::MemoryStore::default(),
         "policy-authority",
         csgn::SecretKey::from_seed(&mut [3; 32]),
-        NOW - 1,
+        now - 1,
         86_400 * 100,
     )
     .await
@@ -83,7 +103,7 @@ pub async fn global(burst: u32) -> Running {
         .sign(
             csgn::Kind::SettingsSnapshot,
             &serde_json::to_vec(&policy).unwrap(),
-            NOW,
+            now,
             policy.shared_expiry + 1,
         )
         .await
@@ -91,20 +111,16 @@ pub async fn global(burst: u32) -> Running {
     let config = Config {
         listen: "127.0.0.1:0".into(),
         domain: DOMAIN.into(),
-        database_url: format!("file://{}", dir.path().join("global.db").display()),
+        database_url: format!("file://{}", dir.join("global.db").display()),
         database_token_file: None,
-        signing_seed_file: write(dir.path(), "signer", &[4; 32]),
-        issuer_key_file: write(dir.path(), "issuer", &issuer.to_secret_bytes()),
-        uniqueness_key_file: write(dir.path(), "unique", &[5; 32]),
-        policy_file: write(dir.path(), "policy", &signed),
-        policy_authority_file: write(
-            dir.path(),
-            "authority",
-            &authority.key_ring().unwrap().to_cbor(),
-        ),
+        signing_seed_file: write(dir, "signer", &[4; 32]),
+        issuer_key_file: write(dir, "issuer", &issuer.to_secret_bytes()),
+        uniqueness_key_file: write(dir, "unique", &[5; 32]),
+        policy_file: write(dir, "policy", &signed),
+        policy_authority_file: write(dir, "authority", &authority.key_ring().unwrap().to_cbor()),
         root_user: "00000000-0000-4000-8000-000000000001".into(),
         root_bootstrap_file: Some(write(
-            dir.path(),
+            dir,
             "bootstrap",
             b"synthetic-operator-enrolment-capability",
         )),
@@ -116,8 +132,20 @@ pub async fn global(burst: u32) -> Running {
         signer_max_seconds: 86_400 * 100,
         development: true,
     };
-    let clock = Arc::new(TestClock(AtomicU64::new(NOW)));
+    write(
+        dir,
+        "global-config.json",
+        &serde_json::to_vec(&config).unwrap(),
+    );
+    config
+}
+pub async fn global_from(dir: tempfile::TempDir, config: Config, now: u64) -> Running {
+    let clock = Arc::new(TestClock(AtomicU64::new(now)));
     let door = Door::global(config, clock.clone()).await.unwrap();
+    serve(door, clock, dir).await
+}
+/// Serve any door on a loopback port; `dir` only keeps its files alive.
+pub async fn serve(door: Door, clock: Arc<TestClock>, dir: tempfile::TempDir) -> Running {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}", listener.local_addr().unwrap());
     let router = cvld::api::router(door.clone());
@@ -388,32 +416,53 @@ pub async fn community(name: &str, public: &GlobalPublic) -> Running {
 }
 pub async fn community_with_burst(name: &str, public: &GlobalPublic, burst: u32) -> Running {
     let dir = tempfile::tempdir().unwrap();
+    let config = community_config(dir.path(), name, public, burst);
+    community_from(dir, config).await
+}
+/// A community door after the caller adjusts the otherwise valid configuration.
+pub async fn community_tuned(
+    name: &str,
+    public: &GlobalPublic,
+    tune: impl FnOnce(&mut CommunityConfig),
+) -> Running {
+    let dir = tempfile::tempdir().unwrap();
+    let mut config = community_config(dir.path(), name, public, 100);
+    tune(&mut config);
+    community_from(dir, config).await
+}
+/// Write every file of a valid community configuration into `dir`, plus `config.json`.
+pub fn community_config(
+    dir: &Path,
+    name: &str,
+    public: &GlobalPublic,
+    burst: u32,
+) -> CommunityConfig {
     let config = CommunityConfig {
         listen: "127.0.0.1:0".into(),
         domain: DOMAIN.into(),
         community: name.into(),
-        database_url: format!("file://{}", dir.path().join("community.db").display()),
+        database_url: format!("file://{}", dir.join("community.db").display()),
         database_token_file: None,
-        signing_seed_file: write(dir.path(), "signer", &[name.as_bytes()[0]; 32]),
+        signing_seed_file: write(dir, "signer", &[name.as_bytes()[0]; 32]),
         rulebook_file: write(
-            dir.path(),
+            dir,
             "rulebook",
             &serde_json::to_vec(&community_rules()).unwrap(),
         ),
         schema_file: write(
-            dir.path(),
+            dir,
             "schema",
             &serde_json::to_vec(&community_schema(name, 1)).unwrap(),
         ),
-        global_key_ring_file: write(dir.path(), "global-ring", &public.key_ring),
-        global_status_file: write(dir.path(), "global-status", &public.status),
+        global_key_ring_file: write(dir, "global-ring", &public.key_ring),
+        global_status_file: write(dir, "global-status", &public.status),
         minimum_global_epoch: 1,
         minimum_global_revision: 1,
         global_gates: vec!["development".into()],
         root: Operator {
             user: "00000000-0000-4000-8000-000000000001".into(),
             bootstrap_file: Some(write(
-                dir.path(),
+                dir,
                 "root-bootstrap",
                 b"synthetic-root-enrolment-capability",
             )),
@@ -421,7 +470,7 @@ pub async fn community_with_burst(name: &str, public: &GlobalPublic, burst: u32)
         admin: Operator {
             user: "00000000-0000-4000-8000-000000000002".into(),
             bootstrap_file: Some(write(
-                dir.path(),
+                dir,
                 "admin-bootstrap",
                 b"synthetic-admin-enrolment-capability",
             )),
@@ -437,31 +486,18 @@ pub async fn community_with_burst(name: &str, public: &GlobalPublic, burst: u32)
         minimum_notice_seconds: 0,
         voucher_provider: "sponsor".into(),
         voucher_public_key_file: write(
-            dir.path(),
+            dir,
             "voucher-key",
             SigningKey::from_bytes(&[9; 32]).verifying_key().as_bytes(),
         ),
     };
-    write(
-        dir.path(),
-        "config.json",
-        &serde_json::to_vec(&config).unwrap(),
-    );
+    write(dir, "config.json", &serde_json::to_vec(&config).unwrap());
+    config
+}
+pub async fn community_from(dir: tempfile::TempDir, config: CommunityConfig) -> Running {
     let clock = Arc::new(TestClock(AtomicU64::new(NOW)));
     let door = Door::community(config, clock.clone()).await.unwrap();
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let base = format!("http://{}", listener.local_addr().unwrap());
-    let router = cvld::api::router(door.clone());
-    let task = tokio::spawn(async move {
-        axum::serve(listener, router).await.unwrap();
-    });
-    Running {
-        base,
-        door,
-        clock,
-        task,
-        dir,
-    }
+    serve(door, clock, dir).await
 }
 pub async fn wallet_passport(service: &Running) -> (Member, cpsd::Passport, GlobalPublic) {
     let member = enrol(service, WALLET, None).await;
@@ -627,4 +663,41 @@ pub async fn issue_community(
             .unwrap(),
     )
     .unwrap()
+}
+
+/// Answer a registration ceremony with a fresh software authenticator.
+pub fn attest(host: &str, start: &Ceremony) -> (SoftToken, Value) {
+    let mut authenticator = SoftToken::new(true).unwrap().0;
+    let challenge: ckyh::CreationChallengeResponse =
+        serde_json::from_value(start.options.clone()).unwrap();
+    let credential = authenticator
+        .perform_register(
+            ckyh::Url::parse(&format!("https://{host}")).unwrap(),
+            {
+                // SoftToken is a legacy non-resident fixture.
+                let mut options = challenge.public_key;
+                options
+                    .authenticator_selection
+                    .as_mut()
+                    .unwrap()
+                    .require_resident_key = false;
+                options
+            },
+            300_000,
+        )
+        .unwrap();
+    (authenticator, serde_json::to_value(&credential).unwrap())
+}
+/// Answer a sign-in ceremony with an enrolled member's authenticator.
+pub fn sign_in(host: &str, authenticator: &mut SoftToken, start: &Ceremony) -> Value {
+    let challenge: ckyh::RequestChallengeResponse =
+        serde_json::from_value(start.options.clone()).unwrap();
+    let credential = authenticator
+        .perform_auth(
+            ckyh::Url::parse(&format!("https://{host}")).unwrap(),
+            challenge.public_key,
+            300_000,
+        )
+        .unwrap();
+    serde_json::to_value(&credential).unwrap()
 }
