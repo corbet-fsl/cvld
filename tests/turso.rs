@@ -8,9 +8,9 @@ async fn optional_real_turso() {
     }
     // Supply a disposable database only. Public CI configures neither value.
     let db = crlt::Db::open(crlt::Config::new(url, token)).await.unwrap();
-    db.migrate(&[crlt::Migration::new(1, "global", cglb::storage::SCHEMA)])
+    db.migrate(&[crlt::Migration::new(1, "global", cgbl::storage::SCHEMA)])
         .await
         .unwrap();
-    let store = cglb::storage::LibsqlStore::new(&db, "cvld-disposable-test").unwrap();
+    let store = cgbl::storage::LibsqlStore::new(&db, "cvld-disposable-test").unwrap();
     store.check_query_plans().await.unwrap();
 }

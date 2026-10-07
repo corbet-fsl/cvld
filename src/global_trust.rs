@@ -12,7 +12,7 @@ pub const SCHEMA: &str = "CREATE TABLE cvld_global_trust (
 ) WITHOUT ROWID;";
 
 pub struct PublicStatus {
-    pub status: cglb::Status,
+    pub status: cgbl::Status,
     pub valid_until: u64,
     pub signing_keys: Vec<[u8; 32]>,
 }
@@ -47,7 +47,7 @@ pub async fn load(db: &Db, config: &CommunityConfig, now: u64) -> Result<PublicS
     )
     .map_err(|_| Error::Invalid)?;
     let signed = std::fs::read(&config.global_status_file).map_err(|_| Error::Unavailable)?;
-    let status = cglb::Status::verify(&signed, &ring, "global", epoch, revision, now)
+    let status = cgbl::Status::verify(&signed, &ring, "global", epoch, revision, now)
         .map_err(|_| Error::Refused)?;
     let valid_until = ring
         .verify(&signed, csgn::Kind::SettingsSnapshot, now)

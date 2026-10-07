@@ -3,10 +3,10 @@ use crate::{
     config::Config,
     error::{Error, Result},
 };
-use cglb::Global;
+use cgbl::Global;
 use crlt::{Db, Migration};
 pub type Facade =
-    Global<cglb::storage::LibsqlStore, csgn::LibsqlStore, cpsd::storage::libsql::LibsqlStore>;
+    Global<cgbl::storage::LibsqlStore, csgn::LibsqlStore, cpsd::storage::libsql::LibsqlStore>;
 pub struct GlobalService {
     pub facade: Facade,
     pub public: GlobalPublic,
@@ -19,7 +19,7 @@ impl GlobalService {
     pub async fn open(db: &Db, config: &Config, now: u64) -> Result<Self> {
         use csgn::Store;
         db.migrate(&[
-            Migration::new(1, "global", cglb::storage::SCHEMA),
+            Migration::new(1, "global", cgbl::storage::SCHEMA),
             Migration::new(2, "signing", csgn::SCHEMA),
             Migration::new(3, "passkeys", ckyh::LIBSQL_SCHEMA),
             Migration::new(4, "service", crate::identity::SCHEMA),
@@ -40,17 +40,17 @@ impl GlobalService {
         crate::identity::bind(db, "global", "global").await?;
         let store = csgn::LibsqlStore::new(db.community("global").map_err(|_| Error::Invalid)?);
         let exists = store
-            .load("cglb:global")
+            .load("cgbl:global")
             .await
             .map_err(|_| Error::Unavailable)?
             .is_some();
         let secret = csgn::SecretKey::from_seed(&mut Config::seed(&config.signing_seed_file)?);
         let signer = if exists {
-            csgn::PersistentSigner::open(store, "cglb:global", secret, now).await
+            csgn::PersistentSigner::open(store, "cgbl:global", secret, now).await
         } else {
             csgn::PersistentSigner::create(
                 store,
-                "cglb:global",
+                "cgbl:global",
                 secret,
                 now / 86_400 * 86_400,
                 config.signer_max_seconds,
@@ -62,19 +62,19 @@ impl GlobalService {
             .map_err(|_| Error::Invalid)?;
         #[cfg(feature = "development-gate")]
         let mode = if config.development {
-            cglb::Mode::Development
+            cgbl::Mode::Development
         } else {
-            cglb::Mode::Production
+            cgbl::Mode::Production
         };
         #[cfg(not(feature = "development-gate"))]
         let mode = {
             if config.development {
                 return Err(Error::Forbidden);
             }
-            cglb::Mode::Production
+            cgbl::Mode::Production
         };
         let mut facade = Global::open(
-            cglb::storage::LibsqlStore::new(db, "global").map_err(|_| Error::Invalid)?,
+            cgbl::storage::LibsqlStore::new(db, "global").map_err(|_| Error::Invalid)?,
             cpsd::storage::libsql::LibsqlStore::new(
                 db,
                 cpsd::CommunityId::new("global").map_err(|_| Error::Invalid)?,
@@ -83,9 +83,9 @@ impl GlobalService {
             .map_err(|_| Error::Unavailable)?,
             issuer,
             signer,
-            cglb::FingerprintKey::from_bytes(&mut Config::seed(&config.uniqueness_key_file)?),
+            cgbl::FingerprintKey::from_bytes(&mut Config::seed(&config.uniqueness_key_file)?),
             mode,
-            cglb::Limits {
+            cgbl::Limits {
                 challenge_ttl: 60,
                 pending_capacity: config
                     .pending_capacity
@@ -114,7 +114,7 @@ impl GlobalService {
             let verified = ring
                 .verify(&status, csgn::Kind::SettingsSnapshot, now)
                 .map_err(|_| Error::Unavailable)?;
-            let view: cglb::Status =
+            let view: cgbl::Status =
                 serde_json::from_slice(verified.payload()).map_err(|_| Error::Unavailable)?;
             view.shared_expiry
         };

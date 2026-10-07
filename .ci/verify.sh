@@ -68,6 +68,7 @@ set -o pipefail
 mkdir -p toy/reports
 target_dir="${CARGO_TARGET_DIR:-target}"
 case "$target_dir" in /*) ;; *) target_dir="$PWD/$target_dir";; esac
+export CVLD_BIN="$target_dir/debug/cvld"
 "$target_dir/debug/cvld-toy" scenarios | tee toy/reports/transcript.txt
 "$target_dir/debug/cvld-toy" turso
 

@@ -21,8 +21,6 @@ exec 9>"$state/lock"
 flock -w "${CI_TIMEOUT:-2700}" 9
 mkdir -p "$state/moon-cache/hashes" "$state/moon-cache/outputs" "$state/moon-home"
 mkdir -p .moon/cache
-ln -s "$state/moon-cache/hashes" .moon/cache/hashes
-ln -s "$state/moon-cache/outputs" .moon/cache/outputs
 # Tool installation is an explicit part of this job, in persistent CI storage.
 # CI pins Node 22, so install nix nodejs_22 (22.23.2), not latest nodejs.
 tool_source=github:NixOS/nixpkgs/b7c2ada94fe99c15b0dbcf4d11fd7850b957a436?narHash=sha256-IItrdb7Puk05RqOBWZYFC5X6Wl1sJmCfh5MWVHw5iMM=

@@ -18,8 +18,8 @@ lines = ['[package]', 'name = "cvld-toy"', 'version = "0.0.0"',
          '[[bin]]', 'name = "cvld-toy"', 'path = "../src/main.rs"', '[dependencies]']
 lines.append('cvld = { path = "../..", features = ["development-gate"] }')
 deps = manifest['dependencies'] | manifest['dev-dependencies']
-for name in ['cmty', 'cglb', 'ckyh', 'cpsd', 'csgn', 'cvch', 'ed25519-dalek',
-             'serde', 'serde_json', 'tokio', 'tempfile', 'chrono', 'passkey', 'async-trait']:
+for name in ['cmty', 'cgbl', 'ckyh', 'cpsd', 'csgn', 'cvch', 'ed25519-dalek',
+             'serde', 'serde_json', 'tokio', 'tempfile', 'chrono', 'passkey', 'async-trait', 'webauthn-authenticator-rs']:
     dependency = deps[name]
     if isinstance(dependency, dict):
         # The fixture explicitly uses these dependencies. The owner's optional

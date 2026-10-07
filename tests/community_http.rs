@@ -622,7 +622,7 @@ async fn a_global_signing_key_cannot_be_installed_as_a_community_key() {
         .unwrap();
     let mut shared = csgn::PersistentSigner::create(
         csgn::MemoryStore::default(),
-        "cglb:global",
+        "cgbl:global",
         csgn::SecretKey::from_seed(&mut cvld::config::Config::seed(&correct_seed).unwrap()),
         cplc::day(NOW),
         100 * 86_400,

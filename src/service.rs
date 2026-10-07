@@ -76,15 +76,15 @@ impl Context {
         self.authentication.as_deref().ok_or(Error::Unauthorized)
     }
 
-    pub fn global_session(&self) -> Result<cglb::Session> {
-        cglb::Session::authenticated(
+    pub fn global_session(&self) -> Result<cgbl::Session> {
+        cgbl::Session::authenticated(
             self.subject()?,
             self.grant.as_ref().ok_or(Error::Unauthorized)?.session_id,
         )
         .map_err(|_| Error::Unauthorized)
     }
-    pub fn subject(&self) -> Result<cglb::Subject> {
-        cglb::Subject::new(
+    pub fn subject(&self) -> Result<cgbl::Subject> {
+        cgbl::Subject::new(
             self.grant
                 .as_ref()
                 .ok_or(Error::Unauthorized)?
@@ -660,11 +660,11 @@ impl Door {
     pub(crate) async fn development_gate(&self, ctx: Context, _: Empty) -> Result<Empty> {
         let global = self.global_backend()?.lock().await;
         let subject = ctx.subject()?;
-        let check = cglb::CheckId::generate(&mut cpsd::rand::rngs::OsRng);
+        let check = cgbl::CheckId::generate(&mut cpsd::rand::rngs::OsRng);
         global
             .facade
             .run_gate(
-                &cglb::development::DevelopmentGate::new(global.development_expiry),
+                &cgbl::development::DevelopmentGate::new(global.development_expiry),
                 &subject,
                 subject.as_str().as_bytes(),
                 ctx.now,
@@ -679,7 +679,7 @@ impl Door {
             .lock()
             .await
             .facade
-            .warn(&cglb::Subject::new(request.user).map_err(|_| Error::Invalid)?)
+            .warn(&cgbl::Subject::new(request.user).map_err(|_| Error::Invalid)?)
             .await
             .map_err(|_| Error::Refused)?;
         Ok(Empty {})
@@ -689,8 +689,8 @@ impl Door {
         global
             .facade
             .suspend(
-                &cglb::Subject::new(request.user).map_err(|_| Error::Invalid)?,
-                cglb::Suspension::Temporary {
+                &cgbl::Subject::new(request.user).map_err(|_| Error::Invalid)?,
+                cgbl::Suspension::Temporary {
                     until: request.until,
                 },
                 ctx.now,

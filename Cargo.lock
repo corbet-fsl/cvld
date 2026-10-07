@@ -49,7 +49,7 @@ dependencies = [
  "once_cell",
  "serde",
  "version_check",
- "zerocopy 0.8.59",
+ "zerocopy 0.8.60",
 ]
 
 [[package]]
@@ -143,9 +143,9 @@ dependencies = [
 
 [[package]]
 name = "arbitrary"
-version = "1.4.2"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3d036a3c4ab069c7b410a2ce876bd74808d2d0888a82667669f8e783a898bf1"
+checksum = "3bc62ac97cc33321f50863d514c3bc38a453947a8f9e781137e47c7401020aed"
 
 [[package]]
 name = "ark-bls12-381"
@@ -537,6 +537,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4c7f02d4ea65f2c1853089ffd8d2787bdbc63de2f0d29dedbcf8ccdfa0ccd4cf"
 
 [[package]]
+name = "base16ct"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd307490d624467aa6f74b0eabb77633d1f758a7b25f12bceb0b22e08d9726f6"
+
+[[package]]
 name = "base64"
 version = "0.21.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -825,7 +831,7 @@ dependencies = [
 [[package]]
 name = "cbcn"
 version = "0.1.0"
-source = "git+https://github.com/corbet-foss/cbcn?branch=main#6fb7f412905bf3164b192f693626d6febfa45b4e"
+source = "git+https://github.com/corbet-foss/cbcn?branch=main#640e64fb78614020e6ee3c5ae7b67f4731e40dad"
 dependencies = [
  "csgn",
  "serde",
@@ -835,7 +841,7 @@ dependencies = [
 [[package]]
 name = "cblc"
 version = "0.0.0"
-source = "git+https://github.com/corbet-libs/cblc?branch=main#3ce932399a076356de8f49dc69fd23b5671cead4"
+source = "git+https://github.com/corbet-libs/cblc?branch=main#25726ca06a9f4e88ec80c1944e155da0f066afa6"
 dependencies = [
  "cpns",
  "crlt",
@@ -853,9 +859,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.5.1"
+version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f360145194ee8e21db5ee7f3fcd4fe52210864c75c985dae33218202c8bbe040"
+checksum = "f74872d07caf508b30a21f6836e7d7016a2eaf7d9ff4f48deaa58cd8a0407630"
 dependencies = [
  "find-msvc-tools",
  "jobserver",
@@ -885,9 +891,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f079e83a288787bcd14a6aea84cee5c87a67c5a3e660c30f557a3d24761b3527"
 
 [[package]]
-name = "cglb"
+name = "cgbl"
 version = "0.0.0"
-source = "git+https://github.com/corbet-libs/cglb?branch=main#840c42ace7a99c5a4d898698c9051e8bea965c43"
+source = "git+https://git.corbet.ch/corbet-libs/cgbl.git?rev=6e99d662f5620d69362ae4b17a3bd17293289dc6#6e99d662f5620d69362ae4b17a3bd17293289dc6"
 dependencies = [
  "cbcn",
  "cpsd",
@@ -904,7 +910,7 @@ dependencies = [
 [[package]]
 name = "cgrd"
 version = "0.0.0"
-source = "git+https://github.com/corbet-foss/cgrd?branch=main#efbc07feea484d1a69ed5a46b27cfefe39c4c551"
+source = "git+https://github.com/corbet-foss/cgrd?branch=main#3de210dfe89de6bcfb7d308d46dfd5d103af1239"
 dependencies = [
  "bigdecimal",
  "cpns",
@@ -912,6 +918,7 @@ dependencies = [
  "csgn",
  "cshm",
  "ed25519-dalek 3.0.0",
+ "geographiclib-rs",
  "precis-profiles",
  "rustrict",
  "serde",
@@ -923,7 +930,7 @@ dependencies = [
 [[package]]
 name = "cgts"
 version = "0.0.0"
-source = "git+https://github.com/corbet-libs/cgts?branch=main#f5eb6b44cd0171af57bcd066f5f60e49eeeb0799"
+source = "git+https://github.com/corbet-libs/cgts?branch=main#2413f6c2d1a0f808cd10adf407d1c105fb6ac777"
 dependencies = [
  "cblc",
  "cgrd",
@@ -933,7 +940,7 @@ dependencies = [
  "crbk",
  "crlt",
  "cvch",
- "ed25519-dalek 2.2.0",
+ "ed25519-dalek 3.0.0",
  "rand 0.8.8",
  "serde",
  "serde_json",
@@ -1031,7 +1038,7 @@ dependencies = [
 [[package]]
 name = "ckyh"
 version = "0.0.0"
-source = "git+https://github.com/corbet-foss/ckyh?branch=main#92cffd61743165a753a66211963ebb6e607e2ddd"
+source = "git+https://github.com/corbet-foss/ckyh?branch=main#700251e9d143fe052f3cb418cae9d5a97ebd5c67"
 dependencies = [
  "crlt",
  "serde",
@@ -1097,7 +1104,7 @@ checksum = "1c133bc6a41be0d194c306b5506d15e6feeea7b1d6604bd3f8310dfb2ca96486"
 [[package]]
 name = "clbs"
 version = "0.0.0"
-source = "git+https://github.com/corbet-foss/clbs?branch=main#40ff96709532a6355d3026a0f81e4f226f3b9c59"
+source = "git+https://github.com/corbet-foss/clbs?branch=main#60602e46eda0f6b7055c78fce3b9249d5b95e647"
 dependencies = [
  "crlt",
  "serde",
@@ -1117,7 +1124,7 @@ dependencies = [
 [[package]]
 name = "cmbr"
 version = "0.0.0"
-source = "git+https://github.com/corbet-libs/cmbr?branch=main#cddf7e2fe28c4a2d50d4d2a3ccb2e3b3c49d4eea"
+source = "git+https://github.com/corbet-libs/cmbr?branch=main#44fb72b4af006e973c2d7e9487fe0d970a62b894"
 dependencies = [
  "cgrd",
  "cgts",
@@ -1146,7 +1153,7 @@ checksum = "0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a"
 [[package]]
 name = "cmty"
 version = "0.0.0"
-source = "git+https://github.com/corbet-libs/cmty?branch=main#002a1f842f28a2a10d93e3bab27bcf805ab48a02"
+source = "git+https://github.com/corbet-libs/cmty?branch=main#9eda811f91727ac13898de7bc3bc5b0e99174516"
 dependencies = [
  "cgts",
  "chrono",
@@ -1169,7 +1176,7 @@ dependencies = [
 [[package]]
 name = "cnrl"
 version = "0.0.0"
-source = "git+https://github.com/corbet-foss/cnrl?branch=main#2ee949be3017822d977102c8e1f6ad555c643ad2"
+source = "git+https://github.com/corbet-foss/cnrl?branch=main#af154bddcaae61d5e3f376b84ccd0defe674e976"
 dependencies = [
  "chrono",
  "ckyh",
@@ -1293,7 +1300,7 @@ dependencies = [
 [[package]]
 name = "cplc"
 version = "0.0.0"
-source = "git+https://github.com/corbet-libs/cplc?branch=main#04f58f9fe05f10f2a540c825d9d7dc642e60e8cf"
+source = "git+https://github.com/corbet-libs/cplc?branch=main#d84c3c692e7c1090cfc4c2f2a10948ac2265854e"
 dependencies = [
  "cbcn",
  "cgts",
@@ -1310,7 +1317,7 @@ dependencies = [
 [[package]]
 name = "cpns"
 version = "0.0.0"
-source = "git+https://github.com/corbet-foss/cpns?branch=main#bc9a2d53797b864ee58ae36e331336193ce14aa8"
+source = "git+https://github.com/corbet-foss/cpns?branch=main#d1b5ad2192f3164148fb94dd41f92328365e2cdb"
 dependencies = [
  "crlt",
  "getrandom 0.4.3",
@@ -1322,7 +1329,7 @@ dependencies = [
 [[package]]
 name = "cpsd"
 version = "0.0.0"
-source = "git+https://github.com/corbet-foss/cpsd?branch=main#d049fd40f8105f634472feb2595db317e997f7e3"
+source = "git+https://github.com/corbet-foss/cpsd?branch=main#75d9b86eb072feb34c303e394b36d9026ddd4576"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
@@ -1453,7 +1460,7 @@ checksum = "56b08621c00321efcfa3eee6a3179adc009e21ea8d24ca7adc3c326184bc3f48"
 [[package]]
 name = "crbk"
 version = "0.0.0"
-source = "git+https://github.com/corbet-foss/crbk?branch=main#ee4f73334818e2053c7df3d123a8e3b8cc23b2cf"
+source = "git+https://github.com/corbet-foss/crbk?branch=main#5f2c0454aa0cb25f4132d9243f6c71a38ffebbfe"
 dependencies = [
  "crlt",
  "serde",
@@ -1473,7 +1480,7 @@ dependencies = [
 [[package]]
 name = "crgs"
 version = "0.0.0"
-source = "git+https://github.com/corbet-foss/crgs?branch=main#fd15ceff1ab8fa8f9ec57024ab53f3698887e367"
+source = "git+https://github.com/corbet-foss/crgs?branch=main#a23a9d3e333784bd48ad5230b96a0a0f07a8732e"
 dependencies = [
  "chrono",
  "crlt",
@@ -1486,7 +1493,7 @@ dependencies = [
 [[package]]
 name = "crlt"
 version = "0.0.0"
-source = "git+https://github.com/corbet-foss/crlt?branch=main#6ca3bd1035fcf17c2c88cdae3ed913da49740252"
+source = "git+https://github.com/corbet-foss/crlt?branch=main#d9b1208277b49621dffd481b2cc6f5dfdc128609"
 dependencies = [
  "deadpool",
  "libsql",
@@ -1573,7 +1580,7 @@ dependencies = [
 [[package]]
 name = "csgn"
 version = "0.0.0"
-source = "git+https://github.com/corbet-foss/csgn?branch=main#eac891b771152b17aa3a903edfe9c129e43a371e"
+source = "git+https://github.com/corbet-foss/csgn?branch=main#7ddc5f1f074ee10ac0c2dcc57073cdddd5dd5138"
 dependencies = [
  "ciborium-ll",
  "coset 0.4.2",
@@ -1587,7 +1594,7 @@ dependencies = [
 [[package]]
 name = "cshm"
 version = "0.0.0"
-source = "git+https://github.com/corbet-foss/cshm?branch=main#9fe8a3271ddecf0846d888d038645a55687c2111"
+source = "git+https://github.com/corbet-foss/cshm?branch=main#3ca22b679334df15a9a68abf65946da055c02333"
 dependencies = [
  "bigdecimal",
  "jsonschema",
@@ -1599,7 +1606,7 @@ dependencies = [
 [[package]]
 name = "cssr"
 version = "0.0.0"
-source = "git+https://github.com/corbet-foss/cssr?branch=main#5ca86e4624a56e43e9df7dbc169bcca967b8f817"
+source = "git+https://github.com/corbet-foss/cssr?branch=main#67068a5e4ed49fff7d6eddc99b614bac72e01777"
 dependencies = [
  "crlt",
  "p256",
@@ -1610,16 +1617,16 @@ dependencies = [
 [[package]]
 name = "cthl"
 version = "0.0.0"
-source = "git+https://github.com/corbet-foss/cthl?branch=main#e719761a51795a115a969f50353df27f8c152bfd"
+source = "git+https://github.com/corbet-foss/cthl?branch=main#898cb412afd33c67c794a987452d82ab096e28eb"
 dependencies = [
  "governor",
 ]
 
 [[package]]
 name = "ctutils"
-version = "0.4.2"
+version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d5515a3834141de9eafb9717ad39eea8247b5674e6066c404e8c4b365d2a29e"
+checksum = "03bb0e1cc970d482d121d9a1744999169b69a07470b3d644a7894e53fcaf4574"
 dependencies = [
  "cmov",
 ]
@@ -1670,19 +1677,19 @@ dependencies = [
 [[package]]
 name = "cvch"
 version = "0.2.1"
-source = "git+https://github.com/corbet-foss/cvch?branch=main#37ee0cba6c8be767c8e8ecd286ec225a21b564e1"
+source = "git+https://github.com/corbet-foss/cvch?branch=main#fec287c98c9bd756ba82dcebd89461e10956f8f4"
 dependencies = [
- "ed25519-dalek 2.2.0",
+ "ed25519-dalek 3.0.0",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.0",
  "thiserror 2.0.21",
 ]
 
 [[package]]
 name = "cvfy"
 version = "0.0.0"
-source = "git+https://github.com/corbet-foss/cvfy?branch=main#b5749ac38ea444d963bf0d979523c04839e4ceeb"
+source = "git+https://github.com/corbet-foss/cvfy?branch=main#ab6a9d977d993ff8c27f87e2dedebb64d13b5fe0"
 dependencies = [
  "czkp",
  "data-encoding",
@@ -1696,7 +1703,7 @@ version = "0.2.0"
 dependencies = [
  "async-trait",
  "axum",
- "cglb",
+ "cgbl",
  "chrono",
  "ckyh",
  "clap",
@@ -1731,12 +1738,12 @@ dependencies = [
 [[package]]
 name = "czkp"
 version = "0.0.0"
-source = "git+https://github.com/corbet-foss/czkp?branch=main#d2e969d3c631c6baf9d4e129b62dda0f10129a0b"
+source = "git+https://github.com/corbet-foss/czkp?branch=main#bd12b6c9cdae207e114be9a926e0db0a985e85eb"
 dependencies = [
  "data-encoding",
- "ed25519-dalek 2.2.0",
+ "ed25519-dalek 3.0.0",
  "serde",
- "sha2 0.10.9",
+ "sha2 0.11.0",
 ]
 
 [[package]]
@@ -2069,7 +2076,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "115531babc129696a58c64a4fef0a8bf9e9698629fb97e9e40767d235cfbcd53"
 dependencies = [
  "pkcs8",
- "serde",
  "signature 2.2.0",
 ]
 
@@ -2079,6 +2085,7 @@ version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29fcf32e6c73d1079f83ab4d782de2d81620346a5f38c6237a86a22f8368980a"
 dependencies = [
+ "serdect 0.4.3",
  "signature 3.0.0",
 ]
 
@@ -2104,6 +2111,7 @@ checksum = "6ebaa1a2bf1290ab3bfe5a7b771d050ebffab2711c19a81691c683a5144a25de"
 dependencies = [
  "curve25519-dalek 5.0.0",
  "ed25519 3.0.0",
+ "serde",
  "sha2 0.11.0",
  "subtle",
  "zeroize",
@@ -2111,9 +2119,9 @@ dependencies = [
 
 [[package]]
 name = "either"
-version = "1.18.0"
+version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "252afb9ae5eaa683babdc6a068b3f5726eb19e05070c731f9b2a23a7c3e8ed34"
+checksum = "0e9c71c2167ca323c882b99918929403426e2373ea17242ff5653e0d5e1058be"
 
 [[package]]
 name = "elliptic-curve"
@@ -2121,7 +2129,7 @@ version = "0.13.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5e6043086bf7973472e0c7dff2142ea0b680d30e18d9cc40f267efbf222bd47"
 dependencies = [
- "base16ct",
+ "base16ct 0.2.0",
  "base64ct",
  "crypto-bigint",
  "digest 0.10.7",
@@ -2133,7 +2141,7 @@ dependencies = [
  "rand_core 0.6.4",
  "sec1",
  "serde_json",
- "serdect",
+ "serdect 0.2.0",
  "subtle",
  "zeroize",
 ]
@@ -2451,6 +2459,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "geographiclib-rs"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c5a7f08910fd98737a6eda7568e7c5e645093e073328eeef49758cfe8b0489c7"
+dependencies = [
+ "libm",
+]
+
+[[package]]
 name = "getrandom"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2552,7 +2569,7 @@ checksum = "6ea2d84b969582b4b1864a92dc5d27cd2b77b622a8d79306834f1be5ba20d84b"
 dependencies = [
  "cfg-if",
  "crunchy",
- "zerocopy 0.8.59",
+ "zerocopy 0.8.60",
 ]
 
 [[package]]
@@ -2705,13 +2722,12 @@ dependencies = [
 
 [[package]]
 name = "hyper"
-version = "1.11.1"
+version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "27b501faa50e7a26c3d3560ca625132f4078a17771f4810baf70475ae48cbe43"
+checksum = "2c3e324da4c95177d6291d4c8730197c0d1822f8a9766814a4a44fa5ab797c9c"
 dependencies = [
  "atomic-waker",
  "bytes",
- "futures-channel",
  "futures-core",
  "http",
  "http-body",
@@ -3044,9 +3060,9 @@ dependencies = [
 
 [[package]]
 name = "jsonschema"
-version = "0.58.4"
+version = "0.58.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5761b0ca0a31464030d7c2a98087fde3124ebb5e09b5a112cdb815f03b8ee150"
+checksum = "f622c574a29fb3034a0a90645afee194dfedc75fc124228801b6e77041075bd1"
 dependencies = [
  "ahash",
  "bytecount",
@@ -3074,9 +3090,9 @@ dependencies = [
 
 [[package]]
 name = "jsonschema-macros"
-version = "0.58.4"
+version = "0.58.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75e6d7c2c9afe6aa7de831af841801c954b83b1742f0e228b505326456a70b8f"
+checksum = "5553b59276ad81f2f49c80cd381a6d6d873e74139cdeb2bef0f9eb28a2ded2b6"
 dependencies = [
  "jsonschema-macros-core",
  "proc-macro2",
@@ -3084,9 +3100,9 @@ dependencies = [
 
 [[package]]
 name = "jsonschema-macros-core"
-version = "0.58.4"
+version = "0.58.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "65bcdd5a5c9e2c6ddefdddef36f1a27f5183649bd135f633e1bc6bfa97982407"
+checksum = "bf3ebe067f2c25a981a7d1b2f696fc213e10dbf80ba5fe997f7dc2e4fe261f26"
 dependencies = [
  "fancy-regex",
  "indexmap",
@@ -3103,18 +3119,18 @@ dependencies = [
 
 [[package]]
 name = "jsonschema-regex"
-version = "0.58.4"
+version = "0.58.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1ffba4378a3d6ee7f1ab65a8ed95c711ccfe4a3870932bdce89d8260abed38a"
+checksum = "a968fffd387b2ab005bf00c1851f5d26e90df05b6f7ad609ed0d620033cca5e7"
 dependencies = [
  "regex-syntax",
 ]
 
 [[package]]
 name = "jsonschema-value"
-version = "0.58.4"
+version = "0.58.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "386121f898b560ff6aaa7974952720e9d9276a201eca31296387c2ed8707855e"
+checksum = "39b7670345e5ce87371339d13705dbb9276b7e3e934bbe1efa2c6734a1f65a96"
 dependencies = [
  "ahash",
  "bytecount",
@@ -3203,9 +3219,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.189"
+version = "0.2.190"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
+checksum = "ce5d3ddc6d3fa000eb1536d85e147bfe31aacaba692ed6a876f95cb7c855be78"
 
 [[package]]
 name = "libloading"
@@ -3337,8 +3353,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bb4bdc8b0ce69932332cf76d24af69c3a155242af95c226b2ab6c2e371ed1149"
 dependencies = [
  "thiserror 2.0.21",
- "zerocopy 0.8.59",
- "zerocopy-derive 0.8.59",
+ "zerocopy 0.8.60",
+ "zerocopy-derive 0.8.60",
 ]
 
 [[package]]
@@ -3410,9 +3426,9 @@ dependencies = [
 
 [[package]]
 name = "mio"
-version = "1.2.3"
+version = "1.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b18443e9c262bfe8fa82f51666e2642c53393f7e5c27b3e1aeab922cff5b9d8"
+checksum = "1788edb87fdc09c7e26304471e2f5be8cdefb1b6930d6e3985fc02ff53bf86ee"
 dependencies = [
  "libc",
  "wasi",
@@ -3895,9 +3911,9 @@ dependencies = [
 
 [[package]]
 name = "powerfmt"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391"
+checksum = "4a6394b9e965e73d0a289ee54f589087e2c676aedf60885baf52c76b771e4958"
 
 [[package]]
 name = "ppv-lite86"
@@ -3905,7 +3921,7 @@ version = "0.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85eae3c4ed2f50dcfe72643da4befc30deadb458a9b590d720cde2f2b1e97da9"
 dependencies = [
- "zerocopy 0.8.59",
+ "zerocopy 0.8.60",
 ]
 
 [[package]]
@@ -4370,9 +4386,9 @@ dependencies = [
 
 [[package]]
 name = "referencing"
-version = "0.58.4"
+version = "0.58.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5cfa1c91745dbca76a406b926918d7c63e15a4525ebab939fec3e015a1fb82b1"
+checksum = "558f3855529c0a7e78a48e409fa653456e55f1b167eab4109c16a255b7727e3f"
 dependencies = [
  "ahash",
  "fluent-uri",
@@ -4583,9 +4599,9 @@ dependencies = [
 
 [[package]]
 name = "rmcp"
-version = "3.5.0"
+version = "3.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fae7019994ae0fe4ada40b732f798f3ff26f0f04facb1477f1bf37eb4f18a2d3"
+checksum = "ab5023804cbe0304cbe06197ac16e645a0a0d0ffa2953bf735c15c2fa0213350"
 dependencies = [
  "base64 0.23.1",
  "chrono",
@@ -4608,9 +4624,9 @@ dependencies = [
 
 [[package]]
 name = "rmcp-macros"
-version = "3.5.0"
+version = "3.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7e66877136e969d5a2d561ee5841b17717a0619aebd64abb47a2a2f46e34683"
+checksum = "a1da498700030856ba63114bceefa30ba21f5e278cb975e5b9de3529fe842b40"
 dependencies = [
  "darling 0.24.1",
  "proc-macro2",
@@ -4908,11 +4924,11 @@ version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3e97a565f76233a6003f9f5c54be1d9c5bdfa3eccfb189469f11ec4901c47dc"
 dependencies = [
- "base16ct",
+ "base16ct 0.2.0",
  "der",
  "generic-array",
  "pkcs8",
- "serdect",
+ "serdect 0.2.0",
  "subtle",
  "zeroize",
 ]
@@ -5108,7 +5124,17 @@ version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a84f14a19e9a014bb9f4512488d9829a68e04ecabffb0f9904cd1ace94598177"
 dependencies = [
- "base16ct",
+ "base16ct 0.2.0",
+ "serde",
+]
+
+[[package]]
+name = "serdect"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "66cf8fedced2fcf12406bcb34223dffb92eaf34908ede12fed414c82b7f00b3e"
+dependencies = [
+ "base16ct 1.0.0",
  "serde",
 ]
 
@@ -5589,9 +5615,9 @@ checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
 
 [[package]]
 name = "tokio"
-version = "1.53.1"
+version = "1.53.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "202caea871b69668250d242070849eb495be178ed697a3e98aebce5bc81a0bed"
+checksum = "e95f91fcc7a621e8b030f6aa23c71fe9838ae2fb4d8118b75602a328f5144044"
 dependencies = [
  "bytes",
  "libc",
@@ -5943,9 +5969,9 @@ dependencies = [
 
 [[package]]
 name = "uuid"
-version = "1.26.1"
+version = "1.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ef6dac1e96601b4fb3acccccff2139741fcb757cb9a36089bf5be91cfb285ce"
+checksum = "97277d36b9c3ace13e58fa6e753f8b0bbbf302a18dd193240d70f9e29681059a"
 dependencies = [
  "getrandom 0.4.3",
  "js-sys",
@@ -6039,9 +6065,9 @@ dependencies = [
 
 [[package]]
 name = "want"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bfa7760aed19e106de2c7c0b581b509f2f25d3dacaf737cb82ac61bc6d760b0e"
+checksum = "ec4cdd0dd910afe868b7ef477227d8d538b46b3075031afee8a9f2acb0a2ed0b"
 dependencies = [
  "try-lock",
 ]
@@ -6136,12 +6162,12 @@ dependencies = [
 
 [[package]]
 name = "wasm-encoder"
-version = "0.260.0"
+version = "0.261.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1e9692da9ef627c5ee12b45378f68ac2689ce306f88078f5cf849b7c3444ed8"
+checksum = "2608e8bb6d67fd68f5a8d0eb1363d6e7bcbc1f8ded5a0bd3a1e382462b876b22"
 dependencies = [
  "leb128fmt",
- "wasmparser 0.260.0",
+ "wasmparser 0.261.0",
 ]
 
 [[package]]
@@ -6300,9 +6326,9 @@ dependencies = [
 
 [[package]]
 name = "wasmparser"
-version = "0.260.0"
+version = "0.261.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c94519d78304dc4a4bb5925eda6ff153bf06167467cff9233dc9593bae28fdd"
+checksum = "4f20f20e44f7e8aeb6744823ea9d869ede51e51be4fdaedede2852282e54d2d8"
 dependencies = [
  "bitflags 2.13.2",
  "indexmap",
@@ -6311,9 +6337,9 @@ dependencies = [
 
 [[package]]
 name = "wast"
-version = "260.0.0"
+version = "261.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "17573754cde137d26852892330414efb6d1d33480adcd10e8825d092b2132229"
+checksum = "776443145731a4062e5b0d392892a2005909b6ab72d9fdc3cad53dd1a714e44a"
 dependencies = [
  "bumpalo",
  "leb128fmt",
@@ -6324,9 +6350,9 @@ dependencies = [
 
 [[package]]
 name = "wat"
-version = "1.260.0"
+version = "1.261.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f56de9341c410d04121da51dd16c11d095cb6a914bd2b2850cd3c60558c0c15"
+checksum = "a7b4d1a49ea73a8f3326e74e3a05db667001b16bd1035ed3356fc1a0ed05ca7f"
 dependencies = [
  "wast",
 ]
@@ -6781,11 +6807,11 @@ dependencies = [
 
 [[package]]
 name = "zerocopy"
-version = "0.8.59"
+version = "0.8.60"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6df92bf3d9227be3d53173901ddbffac2babc27ae50f397776ffd6dc33f800cb"
+checksum = "6400fc4bb7426f6faac3fb07566122bb18622e3022bd2c36426a92ed489b1dbe"
 dependencies = [
- "zerocopy-derive 0.8.59",
+ "zerocopy-derive 0.8.60",
 ]
 
 [[package]]
@@ -6801,9 +6827,9 @@ dependencies = [
 
 [[package]]
 name = "zerocopy-derive"
-version = "0.8.59"
+version = "0.8.60"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac4f328cf2f05d084e496c3e9c3f33ed0a183656a16e1fcec4d464d8373aec82"
+checksum = "99c27cc7525bad4df59a45e073c45b2c2aa820efb588234cc23a547ec69a34db"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6833,9 +6859,9 @@ dependencies = [
 
 [[package]]
 name = "zeroize"
-version = "1.9.0"
+version = "1.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e13c156562582aa81c60cb29407084cdb54c4164760106ab78e6c5b0858cf64e"
+checksum = "e13084392c5e4bc371903e2935a5eaeed24905a7511356b883835e18a78f6879"
 dependencies = [
  "zeroize_derive",
 ]

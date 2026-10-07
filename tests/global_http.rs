@@ -16,7 +16,7 @@ async fn wallet_passkey_blind_passport_and_host_role_boundaries() {
     let signed = ring
         .verify(&public.status, csgn::Kind::SettingsSnapshot, NOW)
         .unwrap();
-    let status: cglb::Status = serde_json::from_slice(signed.payload()).unwrap();
+    let status: cgbl::Status = serde_json::from_slice(signed.payload()).unwrap();
     assert_eq!(status.epoch, 1);
     let issuer = cpsd::IssuerPublicKey::from_bytes(&public.issuer).unwrap();
     let mut rng = cpsd::rand::rngs::OsRng;
@@ -147,7 +147,7 @@ async fn wallet_passkey_blind_passport_and_host_role_boundaries() {
     let signed = ring
         .verify(&changed.status, csgn::Kind::SettingsSnapshot, NOW)
         .unwrap();
-    let changed: cglb::Status = serde_json::from_slice(signed.payload()).unwrap();
+    let changed: cgbl::Status = serde_json::from_slice(signed.payload()).unwrap();
     assert_eq!(changed.epoch, 2);
     assert!(client.call("passport_challenge", json!({})).await.is_err());
     root_client.call("logout", json!({})).await.unwrap();
@@ -288,7 +288,7 @@ async fn maintenance_refreshes_public_expiry_without_a_member_query() {
     let verified = ring
         .verify(&after.status, csgn::Kind::SettingsSnapshot, NOW + 86400)
         .unwrap();
-    let status: cglb::Status = serde_json::from_slice(verified.payload()).unwrap();
+    let status: cgbl::Status = serde_json::from_slice(verified.payload()).unwrap();
     assert_eq!(status.epoch, 1);
     assert_eq!(status.policy_revision, 1);
 }

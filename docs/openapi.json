@@ -33,7 +33,8 @@
           "wrong_host",
           "throttled",
           "refused",
-          "unavailable"
+          "unavailable",
+          "reconcile"
         ],
         "type": "string"
       },
@@ -334,6 +335,168 @@
         ],
         "summary": "Present a passport and request admission or renewal",
         "x-effect": "record",
+        "x-role": "member",
+        "x-scope": "community"
+      }
+    },
+    "/v1/device_authorize": {
+      "post": {
+        "operationId": "device_authorize",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Bind one actual lineage device key to the current passkey.",
+                "properties": {
+                  "key": {
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "key"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "Current public signing keys; the authenticated passkey authorizes mutations.",
+                  "properties": {
+                    "keys": {
+                      "items": {
+                        "items": {
+                          "format": "int32",
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "type": "array"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "keys"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Authorize the lineage device key with this live passkey",
+        "x-effect": "record",
+        "x-role": "member",
+        "x-scope": "community"
+      }
+    },
+    "/v1/device_keys": {
+      "post": {
+        "operationId": "device_keys",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "Current public signing keys; the authenticated passkey authorizes mutations.",
+                  "properties": {
+                    "keys": {
+                      "items": {
+                        "items": {
+                          "format": "int32",
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "type": "array"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "keys"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Read current passkey-authorized signing keys",
+        "x-effect": "check",
         "x-role": "member",
         "x-scope": "community"
       }

@@ -24,15 +24,15 @@ pub async fn global(dir: &Path, listen: String, burst: u32, now: u64) {
         vec![cpsd::GateId::new("development").unwrap()],
     )
     .unwrap();
-    let policy = cglb::Policy {
+    let policy = cgbl::Policy {
         version: 1,
         scope: "global".into(),
         revision: 1,
         epoch: 1,
         shared_expiry: (now / 86_400 + 40) * 86_400,
-        gates: vec![cglb::GatePolicy {
+        gates: vec![cgbl::GatePolicy {
             gate: "development".into(),
-            provider: "cglb.test".into(),
+            provider: "cgbl.test".into(),
             uniqueness: true,
         }],
     };

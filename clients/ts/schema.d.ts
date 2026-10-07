@@ -21,6 +21,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/device_authorize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Authorize the lineage device key with this live passkey */
+        post: operations["device_authorize"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/device_keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read current passkey-authorized signing keys */
+        post: operations["device_keys"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/gate_voucher": {
         parameters: {
             query?: never;
@@ -506,7 +540,7 @@ export interface components {
             presentation: components["schemas"]["PresentationInput"];
         };
         /** @enum {string} */
-        Error: "invalid" | "unauthorized" | "forbidden" | "wrong_host" | "throttled" | "refused" | "unavailable";
+        Error: "invalid" | "unauthorized" | "forbidden" | "wrong_host" | "throttled" | "refused" | "unavailable" | "reconcile";
         Lobby: {
             handle?: string | null;
             member_id: string;
@@ -588,6 +622,82 @@ export interface operations {
                     "application/json": {
                         credential?: number[] | null;
                         lobby: components["schemas"]["Lobby"];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    device_authorize: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    key: number[];
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        keys: number[][];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    device_keys: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        keys: number[][];
                     };
                 };
             };

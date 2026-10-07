@@ -2,7 +2,7 @@
 
 One FSL-1.1-ALv2 Rust package, library and binary. No registry publishing.
 The previous JavaScript tree is preserved by the annotated
-`js-prototype-0.1.0-alpha.0` tag. Domain state and decisions belong to cglb and
+`js-prototype-0.1.0-alpha.0` tag. Domain state and decisions belong to cgbl and
 cmty; storage and cryptography remain in their leaves.
 
 ## Actions and transports
@@ -25,7 +25,7 @@ or expiring; restarting the process discards them.
 
 ## Global process
 
-`cvld serve global --config <file>` owns one crlt database, cglb's issuer,
+`cvld serve global --config <file>` owns one crlt database, cgbl's issuer,
 uniqueness key and durable csgn signer. Wallet authentication uses ckyh at
 `wallet.<domain>`. Root authentication uses a separate RP and namespace at
 `api.root.<domain>`. Hosts match exactly; forwarded-host headers are ignored.
@@ -34,12 +34,12 @@ for revocation. A member cannot request an operator role. Operator UUIDs and a
 one-time initial registration capability are explicit service configuration.
 Existing operator credentials prevent reuse of bootstrap across restart.
 
-The global service calls cglb for uniqueness, gates, blind issuance, warning and
+The global service calls cgbl for uniqueness, gates, blind issuance, warning and
 temporary suspension. It never receives a community identifier or pseudonym.
 Public material contains only issuer keys, policy revision, epoch and common
 expiry. The purpose-bound global status uses csgn SettingsSnapshot, with UTC-day
 publication boundaries. A challenge binds to one UV-verified session; replay
-and another session cannot use it. Cpsd owns durable issuance nonce storage. Private global revocations are not sent to communities. Cglb's current
+and another session cannot use it. Cpsd owns durable issuance nonce storage. Private global revocations are not sent to communities. Cgbl's current
 revocation mechanism advances the passport cohort epoch; it is not an individual
 zero-knowledge revocation accumulator. Global providers beyond the development
 gate remain leaf integrations.
