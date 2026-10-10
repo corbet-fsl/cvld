@@ -1,7 +1,9 @@
 # Coverage
 
-CI resolves one fresh Cargo.lock and uses that snapshot for stable checks,
-advisory policy and nightly LLVM branch instrumentation. Both line and branch
+CI uses the retained Cargo.lock with `--locked` for stable checks,
+advisory policy and nightly LLVM branch instrumentation. Manifest dependencies
+follow compatible upstream releases and first-party main branches; lock refreshes
+are validated and retained as new tested snapshots. Both line and branch
 counts must be complete; any reachable gap fails the gate. No production source
 is excluded. Only test harness files (`tests/` and `tests.rs`) are omitted from
 the measured source; their actual round trips still execute.
