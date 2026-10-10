@@ -2,7 +2,7 @@
 //! No server authority or mutable session state is exposed by the registry.
 
 use crate::error::{Error, Result};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use std::{collections::BTreeMap, future::Future, sync::LazyLock};
 
 #[cfg(all(feature = "client-http", not(target_arch = "wasm32")))]
@@ -23,9 +23,15 @@ static DOCUMENT: LazyLock<Value> = LazyLock::new(|| {
     }
 });
 
+// A malformed generated contract is a build defect, not an unknown caller action.
+static PATHS: LazyLock<&'static Map<String, Value>> = LazyLock::new(|| {
+    DOCUMENT["paths"]
+        .as_object()
+        .expect("the checked generated door contract has an object of paths")
+});
+
 static RESPONSES: LazyLock<Result<BTreeMap<String, jsonschema::Validator>>> = LazyLock::new(|| {
-    let paths = DOCUMENT["paths"].as_object().ok_or(Error::Reconcile)?;
-    paths
+    PATHS
         .values()
         .map(|item| {
             let operation = &item["post"];
@@ -81,14 +87,10 @@ impl Action {
 
 /// Look up a public owner operation without guessing a route from input text.
 pub fn action(name: &str) -> Option<Action> {
-    DOCUMENT
-        .get("paths")?
-        .as_object()?
-        .iter()
-        .find_map(|(path, item)| {
-            let operation = item.get("post")?;
-            (operation.get("operationId")?.as_str()? == name).then_some(Action { path, operation })
-        })
+    PATHS.iter().find_map(|(path, item)| {
+        let operation = item.get("post")?;
+        (operation.get("operationId")?.as_str()? == name).then_some(Action { path, operation })
+    })
 }
 
 /// An authenticated HTTP runtime selected by the trusted device composition.

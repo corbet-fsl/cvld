@@ -8,6 +8,21 @@ use cvld::{
 use serde_json::json;
 use support::*;
 
+#[test]
+fn portable_action_lookup_preserves_every_generated_path_and_schema() {
+    let paths = contract()["paths"].as_object().unwrap();
+    assert_eq!(paths.len(), cvld::api::ACTIONS.len());
+    for owner in cvld::api::ACTIONS {
+        let metadata = action(owner.name).unwrap();
+        assert_eq!(metadata.path(), format!("/v1/{}", owner.name));
+        assert_eq!(metadata.schema(), &paths[metadata.path()]["post"]);
+        assert_eq!(metadata.schema()["operationId"], owner.name);
+    }
+    for unknown in ["", "global_public/", "../global_public", "not_an_action"] {
+        assert!(action(unknown).is_none());
+    }
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn generated_client_forwards_real_public_member_and_root_calls() {
     let service = global(100).await;
