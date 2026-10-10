@@ -4,6 +4,7 @@
 # coverage) in CI order, environment, and flags.
 # Runs inside .ci/check-shell.nix (see run-cached.sh).
 set -euo pipefail
+exec 2>&1
 export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-2}"
 export CARGO_TERM_COLOR="${CARGO_TERM_COLOR:-always}"
 export CARGO_HTTP_USER_AGENT="${CARGO_HTTP_USER_AGENT:-dependency-ci}"
@@ -18,6 +19,9 @@ command -v cc >/dev/null || { echo 'missing cc for lock-evidenced cc edges' >&2;
 command -v cmake >/dev/null || { echo 'missing cmake for lock-evidenced cmake edges' >&2; exit 2; }
 # Wasm target on stable is guaranteed by run-cached.sh (helper readiness +
 # exclusive provisioning); no toolchain mutation here under the shared lock.
+
+cargo update
+cp Cargo.lock "$ARTIFACT_ROOT/Cargo.lock"
 
 # --- resolve pure selftest (committed graph only; update refresh excluded) ---
 python3 .github/check-first-party.py
@@ -70,7 +74,7 @@ target_dir="${CARGO_TARGET_DIR:-target}"
 case "$target_dir" in /*) ;; *) target_dir="$PWD/$target_dir";; esac
 export CVLD_BIN="$target_dir/debug/cvld"
 "$target_dir/debug/cvld-toy" scenarios | tee toy/reports/transcript.txt
-"$target_dir/debug/cvld-toy" turso
+# Live Turso is explicitly opt-in outside automated verification.
 
 # --- coverage job (nightly only) ---
 # CI top-level env carries CARGO_HTTP_USER_AGENT=dependency-ci into this job.

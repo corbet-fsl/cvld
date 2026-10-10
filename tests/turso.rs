@@ -1,4 +1,5 @@
 #[tokio::test(flavor = "multi_thread")]
+#[ignore = "requires explicit operator authorization and a disposable remote database"]
 async fn optional_real_turso() {
     let (Ok(url), Ok(token)) = (std::env::var("TURSO_URL"), std::env::var("TURSO_TOKEN")) else {
         return;

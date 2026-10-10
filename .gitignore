@@ -3,3 +3,5 @@
 *.db
 *.db-shm
 *.db-wal
+/toy/.build/
+/toy/reports/

@@ -14,6 +14,8 @@ cache_root=${CI_CACHE_ROOT:-${CARGO_HOME:-}}
 [[ $cache_root = /* ]] || { echo 'An absolute persistent CI_CACHE_ROOT or CARGO_HOME is required' >&2; exit 2; }
 namespace=$(printf '%s' "$CI_REPOSITORY_URL" | sha256sum | cut -c1-24)
 state="$cache_root/ccid-cached/$namespace"
+export ARTIFACT_ROOT="$state/release-artifacts"
+mkdir -p "$ARTIFACT_ROOT"
 toolchains=${CI_TOOLCHAIN_ROOT:-$cache_root/ccid-cached/toolchains}
 [[ $toolchains = /* ]] || { echo 'CI_TOOLCHAIN_ROOT must be absolute' >&2; exit 2; }
 mkdir -p "$state" "$toolchains"

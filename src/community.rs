@@ -39,7 +39,7 @@ pub type Facade = cmty::Community<
     UnconfiguredAuthority,
     CommunityClock,
     cgts::LibsqlStore,
-    cgts::LegalGate<clbs::LibsqlStore, UnconfiguredAuthority>,
+    cgts::LegalGate<cgts::legal_storage::LibsqlStore, UnconfiguredAuthority>,
     Rules,
     cplc::LibsqlStore,
     csgn::LibsqlStore,
@@ -237,7 +237,7 @@ impl CommunityService {
         let gates = cgts::Gatekeeper::new(
             cgts::LibsqlStore::new(db, scope).map_err(|_| Error::Unavailable)?,
             cgts::LegalGate::new(
-                clbs::LibsqlStore::new(db, scope).map_err(|_| Error::Unavailable)?,
+                cgts::legal_storage::LibsqlStore::new(db, scope).map_err(|_| Error::Unavailable)?,
                 UnconfiguredAuthority,
             ),
         )

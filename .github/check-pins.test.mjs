@@ -50,3 +50,11 @@ test('require the crlt Git dependency', () => {
   assert.throws(() => checkPins({ packages: [pkg('crbk')] }), /Missing/);
   assert.throws(() => checkPins({ packages: [pkg('crbk'), pkg('crlt')] }), /invalid/);
 });
+
+
+test('canonical sources reject pins and mixed-origin duplicates', () => {
+  const canonical = source('crlt').replace('github.com', 'git.corbet.ch');
+  checkPins({ packages: [pkg('crlt', canonical)] });
+  assert.throws(() => checkPins(graph(pkg('crlt', canonical))), /duplicated/);
+  assert.throws(() => checkPins({ packages: [pkg('crlt', canonical.replace('branch=main', `rev=${revision}`))] }), /Expected main/);
+});
