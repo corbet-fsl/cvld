@@ -3,7 +3,10 @@
 One FSL-1.1-ALv2 Rust package, library and binary. No registry publishing.
 The previous JavaScript tree is preserved by the annotated
 `js-prototype-0.1.0-alpha.0` tag. Domain state and decisions belong to cgbl and
-cmty; storage and cryptography remain in their leaves.
+cmty. Reusable domain leaves authenticate and transform provider data in RAM;
+the application owns retained state through their atomic storage ports. Host
+facades supply SQL adapters, including `cgts::legal_storage`; cryptographic
+operations remain in their specialized libraries.
 
 ## Actions and transports
 
@@ -67,12 +70,14 @@ An unsuccessful refresh leaves the old expiry in force rather than extending it.
 
 ## Verification
 
-GitHub Actions runs stable Rust formatting, strict Clippy, real libSQL/WebAuthn/
+Crow runs stable Rust formatting, strict Clippy, real libSQL/WebAuthn/
 blind-passport HTTP tests, CLI and official MCP-client process round trips,
 surface parity, default release tests and a negative release-feature build.
 OpenAPI and the TypeScript client are regenerated and compared with committed
-output. No Cargo command runs on the workstation. The optional Turso test connects
-only if both TURSO_URL and TURSO_TOKEN are nonempty; use a disposable database.
+output. No Cargo command runs on the workstation. The remote Turso probe is
+explicitly ignored, and automated verification does not invoke the toy Turso
+scenario. Running either requires separate operator authorization and a supplied
+disposable database; configured credentials alone do not enable them in CI.
 
 ## Community process
 
@@ -228,7 +233,8 @@ require caller-authorized public device keys; this door does not implement a
 separate device-key attestation protocol. Schema changes currently advance the
 epoch immediately; archived definitions do not authorize grandfathering.
 
-The optional remote Turso test needs an explicitly supplied disposable database.
+The remote Turso test is explicitly ignored and needs operator authorization
+and an explicitly supplied disposable database.
 Public CI uses local libSQL and synthetic credentials only. TLS ingress, operational
 public-key distribution and deployment are outside this repository's test run.
 

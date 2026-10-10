@@ -10,6 +10,6 @@ requests, identifiers, handles, IPs, bodies, secrets or dependency errors. No
 cryptographic primitives here. Inputs are hostile; authenticate roles and exact
 hosts before executing actions. Credentials come only from supplied configuration.
 
-Do not run cargo on the workstation. Validate on GitHub Actions using current
+Do not run cargo on the workstation. Validate on Crow using current
 stable Rust, real libSQL and WebAuthn/credential round trips. No deployment.
 Use explicit-path commits, plain English imperative messages, no AI attribution.

@@ -22,7 +22,7 @@ Surveyed crates.io, official documentation and GitHub on 2026-09-30:
 | [clap](https://github.com/clap-rs/clap) 4.6 | Build subcommands directly from action metadata. |
 | [openapi-typescript](https://github.com/openapi-ts/openapi-typescript) 7.13 | Generate the TypeScript interface from the emitted OpenAPI. |
 | [cgbl](https://git.corbet.ch/corbet-libs/cgbl) | Own global uniqueness, gate execution, suspension and blind issuance. |
-| [cmty](https://github.com/corbet-libs/cmty) | Compose membership, gates and policy without copying their domain logic. |
+| [cmty](https://git.corbet.ch/corbet-libs/cmty) | Compose membership, gates and policy without copying their domain logic. |
 | [ed25519-dalek](https://github.com/dalek-cryptography/curve25519-dalek) 2.2 | Parse the configured public sponsor key for cgts; signing and verification stay in the facades and leaves. |
 | [ckyh](https://github.com/corbet-foss/ckyh) | UV-required wallet/operator WebAuthn; no new passkey implementation. |
 | [subtle](https://docs.rs/subtle/latest/subtle/trait.ConstantTimeEq.html) 2.6 | Compare bootstrap capability contents without ordinary string-comparison timing; already shared by cryptographic dependencies. |
@@ -31,11 +31,11 @@ Surveyed crates.io, official documentation and GitHub on 2026-09-30:
 Storage and cryptography remain in the existing crlt, cpsd and csgn leaves.
 No ORM, second authorization engine or direct cryptographic implementation is
 needed. Configuration is supplied in files; the service never searches for
-credentials. Rust compilation and tests run in GitHub Actions only.
+credentials. Rust compilation and tests run on Crow only.
 
 ## Run and call the door
 
-Build and validate through GitHub Actions. Supply explicit configuration and
+Build and validate through Crow. Supply explicit configuration and
 separate service databases; [the global example](examples/global.json) contains
 paths and synthetic identifiers, not keys or credentials.
 The database records its service identity at initialization and refuses a later
@@ -148,6 +148,7 @@ require caller-authorized public device keys; this door does not implement a
 separate device-key attestation protocol. Schema changes currently advance the
 epoch immediately; archived definitions do not authorize grandfathering.
 
-The optional remote Turso test needs an explicitly supplied disposable database.
+The remote Turso test is explicitly ignored and needs operator authorization
+and an explicitly supplied disposable database.
 Public CI uses local libSQL and synthetic credentials only. TLS ingress, operational
 public-key distribution and deployment are outside this repository's test run.
