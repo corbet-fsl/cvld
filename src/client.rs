@@ -37,7 +37,8 @@ static RESPONSES: LazyLock<Result<BTreeMap<String, jsonschema::Validator>>> = La
                 .ok_or(Error::Reconcile)?
                 .insert("components".into(), DOCUMENT["components"].clone());
             // Network and file resolvers are disabled in Cargo features.
-            let validator = jsonschema::validator_for(&schema).map_err(|_| Error::Reconcile)?;
+            let validator =
+                jsonschema::validator_for(&schema).map_err(Error::Reconcile.redact())?;
             Ok((name.to_owned(), validator))
         })
         .collect()
@@ -46,7 +47,7 @@ static RESPONSES: LazyLock<Result<BTreeMap<String, jsonschema::Validator>>> = La
 /// Validate a successful response against the exact owner's generated DTO schema.
 /// Malformed replies after dispatch are uncertain, even if JSON parsing succeeds.
 pub fn validate_response(name: &str, response: &Value) -> Result<()> {
-    let validators = RESPONSES.as_ref().map_err(|_| Error::Reconcile)?;
+    let validators = RESPONSES.as_ref().map_err(Error::Reconcile.redact())?;
     let validator = validators.get(name).ok_or(Error::Invalid)?;
     if !validator.is_valid(response) {
         return Err(Error::Reconcile);

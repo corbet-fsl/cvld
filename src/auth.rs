@@ -113,8 +113,8 @@ impl Auth {
             passkeys.start_registration(user)
         })
         .await
-        .map_err(|_| Error::Unavailable)?
-        .map_err(|_| Error::Refused)?;
+        .map_err(Error::Unavailable.redact())?
+        .map_err(Error::Refused.redact())?;
         let ceremony = token();
         self.registrations.insert(
             ceremony.clone(),
@@ -127,7 +127,7 @@ impl Auth {
         Ok(Ceremony {
             ceremony,
             user: user.to_string(),
-            options: serde_json::to_value(options).map_err(|_| Error::Unavailable)?,
+            options: serde_json::to_value(options).map_err(Error::Unavailable.redact())?,
         })
     }
     pub async fn register_finish(&mut self, request: RegisterFinish, now: u64) -> Result<User> {
@@ -139,7 +139,7 @@ impl Auth {
         let date = chrono::DateTime::from_timestamp(now as i64, 0).ok_or(Error::Invalid)?;
         use chrono::Datelike;
         let month = ckyh::CreationMonth::new(date.year() as u16, date.month() as u8)
-            .map_err(|_| Error::Invalid)?;
+            .map_err(Error::Invalid.redact())?;
         let passkeys = self.passkeys.clone();
         tokio::task::spawn_blocking(move || {
             if !passkeys.list(pending.user)?.is_empty() {
@@ -148,8 +148,8 @@ impl Auth {
             passkeys.finish_registration(pending.state, &request.credential, month)
         })
         .await
-        .map_err(|_| Error::Unavailable)?
-        .map_err(|_| Error::Refused)?;
+        .map_err(Error::Unavailable.redact())?
+        .map_err(Error::Refused.redact())?;
         if self.operator.is_some() {
             self.bootstrap = None;
         }
@@ -162,7 +162,7 @@ impl Auth {
         if self.logins.len() >= self.capacity {
             return Err(Error::Throttled);
         }
-        let user = Uuid::parse_str(&request.user).map_err(|_| Error::Invalid)?;
+        let user = Uuid::parse_str(&request.user).map_err(Error::Invalid.redact())?;
         if self.operator.is_some_and(|operator| operator != user) {
             return Err(Error::Unauthorized);
         }
@@ -171,8 +171,8 @@ impl Auth {
             passkeys.start_authentication_for(user, &request.credential.into())
         })
         .await
-        .map_err(|_| Error::Unavailable)?
-        .map_err(|_| Error::Unauthorized)?;
+        .map_err(Error::Unavailable.redact())?
+        .map_err(Error::Unauthorized.redact())?;
         let ceremony = token();
         self.logins.insert(
             ceremony.clone(),
@@ -184,7 +184,7 @@ impl Auth {
         Ok(Ceremony {
             ceremony,
             user: user.to_string(),
-            options: serde_json::to_value(options).map_err(|_| Error::Unavailable)?,
+            options: serde_json::to_value(options).map_err(Error::Unavailable.redact())?,
         })
     }
     pub async fn login_discoverable_begin(&mut self, now: u64) -> Result<DiscoverableCeremony> {
@@ -196,8 +196,8 @@ impl Auth {
         let (options, state) =
             tokio::task::spawn_blocking(move || passkeys.start_discoverable_authentication())
                 .await
-                .map_err(|_| Error::Unavailable)?
-                .map_err(|_| Error::Unauthorized)?;
+                .map_err(Error::Unavailable.redact())?
+                .map_err(Error::Unauthorized.redact())?;
         let ceremony = token();
         self.logins.insert(
             ceremony.clone(),
@@ -208,7 +208,7 @@ impl Auth {
         );
         Ok(DiscoverableCeremony {
             ceremony,
-            options: serde_json::to_value(options).map_err(|_| Error::Unavailable)?,
+            options: serde_json::to_value(options).map_err(Error::Unavailable.redact())?,
         })
     }
     pub async fn login_finish(&mut self, request: LoginFinish, now: u64) -> Result<Session> {
@@ -231,8 +231,8 @@ impl Auth {
             }
         })
         .await
-        .map_err(|_| Error::Unavailable)?
-        .map_err(|_| Error::Unauthorized)?;
+        .map_err(Error::Unavailable.redact())?
+        .map_err(Error::Unauthorized.redact())?;
         if self
             .operator
             .is_some_and(|operator| operator != authentication.member())
@@ -276,8 +276,8 @@ impl Auth {
             })
         })
         .await
-        .map_err(|_| Error::Unavailable)?
-        .map_err(|_| Error::Unauthorized)?;
+        .map_err(Error::Unavailable.redact())?
+        .map_err(Error::Unauthorized.redact())?;
         if !live {
             self.sessions.remove(token);
             return Err(Error::Unauthorized);

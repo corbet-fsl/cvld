@@ -21,59 +21,59 @@ pub async fn load(db: &Db, config: &CommunityConfig, now: u64) -> Result<PublicS
     let mut tx = db
         .tx(&config.community)
         .await
-        .map_err(|_| Error::Unavailable)?;
+        .map_err(Error::Unavailable.redact())?;
     let rows = tx
         .query("SELECT epoch, revision FROM cvld_global_trust", ())
         .await
-        .map_err(|_| Error::Unavailable)?;
+        .map_err(Error::Unavailable.redact())?;
     let mut epoch = config.minimum_global_epoch;
     let mut revision = config.minimum_global_revision;
     if let Some(row) = rows.first() {
         epoch = epoch.max(
             row.get_i64(0)
-                .map_err(|_| Error::Unavailable)?
+                .map_err(Error::Unavailable.redact())?
                 .try_into()
-                .map_err(|_| Error::Unavailable)?,
+                .map_err(Error::Unavailable.redact())?,
         );
         revision = revision.max(
             row.get_i64(1)
-                .map_err(|_| Error::Unavailable)?
+                .map_err(Error::Unavailable.redact())?
                 .try_into()
-                .map_err(|_| Error::Unavailable)?,
+                .map_err(Error::Unavailable.redact())?,
         );
     }
     let ring = csgn::KeyRing::from_cbor(
-        &std::fs::read(&config.global_key_ring_file).map_err(|_| Error::Unavailable)?,
+        &std::fs::read(&config.global_key_ring_file).map_err(Error::Unavailable.redact())?,
     )
-    .map_err(|_| Error::Invalid)?;
-    let signed = std::fs::read(&config.global_status_file).map_err(|_| Error::Unavailable)?;
+    .map_err(Error::Invalid.redact())?;
+    let signed = std::fs::read(&config.global_status_file).map_err(Error::Unavailable.redact())?;
     let status = cgbl::Status::verify(&signed, &ring, "global", epoch, revision, now)
-        .map_err(|_| Error::Refused)?;
+        .map_err(Error::Refused.redact())?;
     let valid_until = ring
         .verify(&signed, csgn::Kind::SettingsSnapshot, now)
-        .map_err(|_| Error::Refused)?
+        .map_err(Error::Refused.redact())?
         .valid_until();
-    let epoch: i64 = status.epoch.try_into().map_err(|_| Error::Invalid)?;
+    let epoch: i64 = status.epoch.try_into().map_err(Error::Invalid.redact())?;
     let revision: i64 = status
         .policy_revision
         .try_into()
-        .map_err(|_| Error::Invalid)?;
+        .map_err(Error::Invalid.redact())?;
     if rows.is_empty() {
         tx.execute(
             "INSERT INTO cvld_global_trust (epoch, revision) VALUES (?1, ?2)",
             params![epoch, revision],
         )
         .await
-        .map_err(|_| Error::Unavailable)?;
+        .map_err(Error::Unavailable.redact())?;
     } else {
         tx.execute(
             "UPDATE cvld_global_trust SET epoch = ?1, revision = ?2",
             params![epoch, revision],
         )
         .await
-        .map_err(|_| Error::Unavailable)?;
+        .map_err(Error::Unavailable.redact())?;
     }
-    tx.commit().await.map_err(|_| Error::Unavailable)?;
+    tx.commit().await.map_err(Error::Unavailable.redact())?;
     Ok(PublicStatus {
         status,
         valid_until,

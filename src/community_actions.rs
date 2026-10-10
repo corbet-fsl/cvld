@@ -37,7 +37,7 @@ impl Door {
             .membership()
             .is_handle_available(&request.handle, &reserved)
             .await
-            .map_err(|_| Error::Invalid)?;
+            .map_err(Error::Invalid.redact())?;
         Ok(Available { available })
     }
     pub(crate) async fn handle_reserve(&self, ctx: Context, request: Handle) -> Result<Lobby> {
@@ -48,7 +48,7 @@ impl Door {
             .membership()
             .reserve_handle(ctx.member()?, &request.handle, &reserved)
             .await
-            .map_err(|_| Error::Refused)?;
+            .map_err(Error::Refused.redact())?;
         community.lobby(ctx.member()?, ctx.now).await
     }
     pub(crate) async fn gate_voucher(&self, ctx: Context, request: Voucher) -> Result<Lobby> {
@@ -88,7 +88,7 @@ impl Door {
         let policy = community.facade.policy().lock().await;
         let schema = policy
             .schema()
-            .map_err(|_| Error::Unavailable)?
+            .map_err(Error::Unavailable.redact())?
             .ok_or(Error::Unavailable)?;
         if !schema
             .public
@@ -104,7 +104,7 @@ impl Door {
             .membership()
             .pin(ctx.member()?, &request.field, &request.pin)
             .await
-            .map_err(|_| Error::Refused)?;
+            .map_err(Error::Refused.redact())?;
         Ok(PinResponse {
             pin: Some(PinView {
                 fingerprint: *pin.fingerprint.as_bytes(),
@@ -119,7 +119,7 @@ impl Door {
             .membership()
             .get_pin(ctx.member()?, &request.field)
             .await
-            .map_err(|_| Error::Refused)?
+            .map_err(Error::Refused.redact())?
             .ok_or(Error::Refused)?;
         let pin = community
             .facade
@@ -132,7 +132,7 @@ impl Door {
                 &request.evidence,
             )
             .await
-            .map_err(|_| Error::Refused)?;
+            .map_err(Error::Refused.redact())?;
         Ok(PinResponse {
             pin: Some(PinView {
                 fingerprint: *pin.fingerprint.as_bytes(),
@@ -147,7 +147,7 @@ impl Door {
             .membership()
             .get_pin(ctx.member()?, &request.field)
             .await
-            .map_err(|_| Error::Refused)?;
+            .map_err(Error::Refused.redact())?;
         Ok(PinResponse {
             pin: pin.map(|p| PinView {
                 fingerprint: *p.fingerprint.as_bytes(),
@@ -195,7 +195,7 @@ impl Door {
                 community.config.minimum_notice_seconds,
             )
             .await
-            .map_err(|_| Error::Refused)?;
+            .map_err(Error::Refused.redact())?;
         community.refresh(ctx.now).await?;
         Ok(community.public.clone())
     }
@@ -208,12 +208,12 @@ impl Door {
         let policy = community.facade.policy().lock().await;
         let old = policy
             .schema()
-            .map_err(|_| Error::Unavailable)?
+            .map_err(Error::Unavailable.redact())?
             .ok_or(Error::Unavailable)?;
         let changes =
-            cplc::cshm::classify_changes(old, &request.schema).map_err(|_| Error::Invalid)?;
+            cplc::cshm::classify_changes(old, &request.schema).map_err(Error::Invalid.redact())?;
         Ok(SchemaChanges {
-            changes: serde_json::to_value(changes).map_err(|_| Error::Unavailable)?,
+            changes: serde_json::to_value(changes).map_err(Error::Unavailable.redact())?,
         })
     }
     pub(crate) async fn schema_set(
@@ -229,7 +229,7 @@ impl Door {
             .await
             .set_schema(request.schema)
             .await
-            .map_err(|_| Error::Refused)?;
+            .map_err(Error::Refused.redact())?;
         community.refresh(ctx.now).await?;
         Ok(community.public.clone())
     }
@@ -279,12 +279,12 @@ impl Door {
             .membership()
             .authorize_device_key(auth, request.key)
             .await
-            .map_err(|_| Error::Refused)?;
+            .map_err(Error::Refused.redact())?;
         if community
             .facade
             .flush_revocations(ctx.now)
             .await
-            .map_err(|_| Error::Unavailable)?
+            .map_err(Error::Unavailable.redact())?
             > 0
         {
             community.refresh(ctx.now).await?;
@@ -294,7 +294,7 @@ impl Door {
             .membership()
             .current_device_keys(auth)
             .await
-            .map_err(|_| Error::Refused)?;
+            .map_err(Error::Refused.redact())?;
         Ok(DeviceKeys { keys })
     }
 
@@ -305,7 +305,7 @@ impl Door {
             .membership()
             .current_device_keys(ctx.member()?)
             .await
-            .map_err(|_| Error::Refused)?;
+            .map_err(Error::Refused.redact())?;
         Ok(DeviceKeys { keys })
     }
 
@@ -321,13 +321,13 @@ impl Door {
             .membership()
             .revoke_passkey(ctx.member()?, credential.clone())
             .await
-            .map_err(|_| Error::Refused)?;
+            .map_err(Error::Refused.redact())?;
         community.revoke_sessions(&credential);
         community
             .facade
             .flush_revocations(ctx.now)
             .await
-            .map_err(|_| Error::Unavailable)?;
+            .map_err(Error::Unavailable.redact())?;
         community.refresh(ctx.now).await?;
         Ok(Empty {})
     }

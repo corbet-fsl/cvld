@@ -37,6 +37,12 @@ pub struct ErrorBody {
 }
 pub type Result<T> = std::result::Result<T, Error>;
 impl Error {
+    /// Discard a dependency error without formatting or forwarding its private data.
+    /// The call site still chooses the exact public error category.
+    pub(crate) fn redact<T>(self) -> impl FnOnce(T) -> Self {
+        move |_| self
+    }
+
     /// The owner's original status for this redacted error category.
     pub fn http_status(self) -> u16 {
         match self {

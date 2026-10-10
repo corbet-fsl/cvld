@@ -14,17 +14,17 @@ pub async fn bind(db: &Db, kind: &str, scope: &str) -> Result<()> {
     let mut tx = db
         .tx("cvld:service")
         .await
-        .map_err(|_| Error::Unavailable)?;
+        .map_err(Error::Unavailable.redact())?;
     let rows = tx
         .query(
             "SELECT kind, scope FROM cvld_service WHERE singleton = ?1",
             [1],
         )
         .await
-        .map_err(|_| Error::Unavailable)?;
+        .map_err(Error::Unavailable.redact())?;
     if let Some(row) = rows.first() {
-        if row.get_str(0).map_err(|_| Error::Unavailable)? != kind
-            || row.get_str(1).map_err(|_| Error::Unavailable)? != scope
+        if row.get_str(0).map_err(Error::Unavailable.redact())? != kind
+            || row.get_str(1).map_err(Error::Unavailable.redact())? != scope
         {
             return Err(Error::Invalid);
         }
@@ -34,7 +34,7 @@ pub async fn bind(db: &Db, kind: &str, scope: &str) -> Result<()> {
             params![1, kind, scope],
         )
         .await
-        .map_err(|_| Error::Unavailable)?;
+        .map_err(Error::Unavailable.redact())?;
     }
-    tx.commit().await.map_err(|_| Error::Unavailable)
+    tx.commit().await.map_err(Error::Unavailable.redact())
 }

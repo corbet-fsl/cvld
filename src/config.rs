@@ -27,19 +27,19 @@ pub struct Config {
 }
 impl Config {
     pub fn read(path: &str) -> Result<Self> {
-        serde_json::from_slice(&std::fs::read(path).map_err(|_| Error::Unavailable)?)
-            .map_err(|_| Error::Invalid)
+        serde_json::from_slice(&std::fs::read(path).map_err(Error::Unavailable.redact())?)
+            .map_err(Error::Invalid.redact())
     }
     pub fn secret(path: &str) -> Result<zeroize::Zeroizing<Vec<u8>>> {
         std::fs::read(path)
             .map(zeroize::Zeroizing::new)
-            .map_err(|_| Error::Unavailable)
+            .map_err(Error::Unavailable.redact())
     }
     pub fn seed(path: &str) -> Result<[u8; 32]> {
         Self::secret(path)?
             .as_slice()
             .try_into()
-            .map_err(|_| Error::Invalid)
+            .map_err(Error::Invalid.redact())
     }
 }
 
@@ -82,7 +82,7 @@ pub struct CommunityConfig {
 }
 impl CommunityConfig {
     pub fn read(path: &str) -> Result<Self> {
-        serde_json::from_slice(&std::fs::read(path).map_err(|_| Error::Unavailable)?)
-            .map_err(|_| Error::Invalid)
+        serde_json::from_slice(&std::fs::read(path).map_err(Error::Unavailable.redact())?)
+            .map_err(Error::Invalid.redact())
     }
 }

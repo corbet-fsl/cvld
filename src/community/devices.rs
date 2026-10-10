@@ -36,7 +36,7 @@ impl CommunityService {
                     .facade
                     .begin_additional_registration(authentication)
                     .await
-                    .map_err(|_| Error::Refused)?;
+                    .map_err(Error::Refused.redact())?;
                 let id = token();
                 self.additions.insert(
                     id.clone(),
@@ -50,7 +50,7 @@ impl CommunityService {
                 Ok(AddedPasskey::Challenge {
                     ceremony: id,
                     user: grant.user.to_string(),
-                    options: serde_json::to_value(options).map_err(|_| Error::Unavailable)?,
+                    options: serde_json::to_value(options).map_err(Error::Unavailable.redact())?,
                 })
             }
             AddPasskey::Finish {
@@ -69,7 +69,7 @@ impl CommunityService {
                     .facade
                     .finish_additional_registration(authentication, pending.value, *credential)
                     .await
-                    .map_err(|_| Error::Refused)?;
+                    .map_err(Error::Refused.redact())?;
                 Ok(AddedPasskey::Registered {
                     user: record.member().to_string(),
                     credential: record.credential_id().as_ref().to_vec(),

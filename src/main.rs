@@ -63,19 +63,19 @@ async fn run() -> Result<()> {
             });
             let listener = tokio::net::TcpListener::bind(listen)
                 .await
-                .map_err(|_| Error::Unavailable)?;
+                .map_err(Error::Unavailable.redact())?;
             axum::serve(listener, api::router(door))
                 .with_graceful_shutdown(async {
                     let _ = tokio::signal::ctrl_c().await;
                 })
                 .await
-                .map_err(|_| Error::Unavailable)?;
+                .map_err(Error::Unavailable.redact())?;
             task.abort();
         }
         _ => {
             let token = matches
                 .get_one::<String>("session-file")
-                .map(|p| std::fs::read_to_string(p).map_err(|_| Error::Unavailable))
+                .map(|p| std::fs::read_to_string(p).map_err(Error::Unavailable.redact()))
                 .transpose()?
                 .map(|s| s.trim().to_owned());
             let client = cli::Client::new(
@@ -93,12 +93,15 @@ async fn run() -> Result<()> {
                 let running = cvld::mcp::Mcp { client }
                     .serve(rmcp::transport::stdio())
                     .await
-                    .map_err(|_| Error::Unavailable)?;
-                running.waiting().await.map_err(|_| Error::Unavailable)?;
+                    .map_err(Error::Unavailable.redact())?;
+                running
+                    .waiting()
+                    .await
+                    .map_err(Error::Unavailable.redact())?;
             } else {
                 let request =
                     serde_json::from_str(args.get_one::<String>("request").ok_or(Error::Invalid)?)
-                        .map_err(|_| Error::Invalid)?;
+                        .map_err(Error::Invalid.redact())?;
                 println!("{}", client.call(name, request).await?);
             }
         }

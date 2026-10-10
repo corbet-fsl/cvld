@@ -223,7 +223,7 @@ macro_rules! actions {
                         let action = action(stringify!($name)).expect("registered action");
                         let _permit = door.admit_request(action).await?;
                         let ctx = door.authorize(action, request.headers()).await?;
-                        let Json(request) = tokio::time::timeout(std::time::Duration::from_secs(10), Json::<$request>::from_request(request, &())).await.map_err(|_| Error::Invalid)?.map_err(|_| Error::Invalid)?;
+                        let Json(request) = tokio::time::timeout(std::time::Duration::from_secs(10), Json::<$request>::from_request(request, &())).await.map_err(Error::Invalid.redact())?.map_err(Error::Invalid.redact())?;
                         let _guard = door.request_guard(action).await;
                         let ctx = door.complete_context(action, ctx).await?;
                         let response: $response = crate::service::at(ctx.now, door.$name(ctx, request)).await?;

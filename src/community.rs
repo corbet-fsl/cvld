@@ -120,17 +120,18 @@ impl CommunityService {
             .collect();
         db.migrate(&migrations)
             .await
-            .map_err(|_| Error::Unavailable)?;
+            .map_err(Error::Unavailable.redact())?;
         crate::identity::bind(db, "community", &config.community).await?;
         let global = crate::global_trust::load(db, &config, now).await?;
         let status = global.status;
         let status_until = global.valid_until;
         let scope = &config.community;
-        let signer_store = csgn::LibsqlStore::new(db.community(scope).map_err(|_| Error::Invalid)?);
+        let signer_store =
+            csgn::LibsqlStore::new(db.community(scope).map_err(Error::Invalid.redact())?);
         let saved = signer_store
             .load(scope)
             .await
-            .map_err(|_| Error::Unavailable)?;
+            .map_err(Error::Unavailable.redact())?;
         let secret = csgn::SecretKey::from_seed(&mut Config::seed(&config.signing_seed_file)?);
         if global.signing_keys.contains(&secret.public_key())
             || saved.as_ref().is_some_and(|saved| {
@@ -156,13 +157,14 @@ impl CommunityService {
             )
             .await
         }
-        .map_err(|_| Error::Unavailable)?;
+        .map_err(Error::Unavailable.redact())?;
         let rules = Rules::new(crbk::LibsqlStore::new(db.clone()));
-        let policy_store = cplc::LibsqlStore::new(db, scope).map_err(|_| Error::Unavailable)?;
+        let policy_store =
+            cplc::LibsqlStore::new(db, scope).map_err(Error::Unavailable.redact())?;
         let exists = policy_store
             .load()
             .await
-            .map_err(|_| Error::Unavailable)?
+            .map_err(Error::Unavailable.redact())?
             .is_some();
         let mut policy = if exists {
             cplc::Policy::open(rules.clone(), policy_store, signer).await
@@ -178,12 +180,12 @@ impl CommunityService {
             )
             .await
         }
-        .map_err(|_| Error::Unavailable)?;
+        .map_err(Error::Unavailable.redact())?;
         if !exists {
             let rulebook = serde_json::from_slice(
-                &std::fs::read(&config.rulebook_file).map_err(|_| Error::Unavailable)?,
+                &std::fs::read(&config.rulebook_file).map_err(Error::Unavailable.redact())?,
             )
-            .map_err(|_| Error::Invalid)?;
+            .map_err(Error::Invalid.redact())?;
             policy
                 .schedule_rules(
                     None,
@@ -196,24 +198,24 @@ impl CommunityService {
                     },
                 )
                 .await
-                .map_err(|_| Error::Refused)?;
+                .map_err(Error::Refused.redact())?;
             let schema = serde_json::from_slice(
-                &std::fs::read(&config.schema_file).map_err(|_| Error::Unavailable)?,
+                &std::fs::read(&config.schema_file).map_err(Error::Unavailable.redact())?,
             )
-            .map_err(|_| Error::Invalid)?;
+            .map_err(Error::Invalid.redact())?;
             policy
                 .set_schema(schema)
                 .await
-                .map_err(|_| Error::Refused)?;
+                .map_err(Error::Refused.redact())?;
             policy
                 .set_communities(BTreeSet::from([scope.clone()]))
                 .await
-                .map_err(|_| Error::Refused)?;
+                .map_err(Error::Refused.redact())?;
         }
         let host = format!("api.{}.{}", scope, config.domain);
         let membership = cmbr::Membership::new(
             db,
-            cmbr::LibsqlStorage::new(db, scope).map_err(|_| Error::Unavailable)?,
+            cmbr::LibsqlStorage::new(db, scope).map_err(Error::Unavailable.redact())?,
             cmbr::Config {
                 pending_days: config.pending_days,
                 membership_action: cmty::ADMISSION_ACTION.into(),
@@ -221,37 +223,39 @@ impl CommunityService {
                 lease_months: config.lease_months,
                 rp_id: format!("{scope}.{}", config.domain),
                 origins: vec![
-                    ckyh::Url::parse(&format!("https://{host}")).map_err(|_| Error::Invalid)?,
+                    ckyh::Url::parse(&format!("https://{host}"))
+                        .map_err(Error::Invalid.redact())?,
                     ckyh::Url::parse(&format!("https://{scope}.{}", config.domain))
-                        .map_err(|_| Error::Invalid)?,
+                        .map_err(Error::Invalid.redact())?,
                     ckyh::Url::parse(&format!("https://vault.{scope}.{}", config.domain))
-                        .map_err(|_| Error::Invalid)?,
+                        .map_err(Error::Invalid.redact())?,
                 ],
             },
             UnconfiguredAuthority,
             CommunityClock(clock),
         )
-        .map_err(|_| Error::Invalid)?;
+        .map_err(Error::Invalid.redact())?;
         // One process owns this database. cmbr serializes member operations;
         // the door serializes the complete gate/policy/membership composition.
         let gates = cgts::Gatekeeper::new(
-            cgts::LibsqlStore::new(db, scope).map_err(|_| Error::Unavailable)?,
+            cgts::LibsqlStore::new(db, scope).map_err(Error::Unavailable.redact())?,
             cgts::LegalGate::new(
-                cgts::legal_storage::LibsqlStore::new(db, scope).map_err(|_| Error::Unavailable)?,
+                cgts::legal_storage::LibsqlStore::new(db, scope)
+                    .map_err(Error::Unavailable.redact())?,
                 UnconfiguredAuthority,
             ),
         )
-        .map_err(|_| Error::Invalid)?;
+        .map_err(Error::Invalid.redact())?;
         let facade = cmty::Community::new(
             cmty::storage::LibsqlStorage::new(
                 db,
-                cpsd::CommunityId::new(scope.as_bytes()).map_err(|_| Error::Invalid)?,
+                cpsd::CommunityId::new(scope.as_bytes()).map_err(Error::Invalid.redact())?,
                 config.pending_capacity,
             )
-            .map_err(|_| Error::Unavailable)?,
+            .map_err(Error::Unavailable.redact())?,
             vec![
                 cpsd::IssuerPublicKey::from_bytes(&status.issuer_public_key)
-                    .map_err(|_| Error::Invalid)?,
+                    .map_err(Error::Invalid.redact())?,
             ],
             cmty::Parts {
                 membership,
@@ -267,22 +271,22 @@ impl CommunityService {
                         .iter()
                         .map(|s| cpsd::GateId::new(s.clone()))
                         .collect::<std::result::Result<_, _>>()
-                        .map_err(|_| Error::Invalid)?,
+                        .map_err(Error::Invalid.redact())?,
                 },
                 valid_until: status_until,
                 challenge_lifetime: 60,
             },
         )
-        .map_err(|_| Error::Invalid)?;
+        .map_err(Error::Invalid.redact())?;
         let key: [u8; 32] = std::fs::read(&config.voucher_public_key_file)
-            .map_err(|_| Error::Unavailable)?
+            .map_err(Error::Unavailable.redact())?
             .try_into()
-            .map_err(|_| Error::Invalid)?;
+            .map_err(Error::Invalid.redact())?;
         let voucher = cgts::gates::VoucherGate::new(
             config.voucher_provider.clone(),
-            ed25519_dalek::VerifyingKey::from_bytes(&key).map_err(|_| Error::Invalid)?,
+            ed25519_dalek::VerifyingKey::from_bytes(&key).map_err(Error::Invalid.redact())?,
         )
-        .map_err(|_| Error::Invalid)?;
+        .map_err(Error::Invalid.redact())?;
         let public = publish(&facade, now).await?;
         let (changes, _) = tokio::sync::watch::channel(Arc::new(public.clone()));
         Ok(Self {
@@ -305,7 +309,7 @@ impl CommunityService {
         let policy = self.facade.policy().lock().await;
         if policy
             .key_ring()
-            .map_err(|_| Error::Unavailable)?
+            .map_err(Error::Unavailable.redact())?
             .keys()
             .iter()
             .any(|key| global.signing_keys.contains(&key.public_key()))
@@ -327,13 +331,13 @@ impl CommunityService {
                         .iter()
                         .map(|gate| cpsd::GateId::new(gate.clone()))
                         .collect::<std::result::Result<_, _>>()
-                        .map_err(|_| Error::Invalid)?,
+                        .map_err(Error::Invalid.redact())?,
                 },
                 global.valid_until,
                 now,
             )
             .await
-            .map_err(|_| Error::Refused)
+            .map_err(Error::Refused.redact())
     }
     fn prune(&mut self, now: u64) {
         self.challenges.retain(|_, p| p.until > now);
@@ -354,7 +358,7 @@ impl CommunityService {
             .membership()
             .session_is_active(&session.authentication, &session.grant.credential)
             .await
-            .map_err(|_| Error::Unauthorized)?
+            .map_err(Error::Unauthorized.redact())?
         {
             return Err(Error::Unauthorized);
         }
@@ -374,7 +378,7 @@ impl CommunityService {
             .facade
             .begin(&mut cpsd::rand::rngs::OsRng, now)
             .await
-            .map_err(|_| Error::Refused)?;
+            .map_err(Error::Refused.redact())?;
         let request = challenge.signed_request().to_vec();
         let id = token();
         self.challenges.insert(
@@ -407,18 +411,19 @@ impl CommunityService {
         if challenge.owner.is_some() {
             return Err(Error::Forbidden);
         }
-        let proof = cpsd::Presentation::from_bytes(&input.proof).map_err(|_| Error::Invalid)?;
+        let proof =
+            cpsd::Presentation::from_bytes(&input.proof).map_err(Error::Invalid.redact())?;
         let passport = self
             .facade
             .verify(&mut cpsd::rand::rngs::OsRng, &challenge.value, &proof, now)
             .await
-            .map_err(|_| Error::Refused)?;
+            .map_err(Error::Refused.redact())?;
         let user = ckyh::Uuid::new_v4();
         let (options, value) = self
             .facade
             .begin_registration(passport, user, now)
             .await
-            .map_err(|_| Error::Refused)?;
+            .map_err(Error::Refused.redact())?;
         let id = token();
         self.registrations.insert(
             id.clone(),
@@ -431,7 +436,7 @@ impl CommunityService {
         Ok(Ceremony {
             ceremony: id,
             user: user.to_string(),
-            options: serde_json::to_value(options).map_err(|_| Error::Unavailable)?,
+            options: serde_json::to_value(options).map_err(Error::Unavailable.redact())?,
         })
     }
     pub async fn register_finish(&mut self, request: RegisterFinish, now: u64) -> Result<User> {
@@ -444,7 +449,7 @@ impl CommunityService {
             .membership()
             .finish_registration(pending.value, request.credential)
             .await
-            .map_err(|_| Error::Refused)?;
+            .map_err(Error::Refused.redact())?;
         Ok(User {
             user: pending.user.to_string(),
         })
@@ -454,13 +459,13 @@ impl CommunityService {
         if self.logins.len() >= self.config.pending_capacity {
             return Err(Error::Throttled);
         }
-        let user = ckyh::Uuid::parse_str(&request.user).map_err(|_| Error::Invalid)?;
+        let user = ckyh::Uuid::parse_str(&request.user).map_err(Error::Invalid.redact())?;
         let (options, value) = self
             .facade
             .membership()
             .begin_login(user, request.credential.into())
             .await
-            .map_err(|_| Error::Unauthorized)?;
+            .map_err(Error::Unauthorized.redact())?;
         let id = token();
         self.logins.insert(
             id.clone(),
@@ -472,7 +477,7 @@ impl CommunityService {
         Ok(Ceremony {
             ceremony: id,
             user: user.to_string(),
-            options: serde_json::to_value(options).map_err(|_| Error::Unavailable)?,
+            options: serde_json::to_value(options).map_err(Error::Unavailable.redact())?,
         })
     }
     pub async fn login_discoverable_begin(&mut self, now: u64) -> Result<DiscoverableCeremony> {
@@ -485,7 +490,7 @@ impl CommunityService {
             .membership()
             .begin_discoverable_login()
             .await
-            .map_err(|_| Error::Unauthorized)?;
+            .map_err(Error::Unauthorized.redact())?;
         let id = token();
         self.logins.insert(
             id.clone(),
@@ -496,7 +501,7 @@ impl CommunityService {
         );
         Ok(DiscoverableCeremony {
             ceremony: id,
-            options: serde_json::to_value(options).map_err(|_| Error::Unavailable)?,
+            options: serde_json::to_value(options).map_err(Error::Unavailable.redact())?,
         })
     }
     pub async fn login_finish(&mut self, request: LoginFinish, now: u64) -> Result<Session> {
@@ -514,7 +519,7 @@ impl CommunityService {
             .membership()
             .finish_login(pending.value, request.credential)
             .await
-            .map_err(|_| Error::Unauthorized)?;
+            .map_err(Error::Unauthorized.redact())?;
         let user = login.authentication.member();
         let expires = now + self.config.session_seconds;
         let id = token();
@@ -552,7 +557,7 @@ impl CommunityService {
             .await
             .settings(now)
             .await
-            .map_err(|_| Error::Refused)?;
+            .map_err(Error::Refused.redact())?;
         serde_json::from_value(
             policy
                 .content
@@ -560,7 +565,7 @@ impl CommunityService {
                 .cloned()
                 .ok_or(Error::Unavailable)?,
         )
-        .map_err(|_| Error::Unavailable)
+        .map_err(Error::Unavailable.redact())
     }
     pub async fn lobby(&self, auth: &ckyh::Authentication, now: u64) -> Result<Lobby> {
         use cgts::Gate;
@@ -568,26 +573,29 @@ impl CommunityService {
         let settings = policy
             .published(cplc::SnapshotKind::Settings, now)
             .await
-            .map_err(|_| Error::Unavailable)?
+            .map_err(Error::Unavailable.redact())?
             .ok_or(Error::Unavailable)?;
         let snapshot = cplc::verify_settings(
-            policy.key_ring().map_err(|_| Error::Unavailable)?,
+            policy.key_ring().map_err(Error::Unavailable.redact())?,
             &settings,
             cplc::SnapshotExpectation {
                 community: &self.config.community,
                 kind: cplc::SnapshotKind::Settings,
                 minimum_revision: 1,
-                policy_epoch: policy.epoch(now).await.map_err(|_| Error::Unavailable)?,
+                policy_epoch: policy
+                    .epoch(now)
+                    .await
+                    .map_err(Error::Unavailable.redact())?,
                 now,
             },
         )
-        .map_err(|_| Error::Unavailable)?;
+        .map_err(Error::Unavailable.redact())?;
         let row = self
             .facade
             .membership()
             .resume(auth)
             .await
-            .map_err(|_| Error::Refused)?;
+            .map_err(Error::Refused.redact())?;
         let context = cgts::Context {
             snapshot: snapshot.settings(),
             subject: row.subject(),
@@ -600,36 +608,36 @@ impl CommunityService {
             .gates()
             .check(context, Vec::new())
             .await
-            .map_err(|_| Error::Refused)?;
+            .map_err(Error::Refused.redact())?;
         let lobby = self
             .facade
             .membership()
             .lobby(auth, &*policy, &snapshot, &gates)
             .await
-            .map_err(|_| Error::Refused)?;
+            .map_err(Error::Refused.redact())?;
         let steps = self
             .facade
             .gates()
             .steps(context, &[self.voucher.descriptor()])
             .await
-            .map_err(|_| Error::Refused)?;
+            .map_err(Error::Refused.redact())?;
         let handle = self
             .facade
             .membership()
             .handle(auth)
             .await
-            .map_err(|_| Error::Refused)?
+            .map_err(Error::Refused.redact())?
             .map(|h| h.display().to_owned());
         Ok(Lobby {
             member_id: lobby.enrolment.subject().into(),
             state: serde_json::to_value(lobby.enrolment.state())
-                .map_err(|_| Error::Unavailable)?
+                .map_err(Error::Unavailable.redact())?
                 .as_str()
                 .ok_or(Error::Unavailable)?
                 .into(),
             handle,
             missing: serde_json::to_value(lobby.decision.missing)
-                .map_err(|_| Error::Unavailable)?,
+                .map_err(Error::Unavailable.redact())?,
             steps: steps
                 .into_iter()
                 .map(|s| serde_json::to_value(s).expect("serializable step"))
@@ -660,15 +668,15 @@ impl CommunityService {
             .membership()
             .resume(auth)
             .await
-            .map_err(|_| Error::Refused)?;
+            .map_err(Error::Refused.redact())?;
         let policy = self
             .facade
             .snapshot(now)
             .await
-            .map_err(|_| Error::Refused)?;
+            .map_err(Error::Refused.redact())?;
         let input: <cgts::gates::VoucherGate as cgts::Gate>::Input =
-            serde_json::from_value(serde_json::to_value(request).map_err(|_| Error::Invalid)?)
-                .map_err(|_| Error::Invalid)?;
+            serde_json::from_value(serde_json::to_value(request).map_err(Error::Invalid.redact())?)
+                .map_err(Error::Invalid.redact())?;
         self.facade
             .gates()
             .run(
@@ -682,7 +690,7 @@ impl CommunityService {
                 &input,
             )
             .await
-            .map_err(|_| Error::Refused)?;
+            .map_err(Error::Refused.redact())?;
         Ok(())
     }
     pub async fn issue(
@@ -703,13 +711,13 @@ impl CommunityService {
             return Err(Error::Forbidden);
         }
         let proof = cpsd::Presentation::from_bytes(&request.presentation.proof)
-            .map_err(|_| Error::Invalid)?;
+            .map_err(Error::Invalid.redact())?;
         let date = chrono::DateTime::from_timestamp(now as i64, 0)
             .ok_or(Error::Invalid)?
             .checked_add_months(chrono::Months::new(self.config.lease_months))
             .ok_or(Error::Invalid)?;
         let lease = cmbr::YearMonth::new(date.year() as u16, date.month() as u8)
-            .map_err(|_| Error::Invalid)?;
+            .map_err(Error::Invalid.redact())?;
         let result = self
             .facade
             .finish_with(
@@ -730,7 +738,7 @@ impl CommunityService {
                 },
             )
             .await
-            .map_err(|_| Error::Refused)?;
+            .map_err(Error::Refused.redact())?;
         let credential = match result {
             cmty::Outcome::Issued(value) => Some(value.cose),
             cmty::Outcome::Missing(_) => None,
@@ -740,7 +748,7 @@ impl CommunityService {
             .facade
             .flush_revocations(now)
             .await
-            .map_err(|_| Error::Unavailable)?
+            .map_err(Error::Unavailable.redact())?
             > 0
         {
             self.refresh(now).await?;
@@ -760,21 +768,24 @@ impl CommunityService {
         self.facade
             .prune(now)
             .await
-            .map_err(|_| Error::Unavailable)?;
+            .map_err(Error::Unavailable.redact())?;
         self.facade
             .membership()
             .maintain(100)
             .await
-            .map_err(|_| Error::Unavailable)?;
+            .map_err(Error::Unavailable.redact())?;
         self.facade
             .flush_revocations(now)
             .await
-            .map_err(|_| Error::Unavailable)?;
+            .map_err(Error::Unavailable.redact())?;
         let policy = self.facade.policy().lock().await;
-        let epoch = policy.epoch(now).await.map_err(|_| Error::Unavailable)?;
+        let epoch = policy
+            .epoch(now)
+            .await
+            .map_err(Error::Unavailable.redact())?;
         let fresh = policy
             .key_ring()
-            .map_err(|_| Error::Unavailable)?
+            .map_err(Error::Unavailable.redact())?
             .verify(&self.public.manifest, csgn::Kind::SettingsSnapshot, now)
             .map(|s| s.valid_until() > now + self.config.publication_seconds / 2)
             .unwrap_or(false);
@@ -799,19 +810,19 @@ async fn publish(facade: &Facade, now: u64) -> Result<TrustFeed> {
             policy
                 .publish(kind, now)
                 .await
-                .map_err(|_| Error::Unavailable)?,
+                .map_err(Error::Unavailable.redact())?,
         );
     }
     let manifest = policy
         .trust_manifest(now)
         .await
-        .map_err(|_| Error::Unavailable)?;
-    let ring = policy.key_ring().map_err(|_| Error::Unavailable)?;
+        .map_err(Error::Unavailable.redact())?;
+    let ring = policy.key_ring().map_err(Error::Unavailable.redact())?;
     let verified = ring
         .verify(&manifest, csgn::Kind::SettingsSnapshot, now)
-        .map_err(|_| Error::Unavailable)?;
+        .map_err(Error::Unavailable.redact())?;
     let view: cplc::TrustManifest =
-        serde_json::from_slice(verified.payload()).map_err(|_| Error::Unavailable)?;
+        serde_json::from_slice(verified.payload()).map_err(Error::Unavailable.redact())?;
     Ok(TrustFeed {
         revision: view.revision,
         policy_epoch: view.policy_epoch,

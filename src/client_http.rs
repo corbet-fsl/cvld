@@ -12,7 +12,7 @@ pub struct HttpClient {
 }
 impl HttpClient {
     pub fn new(base: String, host: String, token: Option<String>) -> Result<Self> {
-        let url = reqwest::Url::parse(&base).map_err(|_| Error::Invalid)?;
+        let url = reqwest::Url::parse(&base).map_err(Error::Invalid.redact())?;
         if !url.username().is_empty()
             || url.password().is_some()
             || url.query().is_some()
@@ -35,7 +35,7 @@ impl HttpClient {
             .redirect(reqwest::redirect::Policy::none())
             .timeout(std::time::Duration::from_secs(30))
             .build()
-            .map_err(|_| Error::Unavailable)?;
+            .map_err(Error::Unavailable.redact())?;
         Ok(Self {
             client,
             base: base.trim_end_matches('/').to_owned(),
@@ -67,12 +67,12 @@ impl HttpClient {
         }
         // Builder errors occur before dispatch. Once execute begins, the server
         // may have committed even if transport, framing or decoding fails.
-        let call = call.build().map_err(|_| Error::Invalid)?;
+        let call = call.build().map_err(Error::Invalid.redact())?;
         let mut response = self
             .client
             .execute(call)
             .await
-            .map_err(|_| Error::Reconcile)?;
+            .map_err(Error::Reconcile.redact())?;
         let status = response.status().as_u16();
         const LIMIT: usize = 16 * 1024 * 1024;
         if response
@@ -82,21 +82,22 @@ impl HttpClient {
             return Err(Error::Reconcile);
         }
         let mut body = Vec::new();
-        while let Some(chunk) = response.chunk().await.map_err(|_| Error::Reconcile)? {
+        while let Some(chunk) = response.chunk().await.map_err(Error::Reconcile.redact())? {
             if chunk.len() > LIMIT - body.len() {
                 return Err(Error::Reconcile);
             }
             body.extend_from_slice(&chunk);
         }
         if status != 200 {
-            let error: ErrorBody = serde_json::from_slice(&body).map_err(|_| Error::Reconcile)?;
+            let error: ErrorBody =
+                serde_json::from_slice(&body).map_err(Error::Reconcile.redact())?;
             return Err(if error.error.http_status() == status {
                 error.error
             } else {
                 Error::Reconcile
             });
         }
-        let value: Value = serde_json::from_slice(&body).map_err(|_| Error::Reconcile)?;
+        let value: Value = serde_json::from_slice(&body).map_err(Error::Reconcile.redact())?;
         super::validate_response(name, &value)?;
         Ok(value)
     }

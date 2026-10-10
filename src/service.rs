@@ -81,7 +81,7 @@ impl Context {
             self.subject()?,
             self.grant.as_ref().ok_or(Error::Unauthorized)?.session_id,
         )
-        .map_err(|_| Error::Unauthorized)
+        .map_err(Error::Unauthorized.redact())
     }
     pub fn subject(&self) -> Result<cgbl::Subject> {
         cgbl::Subject::new(
@@ -91,7 +91,7 @@ impl Context {
                 .user
                 .to_string(),
         )
-        .map_err(|_| Error::Invalid)
+        .map_err(Error::Invalid.redact())
     }
 }
 impl Door {
@@ -107,13 +107,13 @@ impl Door {
             return Err(Error::Invalid);
         }
         let token = if let Some(path) = &config.database_token_file {
-            String::from_utf8(Config::secret(path)?.to_vec()).map_err(|_| Error::Invalid)?
+            String::from_utf8(Config::secret(path)?.to_vec()).map_err(Error::Invalid.redact())?
         } else {
             String::new()
         };
         let db = crlt::Db::open(crlt::Config::new(&config.database_url, token))
             .await
-            .map_err(|_| Error::Unavailable)?;
+            .map_err(Error::Unavailable.redact())?;
         let now = clock.now();
         let global = GlobalService::open(&db, &config, now).await?;
         let published = Published::Global(global.changes.subscribe());
@@ -126,17 +126,19 @@ impl Door {
                 root,
                 Role::Root,
                 "root",
-                Some(uuid::Uuid::parse_str(&config.root_user).map_err(|_| Error::Invalid)?),
+                Some(uuid::Uuid::parse_str(&config.root_user).map_err(Error::Invalid.redact())?),
             ),
         ] {
-            let passkeys = ckyh::Passkeys::new(
-                ckyh::LibsqlStore::new(&db, scope, tokio::runtime::Handle::current())
-                    .map_err(|_| Error::Unavailable)?,
-                scope,
-                &host,
-                &[ckyh::Url::parse(&format!("https://{host}")).map_err(|_| Error::Invalid)?],
-            )
-            .map_err(|_| Error::Invalid)?;
+            let passkeys =
+                ckyh::Passkeys::new(
+                    ckyh::LibsqlStore::new(&db, scope, tokio::runtime::Handle::current())
+                        .map_err(Error::Unavailable.redact())?,
+                    scope,
+                    &host,
+                    &[ckyh::Url::parse(&format!("https://{host}"))
+                        .map_err(Error::Invalid.redact())?],
+                )
+                .map_err(Error::Invalid.redact())?;
             let bootstrap = if operator.is_some() {
                 config
                     .root_bootstrap_file
@@ -145,7 +147,7 @@ impl Door {
                         Config::secret(path).and_then(|s| {
                             String::from_utf8(s.to_vec())
                                 .map(zeroize::Zeroizing::new)
-                                .map_err(|_| Error::Invalid)
+                                .map_err(Error::Invalid.redact())
                         })
                     })
                     .transpose()?
@@ -168,13 +170,13 @@ impl Door {
             config.throttle_burst,
             Duration::from_millis(config.throttle_interval_ms),
         )
-        .map_err(|_| Error::Invalid)?;
+        .map_err(Error::Invalid.redact())?;
         let throttle = cthl::Throttle::new(
             "global",
             ACTIONS.iter().map(|a| (a.name, limit)),
             cthl::MemoryStore::new(NonZeroUsize::new(ACTIONS.len()).ok_or(Error::Invalid)?),
         )
-        .map_err(|_| Error::Invalid)?;
+        .map_err(Error::Invalid.redact())?;
         Ok(Self {
             inner: Arc::new(Inner {
                 requests: Arc::new(Mutex::new(())),
@@ -216,11 +218,11 @@ impl Door {
             .facade
             .prune_challenges(now, 100)
             .await
-            .map_err(|_| Error::Unavailable)?;
+            .map_err(Error::Unavailable.redact())?;
         let fresh = global
             .facade
             .key_ring()
-            .map_err(|_| Error::Unavailable)?
+            .map_err(Error::Unavailable.redact())?
             .verify(&global.public.status, csgn::Kind::SettingsSnapshot, now)
             .map(|s| s.valid_until() > now + global.publication_seconds / 2)
             .unwrap_or(false);
@@ -253,13 +255,13 @@ impl Door {
             return Err(Error::Invalid);
         }
         let token = if let Some(path) = &config.database_token_file {
-            String::from_utf8(Config::secret(path)?.to_vec()).map_err(|_| Error::Invalid)?
+            String::from_utf8(Config::secret(path)?.to_vec()).map_err(Error::Invalid.redact())?
         } else {
             String::new()
         };
         let db = crlt::Db::open(crlt::Config::new(&config.database_url, token))
             .await
-            .map_err(|_| Error::Unavailable)?;
+            .map_err(Error::Unavailable.redact())?;
         let mut hosts = BTreeMap::new();
         let member_host = format!("api.{}.{}", config.community, config.domain);
         let community = CommunityService::open(&db, config, clock.clone()).await?;
@@ -279,14 +281,16 @@ impl Door {
                 &config.root,
             ),
         ] {
-            let passkeys = ckyh::Passkeys::new(
-                ckyh::LibsqlStore::new(&db, scope, tokio::runtime::Handle::current())
-                    .map_err(|_| Error::Unavailable)?,
-                scope,
-                &host,
-                &[ckyh::Url::parse(&format!("https://{host}")).map_err(|_| Error::Invalid)?],
-            )
-            .map_err(|_| Error::Invalid)?;
+            let passkeys =
+                ckyh::Passkeys::new(
+                    ckyh::LibsqlStore::new(&db, scope, tokio::runtime::Handle::current())
+                        .map_err(Error::Unavailable.redact())?,
+                    scope,
+                    &host,
+                    &[ckyh::Url::parse(&format!("https://{host}"))
+                        .map_err(Error::Invalid.redact())?],
+                )
+                .map_err(Error::Invalid.redact())?;
             let bootstrap = operator
                 .bootstrap_file
                 .as_ref()
@@ -294,7 +298,7 @@ impl Door {
                     Config::secret(path).and_then(|s| {
                         String::from_utf8(s.to_vec())
                             .map(zeroize::Zeroizing::new)
-                            .map_err(|_| Error::Invalid)
+                            .map_err(Error::Invalid.redact())
                     })
                 })
                 .transpose()?;
@@ -303,7 +307,7 @@ impl Door {
                 Arc::new(Mutex::new(Auth::new(
                     passkeys,
                     role,
-                    Some(uuid::Uuid::parse_str(&operator.user).map_err(|_| Error::Invalid)?),
+                    Some(uuid::Uuid::parse_str(&operator.user).map_err(Error::Invalid.redact())?),
                     bootstrap,
                     config.pending_capacity,
                     config.session_seconds,
@@ -314,13 +318,13 @@ impl Door {
             config.throttle_burst,
             Duration::from_millis(config.throttle_interval_ms),
         )
-        .map_err(|_| Error::Invalid)?;
+        .map_err(Error::Invalid.redact())?;
         let throttle = cthl::Throttle::new(
             "community",
             ACTIONS.iter().map(|a| (a.name, limit)),
             cthl::MemoryStore::new(NonZeroUsize::new(ACTIONS.len()).ok_or(Error::Invalid)?),
         )
-        .map_err(|_| Error::Invalid)?;
+        .map_err(Error::Invalid.redact())?;
         Ok(Self {
             inner: Arc::new(Inner {
                 requests: Arc::new(Mutex::new(())),
@@ -418,7 +422,7 @@ impl Door {
         slots
             .clone()
             .try_acquire_owned()
-            .map_err(|_| Error::Throttled)
+            .map_err(Error::Throttled.redact())
     }
     pub(crate) async fn authorize(&self, action: &Action, headers: &HeaderMap) -> Result<Context> {
         let host = headers
@@ -625,7 +629,7 @@ impl Door {
                 ctx.now + 60,
             )
             .await
-            .map_err(|_| Error::Refused)?;
+            .map_err(Error::Refused.redact())?;
         Ok(Bytes {
             bytes: challenge.to_bytes().to_vec(),
         })
@@ -636,10 +640,13 @@ impl Door {
         request: PassportIssue,
     ) -> Result<Bytes> {
         let challenge = cpsd::IssuanceChallenge::from_bytes(
-            request.challenge.try_into().map_err(|_| Error::Invalid)?,
+            request
+                .challenge
+                .try_into()
+                .map_err(Error::Invalid.redact())?,
         );
         let request =
-            cpsd::IssuanceRequest::from_bytes(&request.request).map_err(|_| Error::Invalid)?;
+            cpsd::IssuanceRequest::from_bytes(&request.request).map_err(Error::Invalid.redact())?;
         let global = self.global_backend()?.lock().await;
         let passport = global
             .facade
@@ -651,7 +658,7 @@ impl Door {
                 ctx.now,
             )
             .await
-            .map_err(|_| Error::Refused)?;
+            .map_err(Error::Refused.redact())?;
         Ok(Bytes {
             bytes: passport.to_bytes(),
         })
@@ -671,7 +678,7 @@ impl Door {
                 &check,
             )
             .await
-            .map_err(|_| Error::Refused)?;
+            .map_err(Error::Refused.redact())?;
         Ok(Empty {})
     }
     pub(crate) async fn global_warn(&self, _: Context, request: User) -> Result<Empty> {
@@ -679,9 +686,9 @@ impl Door {
             .lock()
             .await
             .facade
-            .warn(&cgbl::Subject::new(request.user).map_err(|_| Error::Invalid)?)
+            .warn(&cgbl::Subject::new(request.user).map_err(Error::Invalid.redact())?)
             .await
-            .map_err(|_| Error::Refused)?;
+            .map_err(Error::Refused.redact())?;
         Ok(Empty {})
     }
     pub(crate) async fn global_suspend(&self, ctx: Context, request: Suspend) -> Result<Empty> {
@@ -689,14 +696,14 @@ impl Door {
         global
             .facade
             .suspend(
-                &cgbl::Subject::new(request.user).map_err(|_| Error::Invalid)?,
+                &cgbl::Subject::new(request.user).map_err(Error::Invalid.redact())?,
                 cgbl::Suspension::Temporary {
                     until: request.until,
                 },
                 ctx.now,
             )
             .await
-            .map_err(|_| Error::Refused)?;
+            .map_err(Error::Refused.redact())?;
         global.refresh(ctx.now).await?;
         Ok(Empty {})
     }
