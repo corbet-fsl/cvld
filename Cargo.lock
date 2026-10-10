@@ -1637,7 +1637,7 @@ checksum = "0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a"
 [[package]]
 name = "cmty"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cmty?branch=main#3d98164906237fb1eb30cf9acd0f9057edfce351"
+source = "git+https://git.corbet.ch/corbet-libs/cmty?branch=main#b941bfd8a2db96a21155c07f5261f4f5812278e0"
 dependencies = [
  "cgts",
  "chrono",
