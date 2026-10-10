@@ -57,8 +57,20 @@ async fn an_unbounded_chunked_reply_is_stopped_at_the_byte_limit() {
     let base = format!("http://{}/", listener.local_addr().unwrap());
     let server = tokio::spawn(async move {
         let (mut stream, _) = listener.accept().await.unwrap();
-        let mut request = vec![0; 4096];
-        stream.read(&mut request).await.unwrap();
+        let mut request = Vec::new();
+        loop {
+            let mut buffer = [0; 4096];
+            let received = stream.read(&mut buffer).await.unwrap();
+            assert!(received > 0);
+            request.extend_from_slice(&buffer[..received]);
+            if request
+                .windows(4)
+                .position(|part| part == b"\r\n\r\n")
+                .is_some_and(|end| request.len() >= end + 4 + 2)
+            {
+                break;
+            }
+        }
         stream
             .write_all(
                 b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n",

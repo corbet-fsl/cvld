@@ -39,7 +39,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 impl Error {
     /// Discard a dependency error without formatting or forwarding its private data.
     /// The call site still chooses the exact public error category.
-    pub(crate) fn redact<T>(self) -> impl FnOnce(T) -> Self {
+    pub fn redact<T>(self) -> impl FnOnce(T) -> Self {
         move |_| self
     }
 
