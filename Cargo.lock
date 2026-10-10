@@ -1498,7 +1498,7 @@ dependencies = [
 [[package]]
 name = "ckyh"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-foss/ckyh?branch=main#6e4f5478d5c1a911a2b38a40b9f920d830540769"
+source = "git+https://git.corbet.ch/corbet-foss/ckyh?branch=main#c50fa111db08dbc068f9edb88684167e26ff23fb"
 dependencies = [
  "ciborium",
  "crlt",
