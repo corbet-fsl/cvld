@@ -49,8 +49,10 @@ fn write(dir: &Path, name: &str, bytes: &[u8]) -> String {
     std::fs::write(&path, bytes).unwrap();
     path.to_str().unwrap().to_owned()
 }
-pub async fn global(burst: u32) -> Running {
-    let dir = tempfile::tempdir().unwrap();
+pub async fn global_config(dir: &Path, burst: u32) -> Config {
+    global_config_at(dir, burst, NOW).await
+}
+pub async fn global_config_at(dir: &Path, burst: u32, now: u64) -> Config {
     let mut rng = cpsd::rand::rngs::OsRng;
     let issuer = cpsd::IssuerKey::generate(
         &mut rng,
@@ -63,7 +65,7 @@ pub async fn global(burst: u32) -> Running {
         scope: "global".into(),
         revision: 1,
         epoch: 1,
-        shared_expiry: (NOW / 86_400 + 40) * 86_400,
+        shared_expiry: (now / 86_400 + 40) * 86_400,
         gates: vec![cgbl::GatePolicy {
             gate: "development".into(),
             provider: "cgbl.test".into(),
@@ -74,7 +76,7 @@ pub async fn global(burst: u32) -> Running {
         csgn::MemoryStore::default(),
         "policy-authority",
         csgn::SecretKey::from_seed(&mut [3; 32]),
-        NOW - 1,
+        now - 1,
         86_400 * 100,
     )
     .await
@@ -83,28 +85,24 @@ pub async fn global(burst: u32) -> Running {
         .sign(
             csgn::Kind::SettingsSnapshot,
             &serde_json::to_vec(&policy).unwrap(),
-            NOW,
+            now,
             policy.shared_expiry + 1,
         )
         .await
         .unwrap();
-    let config = Config {
+    Config {
         listen: "127.0.0.1:0".into(),
         domain: DOMAIN.into(),
-        database_url: format!("file://{}", dir.path().join("global.db").display()),
+        database_url: format!("file://{}", dir.join("global.db").display()),
         database_token_file: None,
-        signing_seed_file: write(dir.path(), "signer", &[4; 32]),
-        issuer_key_file: write(dir.path(), "issuer", &issuer.to_secret_bytes()),
-        uniqueness_key_file: write(dir.path(), "unique", &[5; 32]),
-        policy_file: write(dir.path(), "policy", &signed),
-        policy_authority_file: write(
-            dir.path(),
-            "authority",
-            &authority.key_ring().unwrap().to_cbor(),
-        ),
+        signing_seed_file: write(dir, "signer", &[4; 32]),
+        issuer_key_file: write(dir, "issuer", &issuer.to_secret_bytes()),
+        uniqueness_key_file: write(dir, "unique", &[5; 32]),
+        policy_file: write(dir, "policy", &signed),
+        policy_authority_file: write(dir, "authority", &authority.key_ring().unwrap().to_cbor()),
         root_user: "00000000-0000-4000-8000-000000000001".into(),
         root_bootstrap_file: Some(write(
-            dir.path(),
+            dir,
             "bootstrap",
             b"synthetic-operator-enrolment-capability",
         )),
@@ -115,7 +113,11 @@ pub async fn global(burst: u32) -> Running {
         publication_seconds: 172800,
         signer_max_seconds: 86_400 * 100,
         development: true,
-    };
+    }
+}
+pub async fn global(burst: u32) -> Running {
+    let dir = tempfile::tempdir().unwrap();
+    let config = global_config(dir.path(), burst).await;
     let clock = Arc::new(TestClock(AtomicU64::new(NOW)));
     let door = Door::global(config, clock.clone()).await.unwrap();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -386,34 +388,38 @@ pub fn community_schema(community: &str, version: u32) -> cplc::cshm::Schema {
 pub async fn community(name: &str, public: &GlobalPublic) -> Running {
     community_with_burst(name, public, 100).await
 }
-pub async fn community_with_burst(name: &str, public: &GlobalPublic, burst: u32) -> Running {
-    let dir = tempfile::tempdir().unwrap();
+pub fn community_config(
+    dir: &Path,
+    name: &str,
+    public: &GlobalPublic,
+    burst: u32,
+) -> CommunityConfig {
     let config = CommunityConfig {
         listen: "127.0.0.1:0".into(),
         domain: DOMAIN.into(),
         community: name.into(),
-        database_url: format!("file://{}", dir.path().join("community.db").display()),
+        database_url: format!("file://{}", dir.join("community.db").display()),
         database_token_file: None,
-        signing_seed_file: write(dir.path(), "signer", &[name.as_bytes()[0]; 32]),
+        signing_seed_file: write(dir, "signer", &[name.as_bytes()[0]; 32]),
         rulebook_file: write(
-            dir.path(),
+            dir,
             "rulebook",
             &serde_json::to_vec(&community_rules()).unwrap(),
         ),
         schema_file: write(
-            dir.path(),
+            dir,
             "schema",
             &serde_json::to_vec(&community_schema(name, 1)).unwrap(),
         ),
-        global_key_ring_file: write(dir.path(), "global-ring", &public.key_ring),
-        global_status_file: write(dir.path(), "global-status", &public.status),
+        global_key_ring_file: write(dir, "global-ring", &public.key_ring),
+        global_status_file: write(dir, "global-status", &public.status),
         minimum_global_epoch: 1,
         minimum_global_revision: 1,
         global_gates: vec!["development".into()],
         root: Operator {
             user: "00000000-0000-4000-8000-000000000001".into(),
             bootstrap_file: Some(write(
-                dir.path(),
+                dir,
                 "root-bootstrap",
                 b"synthetic-root-enrolment-capability",
             )),
@@ -421,7 +427,7 @@ pub async fn community_with_burst(name: &str, public: &GlobalPublic, burst: u32)
         admin: Operator {
             user: "00000000-0000-4000-8000-000000000002".into(),
             bootstrap_file: Some(write(
-                dir.path(),
+                dir,
                 "admin-bootstrap",
                 b"synthetic-admin-enrolment-capability",
             )),
@@ -437,16 +443,17 @@ pub async fn community_with_burst(name: &str, public: &GlobalPublic, burst: u32)
         minimum_notice_seconds: 0,
         voucher_provider: "sponsor".into(),
         voucher_public_key_file: write(
-            dir.path(),
+            dir,
             "voucher-key",
             SigningKey::from_bytes(&[9; 32]).verifying_key().as_bytes(),
         ),
     };
-    write(
-        dir.path(),
-        "config.json",
-        &serde_json::to_vec(&config).unwrap(),
-    );
+    write(dir, "config.json", &serde_json::to_vec(&config).unwrap());
+    config
+}
+pub async fn community_with_burst(name: &str, public: &GlobalPublic, burst: u32) -> Running {
+    let dir = tempfile::tempdir().unwrap();
+    let config = community_config(dir.path(), name, public, burst);
     let clock = Arc::new(TestClock(AtomicU64::new(NOW)));
     let door = Door::community(config, clock.clone()).await.unwrap();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

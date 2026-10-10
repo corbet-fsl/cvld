@@ -484,18 +484,21 @@ impl Door {
         } else {
             (None, None)
         };
-        if action.access != Access::Public {
-            let grant = grant.as_ref().ok_or(Error::Unauthorized)?;
-            let allowed = match action.access {
-                Access::Authenticated => true,
-                Access::Member => grant.role == Role::Member,
-                Access::Admin => grant.role == Role::Admin,
-                Access::Root => grant.role == Role::Root,
-                Access::Public => true,
-            };
-            if !allowed {
-                return Err(Error::Forbidden);
+        let allowed = match action.access {
+            Access::Public => true,
+            access => {
+                let grant = grant.as_ref().ok_or(Error::Unauthorized)?;
+                matches!(
+                    (access, grant.role),
+                    (Access::Authenticated, _)
+                        | (Access::Member, Role::Member)
+                        | (Access::Admin, Role::Admin)
+                        | (Access::Root, Role::Root)
+                )
             }
+        };
+        if !allowed {
+            return Err(Error::Forbidden);
         }
         Ok(Context {
             host,
@@ -712,3 +715,7 @@ impl Door {
 #[cfg(all(test, feature = "development-gate"))]
 #[path = "service_tests.rs"]
 mod tests;
+
+#[cfg(all(test, feature = "development-gate"))]
+#[path = "service/tests.rs"]
+mod boundaries;

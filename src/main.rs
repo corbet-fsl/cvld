@@ -29,6 +29,10 @@ async fn run() -> Result<()> {
         // Clap's ordinary diagnostics can repeat values from the command line.
         Err(_) => return Err(Error::Invalid),
     };
+    execute(matches).await
+}
+
+async fn execute(matches: clap::ArgMatches) -> Result<()> {
     let (name, args) = matches.subcommand().ok_or(Error::Invalid)?;
     match name {
         "openapi" => println!("{}", api::openapi_json()),
@@ -108,3 +112,7 @@ async fn run() -> Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "main/tests.rs"]
+mod tests;
