@@ -46,6 +46,10 @@ pub type Facade = cmty::Community<
 >;
 mod devices;
 
+#[cfg(all(test, feature = "development-gate"))]
+#[path = "community/tests/negative.rs"]
+mod negative;
+
 struct Pending<T> {
     value: T,
     user: ckyh::Uuid,

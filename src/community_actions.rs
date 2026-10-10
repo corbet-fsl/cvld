@@ -6,6 +6,15 @@ use crate::{
 };
 use cmty::{cplc, cplc::crbk};
 
+fn pin_response(pin: Option<cmty::cmbr::Pin>) -> PinResponse {
+    PinResponse {
+        pin: pin.map(|pin| PinView {
+            fingerprint: *pin.fingerprint.as_bytes(),
+            revision: pin.revision,
+        }),
+    }
+}
+
 impl Door {
     pub(crate) async fn presentation_challenge(
         &self,
@@ -105,12 +114,7 @@ impl Door {
             .pin(ctx.member()?, &request.field, &request.pin)
             .await
             .map_err(Error::Refused.redact())?;
-        Ok(PinResponse {
-            pin: Some(PinView {
-                fingerprint: *pin.fingerprint.as_bytes(),
-                revision: pin.revision,
-            }),
-        })
+        Ok(pin_response(Some(pin)))
     }
     pub(crate) async fn pin_change(&self, ctx: Context, request: PinChange) -> Result<PinResponse> {
         let community = self.community_backend()?.lock().await;
@@ -121,7 +125,7 @@ impl Door {
             .await
             .map_err(Error::Refused.redact())?
             .ok_or(Error::Refused)?;
-        let pin = community
+        community
             .facade
             .membership()
             .change_pin(
@@ -132,13 +136,9 @@ impl Door {
                 &request.evidence,
             )
             .await
-            .map_err(Error::Refused.redact())?;
-        Ok(PinResponse {
-            pin: Some(PinView {
-                fingerprint: *pin.fingerprint.as_bytes(),
-                revision: pin.revision,
-            }),
-        })
+            .map(Some)
+            .map(pin_response)
+            .map_err(Error::Refused.redact())
     }
     pub(crate) async fn pin_get(&self, ctx: Context, request: Field) -> Result<PinResponse> {
         let community = self.community_backend()?.lock().await;
@@ -148,12 +148,7 @@ impl Door {
             .get_pin(ctx.member()?, &request.field)
             .await
             .map_err(Error::Refused.redact())?;
-        Ok(PinResponse {
-            pin: pin.map(|p| PinView {
-                fingerprint: *p.fingerprint.as_bytes(),
-                revision: p.revision,
-            }),
-        })
+        Ok(pin_response(pin))
     }
     pub(crate) async fn setting_set(&self, ctx: Context, request: Setting) -> Result<TrustFeed> {
         self.edit_setting(ctx, request, None).await
