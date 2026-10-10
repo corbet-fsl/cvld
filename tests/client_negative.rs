@@ -129,6 +129,9 @@ async fn an_oversized_declared_reply_is_refused_before_waiting_for_its_body() {
     )
     .await;
     release.send(()).unwrap();
-    server.await.unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(2), server)
+        .await
+        .expect("declared-size fixture did not finish")
+        .unwrap();
     assert!(matches!(result, Ok(Err(Error::Reconcile))));
 }
