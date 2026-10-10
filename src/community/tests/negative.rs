@@ -748,3 +748,133 @@ async fn device_authorization_drains_pending_revocation_and_unknown_fields_refus
     .unwrap();
     assert_eq!(snapshot.policy_epoch, after.policy_epoch);
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_verified_legal_veto_after_authentication_prevents_credential_issuance() {
+    use ed25519_dalek::{Signature, Signer as _, SigningKey, VerifyingKey};
+
+    // An explicit fixture authority authenticates the complete order. The
+    // service's unconfigured submission authority remains fail-closed.
+    struct Authority(VerifyingKey);
+    impl clbs::Verifier for Authority {
+        async fn verify_legal(&self, signed: &clbs::SignedOrder) -> clbs::Result<()> {
+            if signed.order.entered_by != "fixture-root"
+                || signed.order.kind
+                    != (clbs::OrderKind::Legal {
+                        authority: "fixture-authority".into(),
+                    })
+            {
+                return Err(clbs::Error::Denied);
+            }
+            let signature =
+                Signature::from_slice(&signed.proof).map_err(|_| clbs::Error::Denied)?;
+            self.0
+                .verify_strict(&signed.order.signing_payload()?, &signature)
+                .map_err(|_| clbs::Error::Denied)
+        }
+
+        async fn verify_self_ban(&self, _: &clbs::SignedOrder) -> clbs::Result<()> {
+            Err(clbs::Error::Denied)
+        }
+    }
+
+    let global = global(100).await;
+    let (_, passport, public) = wallet_passport(&global).await;
+    let service = community("alpha", &public).await;
+    let member = enrol_community(&service, HOST, &passport).await;
+    let c = client(&service, HOST, Some(&member.session));
+    let lobby: Lobby = serde_json::from_value(c.call("lobby", json!({})).await.unwrap()).unwrap();
+    c.call("handle_reserve", json!({"handle":"member_one"}))
+        .await
+        .unwrap();
+    c.call(
+        "gate_voucher",
+        voucher("alpha", &lobby.member_id, "pre-veto-voucher", NOW + 86_400),
+    )
+    .await
+    .unwrap();
+    assert!(
+        issue_community(&service, HOST, &member, &passport)
+            .await
+            .credential
+            .is_some()
+    );
+    let presentation = presentation(&service, HOST, Some(&member.session), &passport).await;
+    let challenge_id = presentation.challenge.clone();
+    let mut community = service.door.community_backend().unwrap().lock().await;
+    let (_, auth) = community.authenticate(&member.session, NOW).await.unwrap();
+    let order = clbs::Order {
+        community: "alpha".into(),
+        id: "private-order-reference".into(),
+        subject: lobby.member_id.clone(),
+        reference: "private-authority-reference".into(),
+        entered_by: "fixture-root".into(),
+        kind: clbs::OrderKind::Legal {
+            authority: "fixture-authority".into(),
+        },
+        scope: clbs::Scope::Actions(BTreeSet::from([cmty::ADMISSION_ACTION.into()])),
+        period: clbs::Period {
+            starts_at: NOW as i64,
+            ends_at: Some((NOW + 3600) as i64),
+        },
+    };
+    let key = SigningKey::from_bytes(&[41; 32]);
+    let proof = key
+        .sign(&order.signing_payload().unwrap())
+        .to_bytes()
+        .to_vec();
+    let authority = clbs::Gate::new(
+        cgts::legal_storage::LibsqlStore::new(&community.db, "alpha").unwrap(),
+        Authority(key.verifying_key()),
+        CommunityClock(service.clock.clone()),
+    );
+    let mut signed = clbs::SignedOrder { order, proof };
+    signed.order.reference.push_str("-tampered");
+    assert!(matches!(
+        authority.record_legal(&signed).await,
+        Err(clbs::Error::Denied)
+    ));
+    signed
+        .order
+        .reference
+        .truncate("private-authority-reference".len());
+    assert_eq!(
+        authority.record_legal(&signed).await.unwrap(),
+        clbs::Append::Inserted
+    );
+    assert!(matches!(
+        authority
+            .check_action(&lobby.member_id, "unrelated-action")
+            .await
+            .unwrap(),
+        clbs::State::Green
+    ));
+    assert!(matches!(
+        authority
+            .check_action(&lobby.member_id, cmty::ADMISSION_ACTION)
+            .await
+            .unwrap(),
+        clbs::State::Red(_)
+    ));
+
+    // The member and passport were authenticated before the legal order landed.
+    // The actual admission path must still recheck the owning legal gate.
+    let result = community
+        .issue(
+            &auth,
+            CredentialRequest {
+                presentation,
+                devices: vec![member.signing_key],
+            },
+            None,
+            NOW,
+        )
+        .await;
+    assert!(matches!(result, Err(Error::Forbidden)));
+    assert!(!community.challenges.contains_key(&challenge_id));
+    let error = result.err().unwrap();
+    assert_eq!(
+        serde_json::to_value(crate::error::ErrorBody { error }).unwrap(),
+        json!({"error":"forbidden"})
+    );
+}
