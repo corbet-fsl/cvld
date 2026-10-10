@@ -31,7 +31,7 @@ fn login_response(member: &mut Member, ceremony: Ceremony) -> LoginFinish {
         .unwrap();
     LoginFinish {
         ceremony: ceremony.ceremony,
-        credential,
+        credential: credential.into(),
     }
 }
 
@@ -54,6 +54,7 @@ fn registration_response(
             300_000,
         )
         .unwrap()
+        .into()
 }
 
 #[tokio::test]
