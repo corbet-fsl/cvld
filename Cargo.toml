@@ -18,7 +18,7 @@ development-gate = ["server", "cgbl/development-gate"]
 jsonschema = { version = "0.58", default-features = false, optional = true }
 cmty = { git = "https://git.corbet.ch/corbet-libs/cmty", branch = "main", optional = true }
 clbs = { git = "https://git.corbet.ch/corbet-foss/clbs", branch = "main", optional = true }
-ed25519-dalek = { version = "2.2", optional = true }
+ed25519-dalek = { version = "3", optional = true }
 cpsd = { git = "https://git.corbet.ch/corbet-foss/cpsd", branch = "main", default-features = false, features = ["storage"], optional = true }
 crlt = { git = "https://git.corbet.ch/corbet-foss/crlt", branch = "main", optional = true }
 csgn = { git = "https://git.corbet.ch/corbet-foss/csgn", branch = "main", features = ["libsql"], optional = true }
