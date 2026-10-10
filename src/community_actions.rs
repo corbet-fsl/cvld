@@ -16,6 +16,72 @@ fn pin_response(pin: Option<cmty::cmbr::Pin>) -> PinResponse {
 }
 
 impl Door {
+    pub(crate) async fn community_self_ban_status_begin(
+        &self,
+        ctx: Context,
+        _: Empty,
+    ) -> Result<SelfBanStatusChallenge> {
+        if !self.is_community_member(&ctx.host) {
+            return Err(Error::WrongHost);
+        }
+        self.community_backend()?
+            .lock()
+            .await
+            .self_ban_status_begin(ctx.now)
+            .await
+    }
+    pub(crate) async fn community_self_ban_status_finish(
+        &self,
+        ctx: Context,
+        request: SelfBanConfirmation,
+    ) -> Result<SelfBanStatus> {
+        if !self.is_community_member(&ctx.host) {
+            return Err(Error::WrongHost);
+        }
+        self.community_backend()?
+            .lock()
+            .await
+            .self_ban_status_finish(request, ctx.now)
+            .await
+    }
+    pub(crate) async fn passkey_certificate(
+        &self,
+        ctx: Context,
+        _: Empty,
+    ) -> Result<PasskeyCertificateResponse> {
+        self.community_backend()?
+            .lock()
+            .await
+            .certificate(ctx.token.as_deref().ok_or(Error::Unauthorized)?, ctx.now)
+            .await
+    }
+    pub(crate) async fn community_self_ban_begin(
+        &self,
+        ctx: Context,
+        _: Empty,
+    ) -> Result<SelfBanChallenge> {
+        self.community_backend()?
+            .lock()
+            .await
+            .self_ban_begin(ctx.token.as_deref().ok_or(Error::Unauthorized)?, ctx.now)
+            .await
+    }
+    pub(crate) async fn community_self_ban_finish(
+        &self,
+        ctx: Context,
+        request: SelfBanConfirmation,
+    ) -> Result<Empty> {
+        self.community_backend()?
+            .lock()
+            .await
+            .self_ban_finish(
+                ctx.token.as_deref().ok_or(Error::Unauthorized)?,
+                request,
+                ctx.now,
+            )
+            .await?;
+        Ok(Empty {})
+    }
     pub(crate) async fn presentation_challenge(
         &self,
         ctx: Context,
@@ -245,11 +311,46 @@ impl Door {
             changed: revision > request.revision,
         })
     }
+    pub(crate) async fn passkey_list(&self, ctx: Context, _: Empty) -> Result<PasskeyList> {
+        if !self.is_community_member(&ctx.host) {
+            return self
+                .auth(&ctx.host)?
+                .lock()
+                .await
+                .list_passkeys(ctx.token.as_deref().ok_or(Error::Unauthorized)?, ctx.now)
+                .await;
+        }
+        let community = self.community_backend()?.lock().await;
+        let authentication = ctx.member()?;
+        let records = community
+            .facade
+            .membership()
+            .passkeys(authentication)
+            .await
+            .map_err(Error::Refused.redact())?;
+        Ok(PasskeyList::from_records(
+            records,
+            authentication.credential_id(),
+        ))
+    }
+
     pub(crate) async fn passkey_add(
         &self,
         ctx: Context,
         request: AddPasskey,
     ) -> Result<AddedPasskey> {
+        if !self.is_community_member(&ctx.host) {
+            return self
+                .auth(&ctx.host)?
+                .lock()
+                .await
+                .add_passkey(
+                    ctx.token.as_deref().ok_or(Error::Unauthorized)?,
+                    request,
+                    ctx.now,
+                )
+                .await;
+        }
         self.community_backend()?
             .lock()
             .await
@@ -309,6 +410,18 @@ impl Door {
         ctx: Context,
         request: RevokePasskey,
     ) -> Result<Empty> {
+        if !self.is_community_member(&ctx.host) {
+            self.auth(&ctx.host)?
+                .lock()
+                .await
+                .revoke_passkey(
+                    ctx.token.as_deref().ok_or(Error::Unauthorized)?,
+                    request.credential.into(),
+                    ctx.now,
+                )
+                .await?;
+            return Ok(Empty {});
+        }
         let mut community = self.community_backend()?.lock().await;
         let credential: ckyh::CredentialID = request.credential.into();
         community

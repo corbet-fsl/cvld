@@ -17,6 +17,8 @@ mod community;
 mod community_actions;
 #[cfg(feature = "server")]
 pub mod config;
+#[cfg(feature = "server")]
+pub mod contact_gates;
 pub mod error;
 #[cfg(feature = "server")]
 mod global;
@@ -26,6 +28,8 @@ mod global_trust;
 mod identity;
 #[cfg(feature = "server")]
 pub mod mcp;
+#[cfg(feature = "server")]
+pub mod payments;
 #[cfg(feature = "server")]
 pub mod service;
 

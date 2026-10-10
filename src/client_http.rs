@@ -1,6 +1,6 @@
 //! Native HTTP adapter for the generated door contract.
 use super::Transport;
-use crate::error::{Error, ErrorBody, Result};
+use crate::error::{Error, Result};
 use serde_json::Value;
 
 #[derive(Clone)]
@@ -12,30 +12,38 @@ pub struct HttpClient {
 }
 impl HttpClient {
     pub fn new(base: String, host: String, token: Option<String>) -> Result<Self> {
-        let url = reqwest::Url::parse(&base).map_err(Error::Invalid.redact())?;
-        if !url.username().is_empty()
-            || url.password().is_some()
-            || url.query().is_some()
-            || url.fragment().is_some()
-            || url.path() != "/"
+        Self::with_roots(base, host, token, &[])
+    }
+
+    /// Add explicit deployment trust roots while preserving normal TLS hostname,
+    /// chain and certificate validation. These public DER certificates are trusted
+    /// host configuration, never member request fields or an authentication grant.
+    pub fn with_roots(
+        base: String,
+        host: String,
+        token: Option<String>,
+        roots: &[Vec<u8>],
+    ) -> Result<Self> {
+        super::origin(&base, &host)?;
+        if roots.len() > 32
+            || roots
+                .iter()
+                .any(|der| der.is_empty() || der.len() > 64 * 1024)
         {
             return Err(Error::Invalid);
         }
-        let loopback = matches!(url.host_str(), Some("127.0.0.1" | "[::1]" | "localhost"));
-        if url.scheme() != "https" && !(url.scheme() == "http" && loopback) {
-            return Err(Error::Invalid);
-        }
-        if url.scheme() == "https" && url.host_str() != Some(host.as_str()) {
-            return Err(Error::WrongHost);
-        }
-        let client = reqwest::Client::builder()
+        let mut builder = reqwest::Client::builder()
             .user_agent("cvld-client")
             .no_proxy()
             .retry(reqwest::retry::never())
             .redirect(reqwest::redirect::Policy::none())
-            .timeout(std::time::Duration::from_secs(30))
-            .build()
-            .map_err(Error::Unavailable.redact())?;
+            .timeout(std::time::Duration::from_secs(30));
+        for der in roots {
+            builder = builder.add_root_certificate(
+                reqwest::Certificate::from_der(der).map_err(Error::Invalid.redact())?,
+            );
+        }
+        let client = builder.build().map_err(Error::Unavailable.redact())?;
         Ok(Self {
             client,
             base: base.trim_end_matches('/').to_owned(),
@@ -81,25 +89,14 @@ impl HttpClient {
         {
             return Err(Error::Reconcile);
         }
-        let mut body = Vec::new();
+        let mut body = zeroize::Zeroizing::new(Vec::new());
         while let Some(chunk) = response.chunk().await.map_err(Error::Reconcile.redact())? {
             if chunk.len() > LIMIT - body.len() {
                 return Err(Error::Reconcile);
             }
             body.extend_from_slice(&chunk);
         }
-        if status != 200 {
-            let error: ErrorBody =
-                serde_json::from_slice(&body).map_err(Error::Reconcile.redact())?;
-            return Err(if error.error.http_status() == status {
-                error.error
-            } else {
-                Error::Reconcile
-            });
-        }
-        let value: Value = serde_json::from_slice(&body).map_err(Error::Reconcile.redact())?;
-        super::validate_response(name, &value)?;
-        Ok(value)
+        super::decode_response(name, status, &body)
     }
 }
 
@@ -107,5 +104,22 @@ impl Transport for HttpClient {
     async fn send(&mut self, path: &str, request: Value) -> Result<Value> {
         let name = path.strip_prefix("/v1/").ok_or(Error::Invalid)?;
         self.call(name, request).await
+    }
+}
+
+impl super::SessionTransport for HttpClient {
+    fn adopt_session(&mut self, token: zeroize::Zeroizing<String>) {
+        self.token = Some(token);
+    }
+}
+
+impl super::sealed::Authenticated for HttpClient {}
+impl super::AuthenticatedTransport for HttpClient {
+    fn authenticated_origin(&self) -> Result<String> {
+        let url = super::origin(&self.base, &self.host)?;
+        if url.scheme() != "https" {
+            return Err(Error::WrongHost);
+        }
+        Ok(url.origin().ascii_serialization())
     }
 }

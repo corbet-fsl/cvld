@@ -16,6 +16,9 @@ use std::{
 };
 use tokio::sync::{Mutex, OwnedSemaphorePermit, Semaphore, watch};
 
+mod contacts;
+mod global_self_ban;
+mod payments;
 pub(crate) mod publication;
 
 pub trait Clock: Send + Sync {
@@ -23,14 +26,24 @@ pub trait Clock: Send + Sync {
 }
 tokio::task_local! {
     static OPERATION_TIME: u64;
+    static LIVE_TIME: ();
 }
 pub(crate) async fn at<T>(now: u64, operation: impl std::future::Future<Output = T>) -> T {
     OPERATION_TIME.scope(now, operation).await
 }
 pub(crate) fn operation_time(clock: &dyn Clock) -> u64 {
+    if LIVE_TIME.try_with(|_| ()).is_ok() {
+        return clock.now();
+    }
     OPERATION_TIME
         .try_with(|time| *time)
         .unwrap_or_else(|_| clock.now())
+}
+/// Lifecycle work without an original proof timestamp observes the live clock
+/// through its own awaited owner calls. Ordinary proof composition stays bound
+/// to OPERATION_TIME; this scope never changes a submitted proof's context.
+pub(crate) async fn with_live_clock<T>(operation: impl std::future::Future<Output = T>) -> T {
+    LIVE_TIME.scope((), operation).await
 }
 pub struct SystemClock;
 impl Clock for SystemClock {
@@ -98,6 +111,23 @@ impl Context {
 }
 impl Door {
     pub async fn global(config: Config, clock: Arc<dyn Clock>) -> Result<Self> {
+        Self::global_with_optional_transport(config, clock, None).await
+    }
+    /// Trusted host injection replaces only external contact HTTP. It still
+    /// requires real provider configuration, production mode, costs and policy.
+    /// Member requests cannot supply a transport or construct verified facts.
+    pub async fn global_with_contact_transport(
+        config: Config,
+        clock: Arc<dyn Clock>,
+        transport: crate::contact_gates::transport::AnyTransport,
+    ) -> Result<Self> {
+        Self::global_with_optional_transport(config, clock, Some(transport)).await
+    }
+    async fn global_with_optional_transport(
+        config: Config,
+        clock: Arc<dyn Clock>,
+        transport: Option<crate::contact_gates::transport::AnyTransport>,
+    ) -> Result<Self> {
         config.shutdown_budget()?;
         if config.domain.is_empty()
             || !config
@@ -118,7 +148,8 @@ impl Door {
             .await
             .map_err(Error::Unavailable.redact())?;
         let now = clock.now();
-        let global = GlobalService::open(&db, &config, now).await?;
+        let global =
+            GlobalService::open_with_transport(&db, &config, now, clock.clone(), transport).await?;
         let published = Published::Global(global.changes.subscribe());
         let mut hosts = BTreeMap::new();
         let wallet = format!("wallet.{}", config.domain);
@@ -247,6 +278,22 @@ impl Door {
         }
     }
     pub async fn community(config: CommunityConfig, clock: Arc<dyn Clock>) -> Result<Self> {
+        Self::community_with_optional_payment_transport(config, clock, None).await
+    }
+    /// Trusted host injection replaces only x402 protocol transport. It does
+    /// not bypass real account, cost, policy, session or mode configuration.
+    pub async fn community_with_payment_transport(
+        config: CommunityConfig,
+        clock: Arc<dyn Clock>,
+        transport: crate::payments::transport::AnyTransport,
+    ) -> Result<Self> {
+        Self::community_with_optional_payment_transport(config, clock, Some(transport)).await
+    }
+    async fn community_with_optional_payment_transport(
+        config: CommunityConfig,
+        clock: Arc<dyn Clock>,
+        transport: Option<crate::payments::transport::AnyTransport>,
+    ) -> Result<Self> {
         config.shutdown_budget()?;
         if config.domain.is_empty()
             || !config
@@ -268,7 +315,18 @@ impl Door {
             .map_err(Error::Unavailable.redact())?;
         let mut hosts = BTreeMap::new();
         let member_host = format!("api.{}.{}", config.community, config.domain);
-        let community = CommunityService::open(&db, config, clock.clone()).await?;
+        let community = match transport {
+            Some(transport) => {
+                CommunityService::open_with_payment_transport(
+                    &db,
+                    config,
+                    clock.clone(),
+                    Some(transport),
+                )
+                .await?
+            }
+            None => CommunityService::open(&db, config, clock.clone()).await?,
+        };
         let published = Published::Community(community.changes.subscribe());
         let config = &community.config;
         for (host, role, scope, operator) in [
@@ -371,7 +429,10 @@ impl Door {
             .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE])
             .max_age(Duration::from_secs(600))
     }
-    fn auth(&self, host: &str) -> Result<Arc<Mutex<Auth>>> {
+    pub(crate) fn is_community_member(&self, host: &str) -> bool {
+        self.inner.member_host.as_deref() == Some(host)
+    }
+    pub(crate) fn auth(&self, host: &str) -> Result<Arc<Mutex<Auth>>> {
         self.inner.hosts.get(host).cloned().ok_or(Error::WrongHost)
     }
     pub(crate) async fn complete_context(
@@ -460,10 +521,16 @@ impl Door {
             .and_then(|v| v.to_str().ok())
             .and_then(|v| v.strip_prefix("Bearer "))
             .map(str::to_owned);
-        // Public metadata is independent of member credentials and activity.
+        // Public metadata and dedicated outcome inspection do not consume a
+        // login session. Status inspection verifies its own fresh passkey proof,
+        // including when the caller still holds an ended membership's token.
         let token = if matches!(
             action.name,
-            "global_public" | "trust_feed" | "trust_changes"
+            "global_public"
+                | "trust_feed"
+                | "trust_changes"
+                | "community_self_ban_status_begin"
+                | "community_self_ban_status_finish"
         ) {
             None
         } else {
@@ -662,12 +729,19 @@ impl Door {
         let global = self.global_backend()?.lock().await;
         let passport = global
             .facade
-            .issue(
+            .issue_with_deadline_guard(
                 &mut cpsd::rand::rngs::OsRng,
                 &ctx.global_session()?,
                 &challenge,
                 &request,
                 ctx.now,
+                |deadline| {
+                    let until = deadline
+                        .inclusive()
+                        .checked_add(1)
+                        .ok_or(cgbl::Error::Challenge)?;
+                    publication::expires_at(until).map_err(|_| cgbl::Error::Challenge)
+                },
             )
             .await
             .map_err(Error::Refused.redact())?;

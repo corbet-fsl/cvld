@@ -18,8 +18,24 @@ fn openapi_cli_and_mcp_have_exactly_the_registry_actions() {
         .iter()
         .find(|action| action.name == "passkey_add")
         .unwrap();
-    assert_eq!(addition.access, api::Access::Member);
-    assert_eq!(addition.scope, api::Scope::Community);
+    assert_eq!(addition.access, api::Access::Authenticated);
+    assert_eq!(addition.scope, api::Scope::Both);
+    for name in ["passkey_list", "passkey_revoke"] {
+        let action = api::ACTIONS
+            .iter()
+            .find(|action| action.name == name)
+            .unwrap();
+        assert_eq!(action.access, api::Access::Authenticated);
+        assert_eq!(action.scope, api::Scope::Both);
+    }
+    assert_eq!(
+        api::ACTIONS
+            .iter()
+            .find(|action| action.name == "passkey_list")
+            .unwrap()
+            .effect,
+        api::Effect::Check
+    );
     let tool = mcp::tools()
         .into_iter()
         .find(|tool| tool.name == "passkey_add")

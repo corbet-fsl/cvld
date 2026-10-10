@@ -12,8 +12,12 @@ CONTROLS = (
     ("src/service/publication.rs", b"if publication.check().is_err()", b"if false", 1,
      "a_session_expiring_during_issuance_cannot_publish_a_usable_passport",
      "an expired session published a usable passport"),
+    ("src/service.rs", b"publication::expires_at(until)",
+     b"publication::expires_at(until.saturating_add(3600))", 1,
+     "a_pending_nonce_expiring_during_issuance_cannot_publish_a_usable_passport",
+     "an expired pending nonce published a usable passport"),
 )
-PREFIX = "service::tests::timing::"
+PREFIX = "service::boundaries::timing::"
 ASSERTION_SOURCE = "src/service/tests/timing.rs"
 
 

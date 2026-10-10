@@ -7,6 +7,9 @@ use ckyh::{LibsqlStore, Passkeys, PendingAuthentication, PendingRegistration, Uu
 use std::{collections::HashMap, sync::Arc};
 use subtle::ConstantTimeEq;
 
+pub(crate) mod global_self_ban;
+mod passkeys;
+
 pub struct Auth {
     pub passkeys: Arc<Passkeys<LibsqlStore>>,
     pub role: Role,
@@ -14,7 +17,9 @@ pub struct Auth {
     pub bootstrap: Option<zeroize::Zeroizing<String>>,
     registrations: HashMap<String, Pending<PendingRegistration>>,
     logins: HashMap<String, PendingLogin>,
-    sessions: HashMap<String, Grant>,
+    sessions: HashMap<String, SessionState>,
+    additions: HashMap<String, passkeys::PendingAddition>,
+    self_bans: HashMap<String, global_self_ban::PendingSelfBan>,
     capacity: usize,
     lifetime: u64,
 }
@@ -29,6 +34,10 @@ struct Pending<T> {
 struct PendingLogin {
     state: LoginCeremony,
     expires: u64,
+}
+struct SessionState {
+    grant: Grant,
+    authentication: Arc<ckyh::Authentication>,
 }
 enum LoginCeremony {
     Credential(PendingAuthentication),
@@ -72,6 +81,8 @@ impl Auth {
             registrations: HashMap::new(),
             logins: HashMap::new(),
             sessions: HashMap::new(),
+            additions: HashMap::new(),
+            self_bans: HashMap::new(),
             capacity,
             lifetime,
         })
@@ -79,7 +90,9 @@ impl Auth {
     fn prune(&mut self, now: u64) {
         self.registrations.retain(|_, p| p.expires > now);
         self.logins.retain(|_, p| p.expires > now);
-        self.sessions.retain(|_, p| p.expires > now);
+        self.sessions.retain(|_, p| p.grant.expires > now);
+        self.additions.retain(|_, p| p.until > now);
+        self.self_bans.retain(|_, p| p.until > now);
     }
     pub async fn register_begin(&mut self, request: RegisterStart, now: u64) -> Result<Ceremony> {
         self.prune(now);
@@ -141,10 +154,7 @@ impl Auth {
             .remove(&request.ceremony)
             .ok_or(Error::Unauthorized)?;
         crate::service::publication::expires_at(pending.expires)?;
-        let date = chrono::DateTime::from_timestamp(now as i64, 0).ok_or(Error::Invalid)?;
-        use chrono::Datelike;
-        let month = ckyh::CreationMonth::new(date.year() as u16, date.month() as u8)
-            .map_err(Error::Invalid.redact())?;
+        let month = creation_month(now)?;
         let passkeys = self.passkeys.clone();
         tokio::task::spawn_blocking(move || {
             if !passkeys.list(pending.user)?.is_empty() {
@@ -248,21 +258,25 @@ impl Auth {
             return Err(Error::Unauthorized);
         }
         let token = token();
+        let user = authentication.member();
         let expires = now + self.lifetime;
         crate::service::publication::expires_at(expires)?;
         self.sessions.insert(
             token.clone(),
-            Grant {
-                user: authentication.member(),
-                role: self.role,
-                expires,
-                credential,
-                session_id: rand::random(),
+            SessionState {
+                grant: Grant {
+                    user,
+                    role: self.role,
+                    expires,
+                    credential,
+                    session_id: rand::random(),
+                },
+                authentication: Arc::new(authentication),
             },
         );
         Ok(Session {
             token,
-            user: authentication.member().to_string(),
+            user: user.to_string(),
             role: self.role,
             expires,
         })
@@ -272,7 +286,7 @@ impl Auth {
         let grant = self
             .sessions
             .get(token)
-            .cloned()
+            .map(|session| session.grant.clone())
             .ok_or(Error::Unauthorized)?;
         let passkeys = self.passkeys.clone();
         let user = grant.user;
@@ -288,12 +302,38 @@ impl Auth {
         .map_err(Error::Unavailable.redact())?
         .map_err(Error::Unauthorized.redact())?;
         if !live {
-            self.sessions.remove(token);
+            self.logout(token);
             return Err(Error::Unauthorized);
         }
         Ok(grant)
     }
     pub fn logout(&mut self, token: &str) {
-        self.sessions.remove(token);
+        if let Some(session) = self.sessions.remove(token) {
+            self.additions
+                .retain(|_, p| p.session_id != session.grant.session_id);
+            self.self_bans
+                .retain(|_, p| p.session_id != session.grant.session_id);
+        }
     }
+
+    pub(crate) fn logout_account(&mut self, user: Uuid) {
+        self.sessions
+            .retain(|_, session| session.grant.user != user);
+        let live: std::collections::HashSet<_> = self
+            .sessions
+            .values()
+            .map(|session| session.grant.session_id)
+            .collect();
+        self.additions
+            .retain(|_, pending| live.contains(&pending.session_id));
+        self.self_bans
+            .retain(|_, pending| live.contains(&pending.session_id));
+    }
+}
+
+fn creation_month(now: u64) -> Result<ckyh::CreationMonth> {
+    use chrono::Datelike;
+    let date = chrono::DateTime::from_timestamp(now as i64, 0).ok_or(Error::Invalid)?;
+    ckyh::CreationMonth::new(date.year() as u16, date.month() as u8)
+        .map_err(Error::Invalid.redact())
 }

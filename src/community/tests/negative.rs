@@ -75,9 +75,11 @@ async fn absent_legal_authority_and_unrepresentable_time_fail_closed() {
         },
         proof: b"untrusted-private-authorization".to_vec(),
     };
+    let authority =
+        CommunityAuthority::new("alpha", Arc::new(TestClock(AtomicU64::new(NOW))), 2).unwrap();
     signed.order.validate().unwrap();
     assert!(matches!(
-        UnconfiguredAuthority.verify_self_ban(&signed).await,
+        authority.verify_self_ban(&signed).await,
         Err(clbs::Error::Denied)
     ));
     signed.order.kind = clbs::OrderKind::Legal {
@@ -85,7 +87,7 @@ async fn absent_legal_authority_and_unrepresentable_time_fail_closed() {
     };
     signed.order.validate().unwrap();
     assert!(matches!(
-        UnconfiguredAuthority.verify_legal(&signed).await,
+        authority.verify_legal(&signed).await,
         Err(clbs::Error::Denied)
     ));
     let clock = Arc::new(TestClock(AtomicU64::new(i64::MAX as u64)));

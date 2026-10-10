@@ -10,6 +10,12 @@ use serde_json::Value;
 use utoipa::ToSchema;
 mod community;
 pub use community::*;
+mod self_ban;
+pub use self_ban::*;
+mod contacts;
+pub use contacts::*;
+mod payments;
+pub use payments::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
@@ -37,6 +43,12 @@ pub enum Effect {
     Check,
     Record,
 }
+/// Whether a device facade may return this action's raw result to its shell.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ClientAccess {
+    Forward,
+    Trusted,
+}
 #[derive(Clone, Copy)]
 pub struct Action {
     pub name: &'static str,
@@ -44,6 +56,7 @@ pub struct Action {
     pub access: Access,
     pub scope: Scope,
     pub effect: Effect,
+    pub client_access: ClientAccess,
     pub request: fn() -> Value,
     pub response: fn() -> Value,
     protocol: fn() -> Protocol,
@@ -209,10 +222,11 @@ fn schema<T: ToSchema>() -> Value {
 }
 
 macro_rules! actions {
-    ($( $(#[$attr:meta])* $name:ident($request:ty) -> $response:ty, $access:ident, $scope:ident, $effect:ident, $description:literal; )*) => {
+    ($( $(#[$attr:meta])* $name:ident($request:ty) -> $response:ty, $access:ident, $scope:ident, $effect:ident, $client:ident, $description:literal; )*) => {
         pub static ACTIONS: &[Action] = &[$(
             $(#[$attr])* Action { name: stringify!($name), description: $description,
                 access: Access::$access, scope: Scope::$scope, effect: Effect::$effect,
+                client_access: ClientAccess::$client,
                 request: schema::<$request>, response: schema::<$response>, protocol: protocol::<$request, $response> },
         )*];
         pub fn router(door: Door) -> Router {
@@ -243,39 +257,60 @@ macro_rules! actions {
 }
 
 actions! {
-    register_begin(RegisterStart) -> Ceremony, Public, Both, Record, "Begin UV-required passkey registration";
-    register_finish(RegisterFinish) -> User, Public, Both, Record, "Verify and store the first passkey";
-    login_begin(LoginStart) -> Ceremony, Public, Both, Check, "Begin credential-first passkey authentication";
-    login_discoverable_begin(Empty) -> DiscoverableCeremony, Public, Both, Check, "Begin usernameless sign-in with a synced passkey";
-    login_finish(LoginFinish) -> Session, Public, Both, Record, "Verify user and counter; create an ephemeral session";
-    logout(Empty) -> Empty, Authenticated, Both, Check, "End this ephemeral session";
-    global_public(Empty) -> GlobalPublic, Public, Global, Check, "Read authenticated global issuer material";
-    passport_challenge(Empty) -> Bytes, Member, Global, Record, "Reserve a blind passport issuance challenge";
-    passport_issue(PassportIssue) -> Bytes, Member, Global, Record, "Issue a blind passport after global policy checks";
-    presentation_challenge(Empty) -> PresentationChallenge, Public, Community, Record, "Begin a signed community passport presentation";
-    lobby(Empty) -> Lobby, Member, Community, Check, "Read enrolment and missing requirements";
-    handle_available(Handle) -> Available, Public, Community, Check, "Check a community handle";
-    handle_reserve(Handle) -> Lobby, Member, Community, Record, "Reserve a community handle";
-    gate_voucher(Voucher) -> Lobby, Member, Community, Record, "Verify a member-bound voucher";
-    gate_withdraw(Withdraw) -> CredentialResponse, Member, Community, Record, "Withdraw a retained community gate";
-    credential_issue(CredentialRequest) -> CredentialResponse, Member, Community, Record, "Present a passport and request admission or renewal";
-    pin_set(PinRequest) -> PinResponse, Member, Community, Record, "Seal an initial profile fingerprint";
-    pin_get(Field) -> PinResponse, Member, Community, Check, "Read a sealed fingerprint";
-    pin_change(PinChange) -> PinResponse, Member, Community, Record, "Change a fingerprint using spent-token evidence";
-    passkey_add(AddPasskey) -> AddedPasskey, Member, Community, Record, "Register another UV-required passkey for this membership";
-    passkey_revoke(RevokePasskey) -> Empty, Member, Community, Record, "Revoke a community passkey";
-    device_authorize(DeviceKey) -> DeviceKeys, Member, Community, Record, "Authorize the lineage device key with this live passkey";
-    device_keys(Empty) -> DeviceKeys, Member, Community, Check, "Read current passkey-authorized signing keys";
-    setting_set(Setting) -> TrustFeed, Admin, Community, Record, "Edit a community setting";
-    platform_set(PlatformSetting) -> TrustFeed, Root, Community, Record, "Edit a platform setting or force switch";
-    schema_check(SchemaRequest) -> SchemaChanges, Admin, Community, Check, "Classify profile schema changes";
-    schema_set(SchemaRequest) -> TrustFeed, Admin, Community, Record, "Publish a profile schema";
-    trust_feed(Empty) -> TrustFeed, Public, Community, Check, "Read signed public trust snapshots";
-    trust_changes(Since) -> Announcement, Public, Community, Check, "Wait for a public revision announcement";
-    global_warn(User) -> Empty, Root, Global, Record, "Record the warning preceding temporary suspension";
-    global_suspend(Suspend) -> Empty, Root, Global, Record, "Temporarily suspend and advance the global epoch";
+    register_begin(RegisterStart) -> Ceremony, Public, Both, Record, Forward, "Begin UV-required passkey registration";
+    register_finish(RegisterFinish) -> User, Public, Both, Record, Forward, "Verify and store the first passkey";
+    login_begin(LoginStart) -> Ceremony, Public, Both, Check, Forward, "Begin credential-first passkey authentication";
+    login_discoverable_begin(Empty) -> DiscoverableCeremony, Public, Both, Check, Forward, "Begin usernameless sign-in with a synced passkey";
+    login_finish(LoginFinish) -> Session, Public, Both, Record, Trusted, "Verify user and counter; create an ephemeral session";
+    logout(Empty) -> Empty, Authenticated, Both, Check, Forward, "End this ephemeral session";
+    global_public(Empty) -> GlobalPublic, Public, Global, Check, Forward, "Read authenticated global issuer material";
+    contact_plan(ContactPlan) -> ContactPreview, Member, Global, Check, Forward, "Preview enabled contact verification costs without dispatch";
+    contact_check(ContactCheck) -> ContactPreview, Member, Global, Check, Forward, "Preview one check of this RAM-held contact session";
+    contact_execute(ContactExecute) -> ContactReceipt, Member, Global, Record, Forward, "Explicitly authorize the exact prepared contact cost preview";
+    contact_status(ContactOperation) -> ContactReceipt, Member, Global, Check, Forward, "Read the minimal outcome and reserved contact exposure";
+    contact_accept(ContactOperation) -> ContactAcceptance, Member, Global, Record, Forward, "Accept a real typed contact fact through the global facade";
+    contact_simulate(ContactSimulationRequest) -> ContactSimulationResponse, Member, Global, Check, Forward, "Simulate dummy contact planning locally without providers or credentials";
+    passport_challenge(Empty) -> Bytes, Member, Global, Record, Forward, "Reserve a blind passport issuance challenge";
+    passport_issue(PassportIssue) -> Bytes, Member, Global, Record, Forward, "Issue a blind passport after global policy checks";
+    global_self_ban_begin(Empty) -> SelfBanChallenge, Member, Global, Check, Forward, "Confirm permanent global self-ban with a fresh passkey ceremony";
+    global_self_ban_finish(SelfBanConfirmation) -> Empty, Member, Global, Record, Forward, "Permanently suspend this authenticated global account; no recovery";
+    global_self_ban_status(Empty) -> SelfBanStatus, Member, Global, Check, Forward, "Read this authenticated wallet's permanent self-ban outcome";
+    community_self_ban_begin(Empty) -> SelfBanChallenge, Member, Community, Check, Forward, "Confirm permanent community self-ban with a fresh passkey ceremony";
+    community_self_ban_finish(SelfBanConfirmation) -> Empty, Member, Community, Record, Forward, "Permanently end this membership; no recovery or operator override";
+    community_self_ban_status_begin(Empty) -> SelfBanStatusChallenge, Public, Community, Check, Forward, "Begin passkey authentication solely to inspect your own self-ban outcome";
+    community_self_ban_status_finish(SelfBanConfirmation) -> SelfBanStatus, Public, Community, Record, Forward, "Inspect your own permanent self-ban with fresh UV; never restore access";
+    presentation_challenge(Empty) -> PresentationChallenge, Public, Community, Record, Forward, "Begin a signed community passport presentation";
+    lobby(Empty) -> Lobby, Member, Community, Check, Forward, "Read enrolment and missing requirements";
+    payment_offer(Empty) -> PaymentOffer, Member, Community, Check, Forward, "Read the configured original x402 offer and requested access";
+    payment_plan(PaymentPlan) -> PaymentPreview, Member, Community, Check, Forward, "Preview the exact paid-access operation without provider calls";
+    payment_execute(PaymentExecute) -> PaymentReceipt, Member, Community, Record, Forward, "Explicitly execute the exact prepared x402 settlement";
+    payment_status(PaymentOperation) -> PaymentReceipt, Member, Community, Check, Forward, "Read only this member's minimal payment outcome";
+    payment_accept(PaymentOperation) -> PaymentReceipt, Member, Community, Record, Forward, "Accept genuine paid access through the community gate owner";
+    payment_simulate(PaymentSimulationRequest) -> PaymentSimulationResponse, Member, Community, Check, Forward, "Simulate dummy payment planning locally without provider I/O";
+    handle_available(Handle) -> Available, Public, Community, Check, Forward, "Check a community handle";
+    handle_reserve(Handle) -> Lobby, Member, Community, Record, Forward, "Reserve a community handle";
+    gate_voucher(Voucher) -> Lobby, Member, Community, Record, Forward, "Verify a member-bound voucher";
+    gate_withdraw(Withdraw) -> CredentialResponse, Member, Community, Record, Forward, "Withdraw a retained community gate";
+    credential_issue(CredentialRequest) -> CredentialResponse, Member, Community, Record, Forward, "Present a passport and request admission or renewal";
+    pin_set(PinRequest) -> PinResponse, Member, Community, Record, Forward, "Seal an initial profile fingerprint";
+    pin_get(Field) -> PinResponse, Member, Community, Check, Forward, "Read a sealed fingerprint";
+    pin_change(PinChange) -> PinResponse, Member, Community, Record, Forward, "Change a fingerprint using spent-token evidence";
+    passkey_list(Empty) -> PasskeyList, Authenticated, Both, Check, Forward, "List this account's passkeys and revocation status";
+    passkey_certificate(Empty) -> PasskeyCertificateResponse, Member, Community, Check, Forward, "Certify the current registered passkey for community lineage assertions";
+    passkey_add(AddPasskey) -> AddedPasskey, Authenticated, Both, Record, Forward, "Register another UV-required passkey for this account";
+    passkey_revoke(RevokePasskey) -> Empty, Authenticated, Both, Record, Forward, "Revoke one of this account's passkeys";
+    device_authorize(DeviceKey) -> DeviceKeys, Member, Community, Record, Forward, "Authorize the lineage device key with this live passkey";
+    device_keys(Empty) -> DeviceKeys, Member, Community, Check, Forward, "Read current passkey-authorized signing keys";
+    setting_set(Setting) -> TrustFeed, Admin, Community, Record, Forward, "Edit a community setting";
+    platform_set(PlatformSetting) -> TrustFeed, Root, Community, Record, Forward, "Edit a platform setting or force switch";
+    schema_check(SchemaRequest) -> SchemaChanges, Admin, Community, Check, Forward, "Classify profile schema changes";
+    schema_set(SchemaRequest) -> TrustFeed, Admin, Community, Record, Forward, "Publish a profile schema";
+    trust_feed(Empty) -> TrustFeed, Public, Community, Check, Forward, "Read signed public trust snapshots";
+    trust_changes(Since) -> Announcement, Public, Community, Check, Forward, "Wait for a public revision announcement";
+    global_warn(User) -> Empty, Root, Global, Record, Forward, "Record the warning preceding temporary suspension";
+    global_suspend(Suspend) -> Empty, Root, Global, Record, Forward, "Temporarily suspend and advance the global epoch";
     #[cfg(feature = "development-gate")]
-    development_gate(Empty) -> Empty, Member, Global, Record, "Pass the development-only synthetic uniqueness gate";
+    development_gate(Empty) -> Empty, Member, Global, Record, Forward, "Pass the development-only synthetic uniqueness gate";
 }
 
 pub fn action(name: &str) -> Option<&'static Action> {
@@ -324,6 +359,10 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
                 ("x-role", format!("{:?}", action.access).to_lowercase()),
                 ("x-effect", format!("{:?}", action.effect).to_lowercase()),
                 ("x-scope", format!("{:?}", action.scope).to_lowercase()),
+                (
+                    "x-client-access",
+                    format!("{:?}", action.client_access).to_lowercase(),
+                ),
             ]
             .into_iter()
             .collect(),

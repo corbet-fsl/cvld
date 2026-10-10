@@ -11,6 +11,8 @@ pub type Facade =
     Global<cgbl::storage::LibsqlStore, csgn::LibsqlStore, cpsd::storage::libsql::LibsqlStore>;
 pub struct GlobalService {
     pub facade: Facade,
+    pub contacts: Option<crate::contact_gates::Contacts>,
+    pub contact_ceremony_seconds: Option<u64>,
     pub public: GlobalPublic,
     pub changes: tokio::sync::watch::Sender<std::sync::Arc<GlobalPublic>>,
     pub publication_seconds: u64,
@@ -18,7 +20,22 @@ pub struct GlobalService {
     pub development_expiry: u64,
 }
 impl GlobalService {
-    pub async fn open(db: &Db, config: &Config, now: u64) -> Result<Self> {
+    #[cfg(test)]
+    pub async fn open(
+        db: &Db,
+        config: &Config,
+        now: u64,
+        clock: std::sync::Arc<dyn crate::service::Clock>,
+    ) -> Result<Self> {
+        Self::open_with_transport(db, config, now, clock, None).await
+    }
+    pub async fn open_with_transport(
+        db: &Db,
+        config: &Config,
+        now: u64,
+        clock: std::sync::Arc<dyn crate::service::Clock>,
+        transport: Option<crate::contact_gates::transport::AnyTransport>,
+    ) -> Result<Self> {
         use csgn::Store;
         db.migrate(&[
             Migration::new(1, "global", cgbl::storage::SCHEMA),
@@ -35,6 +52,12 @@ impl GlobalService {
                 7,
                 "passport-owners",
                 cpsd::storage::libsql::ISSUANCE_UNIQUENESS_SCHEMA,
+            ),
+            Migration::new(8, "contact-operations", crate::contact_gates::state::SCHEMA),
+            Migration::new(
+                9,
+                "contact-comparison-keys",
+                crate::contact_gates::state::BINDING_SCHEMA,
             ),
         ])
         .await
@@ -133,8 +156,29 @@ impl GlobalService {
             status,
         };
         let (changes, _) = tokio::sync::watch::channel(std::sync::Arc::new(public.clone()));
+        let contacts = match (&config.contacts, transport) {
+            (Some(contacts), Some(transport)) => Some(
+                crate::contact_gates::Contacts::with_transport(
+                    db, "global", contacts, clock, transport,
+                )
+                .await
+                .map_err(Error::Invalid.redact())?,
+            ),
+            (Some(contacts), None) => Some(
+                crate::contact_gates::Contacts::configured(db, "global", contacts, clock)
+                    .await
+                    .map_err(Error::Invalid.redact())?,
+            ),
+            (None, Some(_)) => return Err(Error::Invalid),
+            (None, None) => None,
+        };
         Ok(Self {
             facade,
+            contacts,
+            contact_ceremony_seconds: config
+                .contacts
+                .as_ref()
+                .map(|contacts| contacts.ceremony_seconds),
             public,
             changes,
             publication_seconds: config.publication_seconds,

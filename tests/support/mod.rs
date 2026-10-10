@@ -114,6 +114,7 @@ pub async fn global_config_at(dir: &Path, burst: u32, now: u64) -> Config {
         publication_seconds: 172800,
         signer_max_seconds: 86_400 * 100,
         development: true,
+        contacts: None,
     }
 }
 pub async fn global(burst: u32) -> Running {
@@ -444,6 +445,7 @@ pub fn community_config(
         signer_max_seconds: 10 * 366 * 86_400,
         minimum_notice_seconds: 0,
         voucher_provider: "sponsor".into(),
+        payments: None,
         voucher_public_key_file: write(
             dir,
             "voucher-key",

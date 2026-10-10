@@ -92,7 +92,7 @@ async fn additional_device_is_session_bound_and_survives_original_revocation() {
             json!({"step":"begin"})
         )
         .await,
-        421
+        200
     );
 
     // UV-less creation cannot be turned into another key with a bearer alone.

@@ -13,16 +13,13 @@ use std::{
     sync::Arc,
 };
 
-#[derive(Clone)]
-pub struct UnconfiguredAuthority;
-impl clbs::Verifier for UnconfiguredAuthority {
-    async fn verify_legal(&self, _: &clbs::SignedOrder) -> clbs::Result<()> {
-        Err(clbs::Error::Denied)
-    }
-    async fn verify_self_ban(&self, _: &clbs::SignedOrder) -> clbs::Result<()> {
-        Err(clbs::Error::Denied)
-    }
-}
+mod certificate;
+mod legal;
+mod payments;
+mod self_ban;
+mod self_ban_status;
+use legal::CommunityAuthority;
+use payments::PaymentClock;
 #[derive(Clone)]
 pub struct CommunityClock(pub Arc<dyn Clock>);
 impl clbs::Clock for CommunityClock {
@@ -36,10 +33,10 @@ type Rules = cmty::adapters::SharedRulebook<crbk::LibsqlStore>;
 pub type Facade = cmty::Community<
     cmty::storage::LibsqlStorage,
     cmbr::LibsqlStorage,
-    UnconfiguredAuthority,
+    CommunityAuthority,
     CommunityClock,
     cgts::LibsqlStore,
-    cgts::LegalGate<cgts::legal_storage::LibsqlStore, UnconfiguredAuthority>,
+    cgts::LegalGate<cgts::legal_storage::LibsqlStore, CommunityAuthority>,
     Rules,
     cplc::LibsqlStore,
     csgn::LibsqlStore,
@@ -49,6 +46,9 @@ mod devices;
 #[cfg(all(test, feature = "development-gate"))]
 #[path = "community/tests/negative.rs"]
 mod negative;
+#[cfg(all(test, feature = "development-gate"))]
+#[path = "community/tests/publication.rs"]
+mod publication_tests;
 
 struct Pending<T> {
     value: T,
@@ -76,10 +76,15 @@ pub struct CommunityService {
     pub public: TrustFeed,
     pub changes: tokio::sync::watch::Sender<Arc<TrustFeed>>,
     voucher: cgts::gates::VoucherGate,
+    pub payments: Option<Arc<tokio::sync::Mutex<crate::payments::PaymentHost>>>,
     challenges: HashMap<String, Challenge>,
     registrations: HashMap<String, Pending<cmbr::PendingRegistration>>,
     logins: HashMap<String, PendingLogin>,
     additions: HashMap<String, devices::PendingAddition>,
+    self_bans: HashMap<String, self_ban::PendingSelfBan>,
+    self_ban_statuses: HashMap<String, self_ban_status::PendingStatus>,
+    authority: CommunityAuthority,
+    clock: Arc<dyn Clock>,
     sessions: HashMap<String, SessionState>,
 }
 impl CommunityService {
@@ -87,6 +92,14 @@ impl CommunityService {
         db: &crlt::Db,
         config: CommunityConfig,
         clock: Arc<dyn Clock>,
+    ) -> Result<Self> {
+        Self::open_with_payment_transport(db, config, clock, None).await
+    }
+    pub async fn open_with_payment_transport(
+        db: &crlt::Db,
+        config: CommunityConfig,
+        clock: Arc<dyn Clock>,
+        transport: Option<crate::payments::transport::AnyTransport>,
     ) -> Result<Self> {
         use cplc::Storage;
         use csgn::Store;
@@ -116,6 +129,7 @@ impl CommunityService {
             ("service", crate::identity::SCHEMA),
             ("global-trust", crate::global_trust::SCHEMA),
             ("cmbr-device-keys", cmbr::DEVICE_KEYS_SCHEMA),
+            ("payment-operations", crate::payments::state::SCHEMA),
         ]);
         let migrations: Vec<_> = schemas
             .iter()
@@ -218,6 +232,7 @@ impl CommunityService {
                 .map_err(Error::Refused.redact())?;
         }
         let host = format!("api.{}.{}", scope, config.domain);
+        let authority = CommunityAuthority::new(scope, clock.clone(), config.pending_capacity)?;
         let membership = cmbr::Membership::new(
             db,
             cmbr::LibsqlStorage::new(db, scope).map_err(Error::Unavailable.redact())?,
@@ -236,8 +251,8 @@ impl CommunityService {
                         .map_err(Error::Invalid.redact())?,
                 ],
             },
-            UnconfiguredAuthority,
-            CommunityClock(clock),
+            authority.clone(),
+            CommunityClock(clock.clone()),
         )
         .map_err(Error::Invalid.redact())?;
         // One process owns this database. cmbr serializes member operations;
@@ -247,7 +262,7 @@ impl CommunityService {
             cgts::LegalGate::new(
                 cgts::legal_storage::LibsqlStore::new(db, scope)
                     .map_err(Error::Unavailable.redact())?,
-                UnconfiguredAuthority,
+                authority.clone(),
             ),
         )
         .map_err(Error::Invalid.redact())?;
@@ -293,6 +308,22 @@ impl CommunityService {
         )
         .map_err(Error::Invalid.redact())?;
         let public = publish(&facade, now).await?;
+        let payments = match config.payments.clone() {
+            Some(payment) => Some(Arc::new(tokio::sync::Mutex::new(
+                crate::payments::PaymentHost::open(
+                    db,
+                    payment,
+                    scope.clone(),
+                    cmty::ADMISSION_ACTION.into(),
+                    Arc::new(PaymentClock(clock.clone())),
+                    transport,
+                )
+                .await
+                .map_err(Error::Invalid.redact())?,
+            ))),
+            None if transport.is_some() => return Err(Error::Invalid),
+            None => None,
+        };
         let (changes, _) = tokio::sync::watch::channel(Arc::new(public.clone()));
         Ok(Self {
             facade,
@@ -302,10 +333,15 @@ impl CommunityService {
             public,
             changes,
             voucher,
+            payments,
             challenges: HashMap::new(),
             registrations: HashMap::new(),
             logins: HashMap::new(),
             additions: HashMap::new(),
+            self_bans: HashMap::new(),
+            self_ban_statuses: HashMap::new(),
+            authority,
+            clock,
             sessions: HashMap::new(),
         })
     }
@@ -350,6 +386,8 @@ impl CommunityService {
         self.registrations.retain(|_, p| p.until > now);
         self.logins.retain(|_, p| p.until > now);
         self.additions.retain(|_, p| p.until > now);
+        self.self_bans.retain(|_, p| p.until > now);
+        self.self_ban_statuses.retain(|_, p| p.until > now);
         self.sessions.retain(|_, s| s.grant.expires > now);
     }
     pub async fn authenticate(
@@ -358,7 +396,18 @@ impl CommunityService {
         now: u64,
     ) -> Result<(Grant, Arc<ckyh::Authentication>)> {
         self.prune(now);
-        let session = self.sessions.get(token).ok_or(Error::Unauthorized)?;
+        self.authenticate_current(token, now).await
+    }
+    async fn authenticate_current(
+        &self,
+        token: &str,
+        now: u64,
+    ) -> Result<(Grant, Arc<ckyh::Authentication>)> {
+        let session = self
+            .sessions
+            .get(token)
+            .filter(|session| now < session.grant.expires)
+            .ok_or(Error::Unauthorized)?;
         if !self
             .facade
             .membership()
@@ -560,6 +609,8 @@ impl CommunityService {
     pub fn logout(&mut self, token: &str) {
         if let Some(session) = self.sessions.remove(token) {
             self.additions
+                .retain(|_, p| p.session_id != session.grant.session_id);
+            self.self_bans
                 .retain(|_, p| p.session_id != session.grant.session_id);
         }
     }
@@ -812,41 +863,32 @@ impl CommunityService {
     }
 }
 async fn publish(facade: &Facade, now: u64) -> Result<TrustFeed> {
-    let mut policy = facade.policy().lock().await;
-    let mut snapshots = Vec::new();
-    for kind in [
-        cplc::SnapshotKind::Settings,
-        cplc::SnapshotKind::Schema,
-        cplc::SnapshotKind::Communities,
-        cplc::SnapshotKind::RevocationList,
-        cplc::SnapshotKind::SchemaVersions,
-    ] {
-        snapshots.push(
-            policy
-                .publish(kind, now)
-                .await
-                .map_err(Error::Unavailable.redact())?,
-        );
-    }
-    let manifest = policy
-        .trust_manifest(now)
+    let feed = facade
+        .policy()
+        .lock()
+        .await
+        .refresh_trust(now)
         .await
         .map_err(Error::Unavailable.redact())?;
-    let ring = policy.key_ring().map_err(Error::Unavailable.redact())?;
-    let verified = ring
-        .verify(&manifest, csgn::Kind::SettingsSnapshot, now)
-        .map_err(Error::Unavailable.redact())?;
-    let view: cplc::TrustManifest =
-        serde_json::from_slice(verified.payload()).map_err(Error::Unavailable.redact())?;
     Ok(TrustFeed {
-        revision: view.revision,
-        policy_epoch: view.policy_epoch,
-        key_ring: ring.to_cbor(),
-        manifest,
-        settings: snapshots.remove(0),
-        schema: snapshots.remove(0),
-        communities: snapshots.remove(0),
-        revocations: snapshots.remove(0),
-        schema_versions: snapshots.remove(0),
+        revision: feed.revision,
+        policy_epoch: feed.policy_epoch,
+        key_ring: feed.key_ring.clone(),
+        key_transitions: feed
+            .key_transitions
+            .iter()
+            .map(|transition| TrustKeyTransition {
+                revision: transition.revision,
+                proof: transition.proof.clone(),
+            })
+            .collect(),
+        manifest: feed.manifest.clone(),
+        settings: feed.settings.clone(),
+        schema: feed.schema.clone(),
+        communities: feed.communities.clone(),
+        revocations: feed.revocations.clone(),
+        schema_versions: feed.schema_versions.clone(),
+        root_board: feed.root_board.clone(),
+        balance: feed.balance.clone(),
     })
 }

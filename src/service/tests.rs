@@ -2,7 +2,28 @@ use super::*;
 use crate::test_support as support;
 use support::*;
 
+#[path = "tests/timing.rs"]
 mod timing;
+
+#[tokio::test]
+async fn live_lifecycle_clocks_do_not_change_the_original_proof_context() {
+    let clock = TestClock(std::sync::atomic::AtomicU64::new(NOW));
+    assert_eq!(operation_time(&clock), NOW);
+    at(NOW, async {
+        clock.set(NOW + 1);
+        assert_eq!(operation_time(&clock), NOW);
+        with_live_clock(async {
+            assert_eq!(operation_time(&clock), NOW + 1);
+            tokio::task::yield_now().await;
+            clock.set(NOW + 2);
+            assert_eq!(operation_time(&clock), NOW + 2);
+        })
+        .await;
+        assert_eq!(operation_time(&clock), NOW);
+    })
+    .await;
+    assert_eq!(operation_time(&clock), NOW + 2);
+}
 
 fn anonymous(host: &str) -> Context {
     Context {

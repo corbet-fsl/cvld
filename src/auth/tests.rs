@@ -7,6 +7,11 @@ const NOW: u64 = 1_800_000_000;
 const ORIGIN: &str = "https://auth.example.test";
 const BOOTSTRAP: &str = "synthetic-operator-enrolment-capability";
 
+#[path = "tests/global_self_ban.rs"]
+mod global_self_ban;
+#[path = "tests/passkey_management.rs"]
+mod passkey_management;
+
 async fn database() -> (tempfile::TempDir, crlt::Db) {
     let directory = tempfile::tempdir().unwrap();
     let db = crlt::Db::open(crlt::Config::new(

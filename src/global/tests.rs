@@ -116,10 +116,24 @@ async fn reopening_publication_preserves_authority_and_refreshes_the_watch() {
     let directory = tempfile::tempdir().unwrap();
     let config = global_config(directory.path(), 100).await;
     let db = database(&directory.path().join("global.db")).await;
-    let first = GlobalService::open(&db, &config, NOW).await.unwrap();
+    let first = GlobalService::open(
+        &db,
+        &config,
+        NOW,
+        std::sync::Arc::new(support::TestClock(std::sync::atomic::AtomicU64::new(NOW))),
+    )
+    .await
+    .unwrap();
     let original = first.public.clone();
     drop(first);
-    let mut second = GlobalService::open(&db, &config, NOW).await.unwrap();
+    let mut second = GlobalService::open(
+        &db,
+        &config,
+        NOW,
+        std::sync::Arc::new(support::TestClock(std::sync::atomic::AtomicU64::new(NOW))),
+    )
+    .await
+    .unwrap();
     assert_eq!(second.public.key_ring, original.key_ring);
     assert_eq!(second.public.issuer, original.issuer);
     let mut watch = second.changes.subscribe();
@@ -133,13 +147,26 @@ async fn reopening_publication_preserves_authority_and_refreshes_the_watch() {
     assert_eq!(status.epoch, 1);
     assert_eq!(status.policy_revision, 1);
     drop(second);
-    let mut restarted = GlobalService::open(&db, &config, NOW + 86_401)
-        .await
-        .unwrap();
+    let mut restarted = GlobalService::open(
+        &db,
+        &config,
+        NOW + 86_401,
+        std::sync::Arc::new(support::TestClock(std::sync::atomic::AtomicU64::new(
+            NOW + 86_401,
+        ))),
+    )
+    .await
+    .unwrap();
     assert_eq!(restarted.public.key_ring, original.key_ring);
     assert_eq!(restarted.public.issuer, original.issuer);
     assert!(matches!(
-        GlobalService::open(&db, &config, NOW).await,
+        GlobalService::open(
+            &db,
+            &config,
+            NOW,
+            std::sync::Arc::new(support::TestClock(std::sync::atomic::AtomicU64::new(NOW)))
+        )
+        .await,
         Err(Error::Unavailable)
     ));
     // The signer limit bounds each message lifetime, not the key's age.
@@ -157,14 +184,26 @@ async fn development_issuer_cannot_be_enabled_by_a_production_configuration() {
     let db = database(&directory.path().join("global.db")).await;
     config.development = false;
     assert!(matches!(
-        GlobalService::open(&db, &config, NOW).await,
+        GlobalService::open(
+            &db,
+            &config,
+            NOW,
+            std::sync::Arc::new(support::TestClock(std::sync::atomic::AtomicU64::new(NOW)))
+        )
+        .await,
         Err(Error::Unavailable)
     ));
     #[cfg(not(feature = "development-gate"))]
     {
         config.development = true;
         assert!(matches!(
-            GlobalService::open(&db, &config, NOW).await,
+            GlobalService::open(
+                &db,
+                &config,
+                NOW,
+                std::sync::Arc::new(support::TestClock(std::sync::atomic::AtomicU64::new(NOW)))
+            )
+            .await,
             Err(Error::Forbidden)
         ));
     }
@@ -176,16 +215,35 @@ async fn existing_signer_and_policy_refuse_substituted_configuration() {
     let directory = tempfile::tempdir().unwrap();
     let config = global_config(directory.path(), 100).await;
     let db = database(&directory.path().join("global.db")).await;
-    GlobalService::open(&db, &config, NOW).await.unwrap();
+    GlobalService::open(
+        &db,
+        &config,
+        NOW,
+        std::sync::Arc::new(support::TestClock(std::sync::atomic::AtomicU64::new(NOW))),
+    )
+    .await
+    .unwrap();
     std::fs::write(&config.signing_seed_file, [91; 32]).unwrap();
     assert!(matches!(
-        GlobalService::open(&db, &config, NOW).await,
+        GlobalService::open(
+            &db,
+            &config,
+            NOW,
+            std::sync::Arc::new(support::TestClock(std::sync::atomic::AtomicU64::new(NOW)))
+        )
+        .await,
         Err(Error::Unavailable)
     ));
     std::fs::write(&config.signing_seed_file, [4; 32]).unwrap();
     std::fs::write(&config.policy_authority_file, b"private-invalid-authority").unwrap();
     assert!(matches!(
-        GlobalService::open(&db, &config, NOW).await,
+        GlobalService::open(
+            &db,
+            &config,
+            NOW,
+            std::sync::Arc::new(support::TestClock(std::sync::atomic::AtomicU64::new(NOW)))
+        )
+        .await,
         Err(Error::Invalid)
     ));
 }
@@ -196,7 +254,14 @@ async fn global_trust_refuses_tampering_and_retains_durable_rollback_floors() {
     let global_directory = tempfile::tempdir().unwrap();
     let config = global_config(global_directory.path(), 100).await;
     let global_db = database(&global_directory.path().join("global.db")).await;
-    let global = GlobalService::open(&global_db, &config, NOW).await.unwrap();
+    let global = GlobalService::open(
+        &global_db,
+        &config,
+        NOW,
+        std::sync::Arc::new(support::TestClock(std::sync::atomic::AtomicU64::new(NOW))),
+    )
+    .await
+    .unwrap();
     let directory = tempfile::tempdir().unwrap();
     let config = community_config(directory.path(), "alpha", &global.public, 100);
     let path = directory.path().join("community.db");

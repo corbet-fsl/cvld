@@ -7,6 +7,8 @@ struct ScriptClock {
     calls: std::sync::atomic::AtomicUsize,
     notify_at: std::sync::atomic::AtomicUsize,
     observed: tokio::sync::Notify,
+    released: std::sync::Mutex<bool>,
+    release: std::sync::Condvar,
 }
 impl Clock for ScriptClock {
     fn now(&self) -> u64 {
@@ -19,6 +21,20 @@ impl Clock for ScriptClock {
         let count = self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
         if count == self.notify_at.load(std::sync::atomic::Ordering::SeqCst) {
             self.observed.notify_one();
+            // Hold this already sampled observation while the other runtime
+            // worker advances time. No scheduling delay stands in for a fence.
+            let (released, timeout) = self
+                .release
+                .wait_timeout_while(
+                    self.released.lock().unwrap(),
+                    Duration::from_secs(10),
+                    |released| !*released,
+                )
+                .unwrap();
+            assert!(
+                *released && !timeout.timed_out(),
+                "clock fence was not released"
+            );
         }
         now
     }
@@ -33,6 +49,8 @@ async fn scripted_global() -> (Running, Arc<ScriptClock>) {
         calls: Default::default(),
         notify_at: std::sync::atomic::AtomicUsize::new(usize::MAX),
         observed: Default::default(),
+        released: Default::default(),
+        release: Default::default(),
     });
     let door = Door::global(global_config(dir.path(), 100).await, clock.clone())
         .await
@@ -124,74 +142,110 @@ async fn execution_rechecks_time_after_the_actual_credential_query() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_session_expiring_during_issuance_cannot_publish_a_usable_passport() {
     for expire in [false, true] {
-        let (global, clock) = scripted_global().await;
-        let member = enrol(&global, WALLET, None).await;
-        let client = client(&global, WALLET, Some(&member.session));
+        issuance_publication(
+            NOW + 599,
+            NOW + 599,
+            NOW + 600,
+            expire,
+            "an expired session published a usable passport",
+        )
+        .await;
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_pending_nonce_expiring_during_issuance_cannot_publish_a_usable_passport() {
+    for expire in [false, true] {
+        issuance_publication(
+            NOW,
+            NOW + 60,
+            NOW + 61,
+            expire,
+            "an expired pending nonce published a usable passport",
+        )
+        .await;
+    }
+}
+
+async fn issuance_publication(
+    challenge_at: u64,
+    issue_at: u64,
+    finish_at: u64,
+    expire: bool,
+    marker: &str,
+) {
+    let (global, clock) = scripted_global().await;
+    let member = enrol(&global, WALLET, None).await;
+    let client = client(&global, WALLET, Some(&member.session));
+    client
+        .call("development_gate", serde_json::json!({}))
+        .await
+        .unwrap();
+    let public: GlobalPublic = serde_json::from_value(
         client
-            .call("development_gate", serde_json::json!({}))
+            .call("global_public", serde_json::json!({}))
             .await
-            .unwrap();
-        let public: GlobalPublic = serde_json::from_value(
-            client
-                .call("global_public", serde_json::json!({}))
-                .await
-                .unwrap(),
-        )
+            .unwrap(),
+    )
+    .unwrap();
+    let issuer = cpsd::IssuerPublicKey::from_bytes(&public.issuer).unwrap();
+    let mut rng = cpsd::rand::rngs::OsRng;
+    let secret = cpsd::HolderSecret::generate(&mut rng);
+    global.clock.set(challenge_at);
+    let challenge: Bytes = serde_json::from_value(
+        client
+            .call("passport_challenge", serde_json::json!({}))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let challenge = cpsd::IssuanceChallenge::from_bytes(challenge.bytes.try_into().unwrap());
+    let (request, pending) = cpsd::request_issue(&mut rng, &secret, &issuer, &challenge).unwrap();
+    global.clock.set(issue_at);
+    // The route observes time once at admission, three times while
+    // completing authentication, once before dispatch, and once when the
+    // authenticated nonce tightens its deadline. Freeze that last sampled
+    // value; expiry after it must still be caught before publishing output.
+    clock.notify_at.store(
+        clock.calls.load(std::sync::atomic::Ordering::SeqCst) + 6,
+        std::sync::atomic::Ordering::SeqCst,
+    );
+    let operation = tokio::spawn(async move {
+        client
+            .call(
+                "passport_issue",
+                serde_json::json!({
+                    "challenge": challenge.to_bytes().to_vec(), "request": request.to_bytes(),
+                }),
+            )
+            .await
+    });
+    tokio::time::timeout(Duration::from_secs(10), clock.observed.notified())
+        .await
         .unwrap();
-        let issuer = cpsd::IssuerPublicKey::from_bytes(&public.issuer).unwrap();
-        let mut rng = cpsd::rand::rngs::OsRng;
-        let secret = cpsd::HolderSecret::generate(&mut rng);
-        global.clock.set(NOW + 599);
-        let challenge: Bytes = serde_json::from_value(
-            client
-                .call("passport_challenge", serde_json::json!({}))
-                .await
-                .unwrap(),
-        )
-        .unwrap();
-        let challenge = cpsd::IssuanceChallenge::from_bytes(challenge.bytes.try_into().unwrap());
-        let (request, pending) =
-            cpsd::request_issue(&mut rng, &secret, &issuer, &challenge).unwrap();
-        let lock = global.door.global_backend().unwrap().lock().await;
-        // The route observes time once at admission, three times while
-        // completing authentication, and once before dispatch. Notify on that
-        // last observation while the actual backend mutex keeps work pending.
-        clock.notify_at.store(
-            clock.calls.load(std::sync::atomic::Ordering::SeqCst) + 5,
-            std::sync::atomic::Ordering::SeqCst,
-        );
-        let operation =
-            tokio::spawn(async move {
-                client.call("passport_issue", serde_json::json!({
-                "challenge": challenge.to_bytes().to_vec(), "request": request.to_bytes(),
-            })).await
-            });
-        tokio::time::timeout(Duration::from_secs(10), clock.observed.notified())
-            .await
-            .unwrap();
-        if expire {
-            global.clock.set(NOW + 600);
-        }
-        drop(lock);
-        let result = operation
-            .await
-            .unwrap()
-            .map(|value| serde_json::from_value::<Bytes>(value).unwrap());
-        if expire {
-            if let Ok(response) = result {
-                // This proves the old behavior would release a real usable
-                // upstream credential, not merely return malformed bytes.
-                pending
-                    .finish(&cpsd::BlindPassport::from_bytes(&response.bytes).unwrap())
-                    .unwrap();
-                panic!("an expired session published a usable passport");
-            }
-            assert!(matches!(result, Err(Error::Reconcile)));
-        } else {
-            let response = result.unwrap();
+    if expire {
+        global.clock.set(finish_at);
+    }
+    *clock.released.lock().unwrap() = true;
+    clock.release.notify_one();
+    let result = operation
+        .await
+        .unwrap()
+        .map(|value| serde_json::from_value::<Bytes>(value).unwrap());
+    if expire {
+        if let Ok(response) = result {
+            // This proves the old behavior would release a real usable
+            // upstream credential, not merely return malformed bytes.
             pending
                 .finish(&cpsd::BlindPassport::from_bytes(&response.bytes).unwrap())
                 .unwrap();
+            panic!("{marker}");
         }
+        assert!(matches!(result, Err(Error::Reconcile)));
+    } else {
+        let response = result.unwrap();
+        pending
+            .finish(&cpsd::BlindPassport::from_bytes(&response.bytes).unwrap())
+            .unwrap();
     }
 }

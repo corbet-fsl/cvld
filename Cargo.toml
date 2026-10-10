@@ -9,15 +9,23 @@ publish = false
 
 [features]
 default = ["server"]
-server = ["client-http", "dep:cmty", "dep:clbs", "dep:ed25519-dalek", "dep:cpsd", "dep:crlt", "dep:csgn", "dep:cgbl", "dep:ckyh", "dep:cthl", "dep:axum", "dep:tower-http", "dep:utoipa", "dep:clap", "dep:rmcp", "dep:tokio", "dep:uuid", "dep:chrono", "dep:rand", "dep:subtle"]
+server = ["client-http", "dep:cpmt", "dep:crpt", "dep:x402-types", "dep:cmty", "dep:clbs", "dep:cphn", "dep:cmbx", "dep:cfbk", "dep:ed25519-dalek", "dep:cpsd", "dep:crlt", "dep:csgn", "dep:cgbl", "dep:ckyh", "dep:cthl", "dep:axum", "dep:tower-http", "dep:utoipa", "dep:clap", "dep:rmcp", "dep:tokio", "dep:uuid", "dep:chrono", "dep:rand", "dep:subtle"]
 client = ["dep:jsonschema"]
-client-http = ["client", "dep:reqwest"]
+client-http = ["client", "dep:reqwest", "dep:url"]
+client-browser = ["client", "dep:url", "dep:gloo-timers", "dep:web-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys"]
 development-gate = ["server", "cgbl/development-gate"]
 
 [dependencies]
+url = { version = "2.5", optional = true }
 jsonschema = { version = "0.58", default-features = false, optional = true }
 cmty = { git = "https://git.corbet.ch/corbet-libs/cmty", branch = "main", optional = true }
+cpmt = { git = "https://git.corbet.ch/corbet-foss/cpmt", branch = "main", optional = true }
+crpt = { git = "https://git.corbet.ch/corbet-foss/crpt", branch = "main", features = ["http"], optional = true }
+x402-types = { version = "2", optional = true }
 clbs = { git = "https://git.corbet.ch/corbet-foss/clbs", branch = "main", optional = true }
+cphn = { git = "https://git.corbet.ch/corbet-foss/cphn", branch = "main", optional = true }
+cmbx = { git = "https://git.corbet.ch/corbet-foss/cmbx", branch = "main", optional = true }
+cfbk = { git = "https://git.corbet.ch/corbet-foss/cfbk", branch = "main", optional = true }
 ed25519-dalek = { version = "3", optional = true }
 cpsd = { git = "https://git.corbet.ch/corbet-foss/cpsd", branch = "main", default-features = false, features = ["storage"], optional = true }
 crlt = { git = "https://git.corbet.ch/corbet-foss/crlt", branch = "main", optional = true }
@@ -46,7 +54,21 @@ name = "cvld"
 path = "src/main.rs"
 required-features = ["server"]
 
-[dev-dependencies]
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+gloo-timers = { version = "0.3", optional = true }
+web-sys = { version = "0.3", features = ["AbortController", "AbortSignal", "Headers", "Request", "RequestInit", "RequestMode", "Response", "Window", "ReadableStream", "ReadableStreamDefaultReader", "RequestRedirect", "RequestCredentials", "RequestCache", "ReferrerPolicy"], optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+js-sys = { version = "0.3", optional = true }
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "0.3.79"
+gloo-net = { version = "0.7", default-features = false, features = ["http", "json"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+rcgen = { version = "0.14", features = ["crypto"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+cgrd = { git = "https://git.corbet.ch/corbet-foss/cgrd", branch = "main", default-features = false }
 futures-util = "0.3"
 passkey = "0.4"
 async-trait = "0.1"

@@ -27,6 +27,9 @@ pub struct Config {
     pub publication_seconds: u64,
     pub signer_max_seconds: u64,
     pub development: bool,
+    /// Providers are enabled only through explicit contact configuration.
+    #[serde(default)]
+    pub contacts: Option<crate::contact_gates::ContactConfig>,
 }
 fn shutdown_budget(seconds: u64) -> Result<Duration> {
     let duration = Duration::from_secs(seconds);
@@ -95,6 +98,9 @@ pub struct CommunityConfig {
     pub minimum_notice_seconds: u64,
     pub voucher_provider: String,
     pub voucher_public_key_file: String,
+    /// Paid access is off unless an exact account/offer is supplied explicitly.
+    #[serde(default)]
+    pub payments: Option<crate::payments::PaymentConfig>,
 }
 impl CommunityConfig {
     pub fn shutdown_budget(&self) -> Result<Duration> {

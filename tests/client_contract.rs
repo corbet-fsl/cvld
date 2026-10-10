@@ -1,12 +1,111 @@
 #![cfg(feature = "development-gate")]
 mod support;
 
+use cvld::api::Ceremony;
 use cvld::{
     client::{Client, HttpClient, action, contract},
     error::Error,
 };
-use serde_json::json;
+use serde_json::{Value, json};
+use webauthn_authenticator_rs::{AuthenticatorBackend, softtoken::SoftToken};
+#[path = "support/client_faults.rs"]
+mod client_faults;
 use support::*;
+
+async fn login_request(
+    service: &Running,
+    host: &str,
+    authenticator: &mut SoftToken,
+    user: &str,
+    credential: &[u8],
+) -> Value {
+    let client = client(service, host, None);
+    let start: Ceremony = serde_json::from_value(
+        client
+            .call("login_begin", json!({"user":user,"credential":credential}))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let challenge: ckyh::RequestChallengeResponse = serde_json::from_value(start.options).unwrap();
+    let credential = authenticator
+        .perform_auth(
+            ckyh::Url::parse(&format!("https://{host}")).unwrap(),
+            challenge.public_key,
+            300_000,
+        )
+        .unwrap();
+    json!({"ceremony":start.ceremony,"credential":credential})
+}
+#[tokio::test(flavor = "multi_thread")]
+async fn schema_valid_duplicate_response_keys_are_refused_on_the_real_wire() {
+    use axum::{Router, routing::post};
+    let service = global(100).await;
+    let upstream = client(&service, WALLET, None);
+    let router = Router::new().route(
+        "/v1/global_public",
+        post(move || {
+            let upstream = upstream.clone();
+            async move {
+                let value = upstream.call("global_public", json!({})).await.unwrap();
+                client_faults::duplicate_public_response(&value)
+            }
+        }),
+    );
+    let socket = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", socket.local_addr().unwrap());
+    let task = tokio::spawn(async move { axum::serve(socket, router).await.unwrap() });
+    let proxy = HttpClient::new(base, WALLET.into(), None).unwrap();
+    assert!(matches!(
+        proxy.call("global_public", json!({})).await,
+        Err(Error::Reconcile)
+    ));
+    task.abort();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn authentication_adopts_the_real_session_without_exporting_its_bearer() {
+    let service = global(100).await;
+    let mut member = enrol(&service, WALLET, None).await;
+    let request = login_request(
+        &service,
+        WALLET,
+        &mut member.authenticator,
+        &member.user,
+        &member.credential,
+    )
+    .await;
+    let mut api = Client::new(client(&service, WALLET, None));
+    assert!(cvld::client::forwarding_action("login_finish").is_none());
+    assert!(cvld::client::forwarding_action("global_public").is_some());
+    assert!(cvld::client::forwarding_action("unknown").is_none());
+    assert!(cvld::client::forwarding_contract()["paths"]["/v1/login_finish"].is_null());
+    assert!(matches!(
+        api.forward("login_finish", request.clone()).await,
+        Err(Error::Invalid)
+    ));
+    let mut foreign = Client::new(client(&service, ROOT, None));
+    assert!(matches!(
+        foreign.authenticate(request.clone()).await,
+        Err(Error::Unauthorized)
+    ));
+    let info = api.authenticate(request.clone()).await.unwrap();
+    assert_eq!(info.user, member.user);
+    assert_eq!(info.role, "member");
+    assert!(info.expires > NOW);
+    let safe = serde_json::to_value(&info).unwrap();
+    assert!(safe.get("token").is_none());
+    assert_eq!(safe.as_object().unwrap().len(), 3);
+    assert!(matches!(
+        api.authenticate(request).await,
+        Err(Error::Unauthorized)
+    ));
+    api.forward("logout", json!({})).await.unwrap();
+    assert!(matches!(
+        api.forward("logout", json!({})).await,
+        Err(Error::Unauthorized)
+    ));
+}
 
 #[test]
 fn portable_action_lookup_preserves_every_generated_path_and_schema() {
@@ -95,7 +194,7 @@ async fn committed_logout_with_a_lost_or_malformed_response_is_unknown_and_never
         Some("synthetic-operator-enrolment-capability"),
     )
     .await;
-    for mode in 0..10 {
+    for mode in (0..10).chain(11..13) {
         let session = login(
             &service,
             ROOT,
@@ -141,6 +240,7 @@ async fn committed_logout_with_a_lost_or_malformed_response_is_unknown_and_never
                                 Ok::<_, std::io::Error>(vec![b' '; 17 * 1024 * 1024]),
                             ]))),
                             8 => Response::new(Body::from("{\"unexpected\":true}")),
+                            11 | 12 => client_faults::corrupted_response(mode),
                             _ => Response::new(Body::from("{\"issuer\":[]}")),
                         }
                     }

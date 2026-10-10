@@ -3,6 +3,16 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use utoipa::ToSchema;
 
+/// Original registered-key certificate with its actual checked output time.
+/// The signed certificate is unchanged; this observation is from the fresh
+/// authenticated server response, not retained prior device observations.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PasskeyCertificateResponse {
+    pub bytes: Vec<u8>,
+    pub checked_at: u64,
+}
+
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PresentationChallenge {
@@ -136,12 +146,27 @@ pub struct TrustFeed {
     pub revision: u64,
     pub policy_epoch: u64,
     pub key_ring: Vec<u8>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub key_transitions: Vec<TrustKeyTransition>,
     pub manifest: Vec<u8>,
     pub settings: Vec<u8>,
     pub schema: Vec<u8>,
     pub schema_versions: Vec<u8>,
+    /// Original optional Policy publication, authenticated with the manifest.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub root_board: Option<Vec<u8>>,
+    /// Original optional Balance publication, authenticated with the manifest.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub balance: Option<Vec<u8>>,
     pub communities: Vec<u8>,
     pub revocations: Vec<u8>,
+}
+/// Original publishing-key endorsement; routing metadata is not authority.
+#[derive(Clone, Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TrustKeyTransition {
+    pub revision: u64,
+    pub proof: Vec<u8>,
 }
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
@@ -159,6 +184,43 @@ pub struct Announcement {
 #[serde(deny_unknown_fields)]
 pub struct RevokePasskey {
     pub credential: Vec<u8>,
+}
+
+/// Account-owned management metadata, without keys, counters or last-use data.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PasskeyView {
+    pub credential: Vec<u8>,
+    pub created_year: u16,
+    pub created_month: u8,
+    pub authenticator_type: Option<String>,
+    pub revoked: bool,
+    pub current: bool,
+}
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PasskeyList {
+    pub passkeys: Vec<PasskeyView>,
+}
+impl PasskeyList {
+    pub(crate) fn from_records(
+        records: Vec<ckyh::StoredPasskey>,
+        current: &ckyh::CredentialID,
+    ) -> Self {
+        Self {
+            passkeys: records
+                .into_iter()
+                .map(|record| PasskeyView {
+                    credential: record.credential_id().as_ref().to_vec(),
+                    created_year: record.created().year(),
+                    created_month: record.created().month(),
+                    authenticator_type: record.authenticator_type().map(str::to_owned),
+                    revoked: record.is_revoked(),
+                    current: record.credential_id() == current,
+                })
+                .collect(),
+        }
+    }
 }
 
 /// Bind one actual lineage device key to the current passkey.

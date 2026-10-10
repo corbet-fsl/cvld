@@ -87,5 +87,7 @@ impl CommunityService {
             .retain(|_, session| session.grant.credential != *credential);
         self.additions
             .retain(|_, pending| pending.credential != *credential);
+        self.self_bans
+            .retain(|_, pending| pending.credential != *credential);
     }
 }
