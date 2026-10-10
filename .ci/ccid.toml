@@ -38,6 +38,9 @@ commands = [["cargo", "deny", "--locked", "check", "advisories"]]
 tool_revision = "e38f347d6941aa105ac4b55a0d4b8fec2ef22433"
 
 [jobs.verify]
+# Cold native, Wasm, release, toy and instrumented application checks share one job.
+# Preserve the full suite with a bounded two-hour budget.
+environment = { CI_TIMEOUT = "7200" }
 scheduler = "crow"
 checks = ["verify", "advisories"]
 workflow = "repository-jobs"

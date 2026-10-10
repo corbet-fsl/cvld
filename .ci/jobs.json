@@ -2,7 +2,7 @@
   "schema": 1,
   "generator": "ccid render v1",
   "tool_revision": "e38f347d6941aa105ac4b55a0d4b8fec2ef22433",
-  "manifest_sha256": "e0d86260b1cdc01ce3f47235f576e3697f2e0914886279f9af60aee762fda0b1",
+  "manifest_sha256": "0748b2f705381b7d2c709a8d448eeb877463db7d418f52b0f5ef1aa058306625",
   "jobs": {
     "verify": {
       "job": "verify",
@@ -15,7 +15,10 @@
       "command": [
         "bash",
         ".ci/run-cached.sh"
-      ]
+      ],
+      "environment": {
+        "CI_TIMEOUT": "7200"
+      }
     }
   }
 }
