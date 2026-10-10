@@ -20,9 +20,6 @@ command -v cmake >/dev/null || { echo 'missing cmake for lock-evidenced cmake ed
 # Wasm target on stable is guaranteed by run-cached.sh (helper readiness +
 # exclusive provisioning); no toolchain mutation here under the shared lock.
 
-cargo update
-cp Cargo.lock "$ARTIFACT_ROOT/Cargo.lock"
-
 # --- resolve pure selftest (committed graph only; update refresh excluded) ---
 python3 .github/check-first-party.py
 
