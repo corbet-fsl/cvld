@@ -311,6 +311,7 @@ impl CommunityService {
     }
     async fn refresh_global(&self, now: u64) -> Result<()> {
         let global = crate::global_trust::load(&self.db, &self.config, now).await?;
+        crate::service::publication::expires_at(global.valid_until)?;
         let policy = self.facade.policy().lock().await;
         if policy
             .key_ring()
@@ -386,6 +387,7 @@ impl CommunityService {
             .map_err(Error::Refused.redact())?;
         let request = challenge.signed_request().to_vec();
         let id = token();
+        crate::service::publication::expires_at(now + 60)?;
         self.challenges.insert(
             id.clone(),
             Challenge {
@@ -413,6 +415,7 @@ impl CommunityService {
             .challenges
             .remove(&input.challenge)
             .ok_or(Error::Refused)?;
+        crate::service::publication::expires_at(challenge.until)?;
         if challenge.owner.is_some() {
             return Err(Error::Forbidden);
         }
@@ -430,6 +433,7 @@ impl CommunityService {
             .await
             .map_err(Error::Refused.redact())?;
         let id = token();
+        crate::service::publication::expires_at(now + 300)?;
         self.registrations.insert(
             id.clone(),
             Pending {
@@ -450,6 +454,7 @@ impl CommunityService {
             .registrations
             .remove(&request.ceremony)
             .ok_or(Error::Unauthorized)?;
+        crate::service::publication::expires_at(pending.until)?;
         self.facade
             .membership()
             .finish_registration(pending.value, request.credential)
@@ -472,6 +477,7 @@ impl CommunityService {
             .await
             .map_err(Error::Unauthorized.redact())?;
         let id = token();
+        crate::service::publication::expires_at(now + 300)?;
         self.logins.insert(
             id.clone(),
             PendingLogin {
@@ -497,6 +503,7 @@ impl CommunityService {
             .await
             .map_err(Error::Unauthorized.redact())?;
         let id = token();
+        crate::service::publication::expires_at(now + 300)?;
         self.logins.insert(
             id.clone(),
             PendingLogin {
@@ -518,6 +525,7 @@ impl CommunityService {
             .logins
             .remove(&request.ceremony)
             .ok_or(Error::Unauthorized)?;
+        crate::service::publication::expires_at(pending.until)?;
         let credential = request.credential.raw_id.clone().into();
         let login = self
             .facade
@@ -527,6 +535,7 @@ impl CommunityService {
             .map_err(Error::Unauthorized.redact())?;
         let user = login.authentication.member();
         let expires = now + self.config.session_seconds;
+        crate::service::publication::expires_at(expires)?;
         let id = token();
         self.sessions.insert(
             id.clone(),
@@ -712,6 +721,7 @@ impl CommunityService {
             .challenges
             .remove(&request.presentation.challenge)
             .ok_or(Error::Refused)?;
+        crate::service::publication::expires_at(challenge.until)?;
         if challenge.owner != Some(auth.member()) {
             return Err(Error::Forbidden);
         }

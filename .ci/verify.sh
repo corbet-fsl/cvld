@@ -38,6 +38,8 @@ node .github/check-pins.mjs dependency-metadata.json
 cargo fmt --all --check
 cargo clippy --locked --all-targets --features development-gate -- -D warnings
 cargo clippy --locked --no-default-features --features client --lib --target wasm32-unknown-unknown -- -D warnings
+python3 -B .ci/test-time-controls.py
+python3 -B .ci/time-controls.py
 cargo run --locked -- openapi > docs/openapi.json
 npm ci --prefix clients/ts
 npm run generate --prefix clients/ts

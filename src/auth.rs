@@ -119,6 +119,7 @@ impl Auth {
         .map_err(Error::Unavailable.redact())?
         .map_err(Error::Refused.redact())?;
         let ceremony = token();
+        crate::service::publication::expires_at(now + 300)?;
         self.registrations.insert(
             ceremony.clone(),
             Pending {
@@ -139,6 +140,7 @@ impl Auth {
             .registrations
             .remove(&request.ceremony)
             .ok_or(Error::Unauthorized)?;
+        crate::service::publication::expires_at(pending.expires)?;
         let date = chrono::DateTime::from_timestamp(now as i64, 0).ok_or(Error::Invalid)?;
         use chrono::Datelike;
         let month = ckyh::CreationMonth::new(date.year() as u16, date.month() as u8)
@@ -177,6 +179,7 @@ impl Auth {
         .map_err(Error::Unavailable.redact())?
         .map_err(Error::Unauthorized.redact())?;
         let ceremony = token();
+        crate::service::publication::expires_at(now + 300)?;
         self.logins.insert(
             ceremony.clone(),
             PendingLogin {
@@ -202,6 +205,7 @@ impl Auth {
                 .map_err(Error::Unavailable.redact())?
                 .map_err(Error::Unauthorized.redact())?;
         let ceremony = token();
+        crate::service::publication::expires_at(now + 300)?;
         self.logins.insert(
             ceremony.clone(),
             PendingLogin {
@@ -223,6 +227,7 @@ impl Auth {
             .logins
             .remove(&request.ceremony)
             .ok_or(Error::Unauthorized)?;
+        crate::service::publication::expires_at(pending.expires)?;
         let credential: ckyh::CredentialID = request.credential.raw_id.clone().into();
         let passkeys = self.passkeys.clone();
         let authentication = tokio::task::spawn_blocking(move || match pending.state {
@@ -244,6 +249,7 @@ impl Auth {
         }
         let token = token();
         let expires = now + self.lifetime;
+        crate::service::publication::expires_at(expires)?;
         self.sessions.insert(
             token.clone(),
             Grant {

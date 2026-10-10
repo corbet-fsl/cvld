@@ -226,7 +226,8 @@ macro_rules! actions {
                         let Json(request) = tokio::time::timeout(std::time::Duration::from_secs(10), Json::<$request>::from_request(request, &())).await.map_err(Error::Invalid.redact())?.map_err(Error::Invalid.redact())?;
                         let _guard = door.request_guard(action).await;
                         let ctx = door.complete_context(action, ctx).await?;
-                        let response: $response = crate::service::at(ctx.now, door.$name(ctx, request)).await?;
+                        let publication = door.publication(action, &ctx);
+                        let response: $response = publication.run(crate::service::at(ctx.now, door.$name(ctx, request))).await?;
                         Ok::<_, Error>(Json(response))
                     }
                 ));

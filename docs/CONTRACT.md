@@ -26,6 +26,16 @@ may alter permanent domain state. Authentication counter commits are records.
 Pending ceremonies and bearer sessions are bounded, ephemeral and single-use
 or expiring; restarting the process discards them.
 
+Authorization time is sampled again after waiting for the authentication mutex
+and after credential validation. The handler retains its original proof and
+snapshot context while a separate live check bounds publication by the session
+and any consumed local ceremony or authenticated global-status deadline. A
+clock rollback invalidates that operation. A result which completes too late is
+withheld; a record action returns `reconcile` because a nonce, authentication
+counter or other state may already have committed. This does not promise rollback
+or safe automatic retry. It is an output boundary, not a substitute for leaf
+storage enforcing its own deadline inside an atomic commit.
+
 ## Global process
 
 `cvld serve global --config <file>` owns one crlt database, cgbl's issuer,

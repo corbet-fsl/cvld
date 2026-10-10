@@ -2,6 +2,8 @@ use super::*;
 use crate::test_support as support;
 use support::*;
 
+mod timing;
+
 fn anonymous(host: &str) -> Context {
     Context {
         host: host.into(),

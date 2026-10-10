@@ -16,6 +16,8 @@ use std::{
 };
 use tokio::sync::{Mutex, OwnedSemaphorePermit, Semaphore, watch};
 
+pub(crate) mod publication;
+
 pub trait Clock: Send + Sync {
     fn now(&self) -> u64;
 }
@@ -377,7 +379,7 @@ impl Door {
         action: &Action,
         mut ctx: Context,
     ) -> Result<Context> {
-        ctx.now = self.inner.clock.now();
+        ctx.now = self.current_time(&ctx)?;
         // Body receipt and queue waits cannot preserve a logged-out, expired or
         // revoked grant. Recheck the exact credential at execution time.
         if !matches!(
@@ -386,25 +388,30 @@ impl Door {
         ) && let Some(token) = &ctx.token
         {
             if self.inner.member_host.as_deref() == Some(ctx.host.as_str()) {
-                let (grant, authentication) = self
-                    .community_backend()?
-                    .lock()
-                    .await
-                    .authenticate(token, ctx.now)
-                    .await?;
+                let mut community = self.community_backend()?.lock().await;
+                ctx.now = self.current_time(&ctx)?;
+                let (grant, authentication) = community.authenticate(token, ctx.now).await?;
                 ctx.grant = Some(grant);
                 ctx.authentication = Some(authentication);
             } else {
-                ctx.grant = Some(
-                    self.auth(&ctx.host)?
-                        .lock()
-                        .await
-                        .authenticate(token, ctx.now)
-                        .await?,
-                );
+                let auth = self.auth(&ctx.host)?;
+                let mut auth = auth.lock().await;
+                ctx.now = self.current_time(&ctx)?;
+                ctx.grant = Some(auth.authenticate(token, ctx.now).await?);
             }
         }
+        ctx.now = self.current_time(&ctx)?;
         Ok(ctx)
+    }
+    fn current_time(&self, ctx: &Context) -> Result<u64> {
+        let now = self.inner.clock.now();
+        if now < ctx.now || ctx.grant.as_ref().is_some_and(|grant| now >= grant.expires) {
+            return Err(Error::Unauthorized);
+        }
+        Ok(now)
+    }
+    pub(crate) fn publication(&self, action: &Action, ctx: &Context) -> publication::Publication {
+        publication::Publication::new(self.inner.clock.clone(), ctx, action.effect)
     }
     pub(crate) async fn admit_request(&self, action: &Action) -> Result<OwnedSemaphorePermit> {
         // Service-wide quotas cannot be evaded with forged IPs, handles or fresh tokens.

@@ -38,6 +38,9 @@ impl CommunityService {
                     .await
                     .map_err(Error::Refused.redact())?;
                 let id = token();
+                crate::service::publication::expires_at(
+                    now.saturating_add(300).min(grant.expires),
+                )?;
                 self.additions.insert(
                     id.clone(),
                     PendingAddition {
@@ -65,6 +68,7 @@ impl CommunityService {
                     .additions
                     .remove(&ceremony)
                     .ok_or(Error::Unauthorized)?;
+                crate::service::publication::expires_at(pending.until)?;
                 let record = self
                     .facade
                     .finish_additional_registration(authentication, pending.value, *credential)
