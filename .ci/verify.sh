@@ -21,6 +21,7 @@ command -v cmake >/dev/null || { echo 'missing cmake for lock-evidenced cmake ed
 # exclusive provisioning); no toolchain mutation here under the shared lock.
 
 # --- resolve pure selftest (committed graph only; update refresh excluded) ---
+python3 -B .ci/test-resolve-dependencies.py
 python3 .github/check-first-party.py
 
 # --- dependency-policy job (pure selftests; deny advisories separate) ---
