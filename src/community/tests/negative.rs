@@ -143,13 +143,49 @@ async fn configuration_limits_precede_storage_and_valid_state_reopens() {
     .unwrap();
     let ring = original.public.key_ring.clone();
     drop(original);
-    let reopened =
-        CommunityService::open(&db, serde_json::from_value(base).unwrap(), clock.clone())
-            .await
-            .unwrap();
+    drop(db);
+    let db = crlt::Db::open(crlt::Config::new(
+        base["database_url"].as_str().unwrap(),
+        "",
+    ))
+    .await
+    .unwrap();
+    let later = NOW + 60;
+    assert_ne!(later, cplc::day(later));
+    clock.set(later);
+    let mut reopened = CommunityService::open(
+        &db,
+        serde_json::from_value(base.clone()).unwrap(),
+        clock.clone(),
+    )
+    .await
+    .unwrap();
     assert_eq!(reopened.public.key_ring, ring);
+    let request = reopened.challenge(None, later).await.unwrap();
+    csgn::KeyRing::from_cbor(&ring)
+        .unwrap()
+        .verify(&request.request, csgn::Kind::Credential, later)
+        .unwrap();
+    drop(reopened);
+    clock.set(cplc::day(NOW) + 86_400);
+    let next_day = CommunityService::open(
+        &db,
+        serde_json::from_value(base.clone()).unwrap(),
+        clock.clone(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(next_day.public.key_ring, ring);
+    drop(next_day);
+    // Coarse timestamps are intentional; crossing back over a signing day is not.
+    clock.set(later);
+    assert!(matches!(
+        CommunityService::open(&db, serde_json::from_value(base).unwrap(), clock.clone()).await,
+        Err(Error::Unavailable)
+    ));
 
     // Include each accepted character class and the maximum label length.
+    clock.set(NOW);
     let dir = tempfile::tempdir().unwrap();
     let name = format!("a1-{}", "a".repeat(60));
     let mut config = community_config(dir.path(), &name, &public, 100);

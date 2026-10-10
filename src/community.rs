@@ -150,7 +150,8 @@ impl CommunityService {
             return Err(Error::Invalid);
         }
         let signer = if saved.is_some() {
-            csgn::PersistentSigner::open(signer_store, scope, secret, now).await
+            // cplc signs at UTC-day precision; recovery must use the same clock domain.
+            csgn::PersistentSigner::open(signer_store, scope, secret, cplc::day(now)).await
         } else {
             csgn::PersistentSigner::create(
                 signer_store,
