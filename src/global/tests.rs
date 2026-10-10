@@ -142,8 +142,10 @@ async fn reopening_publication_preserves_authority_and_refreshes_the_watch() {
         GlobalService::open(&db, &config, NOW).await,
         Err(Error::Unavailable)
     ));
+    // The signer limit bounds each message lifetime, not the key's age.
+    restarted.publication_seconds = config.signer_max_seconds + 86_400;
     assert!(matches!(
-        restarted.refresh(NOW + config.signer_max_seconds + 1).await,
+        restarted.refresh(NOW + 86_401).await,
         Err(Error::Refused)
     ));
 }
