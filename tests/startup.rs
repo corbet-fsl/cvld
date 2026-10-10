@@ -179,6 +179,30 @@ async fn both_service_processes_start_publish_and_shutdown_cleanly() {
     stop(community_child).await;
     stop(global_child).await;
 
+    // Reopen the same databases and keys in fresh processes, with a real clock.
+    let (global_child, reopened) = start(
+        "global",
+        &global_path,
+        &global.listen,
+        WALLET,
+        "global_public",
+    )
+    .await;
+    let reopened: GlobalPublic = serde_json::from_value(reopened).unwrap();
+    assert_eq!(reopened.issuer, public.issuer);
+    assert_eq!(reopened.key_ring, public.key_ring);
+    let (community_child, reopened) = start(
+        "community",
+        &community_path,
+        &community.listen,
+        "api.startup.example.test",
+        "trust_feed",
+    )
+    .await;
+    assert!(reopened["manifest"].is_array());
+    stop(community_child).await;
+    stop(global_child).await;
+
     let reserved = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let occupied_dir = tempfile::tempdir().unwrap();
     let mut global = global_config_at(occupied_dir.path(), 100, SystemClock.now()).await;
