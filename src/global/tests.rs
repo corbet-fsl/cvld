@@ -82,6 +82,12 @@ async fn database_identity_refuses_role_or_scope_rebinding_and_missing_schema() 
     identity::bind(&db, "global", "global").await.unwrap();
     drop(db);
     let db = database(&path).await;
+    assert_eq!(
+        db.migrate(&[Migration::new(1, "service", identity::SCHEMA)])
+            .await
+            .unwrap(),
+        0
+    );
     identity::bind(&db, "global", "global").await.unwrap();
     for (kind, scope) in [("community", "global"), ("global", "other")] {
         assert!(matches!(
@@ -117,16 +123,27 @@ async fn reopening_publication_preserves_authority_and_refreshes_the_watch() {
     assert_eq!(second.public.key_ring, original.key_ring);
     assert_eq!(second.public.issuer, original.issuer);
     let mut watch = second.changes.subscribe();
-    second.refresh(NOW + 60).await.unwrap();
+    second.refresh(NOW + 86_400).await.unwrap();
     watch.changed().await.unwrap();
     let refreshed = watch.borrow().clone();
     assert_ne!(refreshed.status, original.status);
     let ring = csgn::KeyRing::from_cbor(&refreshed.key_ring).unwrap();
-    let status = cgbl::Status::verify(&refreshed.status, &ring, "global", 1, 1, NOW + 60).unwrap();
+    let status =
+        cgbl::Status::verify(&refreshed.status, &ring, "global", 1, 1, NOW + 86_400).unwrap();
     assert_eq!(status.epoch, 1);
     assert_eq!(status.policy_revision, 1);
+    drop(second);
+    let mut restarted = GlobalService::open(&db, &config, NOW + 86_401)
+        .await
+        .unwrap();
+    assert_eq!(restarted.public.key_ring, original.key_ring);
+    assert_eq!(restarted.public.issuer, original.issuer);
     assert!(matches!(
-        second.refresh(NOW + config.signer_max_seconds + 1).await,
+        GlobalService::open(&db, &config, NOW).await,
+        Err(Error::Unavailable)
+    ));
+    assert!(matches!(
+        restarted.refresh(NOW + config.signer_max_seconds + 1).await,
         Err(Error::Refused)
     ));
 }
@@ -220,6 +237,13 @@ async fn global_trust_refuses_tampering_and_retains_durable_rollback_floors() {
     drop(scope);
     drop(db);
     let reopened = database(&path).await;
+    assert_eq!(
+        reopened
+            .migrate(&[Migration::new(1, "global-trust", global_trust::SCHEMA)])
+            .await
+            .unwrap(),
+        0
+    );
     assert!(matches!(
         global_trust::load(&reopened, &config, NOW).await,
         Err(Error::Refused)

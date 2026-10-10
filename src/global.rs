@@ -48,14 +48,17 @@ impl GlobalService {
             .map_err(Error::Unavailable.redact())?
             .is_some();
         let secret = csgn::SecretKey::from_seed(&mut Config::seed(&config.signing_seed_file)?);
+        // cgbl signs and rotates at UTC day boundaries. Resume in that same
+        // time domain; csgn still rejects a day before its persisted clock.
+        let signing_day = now / 86_400 * 86_400;
         let signer = if exists {
-            csgn::PersistentSigner::open(store, "cgbl:global", secret, now).await
+            csgn::PersistentSigner::open(store, "cgbl:global", secret, signing_day).await
         } else {
             csgn::PersistentSigner::create(
                 store,
                 "cgbl:global",
                 secret,
-                now / 86_400 * 86_400,
+                signing_day,
                 config.signer_max_seconds,
             )
             .await
