@@ -5,6 +5,8 @@ use crate::{
 };
 use cgbl::Global;
 use crlt::{Db, Migration};
+#[cfg(test)]
+mod tests;
 pub type Facade =
     Global<cgbl::storage::LibsqlStore, csgn::LibsqlStore, cpsd::storage::libsql::LibsqlStore>;
 pub struct GlobalService {

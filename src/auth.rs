@@ -18,6 +18,9 @@ pub struct Auth {
     capacity: usize,
     lifetime: u64,
 }
+
+#[cfg(test)]
+mod tests;
 struct Pending<T> {
     state: T,
     user: Uuid,
