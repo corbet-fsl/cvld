@@ -5,16 +5,43 @@ use cvld::{
     service::{Door, SystemClock},
 };
 use rmcp::ServiceExt;
-use std::sync::Arc;
+use std::{
+    future::IntoFuture,
+    sync::{Arc, OnceLock},
+    time::{Duration, Instant},
+};
 
-#[tokio::main]
-async fn main() {
-    if let Err(error) = run().await {
+fn main() {
+    if let Err(error) = start_runtime() {
         eprintln!("{error}");
         std::process::exit(1);
     }
 }
-async fn run() -> Result<()> {
+
+fn start_runtime() -> Result<()> {
+    let runtime = tokio::runtime::Runtime::new().map_err(Error::Unavailable.redact())?;
+    let deadline = Arc::new(OnceLock::new());
+    let result = runtime.block_on(run(deadline.clone()));
+    finish_runtime(runtime, result, deadline.as_ref())
+}
+fn finish_runtime(
+    runtime: tokio::runtime::Runtime,
+    result: Result<()>,
+    deadline: &OnceLock<Instant>,
+) -> Result<()> {
+    // Aborting an async task does not stop spawn_blocking. Runtime shutdown uses
+    // only the remainder of the same signal-started monotonic budget.
+    let remaining = deadline.get().map_or(Duration::ZERO, |until| {
+        until.saturating_duration_since(Instant::now())
+    });
+    runtime.shutdown_timeout(remaining);
+    if deadline.get().is_some_and(|until| Instant::now() >= *until) {
+        return Err(Error::Unavailable);
+    }
+    result
+}
+
+async fn run(deadline: Arc<OnceLock<Instant>>) -> Result<()> {
     let matches = match cli::command().try_get_matches() {
         Ok(matches) => matches,
         Err(error)
@@ -29,21 +56,22 @@ async fn run() -> Result<()> {
         // Clap's ordinary diagnostics can repeat values from the command line.
         Err(_) => return Err(Error::Invalid),
     };
-    execute(matches).await
+    execute(matches, deadline).await
 }
 
-async fn execute(matches: clap::ArgMatches) -> Result<()> {
+async fn execute(matches: clap::ArgMatches, deadline: Arc<OnceLock<Instant>>) -> Result<()> {
     let (name, args) = matches.subcommand().ok_or(Error::Invalid)?;
     match name {
         "openapi" => println!("{}", api::openapi_json()),
         "serve" => {
             let (scope, args) = args.subcommand().ok_or(Error::Invalid)?;
             let path = args.get_one::<String>("config").ok_or(Error::Invalid)?;
-            let (listen, door) = match scope {
+            let (listen, shutdown_budget, door) = match scope {
                 "global" => {
                     let config = Config::read(path)?;
                     (
                         config.listen.clone(),
+                        config.shutdown_budget()?,
                         Door::global(config, Arc::new(SystemClock)).await?,
                     )
                 }
@@ -51,6 +79,7 @@ async fn execute(matches: clap::ArgMatches) -> Result<()> {
                     let config = CommunityConfig::read(path)?;
                     (
                         config.listen.clone(),
+                        config.shutdown_budget()?,
                         Door::community(config, Arc::new(SystemClock)).await?,
                     )
                 }
@@ -68,13 +97,41 @@ async fn execute(matches: clap::ArgMatches) -> Result<()> {
             let listener = tokio::net::TcpListener::bind(listen)
                 .await
                 .map_err(Error::Unavailable.redact())?;
-            axum::serve(listener, api::router(door))
-                .with_graceful_shutdown(async {
+            #[cfg(unix)]
+            let mut terminate =
+                tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                    .map_err(Error::Unavailable.redact())?;
+            let (shutdown, stopped) = tokio::sync::oneshot::channel();
+            let server = axum::serve(listener, api::router(door))
+                .with_graceful_shutdown(async move {
+                    #[cfg(unix)]
+                    tokio::select! {
+                        _ = tokio::signal::ctrl_c() => {},
+                        _ = terminate.recv() => {},
+                    }
+                    #[cfg(not(unix))]
                     let _ = tokio::signal::ctrl_c().await;
+                    let began = Instant::now();
+                    let until = began.checked_add(shutdown_budget).unwrap_or(began);
+                    let _ = deadline.set(until);
+                    let _ = shutdown.send(until);
                 })
-                .await
-                .map_err(Error::Unavailable.redact())?;
+                .into_future();
+            tokio::pin!(server);
+            let result = tokio::select! {
+                result = &mut server => result.map_err(Error::Unavailable.redact()),
+                until = stopped => {
+                    task.abort();
+                    let until = until.map_err(Error::Unavailable.redact())?;
+                    // An unfinished mutation has an uncertain result after this bound.
+                    tokio::time::timeout_at(tokio::time::Instant::from_std(until), &mut server)
+                        .await
+                        .map_err(Error::Unavailable.redact())?
+                        .map_err(Error::Unavailable.redact())
+                },
+            };
             task.abort();
+            result?;
         }
         _ => {
             let token = matches

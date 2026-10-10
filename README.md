@@ -11,7 +11,7 @@ are projections of that registry.
 
 ## Dependency choices
 
-Surveyed crates.io, official documentation and GitHub on 2026-09-30:
+Surveyed crates.io, official documentation and upstream repositories on 2026-09-30:
 
 | Dependency | Why |
 |---|---|
@@ -31,13 +31,18 @@ Surveyed crates.io, official documentation and GitHub on 2026-09-30:
 Storage and cryptography remain in the existing crlt, cpsd and csgn leaves.
 No ORM, second authorization engine or direct cryptographic implementation is
 needed. Configuration is supplied in files; the service never searches for
-credentials. Rust compilation and tests run on Crow only.
+credentials. Rust compilation and tests run only in CI.
 
 ## Run and call the door
 
-Build and validate through Crow. Supply explicit configuration and
-separate service databases; [the global example](examples/global.json) contains
-paths and synthetic identifiers, not keys or credentials.
+Build and validate through the repository CI jobs. Supply explicit configuration,
+separate service databases and a required positive `shutdown_seconds` budget.
+SIGINT and SIGTERM stop admission and share that total monotonic budget across
+request drain and runtime shutdown. Budget expiry exits with a redacted failure;
+reconcile uncertain mutations before retrying. Blocking work may continue during
+runtime shutdown and consumes the same budget.
+[The global example](examples/global.json) contains paths and synthetic
+identifiers, not keys or credentials.
 The database records its service identity at initialization and refuses a later
 configuration that assigns it to another community.
 

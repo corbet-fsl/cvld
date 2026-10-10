@@ -24,6 +24,7 @@
   },
   "pending_days": 7,
   "lease_months": 12,
+  "shutdown_seconds": 30,
   "session_seconds": 600,
   "pending_capacity": 128,
   "throttle_burst": 20,

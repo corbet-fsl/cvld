@@ -10,6 +10,7 @@
   "policy_authority_file": "configuration/policy-authority.cbor",
   "root_user": "00000000-0000-4000-8000-000000000001",
   "root_bootstrap_file": "configuration/root-bootstrap.capability",
+  "shutdown_seconds": 30,
   "session_seconds": 600,
   "pending_capacity": 128,
   "throttle_burst": 20,

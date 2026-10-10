@@ -15,6 +15,8 @@ fn anonymous(host: &str) -> Context {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn invalid_global_configuration_fails_before_serving() {
     for (field, value) in [
+        ("shutdown_seconds", serde_json::json!(0)),
+        ("shutdown_seconds", serde_json::json!(u64::MAX)),
         ("domain", serde_json::json!("")),
         ("domain", serde_json::json!("UPPER.example")),
         ("publication_seconds", serde_json::json!(1)),
@@ -75,6 +77,8 @@ async fn community_configuration_enforces_host_and_publication_boundaries() {
     )
     .unwrap();
     for (field, value) in [
+        ("shutdown_seconds", serde_json::json!(0)),
+        ("shutdown_seconds", serde_json::json!(u64::MAX)),
         ("domain", serde_json::json!("")),
         ("domain", serde_json::json!("UPPER.example")),
         ("publication_seconds", serde_json::json!(1)),
@@ -224,5 +228,34 @@ async fn internal_context_and_backend_access_remain_scoped() {
             .call("global_warn", serde_json::json!({"user":member.user}))
             .await,
         Err(Error::Forbidden)
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn shutdown_budget_is_required_in_each_service_configuration() {
+    let global = global(100).await;
+    let public: GlobalPublic = serde_json::from_value(
+        client(&global, WALLET, None)
+            .call("global_public", serde_json::json!({}))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("configuration.json");
+    let mut encoded = serde_json::to_value(global_config(dir.path(), 100).await).unwrap();
+    encoded.as_object_mut().unwrap().remove("shutdown_seconds");
+    std::fs::write(&path, serde_json::to_vec(&encoded).unwrap()).unwrap();
+    assert!(matches!(
+        Config::read(path.to_str().unwrap()),
+        Err(Error::Invalid)
+    ));
+    let mut encoded =
+        serde_json::to_value(community_config(dir.path(), "budget", &public, 100)).unwrap();
+    encoded.as_object_mut().unwrap().remove("shutdown_seconds");
+    std::fs::write(&path, serde_json::to_vec(&encoded).unwrap()).unwrap();
+    assert!(matches!(
+        CommunityConfig::read(path.to_str().unwrap()),
+        Err(Error::Invalid)
     ));
 }

@@ -96,6 +96,7 @@ impl Context {
 }
 impl Door {
     pub async fn global(config: Config, clock: Arc<dyn Clock>) -> Result<Self> {
+        config.shutdown_budget()?;
         if config.domain.is_empty()
             || !config
                 .domain
@@ -244,6 +245,7 @@ impl Door {
         }
     }
     pub async fn community(config: CommunityConfig, clock: Arc<dyn Clock>) -> Result<Self> {
+        config.shutdown_budget()?;
         if config.domain.is_empty()
             || !config
                 .domain

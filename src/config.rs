@@ -1,5 +1,6 @@
 use crate::error::{Error, Result};
 use serde::{Deserialize, Serialize};
+use std::time::{Duration, Instant};
 
 /// Supplied explicitly; loading never searches for credentials.
 #[derive(Serialize, Deserialize)]
@@ -17,6 +18,8 @@ pub struct Config {
     /// Existing operator's opaque account UUID; first enrolment uses bootstrap.
     pub root_user: String,
     pub root_bootstrap_file: Option<String>,
+    /// Required total budget from shutdown signal through HTTP and runtime drain.
+    pub shutdown_seconds: u64,
     pub session_seconds: u64,
     pub pending_capacity: usize,
     pub throttle_burst: u32,
@@ -25,7 +28,18 @@ pub struct Config {
     pub signer_max_seconds: u64,
     pub development: bool,
 }
+fn shutdown_budget(seconds: u64) -> Result<Duration> {
+    let duration = Duration::from_secs(seconds);
+    if seconds == 0 || Instant::now().checked_add(duration).is_none() {
+        return Err(Error::Invalid);
+    }
+    Ok(duration)
+}
 impl Config {
+    pub fn shutdown_budget(&self) -> Result<Duration> {
+        shutdown_budget(self.shutdown_seconds)
+    }
+
     pub fn read(path: &str) -> Result<Self> {
         serde_json::from_slice(&std::fs::read(path).map_err(Error::Unavailable.redact())?)
             .map_err(Error::Invalid.redact())
@@ -70,6 +84,8 @@ pub struct CommunityConfig {
     pub admin: Operator,
     pub pending_days: u32,
     pub lease_months: u32,
+    /// Required total budget from shutdown signal through HTTP and runtime drain.
+    pub shutdown_seconds: u64,
     pub session_seconds: u64,
     pub pending_capacity: usize,
     pub throttle_burst: u32,
@@ -81,6 +97,10 @@ pub struct CommunityConfig {
     pub voucher_public_key_file: String,
 }
 impl CommunityConfig {
+    pub fn shutdown_budget(&self) -> Result<Duration> {
+        shutdown_budget(self.shutdown_seconds)
+    }
+
     pub fn read(path: &str) -> Result<Self> {
         serde_json::from_slice(&std::fs::read(path).map_err(Error::Unavailable.redact())?)
             .map_err(Error::Invalid.redact())

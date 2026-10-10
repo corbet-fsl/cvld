@@ -127,16 +127,20 @@ async fn start(
     .expect("local startup exceeded its complete readiness deadline")
 }
 
-async fn stop(mut child: Child) {
+async fn signal(child: &Child, signal: &str) {
     let pid = child.id().unwrap().to_string();
     assert!(
         Command::new("sh")
-            .args(["-c", "kill -INT \"$1\"", "cvld-test", &pid])
+            .args(["-c", "kill -\"$1\" \"$2\"", "cvld-test", signal, &pid])
             .status()
             .await
             .unwrap()
             .success()
     );
+}
+
+async fn stop_with_signal(mut child: Child, requested: &str) {
+    signal(&child, requested).await;
     assert!(
         tokio::time::timeout(Duration::from_secs(10), child.wait())
             .await
@@ -176,8 +180,8 @@ async fn both_service_processes_start_publish_and_shutdown_cleanly() {
     )
     .await;
     assert!(feed["manifest"].is_array());
-    stop(community_child).await;
-    stop(global_child).await;
+    stop_with_signal(community_child, "INT").await;
+    stop_with_signal(global_child, "INT").await;
 
     // Reopen the same databases and keys in fresh processes, with a real clock.
     let (global_child, reopened) = start(
@@ -200,8 +204,52 @@ async fn both_service_processes_start_publish_and_shutdown_cleanly() {
     )
     .await;
     assert!(reopened["manifest"].is_array());
-    stop(community_child).await;
-    stop(global_child).await;
+    stop_with_signal(community_child, "TERM").await;
+
+    // The real public registration handler has accepted this body before SIGTERM.
+    // Graceful termination must finish it instead of killing the process mid-request.
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let mut pending = tokio::net::TcpStream::connect(&global.listen)
+        .await
+        .unwrap();
+    pending
+        .write_all(format!("POST /v1/register_begin HTTP/1.1\r\nHost: {WALLET}\r\nContent-Type: application/json\r\nContent-Length: 2\r\nExpect: 100-continue\r\nConnection: close\r\n\r\n").as_bytes())
+        .await
+        .unwrap();
+    let mut interim = [0; 25];
+    tokio::time::timeout(Duration::from_secs(3), pending.read_exact(&mut interim))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(&interim, b"HTTP/1.1 100 Continue\r\n\r\n");
+    signal(&global_child, "TERM").await;
+    pending.write_all(b"{}").await.unwrap();
+    let mut response = Vec::new();
+    tokio::time::timeout(Duration::from_secs(10), pending.read_to_end(&mut response))
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(response.starts_with(b"HTTP/1.1 200"));
+    let mut global_child = global_child;
+    assert!(
+        tokio::time::timeout(Duration::from_secs(10), global_child.wait())
+            .await
+            .unwrap()
+            .unwrap()
+            .success()
+    );
+    let (global_child, restarted) = start(
+        "global",
+        &global_path,
+        &global.listen,
+        WALLET,
+        "global_public",
+    )
+    .await;
+    let restarted: GlobalPublic = serde_json::from_value(restarted).unwrap();
+    assert_eq!(restarted.issuer, public.issuer);
+    assert_eq!(restarted.key_ring, public.key_ring);
+    stop_with_signal(global_child, "TERM").await;
 
     let reserved = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let occupied_dir = tempfile::tempdir().unwrap();
@@ -220,6 +268,46 @@ async fn both_service_processes_start_publish_and_shutdown_cleanly() {
         String::from_utf8(output.stderr).unwrap().trim(),
         Error::Unavailable.to_string()
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn shutdown_budget_expiry_returns_redacted_failure_and_reopens() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let dir = tempfile::tempdir().unwrap();
+    let mut config = global_config_at(dir.path(), 100, SystemClock.now()).await;
+    config.listen = address();
+    config.shutdown_seconds = 1;
+    let path = dir.path().join("config.json");
+    std::fs::write(&path, serde_json::to_vec(&config).unwrap()).unwrap();
+    let (mut child, _) = start("global", &path, &config.listen, WALLET, "global_public").await;
+    let mut pending = tokio::net::TcpStream::connect(&config.listen)
+        .await
+        .unwrap();
+    pending.write_all(format!("POST /v1/register_begin HTTP/1.1\r\nHost: {WALLET}\r\nContent-Type: application/json\r\nContent-Length: 2\r\nExpect: 100-continue\r\nConnection: close\r\n\r\n").as_bytes()).await.unwrap();
+    let mut interim = [0; 25];
+    tokio::time::timeout(Duration::from_secs(3), pending.read_exact(&mut interim))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(&interim, b"HTTP/1.1 100 Continue\r\n\r\n");
+    // Keep the owned registration request unfinished past the configured budget.
+    signal(&child, "TERM").await;
+    assert!(
+        !tokio::time::timeout(Duration::from_secs(5), child.wait())
+            .await
+            .unwrap()
+            .unwrap()
+            .success()
+    );
+    let output = child.wait_with_output().await.unwrap();
+    assert!(output.stdout.is_empty());
+    assert_eq!(
+        String::from_utf8(output.stderr).unwrap().trim(),
+        Error::Unavailable.to_string()
+    );
+    drop(pending);
+    let (child, _) = start("global", &path, &config.listen, WALLET, "global_public").await;
+    stop_with_signal(child, "TERM").await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
