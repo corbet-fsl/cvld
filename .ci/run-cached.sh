@@ -21,6 +21,20 @@ toolchains=${CI_TOOLCHAIN_ROOT:-$cache_root/ccid-cached/toolchains}
 mkdir -p "$state" "$toolchains"
 exec 9>"$state/lock"
 flock -w "${CI_TIMEOUT:-2700}" 9
+# Preserve completed measurement artifacts even when the coverage gate fails.
+# Crow removes its source checkout after reporting the verdict.
+retain_coverage() {
+  local status=$?
+  trap - EXIT
+  for report in coverage.json coverage.lcov coverage.txt; do
+    if [[ -f "$report" && ! -L "$report" ]]; then
+      mkdir -p "$ARTIFACT_ROOT/$CI_COMMIT_SHA" || status=1
+      cp -- "$report" "$ARTIFACT_ROOT/$CI_COMMIT_SHA/$report" || status=1
+    fi
+  done
+  exit "$status"
+}
+trap retain_coverage EXIT
 mkdir -p "$state/moon-cache/hashes" "$state/moon-cache/outputs" "$state/moon-home"
 mkdir -p .moon/cache
 # Tool installation is an explicit part of this job, in persistent CI storage.

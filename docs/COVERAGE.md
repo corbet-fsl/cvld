@@ -9,6 +9,14 @@ is excluded. Only test harness files (`tests/` and `tests.rs`) are omitted from
 the measured source; their actual round trips still execute.
 
 A configured gate is not a coverage result. The raw report is retained on failure.
+Crow keeps the three completed reports under the source commit in the existing
+CI artifact directory, even when the final coverage check fails.
+
+Only the instrumented test profile uses optimization level zero. Normal native
+tests retain their optimized profile and release checks still run separately.
+Rust's [coverage documentation](https://doc.rust-lang.org/rustc/instrument-coverage.html#compiling-with-coverage-enabled)
+warns that optimized-out functions can make coverage maps inaccurate; this
+configuration measures their execution without adding source exclusions.
 
 The functional toy scenarios run in this same workflow and verify their dependency
 closure against its lock snapshot. The retained 200-holder scale command is for

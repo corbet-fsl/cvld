@@ -97,6 +97,9 @@ coverage_target="$(mktemp -d)"
 case "$coverage_target" in ""|"$PWD"/*) echo 'unsafe coverage target' >&2; exit 2;; esac
 trap 'rm -rf -- "$coverage_target"' EXIT
 export CARGO_TARGET_DIR="$coverage_target"
+# Keep owned functions in LLVM's coverage map. The native suite above still
+# uses the normal optimized test profile and separately checks release builds.
+export CARGO_PROFILE_TEST_OPT_LEVEL=0
 "$NIGHTLY_CARGO" llvm-cov --locked --workspace --all-features --branch --no-cfg-coverage --no-cfg-coverage-nightly --ignore-filename-regex '(/tests/|/tests\.rs$)' --json --output-path coverage.json
 "$NIGHTLY_CARGO" llvm-cov report --locked --branch --ignore-filename-regex '(/tests/|/tests\.rs$)' --lcov --output-path coverage.lcov
 "$NIGHTLY_CARGO" llvm-cov report --locked --branch --ignore-filename-regex '(/tests/|/tests\.rs$)' --text --output-path coverage.txt
