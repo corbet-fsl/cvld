@@ -15,7 +15,7 @@ async fn database(path: &std::path::Path) -> Db {
         .unwrap()
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn explicit_configuration_reads_preserve_categories_and_secret_bounds() {
     let directory = tempfile::tempdir().unwrap();
     let config = global_config(directory.path(), 100).await;
@@ -68,7 +68,7 @@ async fn explicit_configuration_reads_preserve_categories_and_secret_bounds() {
     );
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn database_identity_refuses_role_or_scope_rebinding_and_missing_schema() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("identity.db");
@@ -106,7 +106,7 @@ async fn database_identity_refuses_role_or_scope_rebinding_and_missing_schema() 
 }
 
 #[cfg(feature = "development-gate")]
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn reopening_publication_preserves_authority_and_refreshes_the_watch() {
     let directory = tempfile::tempdir().unwrap();
     let config = global_config(directory.path(), 100).await;
@@ -132,7 +132,7 @@ async fn reopening_publication_preserves_authority_and_refreshes_the_watch() {
     ));
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn development_issuer_cannot_be_enabled_by_a_production_configuration() {
     let directory = tempfile::tempdir().unwrap();
     let mut config = global_config(directory.path(), 100).await;
@@ -153,7 +153,7 @@ async fn development_issuer_cannot_be_enabled_by_a_production_configuration() {
 }
 
 #[cfg(feature = "development-gate")]
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn existing_signer_and_policy_refuse_substituted_configuration() {
     let directory = tempfile::tempdir().unwrap();
     let config = global_config(directory.path(), 100).await;
@@ -173,7 +173,7 @@ async fn existing_signer_and_policy_refuse_substituted_configuration() {
 }
 
 #[cfg(feature = "development-gate")]
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn global_trust_refuses_tampering_and_retains_durable_rollback_floors() {
     let global_directory = tempfile::tempdir().unwrap();
     let config = global_config(global_directory.path(), 100).await;

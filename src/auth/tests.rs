@@ -74,7 +74,7 @@ async fn login(auth: &mut Auth, device: &mut Resident) -> LoginFinish {
     }
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn bounded_auth_configuration_refuses_zero_and_oversized_limits() {
     let (_directory, db) = database().await;
     for (capacity, lifetime, bootstrap) in [
@@ -111,7 +111,7 @@ async fn bounded_auth_configuration_refuses_zero_and_oversized_limits() {
     }
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn pending_capacity_expires_without_authorizing_forbidden_bootstrap_inputs() {
     let (_directory, db) = database().await;
     let mut member = auth(&db, None, 1);
@@ -194,7 +194,7 @@ async fn pending_capacity_expires_without_authorizing_forbidden_bootstrap_inputs
     ));
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn competing_bootstrap_ceremonies_cannot_register_a_second_operator_key() {
     let (_directory, db) = database().await;
     let operator = Uuid::new_v4();
@@ -229,7 +229,7 @@ async fn competing_bootstrap_ceremonies_cannot_register_a_second_operator_key() 
     ));
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn discovery_refuses_a_valid_foreign_operator_and_malformed_assertion() {
     let (_directory, db) = database().await;
     let mut member = auth(&db, None, 2);
@@ -260,7 +260,7 @@ async fn discovery_refuses_a_valid_foreign_operator_and_malformed_assertion() {
     ));
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn session_capacity_logout_and_revocation_preserve_real_authentication() {
     let (_directory, db) = database().await;
     let mut member = auth(&db, None, 1);
@@ -299,7 +299,7 @@ async fn session_capacity_logout_and_revocation_preserve_real_authentication() {
     assert!(!member.sessions.contains_key(&second.token));
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn registration_rejects_unsupported_calendar_time_without_storing_a_credential() {
     let (_directory, db) = database().await;
     let mut member = auth(&db, None, 1);
