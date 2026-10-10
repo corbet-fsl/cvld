@@ -163,6 +163,10 @@ async fn internal_context_and_backend_access_remain_scoped() {
     ));
     assert!(SystemClock.now() > 1_600_000_000);
     let member = enrol(&global, WALLET, None).await;
+    client(&global, WALLET, Some(&member.session))
+        .call("development_gate", serde_json::json!({}))
+        .await
+        .unwrap();
     let root = enrol(
         &global,
         ROOT,

@@ -180,6 +180,9 @@ async fn both_service_processes_start_publish_and_shutdown_cleanly() {
     stop(global_child).await;
 
     let reserved = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let occupied_dir = tempfile::tempdir().unwrap();
+    let mut global = global_config_at(occupied_dir.path(), 100, SystemClock.now()).await;
+    let global_path = occupied_dir.path().join("config.json");
     global.listen = reserved.local_addr().unwrap().to_string();
     std::fs::write(&global_path, serde_json::to_vec(&global).unwrap()).unwrap();
     let output = binary()
