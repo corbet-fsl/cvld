@@ -53,6 +53,7 @@ async fn invalid_global_configuration_fails_before_serving() {
     std::fs::write(&token, []).unwrap();
     config.database_token_file = Some(token.to_str().unwrap().into());
     config.root_bootstrap_file = None;
+    config.domain = "example-1.test".into();
     assert!(
         Door::global(
             config,
@@ -112,7 +113,36 @@ async fn community_configuration_enforces_host_and_publication_boundaries() {
     config.database_token_file = Some(token.to_str().unwrap().into());
     config.root.bootstrap_file = None;
     config.admin.bootstrap_file = None;
+    config.domain = "example-1.test".into();
     assert!(Door::community(config, global.clock.clone()).await.is_ok());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn operator_bootstrap_configuration_rejects_nontext_and_short_secrets() {
+    let global = global(100).await;
+    let public: GlobalPublic = serde_json::from_value(
+        client(&global, WALLET, None)
+            .call("global_public", serde_json::json!({}))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    for bytes in [vec![255], b"short".to_vec()] {
+        let dir = tempfile::tempdir().unwrap();
+        let config = global_config(dir.path(), 100).await;
+        std::fs::write(config.root_bootstrap_file.as_ref().unwrap(), &bytes).unwrap();
+        assert!(matches!(
+            Door::global(config, global.clock.clone()).await,
+            Err(Error::Invalid)
+        ));
+        let dir = tempfile::tempdir().unwrap();
+        let config = community_config(dir.path(), "bootstrap", &public, 100);
+        std::fs::write(config.admin.bootstrap_file.as_ref().unwrap(), &bytes).unwrap();
+        assert!(matches!(
+            Door::community(config, global.clock.clone()).await,
+            Err(Error::Invalid)
+        ));
+    }
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -126,6 +156,18 @@ async fn internal_context_and_backend_access_remain_scoped() {
     )
     .unwrap();
     let community = community("boundaries", &public).await;
+    assert!(community.door.allows_origin(
+        "api.boundaries.example.test",
+        "https://boundaries.example.test"
+    ));
+    assert!(community.door.allows_origin(
+        "api.boundaries.example.test",
+        "https://vault.boundaries.example.test"
+    ));
+    assert!(!community.door.allows_origin(
+        "api.boundaries.example.test",
+        "https://foreign.example.test"
+    ));
     assert!(matches!(
         anonymous(WALLET).member(),
         Err(Error::Unauthorized)

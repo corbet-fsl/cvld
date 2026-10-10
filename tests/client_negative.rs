@@ -92,3 +92,43 @@ async fn an_unbounded_chunked_reply_is_stopped_at_the_byte_limit() {
     ));
     server.await.unwrap();
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_oversized_declared_reply_is_refused_before_waiting_for_its_body() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}/", listener.local_addr().unwrap());
+    let (release, held) = tokio::sync::oneshot::channel();
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.unwrap();
+        let mut request = Vec::new();
+        loop {
+            let mut buffer = [0; 4096];
+            let received = stream.read(&mut buffer).await.unwrap();
+            assert!(received > 0);
+            request.extend_from_slice(&buffer[..received]);
+            if request
+                .windows(4)
+                .position(|part| part == b"\r\n\r\n")
+                .is_some_and(|end| request.len() >= end + 6)
+            {
+                break;
+            }
+        }
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 16777217\r\n\r\n")
+            .await
+            .unwrap();
+        // An EOF or malformed body must not be what makes this request fail.
+        held.await.unwrap();
+        drop(stream);
+    });
+    let client = HttpClient::new(base, "wallet.example.test".into(), None).unwrap();
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        client.call("global_public", json!({})),
+    )
+    .await;
+    release.send(()).unwrap();
+    server.await.unwrap();
+    assert!(matches!(result, Ok(Err(Error::Reconcile))));
+}
