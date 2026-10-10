@@ -22,7 +22,7 @@ ed25519-dalek = { version = "3", optional = true }
 cpsd = { git = "https://git.corbet.ch/corbet-foss/cpsd", branch = "main", default-features = false, features = ["storage"], optional = true }
 crlt = { git = "https://git.corbet.ch/corbet-foss/crlt", branch = "main", optional = true }
 csgn = { git = "https://git.corbet.ch/corbet-foss/csgn", branch = "main", features = ["libsql"], optional = true }
-cgbl = { git = "https://git.corbet.ch/corbet-libs/cgbl", branch = "main", optional = true }
+cgbl = { git = "https://git.corbet.ch/corbet-libs/cgbl.git", branch = "main", optional = true }
 ckyh = { git = "https://git.corbet.ch/corbet-foss/ckyh", branch = "main", optional = true }
 cthl = { git = "https://git.corbet.ch/corbet-foss/cthl", branch = "main", optional = true }
 axum = { version = "0.8.9", optional = true }
