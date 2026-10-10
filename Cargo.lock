@@ -1590,7 +1590,7 @@ dependencies = [
 [[package]]
 name = "cmbr"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cmbr?branch=main#951fa0216959d3c5e9fce10c7e8360bc4e862e09"
+source = "git+https://git.corbet.ch/corbet-libs/cmbr?branch=main#7b681b6e415eb7b07f52f5e94fd94d1e797bbbcd"
 dependencies = [
  "cgrd",
  "cgts",
