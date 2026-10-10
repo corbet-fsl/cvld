@@ -31,3 +31,7 @@ pub mod service;
 
 #[cfg(test)]
 extern crate self as cvld;
+
+#[cfg(all(test, feature = "server"))]
+#[path = "../tests/support/mod.rs"]
+mod test_support;

@@ -1,7 +1,6 @@
 //! Real HTTP services with scheduling barriers around their actual locks.
 use super::*;
-#[path = "../tests/support/mod.rs"]
-mod support;
+use crate::test_support as support;
 use serde_json::json;
 use support::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};

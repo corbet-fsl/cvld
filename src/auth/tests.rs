@@ -1,7 +1,6 @@
 //! Exercise refusals through real passkey ceremonies and a local SQL store.
 use super::*;
-#[path = "../../tests/support/resident.rs"]
-mod resident;
+use crate::test_support::resident;
 use resident::{Resident, strip_prf};
 
 const NOW: u64 = 1_800_000_000;

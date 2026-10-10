@@ -1,9 +1,8 @@
 //! Trusted configuration, publication rollback and physical database boundaries.
 use super::*;
-#[path = "../../tests/support/mod.rs"]
-mod support;
 #[cfg(feature = "development-gate")]
 use crate::global_trust;
+use crate::test_support as support;
 use crate::{config::CommunityConfig, identity};
 #[cfg(feature = "development-gate")]
 use support::community_config;

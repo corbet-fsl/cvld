@@ -1,7 +1,6 @@
 //! Boundary tests use the real local stores, signatures and WebAuthn verifier.
 use super::*;
-#[path = "../../../tests/support/mod.rs"]
-mod support;
+use crate::test_support as support;
 use serde_json::json;
 use std::sync::atomic::AtomicU64;
 use support::*;

@@ -98,29 +98,33 @@ async fn start(
     host: &str,
     action: &str,
 ) -> (Child, Value) {
-    let mut child = binary()
-        .args(["serve", scope, "--config"])
-        .arg(config)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true)
-        .spawn()
-        .unwrap();
-    let client = HttpClient::new(format!("http://{address}"), host.into(), None).unwrap();
-    for _ in 0..500 {
-        if let Ok(value) = client.call(action, json!({})).await {
-            return (child, value);
+    tokio::time::timeout(Duration::from_secs(15), async {
+        let mut child = binary()
+            .args(["serve", scope, "--config"])
+            .arg(config)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .kill_on_drop(true)
+            .spawn()
+            .unwrap();
+        let client = HttpClient::new(format!("http://{address}"), host.into(), None).unwrap();
+        for _ in 0..500 {
+            if let Ok(value) = client.call(action, json!({})).await {
+                return (child, value);
+            }
+            if let Some(status) = child.try_wait().unwrap() {
+                let output = child.wait_with_output().await.unwrap();
+                panic!(
+                    "startup failed: {status}; {}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
         }
-        if let Some(status) = child.try_wait().unwrap() {
-            let output = child.wait_with_output().await.unwrap();
-            panic!(
-                "startup failed: {status}; {}",
-                String::from_utf8_lossy(&output.stderr)
-            );
-        }
-        tokio::time::sleep(Duration::from_millis(20)).await;
-    }
-    panic!("local service did not start");
+        panic!("local service did not start");
+    })
+    .await
+    .expect("local startup exceeded its complete readiness deadline")
 }
 
 async fn stop(mut child: Child) {
