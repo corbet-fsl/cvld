@@ -2,6 +2,7 @@
 use super::*;
 use cmbr::RoleSession as _;
 
+#[path = "role/foreign.rs"]
 mod foreign;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
