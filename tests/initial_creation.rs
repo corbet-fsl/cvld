@@ -91,7 +91,7 @@ async fn another_current_key_cannot_substitute_for_the_original_creation_key() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn ordinary_registration_cannot_acquire_creation_provenance_retroactively() {
-    let f = routes::legacy_fixture().await;
+    let f = routes::fixture_with(None).await;
     for (action, request) in [
         ("initial_creation", json!({})),
         (

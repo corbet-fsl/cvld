@@ -2,6 +2,7 @@
 //! Only the external Twilio HTTP boundary is inert; policy, costs, Keyhole,
 //! global facts, storage and blind issuance use their actual owners.
 use super::*;
+use std::sync::atomic::Ordering;
 
 pub(super) struct InertHttp {
     calls: std::sync::atomic::AtomicUsize,

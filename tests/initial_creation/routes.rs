@@ -11,11 +11,7 @@ pub(super) async fn fixture() -> Fixture {
     fixture_with(Some(SEED)).await
 }
 
-pub(super) async fn legacy_fixture() -> Fixture {
-    fixture_with(None).await
-}
-
-async fn fixture_with(seed: Option<[u8; 32]>) -> Fixture {
+pub(super) async fn fixture_with(seed: Option<[u8; 32]>) -> Fixture {
     let (global, contact_wire, cohort) = contacts::production(true).await;
     let (_wallet, passport, public) = contacts::wallet(&global, cohort).await;
     assert_eq!(contact_wire.calls(), 4);
