@@ -151,7 +151,7 @@ impl CommunityService {
                 community: &self.config.community,
                 member_binding: &binding,
                 purpose: cvch::role::Purpose::BootstrapRoot,
-                issued_at: issued,
+                issued_at: cplc::day(issued),
                 valid_until: pending.until,
             })
             .await
