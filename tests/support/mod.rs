@@ -20,6 +20,7 @@ use webauthn_authenticator_rs::{AuthenticatorBackend, softtoken::SoftToken};
 
 pub const NOW: u64 = 1_800_000_000;
 // Day-aligned fixtures once hid second-precision signing defects: keep it off the boundary.
+#[allow(clippy::manual_is_multiple_of)]
 const _: () = assert!(NOW % 86_400 != 0);
 pub const DOMAIN: &str = "example.test";
 pub const WALLET: &str = "wallet.example.test";
