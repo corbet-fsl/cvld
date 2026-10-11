@@ -1232,7 +1232,7 @@ impl CommunityService {
             }
             let lobby = self.lobby(auth, now).await?;
             session.release(self.clock.now())?;
-            Ok((CredentialResponse { credential, lobby }, account))
+            Ok::<_, Error>((CredentialResponse { credential, lobby }, account))
         }
         .await;
         // Original membership admission may already be durable. Later failure
