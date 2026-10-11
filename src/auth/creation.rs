@@ -81,7 +81,7 @@ impl RootCreationSession {
         if now < previous || now >= self.grant.expires || Instant::now() >= self.deadline {
             return Err(Error::Unauthorized);
         }
-        crate::service::publication::expires_at(now)?;
+        crate::service::publication::expires_at(self.grant.expires)?;
         self.floor = Some(now);
         Ok(now)
     }
