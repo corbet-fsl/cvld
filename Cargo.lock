@@ -1850,7 +1850,7 @@ dependencies = [
 [[package]]
 name = "cplc"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cplc?branch=main#ed3147e53e18c587e65893fcdcdce6ea35d5ccb7"
+source = "git+https://git.corbet.ch/corbet-libs/cplc?branch=main#55a50165f995ecdd7dd7975374ab87202b294681"
 dependencies = [
  "cbcn",
  "cgts",
