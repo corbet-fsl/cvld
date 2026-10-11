@@ -12,7 +12,47 @@ use support::{
 async fn production() -> Running {
     let dir = tempfile::tempdir().unwrap();
     let mut config = global_config(dir.path(), 200).await;
-    config.development = false; // No gate or provider is executed in this journey.
+    // Production mode requires an actual production issuer catalogue and
+    // matching signed policy. No gate or provider is executed in this journey.
+    let issuer = cpsd::IssuerKey::generate(
+        &mut cpsd::rand::rngs::OsRng,
+        cpsd::KeyId::new("production-enrollment-fixture").unwrap(),
+        vec![cpsd::GateId::new("cphn").unwrap()],
+    )
+    .unwrap();
+    std::fs::write(&config.issuer_key_file, issuer.to_secret_bytes()).unwrap();
+    let mut authority = csgn::PersistentSigner::create(
+        csgn::MemoryStore::default(),
+        "policy-authority",
+        csgn::SecretKey::from_seed(&mut [3; 32]),
+        NOW - 1,
+        86_400 * 100,
+    )
+    .await
+    .unwrap();
+    let policy = cgbl::Policy {
+        version: 1,
+        scope: "global".into(),
+        revision: 1,
+        epoch: 1,
+        shared_expiry: (NOW / 86_400 + 40) * 86_400,
+        gates: vec![cgbl::GatePolicy {
+            gate: "cphn".into(),
+            provider: "twilio".into(),
+            uniqueness: true,
+        }],
+    };
+    let signed = authority
+        .sign(
+            csgn::Kind::SettingsSnapshot,
+            &serde_json::to_vec(&policy).unwrap(),
+            NOW,
+            policy.shared_expiry + 1,
+        )
+        .await
+        .unwrap();
+    std::fs::write(&config.policy_file, signed).unwrap();
+    config.development = false;
     let clock = Arc::new(TestClock(AtomicU64::new(NOW)));
     let door = Door::global(config, clock.clone()).await.unwrap();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

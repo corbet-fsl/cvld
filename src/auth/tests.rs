@@ -311,11 +311,22 @@ async fn registration_rejects_unsupported_calendar_time_without_storing_a_creden
     let mut member = auth(&db, None, 1);
     for now in [253_402_300_800, i64::MAX as u64] {
         let begin = member.register_begin(start(None), now).await.unwrap();
+        let user = Uuid::parse_str(&begin.user).unwrap();
         let finish = registration(&mut Resident::default(), begin).await;
-        assert!(matches!(
-            member.register_finish(finish, now).await,
-            Err(Error::Invalid)
-        ));
+        let result = member.register_finish(finish, now).await;
+        if now == 253_402_300_800 {
+            assert!(matches!(result, Err(Error::Invalid)));
+        } else {
+            assert!(matches!(result, Err(Error::Unauthorized)));
+        }
         assert!(member.registrations.is_empty());
+        let keys = member.passkeys.clone();
+        assert!(
+            tokio::task::spawn_blocking(move || keys.list(user))
+                .await
+                .unwrap()
+                .unwrap()
+                .is_empty()
+        );
     }
 }

@@ -210,50 +210,67 @@ async fn a_refused_different_seed_still_retains_its_observed_clock_floor() {
     ));
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn cancelling_real_challenge_preparation_retains_the_observed_pending_floor() {
-    use std::{future::Future, task::Poll};
-    let (_dir, db) = database().await;
-    let mut auth = auth(&db, None, 4);
-    let clock = TestClock(AtomicU64::new(NOW + 20));
-    let original = auth.register_begin(start(None), NOW).await.unwrap();
-    let owner_count = Arc::strong_count(&auth.passkeys);
-    let mut preparing = Box::pin(auth.continue_initial_registration(
-        continuation(&original.ceremony, 1),
-        NOW,
-        &clock,
-    ));
-    std::future::poll_fn(|cx| {
-        // The sole runtime thread has not driven the queued real SDK/SQL work.
-        assert!(matches!(preparing.as_mut().poll(cx), Poll::Pending));
-        Poll::Ready(())
-    })
-    .await;
-    drop(preparing);
-    assert_eq!(auth.registrations[&original.ceremony].observed, NOW + 20);
-    assert!(auth.registrations[&original.ceremony].initial.is_none());
-    clock.0.store(NOW + 15, Ordering::SeqCst);
-    assert!(matches!(
-        auth.continue_initial_registration(continuation(&original.ceremony, 1), NOW, &clock)
-            .await,
-        Err(Error::Unauthorized)
-    ));
-    // The cancelled SDK worker may still perform its second real list. Wait
-    // for its captured owner to be dropped before ending this sole runtime.
-    tokio::time::timeout(std::time::Duration::from_secs(5), async {
-        while Arc::strong_count(&auth.passkeys) > owner_count {
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .unwrap();
-    let keys = auth.passkeys.clone();
-    let user = Uuid::parse_str(&original.user).unwrap();
-    assert!(
-        tokio::task::spawn_blocking(move || keys.list(user))
-            .await
-            .unwrap()
-            .unwrap()
-            .is_empty()
-    );
+#[test]
+fn cancelling_real_challenge_preparation_retains_the_observed_pending_floor() {
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .max_blocking_threads(1)
+        .enable_all()
+        .build()
+        .unwrap();
+    runtime.block_on(async {
+        use std::{future::Future, task::Poll};
+        let (_dir, db) = database().await;
+        let mut auth = auth(&db, None, 4);
+        let clock = TestClock(AtomicU64::new(NOW + 20));
+        let original = auth.register_begin(start(None), NOW).await.unwrap();
+        let (occupied, started) = tokio::sync::oneshot::channel();
+        let (release, waiting) = std::sync::mpsc::channel();
+        let blocker = tokio::task::spawn_blocking(move || {
+            occupied.send(()).unwrap();
+            waiting.recv().unwrap();
+        });
+        started.await.unwrap();
+        let owner_count = Arc::strong_count(&auth.passkeys);
+        let mut preparing = Box::pin(auth.continue_initial_registration(
+            continuation(&original.ceremony, 1),
+            NOW,
+            &clock,
+        ));
+        std::future::poll_fn(|cx| {
+            // The actual SDK task is queued behind the occupied blocking slot.
+            assert!(matches!(preparing.as_mut().poll(cx), Poll::Pending));
+            Poll::Ready(())
+        })
+        .await;
+        drop(preparing);
+        release.send(()).unwrap();
+        blocker.await.unwrap();
+        assert_eq!(auth.registrations[&original.ceremony].observed, NOW + 20);
+        assert!(auth.registrations[&original.ceremony].initial.is_none());
+        clock.0.store(NOW + 15, Ordering::SeqCst);
+        assert!(matches!(
+            auth.continue_initial_registration(continuation(&original.ceremony, 1), NOW, &clock)
+                .await,
+            Err(Error::Unauthorized)
+        ));
+        // The cancelled SDK worker may still perform its second real list. Wait
+        // for its captured owner to be dropped before ending this actual runtime.
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            while Arc::strong_count(&auth.passkeys) > owner_count {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        let keys = auth.passkeys.clone();
+        let user = Uuid::parse_str(&original.user).unwrap();
+        assert!(
+            tokio::task::spawn_blocking(move || keys.list(user))
+                .await
+                .unwrap()
+                .unwrap()
+                .is_empty()
+        );
+    });
 }
