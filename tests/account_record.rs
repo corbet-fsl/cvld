@@ -9,7 +9,6 @@ use cvld::{
     error::Error,
     service::Door,
 };
-use ed25519_dalek::SigningKey;
 use serde_json::json;
 use std::sync::Arc;
 use support::*;
@@ -55,8 +54,9 @@ fn binary_resource_preserves_json_action_schema_gating() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn genuine_member_has_no_common_object_until_actual_native_publication() {
-    let (global, _, cohort) = contacts::production(true).await;
+    let (global, contact_wire, cohort) = contacts::production(true).await;
     let (_, passport, public) = contacts::wallet(&global, cohort).await;
+    assert_eq!(contact_wire.calls(), 4);
     let service = payment::community(
         &public,
         payment_support::Wire::new(payment_support::Reply::Success),
