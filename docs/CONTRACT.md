@@ -471,3 +471,15 @@ cookies or redirects, and bound each chunk to the exact expected length within
 the maintained 64 MiB owner limit. The consumer must obtain that length from its
 current authenticated Epoch and run the original `Epoch::check_object`; fetching
 bytes itself grants no account or attendance authority.
+
+The explicit `serve root-board --config` host composes the reserved `root`
+community from a configured public CPSD root descriptor. Its member origin is
+`api.root.<domain>` and its sole operator origin is `api.admin.root.<domain>`.
+Only that operator's Root role may perform the local Admin actions; ordinary
+communities and the global host retain their existing role separation. Root
+registration and renewal require the genuine same-holder root/passport proof.
+Configured native accounts retain their ordinary grant and device checks in
+addition to this joint proof. The service publishes the configured purpose key
+with the actual current Policy epoch and aligned cohort, preserving durable
+issuer and cohort floors across refresh and restart. This admission host does
+not issue source-role root credentials or establish remote source-role authority.

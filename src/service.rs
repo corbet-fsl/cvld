@@ -24,6 +24,7 @@ mod global_self_ban;
 mod migrations;
 mod payments;
 pub(crate) mod publication;
+mod root_board;
 mod shutdown;
 pub use migrations::community_migrations;
 
@@ -74,6 +75,7 @@ struct Inner {
     hosts: BTreeMap<String, Arc<Mutex<Auth>>>,
     backend: Backend,
     member_host: Option<String>,
+    root_board_admin_host: Option<String>,
     throttle: cthl::Throttle<cthl::MemoryStore>,
     clock: Arc<dyn Clock>,
     account_body_limit: usize,
@@ -231,6 +233,7 @@ impl Door {
                 hosts,
                 backend: Backend::Global(Box::new(Mutex::new(global))),
                 member_host: None,
+                root_board_admin_host: None,
                 throttle,
                 clock,
                 account_body_limit: 256 * 1024,
@@ -290,7 +293,7 @@ impl Door {
         }
     }
     pub async fn community(config: CommunityConfig, clock: Arc<dyn Clock>) -> Result<Self> {
-        Self::community_with_optional_payment_transport(config, clock, None).await
+        Self::community_with_optional_payment_transport(config, clock, None, None).await
     }
     /// Trusted host injection replaces only x402 protocol transport. It does
     /// not bypass real account, cost, policy, session or mode configuration.
@@ -299,12 +302,13 @@ impl Door {
         clock: Arc<dyn Clock>,
         transport: crate::payments::transport::AnyTransport,
     ) -> Result<Self> {
-        Self::community_with_optional_payment_transport(config, clock, Some(transport)).await
+        Self::community_with_optional_payment_transport(config, clock, Some(transport), None).await
     }
     async fn community_with_optional_payment_transport(
         config: CommunityConfig,
         clock: Arc<dyn Clock>,
         transport: Option<crate::payments::transport::AnyTransport>,
+        root_board: Option<cpsd::RootBoardPublicKey>,
     ) -> Result<Self> {
         config.shutdown_budget()?;
         if config.domain.is_empty()
@@ -327,17 +331,18 @@ impl Door {
             .map_err(Error::Unavailable.redact())?;
         let mut hosts = BTreeMap::new();
         let member_host = format!("api.{}.{}", config.community, config.domain);
-        let community = match transport {
-            Some(transport) => {
-                CommunityService::open_with_payment_transport(
-                    &db,
-                    config,
-                    clock.clone(),
-                    Some(transport),
-                )
-                .await?
+        let root_board_admin_host = root_board
+            .as_ref()
+            .map(|_| format!("api.admin.root.{}", config.domain));
+        let community = match root_board {
+            Some(descriptor) => {
+                CommunityService::open_root_board(&db, config, clock.clone(), descriptor, transport)
+                    .await?
             }
-            None => CommunityService::open(&db, config, clock.clone()).await?,
+            None => {
+                CommunityService::open_with_payment_transport(&db, config, clock.clone(), transport)
+                    .await?
+            }
         };
         let published = Published::Community(community.changes.subscribe());
         let account_body_limit = community.account_body_limit();
@@ -350,20 +355,24 @@ impl Door {
         );
         let result = async {
             let config = &community.config;
-            for (host, role, scope, operator) in [
-                (
-                    format!("api.admin.{}.{}", config.community, config.domain),
-                    Role::Admin,
-                    "operator:admin",
-                    &config.admin,
-                ),
-                (
-                    format!("api.root.{}", config.domain),
-                    Role::Root,
-                    "operator:root",
-                    &config.root,
-                ),
-            ] {
+            let operators = match &root_board_admin_host {
+                Some(host) => vec![(host.clone(), Role::Root, "operator:root", &config.root)],
+                None => vec![
+                    (
+                        format!("api.admin.{}.{}", config.community, config.domain),
+                        Role::Admin,
+                        "operator:admin",
+                        &config.admin,
+                    ),
+                    (
+                        format!("api.root.{}", config.domain),
+                        Role::Root,
+                        "operator:root",
+                        &config.root,
+                    ),
+                ],
+            };
+            for (host, role, scope, operator) in operators {
                 let passkeys = ckyh::Passkeys::new(
                     ckyh::LibsqlStore::new(&db, scope, tokio::runtime::Handle::current())
                         .map_err(Error::Unavailable.redact())?,
@@ -421,6 +430,7 @@ impl Door {
                     hosts,
                     backend: Backend::Community(Box::new(Mutex::new(community))),
                     member_host: Some(member_host),
+                    root_board_admin_host,
                     throttle,
                     clock,
                     account_body_limit,
@@ -433,7 +443,7 @@ impl Door {
         startup.finish(result).await
     }
     pub(crate) fn request_body_limit(&self, action: &Action) -> usize {
-        if action.name == "account" {
+        if matches!(action.name, "account" | "pin_change") {
             self.inner.account_body_limit
         } else {
             256 * 1024
@@ -606,7 +616,8 @@ impl Door {
                         | (Access::Member, Role::Member)
                         | (Access::Admin, Role::Admin)
                         | (Access::Root, Role::Root)
-                )
+                ) || (matches!((access, grant.role), (Access::Admin, Role::Root))
+                    && self.inner.root_board_admin_host.as_deref() == Some(host.as_str()))
             }
         };
         if !allowed {

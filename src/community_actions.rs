@@ -183,28 +183,19 @@ impl Door {
         Ok(pin_response(Some(pin)))
     }
     pub(crate) async fn pin_change(&self, ctx: Context, request: PinChange) -> Result<PinResponse> {
+        if !self.is_community_member(&ctx.host) {
+            return Err(Error::WrongHost);
+        }
         let community = self.community_backend()?.lock().await;
-        let expected = community
-            .facade
-            .membership()
-            .get_pin(ctx.member()?, &request.field)
-            .await
-            .map_err(Error::Refused.redact())?
-            .ok_or(Error::Refused)?;
         community
-            .facade
-            .membership()
-            .change_pin(
-                ctx.member()?,
-                &request.field,
-                expected,
-                &request.pin,
-                &request.evidence,
+            .change_native_pin(
+                ctx.token.as_deref().ok_or(Error::Unauthorized)?,
+                request,
+                ctx.now,
             )
             .await
             .map(Some)
             .map(pin_response)
-            .map_err(Error::Refused.redact())
     }
     pub(crate) async fn pin_get(&self, ctx: Context, request: Field) -> Result<PinResponse> {
         let community = self.community_backend()?.lock().await;

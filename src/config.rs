@@ -1,3 +1,6 @@
+mod root_board;
+pub use root_board::RootCommunityConfig;
+
 use crate::error::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};

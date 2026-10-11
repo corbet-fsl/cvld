@@ -1,6 +1,6 @@
 use cvld::{
     api, cli,
-    config::{CommunityConfig, Config},
+    config::{CommunityConfig, Config, RootCommunityConfig},
     error::{Error, Result},
     service::{Door, SystemClock},
 };
@@ -81,6 +81,14 @@ async fn execute(matches: clap::ArgMatches, deadline: Arc<OnceLock<Instant>>) ->
                         config.listen.clone(),
                         config.shutdown_budget()?,
                         Door::community(config, Arc::new(SystemClock)).await?,
+                    )
+                }
+                "root-board" => {
+                    let config = RootCommunityConfig::read(path)?;
+                    (
+                        config.listen().to_owned(),
+                        config.shutdown_budget()?,
+                        Door::root_board(config, Arc::new(SystemClock)).await?,
                     )
                 }
                 _ => return Err(Error::Invalid),

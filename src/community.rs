@@ -19,10 +19,13 @@ mod certificate;
 mod enrollment;
 mod legal;
 mod payments;
+mod pin_change;
+mod root_board;
 mod self_ban;
 mod self_ban_status;
 use legal::CommunityAuthority;
 use payments::PaymentClock;
+use root_board::root_descriptor;
 #[derive(Clone)]
 pub struct CommunityClock(pub Arc<dyn Clock>);
 impl clbs::Clock for CommunityClock {
@@ -75,6 +78,7 @@ pub struct CommunityService {
     pub facade: Facade,
     db: crlt::Db,
     issuer_public_key: Vec<u8>,
+    root_board_issuer: Option<cpsd::IssuerPublicKey>,
     pub config: CommunityConfig,
     pub public: TrustFeed,
     pub changes: tokio::sync::watch::Sender<Arc<TrustFeed>>,
@@ -106,6 +110,15 @@ impl CommunityService {
         clock: Arc<dyn Clock>,
         transport: Option<crate::payments::transport::AnyTransport>,
     ) -> Result<Self> {
+        Self::open_selected(db, config, clock, transport, None).await
+    }
+    async fn open_selected(
+        db: &crlt::Db,
+        config: CommunityConfig,
+        clock: Arc<dyn Clock>,
+        transport: Option<crate::payments::transport::AnyTransport>,
+        root_board: Option<cpsd::RootBoardPublicKey>,
+    ) -> Result<Self> {
         use cplc::Storage;
         use csgn::Store;
         let now = clock.now();
@@ -115,8 +128,11 @@ impl CommunityService {
                 .community
                 .bytes()
                 .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
-            || ["root", "admin", "api", "www", "mail", "mcp", "wallet"]
-                .contains(&config.community.as_str())
+            || ["admin", "api", "www", "mail", "mcp", "wallet"].contains(&config.community.as_str())
+            || (config.community == "root") != root_board.is_some()
+            || root_board.as_ref().is_some_and(|descriptor| {
+                descriptor.community().as_bytes() != config.community.as_bytes()
+            })
             || config.pending_capacity == 0
             || config.session_seconds == 0
             || config.session_seconds > 3600
@@ -220,6 +236,24 @@ impl CommunityService {
                 .await
                 .map_err(Error::Refused.redact())?;
         }
+        if let Some(descriptor) = &root_board {
+            if descriptor.issuer().to_bytes() == status.issuer_public_key {
+                return Err(Error::Invalid);
+            }
+            let descriptor = root_descriptor(
+                descriptor.issuer(),
+                scope,
+                policy
+                    .epoch(now)
+                    .await
+                    .map_err(Error::Unavailable.redact())?,
+                now,
+            )?;
+            policy
+                .publish_root_board(&descriptor, now)
+                .await
+                .map_err(Error::Refused.redact())?;
+        }
         let account_parts = if let Some(account) = config.accounting.clone() {
             let ring = policy
                 .key_ring()
@@ -290,37 +324,40 @@ impl CommunityService {
             ),
         )
         .map_err(Error::Invalid.redact())?;
-        let mut facade = cmty::Community::new(
-            cmty::storage::LibsqlStorage::new(
-                db,
-                cpsd::CommunityId::new(scope.as_bytes()).map_err(Error::Invalid.redact())?,
-                config.pending_capacity,
-            )
-            .map_err(Error::Unavailable.redact())?,
-            vec![
-                cpsd::IssuerPublicKey::from_bytes(&status.issuer_public_key)
-                    .map_err(Error::Invalid.redact())?,
-            ],
-            cmty::Parts {
-                membership,
-                gates,
-                policy,
-            },
-            cmty::Config {
-                passport: cmty::PassportPolicy {
-                    epoch: status.epoch,
-                    valid_until: status.shared_expiry,
-                    gates: config
-                        .global_gates
-                        .iter()
-                        .map(|s| cpsd::GateId::new(s.clone()))
-                        .collect::<std::result::Result<_, _>>()
-                        .map_err(Error::Invalid.redact())?,
-                },
-                valid_until: status_until,
-                challenge_lifetime: 60,
-            },
+        let storage = cmty::storage::LibsqlStorage::new(
+            db,
+            cpsd::CommunityId::new(scope.as_bytes()).map_err(Error::Invalid.redact())?,
+            config.pending_capacity,
         )
+        .map_err(Error::Unavailable.redact())?;
+        let issuer_keys = vec![
+            cpsd::IssuerPublicKey::from_bytes(&status.issuer_public_key)
+                .map_err(Error::Invalid.redact())?,
+        ];
+        let parts = cmty::Parts {
+            membership,
+            gates,
+            policy,
+        };
+        let facade_config = cmty::Config {
+            passport: cmty::PassportPolicy {
+                epoch: status.epoch,
+                valid_until: status.shared_expiry,
+                gates: config
+                    .global_gates
+                    .iter()
+                    .map(|s| cpsd::GateId::new(s.clone()))
+                    .collect::<std::result::Result<_, _>>()
+                    .map_err(Error::Invalid.redact())?,
+            },
+            valid_until: status_until,
+            challenge_lifetime: 60,
+        };
+        let mut facade = if root_board.is_some() {
+            cmty::Community::new_root_board(storage, issuer_keys, parts, facade_config)
+        } else {
+            cmty::Community::new(storage, issuer_keys, parts, facade_config)
+        }
         .map_err(Error::Invalid.redact())?;
         let accounts = if let Some((service, observed)) = account_parts {
             facade = facade
@@ -393,6 +430,7 @@ impl CommunityService {
                 facade,
                 db: db.clone(),
                 issuer_public_key: status.issuer_public_key,
+                root_board_issuer: root_board.map(|descriptor| descriptor.issuer().clone()),
                 config,
                 public,
                 changes,
@@ -545,13 +583,20 @@ impl CommunityService {
         if challenge.owner.is_some() {
             return Err(Error::Forbidden);
         }
-        let proof =
-            cpsd::Presentation::from_bytes(&input.proof).map_err(Error::Invalid.redact())?;
-        let passport = self
-            .facade
-            .verify(&mut cpsd::rand::rngs::OsRng, &challenge.value, &proof, now)
-            .await
-            .map_err(Error::Refused.redact())?;
+        let passport = if challenge.value.root_board_request().is_some() {
+            let proof = cpsd::RootBoardPresentation::from_bytes(&input.proof)
+                .map_err(Error::Invalid.redact())?;
+            self.facade
+                .verify_root_board(&challenge.value, &proof, now)
+                .await
+        } else {
+            let proof =
+                cpsd::Presentation::from_bytes(&input.proof).map_err(Error::Invalid.redact())?;
+            self.facade
+                .verify(&mut cpsd::rand::rngs::OsRng, &challenge.value, &proof, now)
+                .await
+        }
+        .map_err(Error::Refused.redact())?;
         let user = ckyh::Uuid::new_v4();
         let (options, value) = match seed {
             Some(seed) => {
@@ -869,8 +914,6 @@ impl CommunityService {
         if challenge.owner != Some(auth.member()) {
             return Err(Error::Forbidden);
         }
-        let proof = cpsd::Presentation::from_bytes(&request.presentation.proof)
-            .map_err(Error::Invalid.redact())?;
         let date = chrono::DateTime::from_timestamp(now as i64, 0)
             .ok_or(Error::Invalid)?
             .checked_add_months(chrono::Months::new(self.config.lease_months))
@@ -888,33 +931,61 @@ impl CommunityService {
             }
             Ok(Vec::new())
         };
-        let result = match account_device {
-            Some(device) => {
-                self.facade
-                    .finish_account_with(
-                        &mut cpsd::rand::rngs::OsRng,
-                        &challenge.value,
-                        &proof,
-                        cmty::AccountAdmission {
-                            membership: admission,
-                            device,
-                        },
-                        now,
-                        checks,
-                    )
-                    .await
+        let result = if challenge.value.root_board_request().is_some() {
+            let proof = cpsd::RootBoardPresentation::from_bytes(&request.presentation.proof)
+                .map_err(Error::Invalid.redact())?;
+            match account_device {
+                Some(device) => {
+                    self.facade
+                        .finish_root_board_account_with(
+                            &challenge.value,
+                            &proof,
+                            cmty::AccountAdmission {
+                                membership: admission,
+                                device,
+                            },
+                            now,
+                            checks,
+                        )
+                        .await
+                }
+                None => {
+                    self.facade
+                        .finish_root_board_with(&challenge.value, &proof, admission, now, checks)
+                        .await
+                }
             }
-            None => {
-                self.facade
-                    .finish_with(
-                        &mut cpsd::rand::rngs::OsRng,
-                        &challenge.value,
-                        &proof,
-                        admission,
-                        now,
-                        checks,
-                    )
-                    .await
+        } else {
+            let proof = cpsd::Presentation::from_bytes(&request.presentation.proof)
+                .map_err(Error::Invalid.redact())?;
+            match account_device {
+                Some(device) => {
+                    self.facade
+                        .finish_account_with(
+                            &mut cpsd::rand::rngs::OsRng,
+                            &challenge.value,
+                            &proof,
+                            cmty::AccountAdmission {
+                                membership: admission,
+                                device,
+                            },
+                            now,
+                            checks,
+                        )
+                        .await
+                }
+                None => {
+                    self.facade
+                        .finish_with(
+                            &mut cpsd::rand::rngs::OsRng,
+                            &challenge.value,
+                            &proof,
+                            admission,
+                            now,
+                            checks,
+                        )
+                        .await
+                }
             }
         }
         .map_err(|error| {
@@ -954,6 +1025,7 @@ impl CommunityService {
         })
     }
     pub async fn refresh(&mut self, now: u64) -> Result<()> {
+        self.refresh_root_board(now).await?;
         self.public = publish(&self.facade, now).await?;
         self.changes.send_replace(Arc::new(self.public.clone()));
         Ok(())
@@ -975,6 +1047,7 @@ impl CommunityService {
             .flush_revocations(now)
             .await
             .map_err(Error::Unavailable.redact())?;
+        let root_refreshed = self.maintain_root_board(now).await?;
         // Expired/invalidated Balance blocks Beacon refresh. Let its actual
         // native owner recover first, including its original same-epoch bytes.
         self.maintain_account_record().await?;
@@ -990,7 +1063,7 @@ impl CommunityService {
             .map(|s| s.valid_until() > now + self.config.publication_seconds / 2)
             .unwrap_or(false);
         drop(policy);
-        if !fresh || epoch != self.public.policy_epoch {
+        if root_refreshed || !fresh || epoch != self.public.policy_epoch {
             self.refresh(now).await?;
         }
         Ok(())

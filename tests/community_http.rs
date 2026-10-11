@@ -147,7 +147,8 @@ async fn two_communities_admission_policy_lapse_and_release_over_http() {
                 .unwrap(),
         )
         .unwrap();
-        assert_eq!(pin.pin.unwrap().revision, 1);
+        let original_pin = pin.pin.unwrap();
+        assert_eq!(original_pin.revision, 1);
         let changed_pin = cmty::cmbr::PinV2::seal(
             &cpns::FingerprintContext {
                 community: name,
@@ -157,15 +158,15 @@ async fn two_communities_admission_policy_lapse_and_release_over_http() {
             b"false",
             &cpns::Salt::from_bytes(vec![12u8; 32]).unwrap(),
         );
-        assert!(
+        assert!(matches!(
             client
                 .call(
                     "pin_change",
                     json!({"field":"restricted","pin":changed_pin,"evidence":[]})
                 )
-                .await
-                .is_err()
-        );
+                .await,
+            Err(cvld::error::Error::Unavailable)
+        ));
         let unchanged: PinResponse = serde_json::from_value(
             client
                 .call("pin_get", json!({"field":"restricted"}))
@@ -173,7 +174,9 @@ async fn two_communities_admission_policy_lapse_and_release_over_http() {
                 .unwrap(),
         )
         .unwrap();
-        assert_eq!(unchanged.pin.unwrap().revision, 1);
+        let unchanged_pin = unchanged.pin.unwrap();
+        assert_eq!(unchanged_pin.revision, original_pin.revision);
+        assert_eq!(unchanged_pin.fingerprint, original_pin.fingerprint);
         let body = voucher(name, &expected, "synthetic-voucher", NOW + 172800);
         client.call("gate_voucher", body.clone()).await.unwrap();
         assert!(client.call("gate_voucher", body).await.is_err());

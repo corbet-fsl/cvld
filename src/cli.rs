@@ -23,6 +23,10 @@ pub fn command() -> Command {
                 )
                 .subcommand(
                     Command::new("community").arg(Arg::new("config").long("config").required(true)),
+                )
+                .subcommand(
+                    Command::new("root-board")
+                        .arg(Arg::new("config").long("config").required(true)),
                 ),
         )
         .subcommand(Command::new("openapi"))
