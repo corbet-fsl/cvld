@@ -3,7 +3,7 @@ use super::*;
 /// The real global door issues into an opaque holder. The root credential below
 /// is a cryptographic fixture issued by its actual purpose key; it does not
 /// claim to exercise the still-missing remote source-role authorization service.
-async fn opaque_passport(global: &Running) -> (cpsd::OpaqueHolder, GlobalPublic) {
+pub(super) async fn opaque_passport(global: &Running) -> (cpsd::OpaqueHolder, GlobalPublic) {
     use cvld::api::Bytes;
     let member = enrol(global, WALLET, None).await;
     let client = client(global, WALLET, Some(&member.session));
@@ -40,7 +40,7 @@ async fn opaque_passport(global: &Running) -> (cpsd::OpaqueHolder, GlobalPublic)
     (holder, public)
 }
 
-async fn root_presentation(
+pub(super) async fn root_presentation(
     board: &Running,
     holder: &cpsd::OpaqueHolder,
     session: Option<&str>,

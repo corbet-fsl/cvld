@@ -525,10 +525,19 @@ async fn free_fields_refuse_pins_without_changing_public_member_metadata() {
     let (_, passport, public) = wallet_passport(&global).await;
     let community = community("seals", &public).await;
     let host = "api.seals.example.test";
-    let admin = enrol(
+    let (_, admin_passport, _) = wallet_passport(&global).await;
+    let mut admin =
+        admitted_community_member(&community, "seals", &admin_passport, "seals_admin").await;
+    let admin_subject = admin_passport
+        .pseudonym(&cpsd::CommunityId::new("seals").unwrap())
+        .to_hex();
+    preexisting_role(&community, "seals", &admin_subject, crgs::Role::Admin).await;
+    admin.session = login(
         &community,
         "api.admin.seals.example.test",
-        Some("synthetic-admin-enrolment-capability"),
+        &mut admin.authenticator,
+        &admin.user,
+        &admin.credential,
     )
     .await;
     let mut schema = community_schema("seals", 2);

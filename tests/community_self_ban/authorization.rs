@@ -10,10 +10,19 @@ async fn ordinary_login_wrong_sessions_roles_hosts_and_caller_targets_cannot_aut
     let secondary = discover(&service, HOST, &mut owner.device).await;
     let root = enrol(&service, ROOT, Some("synthetic-root-enrolment-capability")).await;
     let admin_host = "api.admin.alpha.example.test";
-    let admin = enrol(
+    let (_, admin_passport, _) = wallet_passport(&global).await;
+    let mut admin =
+        admitted_community_member(&service, "alpha", &admin_passport, "termination_admin").await;
+    let admin_subject = admin_passport
+        .pseudonym(&cpsd::CommunityId::new("alpha").unwrap())
+        .to_hex();
+    preexisting_role(&service, "alpha", &admin_subject, crgs::Role::Admin).await;
+    admin.session = login(
         &service,
         admin_host,
-        Some("synthetic-admin-enrolment-capability"),
+        &mut admin.authenticator,
+        &admin.user,
+        &admin.credential,
     )
     .await;
     let before = feed(&service).await;

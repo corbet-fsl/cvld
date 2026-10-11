@@ -640,3 +640,63 @@ pub async fn issue_community(
     )
     .unwrap()
 }
+
+/// Genuine admission before trusted fixture initialization of a preexisting role.
+pub async fn admitted_community_member(
+    service: &Running,
+    scope: &str,
+    passport: &cpsd::Passport,
+    handle: &str,
+) -> Member {
+    let host = format!("api.{scope}.{DOMAIN}");
+    let member = enrol_community(service, &host, passport).await;
+    let subject = passport
+        .pseudonym(&cpsd::CommunityId::new(scope).unwrap())
+        .to_hex();
+    let api = client(service, &host, Some(&member.session));
+    api.call("handle_reserve", json!({"handle":handle}))
+        .await
+        .unwrap();
+    api.call(
+        "gate_voucher",
+        voucher(scope, &subject, handle, service.clock.now() + 172_800),
+    )
+    .await
+    .unwrap();
+    let issued = issue_community(service, &host, &member, passport).await;
+    assert_eq!(issued.lobby.state, "admitted");
+    assert!(issued.credential.is_some());
+    member
+}
+
+/// Trusted test initialization through the original Register after admission.
+/// This is neither signup authority nor a production first-root bootstrap.
+pub async fn preexisting_role(service: &Running, scope: &str, subject: &str, role: crgs::Role) {
+    let db = crlt::Db::open(crlt::Config::new(
+        format!(
+            "file://{}",
+            service.dir.path().join("community.db").display()
+        ),
+        "",
+    ))
+    .await
+    .unwrap();
+    db.migrate(&cvld::service::community_migrations())
+        .await
+        .unwrap();
+    let register = crgs::Register::new(
+        crgs::LibsqlStorage::new(db.community(scope).unwrap()),
+        crgs::ReleasePeriod::default(),
+    );
+    let id = crgs::MemberId::new(subject.as_bytes().to_vec()).unwrap();
+    assert!(
+        register
+            .member(&id)
+            .await
+            .unwrap()
+            .unwrap()
+            .handle
+            .is_some()
+    );
+    assert_eq!(register.set_role(&id, role).await.unwrap().role, role);
+}

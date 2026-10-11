@@ -114,18 +114,84 @@ fn descriptor(feed: &TrustFeed, now: u64) -> cpsd::RootBoardPublicKey {
     descriptor
 }
 
+async fn admit_opaque(
+    service: &Running,
+    host: &str,
+    member: &Member,
+    holder: &cpsd::OpaqueHolder,
+    handle: &str,
+    root: bool,
+) {
+    let scope = if root { "root" } else { "alpha" };
+    let subject = holder
+        .pseudonym(&cpsd::CommunityId::new(scope).unwrap())
+        .to_hex();
+    let api = client(service, host, Some(&member.session));
+    api.call("handle_reserve", json!({"handle":handle}))
+        .await
+        .unwrap();
+    api.call(
+        "gate_voucher",
+        voucher(scope, &subject, handle, NOW + 172_800),
+    )
+    .await
+    .unwrap();
+    let proof = if root {
+        journey::root_presentation(service, holder, Some(&member.session)).await
+    } else {
+        let challenge: PresentationChallenge =
+            serde_json::from_value(api.call("presentation_challenge", json!({})).await.unwrap())
+                .unwrap();
+        let public = feed(service, host).await;
+        let anchor = cpsd::AuthenticatedCommunity::from_authenticated_origin(
+            cpsd::CommunityId::new(scope).unwrap(),
+            csgn::KeyRing::from_cbor(&public.key_ring).unwrap(),
+        );
+        let proof = holder
+            .present(
+                &mut cpsd::rand::rngs::OsRng,
+                &anchor,
+                &challenge.request,
+                NOW,
+            )
+            .unwrap();
+        cvld::api::PresentationInput {
+            challenge: challenge.challenge,
+            proof: proof.to_bytes(),
+        }
+    };
+    let issued: cvld::api::CredentialResponse = serde_json::from_value(
+        api.call(
+            "credential_issue",
+            json!({"presentation":proof,"devices":[member.signing_key]}),
+        )
+        .await
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(issued.lobby.state, "admitted");
+    assert!(issued.credential.is_some());
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn root_operator_admin_authority_is_local_to_the_explicit_root_board() {
     let global = global(100).await;
-    let public: GlobalPublic = serde_json::from_value(
-        client(&global, WALLET, None)
-            .call("global_public", json!({}))
-            .await
-            .unwrap(),
+    let (mut holder, public) = journey::opaque_passport(&global).await;
+    let ordinary = community("alpha", &public).await;
+    let issuer = cpsd::IssuerKey::generate(
+        &mut cpsd::rand::rngs::OsRng,
+        cpsd::KeyId::new("root-current-role-fixture").unwrap(),
+        vec![cpsd::GateId::new("root-board").unwrap()],
     )
     .unwrap();
-    let ordinary = community("alpha", &public).await;
-    let (mut board, configured) = root_board(&public).await;
+    let configured = cpsd::RootBoardPublicKey::from_authenticated_beacon(
+        issuer.public_key().clone(),
+        cpsd::CommunityId::new("root").unwrap(),
+        1,
+        NOW / cpsd::ROOT_BOARD_COHORT_SECONDS * cpsd::ROOT_BOARD_COHORT_SECONDS,
+    )
+    .unwrap();
+    let mut board = root_with_descriptor(&public, &configured).await;
     let before = feed(&board, MEMBER_HOST).await;
     assert_eq!(
         descriptor(&before, NOW).issuer().to_bytes(),
@@ -155,7 +221,6 @@ async fn root_operator_admin_authority_is_local_to_the_explicit_root_board() {
         .await,
         403
     );
-    let root = enrol(&board, ROOT, Some("synthetic-root-enrolment-capability")).await;
     let source_root = enrol(
         &ordinary,
         support::ROOT,
@@ -163,10 +228,126 @@ async fn root_operator_admin_authority_is_local_to_the_explicit_root_board() {
     )
     .await;
     let admin_host = "api.admin.alpha.example.test";
-    let admin = enrol(
+    let source_host = "api.alpha.example.test";
+    let source_feed = feed(&ordinary, source_host).await;
+    let source_anchor = cpsd::AuthenticatedCommunity::from_authenticated_origin(
+        cpsd::CommunityId::new("alpha").unwrap(),
+        csgn::KeyRing::from_cbor(&source_feed.key_ring).unwrap(),
+    );
+    let challenge: PresentationChallenge = serde_json::from_value(
+        client(&ordinary, source_host, None)
+            .call("presentation_challenge", json!({}))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let proof = holder
+        .present(
+            &mut cpsd::rand::rngs::OsRng,
+            &source_anchor,
+            &challenge.request,
+            NOW,
+        )
+        .unwrap();
+    let begin: cvld::api::Ceremony = serde_json::from_value(
+        client(&ordinary, source_host, None)
+            .call(
+                "register_begin",
+                json!({"passport":{"challenge":challenge.challenge,"proof":proof.to_bytes()}}),
+            )
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let mut admin = finish_enrol(&ordinary, source_host, begin).await;
+    admit_opaque(
+        &ordinary,
+        source_host,
+        &admin,
+        &holder,
+        "source_admin",
+        false,
+    )
+    .await;
+    let source_member = holder
+        .pseudonym(&cpsd::CommunityId::new("alpha").unwrap())
+        .to_hex();
+    preexisting_role(&ordinary, "alpha", &source_member, crgs::Role::Admin).await;
+    admin.session = login(
         &ordinary,
         admin_host,
-        Some("synthetic-admin-enrolment-capability"),
+        &mut admin.authenticator,
+        &admin.user,
+        &admin.credential,
+    )
+    .await;
+
+    // The actual root purpose and source garden jointly issue to this SAME
+    // holder. No accepting root state or configured-operator signup is used.
+    let purpose = board.door.root_board_purpose(issuer).await.unwrap();
+    ordinary
+        .door
+        .attach_root_board_purpose(purpose)
+        .await
+        .unwrap();
+    let garden = client(&ordinary, admin_host, Some(&admin.session));
+    let context: cvld::api::RootBoardIssueChallenge = serde_json::from_value(
+        garden
+            .call("root_board_issue_begin", json!({}))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let root_feed = feed(&board, MEMBER_HOST).await;
+    let root_anchor = cpsd::AuthenticatedCommunity::from_authenticated_origin(
+        cpsd::CommunityId::new("root").unwrap(),
+        csgn::KeyRing::from_cbor(&root_feed.key_ring).unwrap(),
+    );
+    let request = holder
+        .begin_root_board_issuance(
+            &mut cpsd::rand::rngs::OsRng,
+            &root_anchor,
+            &context.signed_context,
+            &source_anchor,
+            &context.signed_source_request,
+            NOW,
+        )
+        .unwrap();
+    let answer: cvld::api::Bytes = serde_json::from_value(
+        garden
+            .call(
+                "root_board_issue_finish",
+                json!({"challenge":context.challenge,"proof":request.to_bytes()}),
+            )
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    holder
+        .finish_root_board_issuance(
+            &cpsd::BlindRootBoardCredential::from_bytes(&answer.bytes).unwrap(),
+        )
+        .unwrap();
+    let proof = journey::root_presentation(&board, &holder, None).await;
+    let begin: cvld::api::Ceremony = serde_json::from_value(
+        client(&board, MEMBER_HOST, None)
+            .call("register_begin", json!({"passport":proof}))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let mut root = finish_enrol(&board, MEMBER_HOST, begin).await;
+    admit_opaque(&board, MEMBER_HOST, &root, &holder, "root_admin", true).await;
+    let root_member = holder
+        .pseudonym(&cpsd::CommunityId::new("root").unwrap())
+        .to_hex();
+    preexisting_role(&board, "root", &root_member, crgs::Role::Root).await;
+    root.session = login(
+        &board,
+        ROOT,
+        &mut root.authenticator,
+        &root.user,
+        &root.credential,
     )
     .await;
     let schema = json!({"schema": community_schema("root", 2)});

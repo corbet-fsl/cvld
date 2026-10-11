@@ -31,21 +31,14 @@ async fn discover(service: &Running, host: &str, device: &mut Resident) -> Sessi
     .unwrap()
 }
 
-async fn scenario(
+async fn register_account(
     service: &Running,
     host: &str,
-    other_host: &str,
-    role: Role,
-    bootstrap: Option<&str>,
-) {
+    body: serde_json::Value,
+) -> (Resident, User, Vec<u8>) {
     let public = client(service, host, None);
-    let begin: Ceremony = serde_json::from_value(
-        public
-            .call("register_begin", json!({"bootstrap":bootstrap}))
-            .await
-            .unwrap(),
-    )
-    .unwrap();
+    let begin: Ceremony =
+        serde_json::from_value(public.call("register_begin", body).await.unwrap()).unwrap();
     let mut original = Resident::default();
     let mut response = original
         .ceremony(begin.options, true, &format!("https://{host}"))
@@ -64,6 +57,30 @@ async fn scenario(
             .unwrap(),
     )
     .unwrap();
+    (original, user, original_id)
+}
+
+async fn scenario(
+    service: &Running,
+    host: &str,
+    other_host: &str,
+    role: Role,
+    bootstrap: Option<&str>,
+) {
+    let (original, user, original_id) =
+        register_account(service, host, json!({"bootstrap":bootstrap})).await;
+    manage(service, host, other_host, role, original, user, original_id).await;
+}
+
+async fn manage(
+    service: &Running,
+    host: &str,
+    other_host: &str,
+    role: Role,
+    mut original: Resident,
+    user: User,
+    original_id: Vec<u8>,
+) {
     let first = discover(service, host, &mut original).await;
     assert_eq!(first.role, role);
     assert_eq!(first.user, user.user);
@@ -196,7 +213,7 @@ async fn wallet_and_global_operator_manage_equal_passkeys_through_real_http_rout
 #[tokio::test(flavor = "multi_thread")]
 async fn community_root_and_admin_manage_equal_passkeys_on_their_own_hosts() {
     let global = global(100).await;
-    let (_, _, public) = wallet_passport(&global).await;
+    let (_, passport, public) = wallet_passport(&global).await;
     let service = community("alpha", &public).await;
     scenario(
         &service,
@@ -206,12 +223,55 @@ async fn community_root_and_admin_manage_equal_passkeys_on_their_own_hosts() {
         Some("synthetic-root-enrolment-capability"),
     )
     .await;
-    scenario(
+    let member_host = "api.alpha.example.test";
+    let proof = presentation(&service, member_host, None, &passport).await;
+    let (mut device, user, credential) =
+        register_account(&service, member_host, json!({"passport":proof})).await;
+    let member = discover(&service, member_host, &mut device).await;
+    let subject = passport
+        .pseudonym(&cpsd::CommunityId::new("alpha").unwrap())
+        .to_hex();
+    let member_api = client(&service, member_host, Some(&member.token));
+    let signing_key = ed25519_dalek::SigningKey::from_bytes(&[13; 32])
+        .verifying_key()
+        .to_bytes();
+    member_api
+        .call("device_authorize", json!({"key":signing_key}))
+        .await
+        .unwrap();
+    member_api
+        .call("handle_reserve", json!({"handle":"passkey_admin"}))
+        .await
+        .unwrap();
+    member_api
+        .call(
+            "gate_voucher",
+            voucher("alpha", &subject, "passkey-admin", NOW + 172_800),
+        )
+        .await
+        .unwrap();
+    let proof = presentation(&service, member_host, Some(&member.token), &passport).await;
+    let issued: CredentialResponse = serde_json::from_value(
+        member_api
+            .call(
+                "credential_issue",
+                json!({"presentation":proof,"devices":[signing_key]}),
+            )
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(issued.lobby.state, "admitted");
+    assert!(issued.credential.is_some());
+    preexisting_role(&service, "alpha", &subject, crgs::Role::Admin).await;
+    manage(
         &service,
         "api.admin.alpha.example.test",
         ROOT,
         Role::Admin,
-        Some("synthetic-admin-enrolment-capability"),
+        device,
+        user,
+        credential,
     )
     .await;
 }
