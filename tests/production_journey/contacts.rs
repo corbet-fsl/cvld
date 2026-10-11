@@ -54,21 +54,27 @@ impl cvld::contact_gates::transport::TrustedTransport for InertHttp {
 }
 
 pub(super) async fn production(allowed: bool) -> (Running, std::sync::Arc<InertHttp>, u64) {
-    use cvld::contact_gates::{
-        Amount, Channel, ContactConfig, Coverage, ProviderConfig, Tariff, transport::AnyTransport,
-    };
-    let dir = tempfile::tempdir().unwrap();
-    let mut config = global_config(dir.path(), 200).await;
-    let cohort = (NOW / 86400 + 40) * 86400;
-    let mut rng = cpsd::rand::rngs::OsRng;
     let issuer = cpsd::IssuerKey::generate(
-        &mut rng,
+        &mut cpsd::rand::rngs::OsRng,
         cpsd::KeyId::new("production-contact-fixture").unwrap(),
         ["cphn", "cmbx"]
             .map(|gate| cpsd::GateId::new(gate).unwrap())
             .to_vec(),
     )
     .unwrap();
+    production_with_issuer(allowed, &issuer).await
+}
+
+pub(super) async fn production_with_issuer(
+    allowed: bool,
+    issuer: &cpsd::IssuerKey,
+) -> (Running, std::sync::Arc<InertHttp>, u64) {
+    use cvld::contact_gates::{
+        Amount, Channel, ContactConfig, Coverage, ProviderConfig, Tariff, transport::AnyTransport,
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let mut config = global_config(dir.path(), 200).await;
+    let cohort = (NOW / 86400 + 40) * 86400;
     std::fs::write(&config.issuer_key_file, issuer.to_secret_bytes()).unwrap();
     let mut authority = csgn::PersistentSigner::create(
         csgn::MemoryStore::default(),
@@ -195,6 +201,15 @@ pub(super) async fn wallet(
     service: &Running,
     cohort: u64,
 ) -> (Member, cpsd::Passport, GlobalPublic) {
+    let secret = cpsd::HolderSecret::generate(&mut cpsd::rand::rngs::OsRng);
+    wallet_with_holder(service, cohort, &secret).await
+}
+
+pub(super) async fn wallet_with_holder(
+    service: &Running,
+    cohort: u64,
+    secret: &cpsd::HolderSecret,
+) -> (Member, cpsd::Passport, GlobalPublic) {
     let member = enrol(service, WALLET, None).await;
     let api = client(service, WALLET, Some(&member.session));
     for (option, destination, gate) in [
@@ -266,11 +281,10 @@ pub(super) async fn wallet(
         serde_json::from_value(api.call("global_public", json!({})).await.unwrap()).unwrap();
     let issuer = cpsd::IssuerPublicKey::from_bytes(&public.issuer).unwrap();
     let mut rng = cpsd::rand::rngs::OsRng;
-    let secret = cpsd::HolderSecret::generate(&mut rng);
     let challenge: Bytes =
         serde_json::from_value(api.call("passport_challenge", json!({})).await.unwrap()).unwrap();
     let challenge = cpsd::IssuanceChallenge::from_bytes(challenge.bytes.try_into().unwrap());
-    let (request, pending) = cpsd::request_issue(&mut rng, &secret, &issuer, &challenge).unwrap();
+    let (request, pending) = cpsd::request_issue(&mut rng, secret, &issuer, &challenge).unwrap();
     let issued: Bytes = serde_json::from_value(
         api.call(
             "passport_issue",
