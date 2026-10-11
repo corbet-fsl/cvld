@@ -26,6 +26,3081 @@
         ],
         "type": "object"
       },
+      "AccountServiceRequest": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "enum": [
+                  "registerRecordRecipient"
+                ],
+                "type": "string"
+              },
+              "authorization": {
+                "additionalProperties": false,
+                "description": "Member-owned root authorization. Eligibility issuers cannot create this proof.",
+                "properties": {
+                  "communityId": {
+                    "type": "string"
+                  },
+                  "devicePublicKey": {
+                    "type": "string"
+                  },
+                  "expiresAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "issuedAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "memberId": {
+                    "type": "string"
+                  },
+                  "rootPublicKey": {
+                    "type": "string"
+                  },
+                  "signature": {
+                    "type": "string"
+                  },
+                  "version": {
+                    "format": "uint32",
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "version",
+                  "communityId",
+                  "memberId",
+                  "rootPublicKey",
+                  "devicePublicKey",
+                  "issuedAt",
+                  "expiresAt",
+                  "signature"
+                ],
+                "type": "object"
+              },
+              "grant": {
+                "additionalProperties": false,
+                "properties": {
+                  "chatPublicKey": {
+                    "type": "string"
+                  },
+                  "communityId": {
+                    "type": "string"
+                  },
+                  "expiresAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "issuedAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "issuerKeyId": {
+                    "type": "string"
+                  },
+                  "memberId": {
+                    "type": "string"
+                  },
+                  "passportPolicyDigest": {
+                    "description": "Opaque digest of the exact authenticated global passport cohort.",
+                    "type": "string"
+                  },
+                  "policyDigest": {
+                    "type": "string"
+                  },
+                  "policyEpoch": {
+                    "description": "Community admission epoch from the same validated credential decision.",
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "pseudonym": {
+                    "description": "Canonical cpsd pseudonym bytes in lowercase hex, authenticated by the issuer.",
+                    "type": "string"
+                  },
+                  "signature": {
+                    "description": "Base64url canonical csgn COSE Sign1, never a detached signature.",
+                    "type": "string"
+                  },
+                  "version": {
+                    "format": "uint32",
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "version",
+                  "issuerKeyId",
+                  "communityId",
+                  "memberId",
+                  "pseudonym",
+                  "chatPublicKey",
+                  "policyDigest",
+                  "policyEpoch",
+                  "passportPolicyDigest",
+                  "issuedAt",
+                  "expiresAt",
+                  "signature"
+                ],
+                "type": "object"
+              },
+              "request": {
+                "additionalProperties": false,
+                "description": "The existing admitted account's device signs its common-root-derived recipient\nkey. This is an account enrollment operation, never a listing/contact request.",
+                "properties": {
+                  "chatPublicKey": {
+                    "type": "string"
+                  },
+                  "community": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 32,
+                    "minItems": 32,
+                    "type": "array"
+                  },
+                  "expiresAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "issuedAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "owner": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 32,
+                    "minItems": 32,
+                    "type": "array"
+                  },
+                  "recipientKey": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 32,
+                    "minItems": 32,
+                    "type": "array"
+                  },
+                  "signature": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "community",
+                  "owner",
+                  "recipientKey",
+                  "chatPublicKey",
+                  "issuedAt",
+                  "expiresAt",
+                  "signature"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "action",
+              "grant",
+              "authorization",
+              "request"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "enum": [
+                  "apply"
+                ],
+                "type": "string"
+              },
+              "authorization": {
+                "additionalProperties": false,
+                "description": "Member-owned root authorization. Eligibility issuers cannot create this proof.",
+                "properties": {
+                  "communityId": {
+                    "type": "string"
+                  },
+                  "devicePublicKey": {
+                    "type": "string"
+                  },
+                  "expiresAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "issuedAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "memberId": {
+                    "type": "string"
+                  },
+                  "rootPublicKey": {
+                    "type": "string"
+                  },
+                  "signature": {
+                    "type": "string"
+                  },
+                  "version": {
+                    "format": "uint32",
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "version",
+                  "communityId",
+                  "memberId",
+                  "rootPublicKey",
+                  "devicePublicKey",
+                  "issuedAt",
+                  "expiresAt",
+                  "signature"
+                ],
+                "type": "object"
+              },
+              "grant": {
+                "additionalProperties": false,
+                "properties": {
+                  "chatPublicKey": {
+                    "type": "string"
+                  },
+                  "communityId": {
+                    "type": "string"
+                  },
+                  "expiresAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "issuedAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "issuerKeyId": {
+                    "type": "string"
+                  },
+                  "memberId": {
+                    "type": "string"
+                  },
+                  "passportPolicyDigest": {
+                    "description": "Opaque digest of the exact authenticated global passport cohort.",
+                    "type": "string"
+                  },
+                  "policyDigest": {
+                    "type": "string"
+                  },
+                  "policyEpoch": {
+                    "description": "Community admission epoch from the same validated credential decision.",
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "pseudonym": {
+                    "description": "Canonical cpsd pseudonym bytes in lowercase hex, authenticated by the issuer.",
+                    "type": "string"
+                  },
+                  "signature": {
+                    "description": "Base64url canonical csgn COSE Sign1, never a detached signature.",
+                    "type": "string"
+                  },
+                  "version": {
+                    "format": "uint32",
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "version",
+                  "issuerKeyId",
+                  "communityId",
+                  "memberId",
+                  "pseudonym",
+                  "chatPublicKey",
+                  "policyDigest",
+                  "policyEpoch",
+                  "passportPolicyDigest",
+                  "issuedAt",
+                  "expiresAt",
+                  "signature"
+                ],
+                "type": "object"
+              },
+              "request": {
+                "additionalProperties": false,
+                "properties": {
+                  "chatPublicKey": {
+                    "type": "string"
+                  },
+                  "expiresAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "issuedAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "proof": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "proofScope": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "circuitDigest": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "verifyingKeyDigest": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "circuitDigest",
+                      "verifyingKeyDigest"
+                    ],
+                    "type": "object"
+                  },
+                  "requestId": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 32,
+                    "minItems": 32,
+                    "type": "array"
+                  },
+                  "signature": {
+                    "type": "string"
+                  },
+                  "statement": {
+                    "additionalProperties": false,
+                    "description": "Complete public input. The role, peer, nonce, group, balances and map paths\nbelong exclusively to the private witness and cannot be added to this wire.",
+                    "properties": {
+                      "community": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "enrollmentRoot": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "genesis": {
+                        "type": "boolean"
+                      },
+                      "nextState": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "nextVersion": {
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "now": {
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "owner": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "policy": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "abandonAfter": {
+                            "description": "Waiting period for new outgoing reservations. Existing slots retain their deadline.",
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "incomingReservation": {
+                            "format": "uint32",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "initialCredit": {
+                            "format": "uint32",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "maximumAdmissions": {
+                            "format": "uint32",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "maximumAvailable": {
+                            "description": "Mature total capacity, including both available and reserved units.",
+                            "format": "uint32",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "newcomerAdmissions": {
+                            "format": "uint32",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "newcomerPeriod": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "outgoingReservation": {
+                            "format": "uint32",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "policyRevision": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "policyValidFrom": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "policyValidUntil": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "rateWindow": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "refillPeriod": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "refillUnits": {
+                            "format": "uint32",
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "initialCredit",
+                          "maximumAvailable",
+                          "outgoingReservation",
+                          "incomingReservation",
+                          "policyRevision",
+                          "policyValidFrom",
+                          "policyValidUntil",
+                          "newcomerPeriod",
+                          "rateWindow",
+                          "newcomerAdmissions",
+                          "maximumAdmissions",
+                          "refillPeriod",
+                          "refillUnits",
+                          "abandonAfter"
+                        ],
+                        "type": "object"
+                      },
+                      "policyDigest": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "previousState": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "previousVersion": {
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "protocolVersion": {
+                        "format": "uint32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "settlementMarker": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "validUntil": {
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "protocolVersion",
+                      "community",
+                      "owner",
+                      "policyDigest",
+                      "enrollmentRoot",
+                      "now",
+                      "validUntil",
+                      "genesis",
+                      "previousVersion",
+                      "nextVersion",
+                      "previousState",
+                      "nextState",
+                      "settlementMarker",
+                      "policy"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "statement",
+                  "requestId",
+                  "proofScope",
+                  "chatPublicKey",
+                  "issuedAt",
+                  "expiresAt",
+                  "proof",
+                  "signature"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "action",
+              "grant",
+              "authorization",
+              "request"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "enum": [
+                  "applyExtended"
+                ],
+                "type": "string"
+              },
+              "authorization": {
+                "additionalProperties": false,
+                "description": "Member-owned root authorization. Eligibility issuers cannot create this proof.",
+                "properties": {
+                  "communityId": {
+                    "type": "string"
+                  },
+                  "devicePublicKey": {
+                    "type": "string"
+                  },
+                  "expiresAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "issuedAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "memberId": {
+                    "type": "string"
+                  },
+                  "rootPublicKey": {
+                    "type": "string"
+                  },
+                  "signature": {
+                    "type": "string"
+                  },
+                  "version": {
+                    "format": "uint32",
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "version",
+                  "communityId",
+                  "memberId",
+                  "rootPublicKey",
+                  "devicePublicKey",
+                  "issuedAt",
+                  "expiresAt",
+                  "signature"
+                ],
+                "type": "object"
+              },
+              "grant": {
+                "additionalProperties": false,
+                "properties": {
+                  "chatPublicKey": {
+                    "type": "string"
+                  },
+                  "communityId": {
+                    "type": "string"
+                  },
+                  "expiresAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "issuedAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "issuerKeyId": {
+                    "type": "string"
+                  },
+                  "memberId": {
+                    "type": "string"
+                  },
+                  "passportPolicyDigest": {
+                    "description": "Opaque digest of the exact authenticated global passport cohort.",
+                    "type": "string"
+                  },
+                  "policyDigest": {
+                    "type": "string"
+                  },
+                  "policyEpoch": {
+                    "description": "Community admission epoch from the same validated credential decision.",
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "pseudonym": {
+                    "description": "Canonical cpsd pseudonym bytes in lowercase hex, authenticated by the issuer.",
+                    "type": "string"
+                  },
+                  "signature": {
+                    "description": "Base64url canonical csgn COSE Sign1, never a detached signature.",
+                    "type": "string"
+                  },
+                  "version": {
+                    "format": "uint32",
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "version",
+                  "issuerKeyId",
+                  "communityId",
+                  "memberId",
+                  "pseudonym",
+                  "chatPublicKey",
+                  "policyDigest",
+                  "policyEpoch",
+                  "passportPolicyDigest",
+                  "issuedAt",
+                  "expiresAt",
+                  "signature"
+                ],
+                "type": "object"
+              },
+              "request": {
+                "additionalProperties": false,
+                "properties": {
+                  "chatPublicKey": {
+                    "type": "string"
+                  },
+                  "expiresAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "issuedAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "proof": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "proofScope": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "circuitDigest": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "verifyingKeyDigest": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "circuitDigest",
+                      "verifyingKeyDigest"
+                    ],
+                    "type": "object"
+                  },
+                  "requestId": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 32,
+                    "minItems": 32,
+                    "type": "array"
+                  },
+                  "signature": {
+                    "type": "string"
+                  },
+                  "statement": {
+                    "additionalProperties": false,
+                    "description": "Complete public input. The role, peer, nonce, group, balances and map paths\nbelong exclusively to the private witness and cannot be added to this wire.",
+                    "properties": {
+                      "community": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "enrollmentRoot": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "genesis": {
+                        "type": "boolean"
+                      },
+                      "nextState": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "nextVersion": {
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "now": {
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "owner": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "policy": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "abandonAfter": {
+                            "description": "Waiting period for new outgoing reservations. Existing slots retain their deadline.",
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "incomingReservation": {
+                            "format": "uint32",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "initialCredit": {
+                            "format": "uint32",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "maximumAdmissions": {
+                            "format": "uint32",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "maximumAvailable": {
+                            "description": "Mature total capacity, including both available and reserved units.",
+                            "format": "uint32",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "newcomerAdmissions": {
+                            "format": "uint32",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "newcomerPeriod": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "outgoingReservation": {
+                            "format": "uint32",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "policyRevision": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "policyValidFrom": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "policyValidUntil": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "rateWindow": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "refillPeriod": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "refillUnits": {
+                            "format": "uint32",
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "initialCredit",
+                          "maximumAvailable",
+                          "outgoingReservation",
+                          "incomingReservation",
+                          "policyRevision",
+                          "policyValidFrom",
+                          "policyValidUntil",
+                          "newcomerPeriod",
+                          "rateWindow",
+                          "newcomerAdmissions",
+                          "maximumAdmissions",
+                          "refillPeriod",
+                          "refillUnits",
+                          "abandonAfter"
+                        ],
+                        "type": "object"
+                      },
+                      "policyDigest": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "previousState": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "previousVersion": {
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "protocolVersion": {
+                        "format": "uint32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "settlementMarker": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "validUntil": {
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "protocolVersion",
+                      "community",
+                      "owner",
+                      "policyDigest",
+                      "enrollmentRoot",
+                      "now",
+                      "validUntil",
+                      "genesis",
+                      "previousVersion",
+                      "nextVersion",
+                      "previousState",
+                      "nextState",
+                      "settlementMarker",
+                      "policy"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "statement",
+                  "requestId",
+                  "proofScope",
+                  "chatPublicKey",
+                  "issuedAt",
+                  "expiresAt",
+                  "proof",
+                  "signature"
+                ],
+                "type": "object"
+              },
+              "update": {
+                "additionalProperties": false,
+                "properties": {
+                  "effect": {
+                    "description": "The public effect to prove in addition to all ordinary account constraints.",
+                    "oneOf": [
+                      {
+                        "additionalProperties": false,
+                        "description": "Apply every queued obligation before any other state change.",
+                        "properties": {
+                          "kind": {
+                            "enum": [
+                              "update"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "kind"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "description": "Spend the configured units and bind permission to this opaque field commitment.",
+                        "properties": {
+                          "binding": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          },
+                          "kind": {
+                            "enum": [
+                              "change"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "binding"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  },
+                  "inbox": {
+                    "additionalProperties": false,
+                    "description": "Settlement frontier, not a balance or an outcome counter.",
+                    "properties": {
+                      "root": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "root"
+                    ],
+                    "type": "object"
+                  },
+                  "previousInbox": {
+                    "additionalProperties": false,
+                    "description": "Settlement frontier, not a balance or an outcome counter.",
+                    "properties": {
+                      "root": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "root"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "previousInbox",
+                  "inbox",
+                  "effect"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "action",
+              "grant",
+              "authorization",
+              "request",
+              "update"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "enum": [
+                  "obligations"
+                ],
+                "type": "string"
+              },
+              "authorization": {
+                "additionalProperties": false,
+                "description": "Member-owned root authorization. Eligibility issuers cannot create this proof.",
+                "properties": {
+                  "communityId": {
+                    "type": "string"
+                  },
+                  "devicePublicKey": {
+                    "type": "string"
+                  },
+                  "expiresAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "issuedAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "memberId": {
+                    "type": "string"
+                  },
+                  "rootPublicKey": {
+                    "type": "string"
+                  },
+                  "signature": {
+                    "type": "string"
+                  },
+                  "version": {
+                    "format": "uint32",
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "version",
+                  "communityId",
+                  "memberId",
+                  "rootPublicKey",
+                  "devicePublicKey",
+                  "issuedAt",
+                  "expiresAt",
+                  "signature"
+                ],
+                "type": "object"
+              },
+              "grant": {
+                "additionalProperties": false,
+                "properties": {
+                  "chatPublicKey": {
+                    "type": "string"
+                  },
+                  "communityId": {
+                    "type": "string"
+                  },
+                  "expiresAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "issuedAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "issuerKeyId": {
+                    "type": "string"
+                  },
+                  "memberId": {
+                    "type": "string"
+                  },
+                  "passportPolicyDigest": {
+                    "description": "Opaque digest of the exact authenticated global passport cohort.",
+                    "type": "string"
+                  },
+                  "policyDigest": {
+                    "type": "string"
+                  },
+                  "policyEpoch": {
+                    "description": "Community admission epoch from the same validated credential decision.",
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "pseudonym": {
+                    "description": "Canonical cpsd pseudonym bytes in lowercase hex, authenticated by the issuer.",
+                    "type": "string"
+                  },
+                  "signature": {
+                    "description": "Base64url canonical csgn COSE Sign1, never a detached signature.",
+                    "type": "string"
+                  },
+                  "version": {
+                    "format": "uint32",
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "version",
+                  "issuerKeyId",
+                  "communityId",
+                  "memberId",
+                  "pseudonym",
+                  "chatPublicKey",
+                  "policyDigest",
+                  "policyEpoch",
+                  "passportPolicyDigest",
+                  "issuedAt",
+                  "expiresAt",
+                  "signature"
+                ],
+                "type": "object"
+              },
+              "request": {
+                "additionalProperties": false,
+                "description": "A fresh, authenticated request can recover an old accepted response after\nits original device/request expires. A new device needs root authorization.",
+                "properties": {
+                  "challenge": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 32,
+                    "minItems": 32,
+                    "type": "array"
+                  },
+                  "chatPublicKey": {
+                    "type": "string"
+                  },
+                  "community": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 32,
+                    "minItems": 32,
+                    "type": "array"
+                  },
+                  "expiresAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "issuedAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "owner": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 32,
+                    "minItems": 32,
+                    "type": "array"
+                  },
+                  "requestId": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 32,
+                    "minItems": 32,
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  },
+                  "signature": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "community",
+                  "owner",
+                  "challenge",
+                  "chatPublicKey",
+                  "issuedAt",
+                  "expiresAt",
+                  "signature"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "action",
+              "grant",
+              "authorization",
+              "request"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "enum": [
+                  "status"
+                ],
+                "type": "string"
+              },
+              "authorization": {
+                "additionalProperties": false,
+                "description": "Member-owned root authorization. Eligibility issuers cannot create this proof.",
+                "properties": {
+                  "communityId": {
+                    "type": "string"
+                  },
+                  "devicePublicKey": {
+                    "type": "string"
+                  },
+                  "expiresAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "issuedAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "memberId": {
+                    "type": "string"
+                  },
+                  "rootPublicKey": {
+                    "type": "string"
+                  },
+                  "signature": {
+                    "type": "string"
+                  },
+                  "version": {
+                    "format": "uint32",
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "version",
+                  "communityId",
+                  "memberId",
+                  "rootPublicKey",
+                  "devicePublicKey",
+                  "issuedAt",
+                  "expiresAt",
+                  "signature"
+                ],
+                "type": "object"
+              },
+              "grant": {
+                "additionalProperties": false,
+                "properties": {
+                  "chatPublicKey": {
+                    "type": "string"
+                  },
+                  "communityId": {
+                    "type": "string"
+                  },
+                  "expiresAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "issuedAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "issuerKeyId": {
+                    "type": "string"
+                  },
+                  "memberId": {
+                    "type": "string"
+                  },
+                  "passportPolicyDigest": {
+                    "description": "Opaque digest of the exact authenticated global passport cohort.",
+                    "type": "string"
+                  },
+                  "policyDigest": {
+                    "type": "string"
+                  },
+                  "policyEpoch": {
+                    "description": "Community admission epoch from the same validated credential decision.",
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "pseudonym": {
+                    "description": "Canonical cpsd pseudonym bytes in lowercase hex, authenticated by the issuer.",
+                    "type": "string"
+                  },
+                  "signature": {
+                    "description": "Base64url canonical csgn COSE Sign1, never a detached signature.",
+                    "type": "string"
+                  },
+                  "version": {
+                    "format": "uint32",
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "version",
+                  "issuerKeyId",
+                  "communityId",
+                  "memberId",
+                  "pseudonym",
+                  "chatPublicKey",
+                  "policyDigest",
+                  "policyEpoch",
+                  "passportPolicyDigest",
+                  "issuedAt",
+                  "expiresAt",
+                  "signature"
+                ],
+                "type": "object"
+              },
+              "request": {
+                "additionalProperties": false,
+                "description": "A fresh, authenticated request can recover an old accepted response after\nits original device/request expires. A new device needs root authorization.",
+                "properties": {
+                  "challenge": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 32,
+                    "minItems": 32,
+                    "type": "array"
+                  },
+                  "chatPublicKey": {
+                    "type": "string"
+                  },
+                  "community": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 32,
+                    "minItems": 32,
+                    "type": "array"
+                  },
+                  "expiresAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "issuedAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "owner": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 32,
+                    "minItems": 32,
+                    "type": "array"
+                  },
+                  "requestId": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 32,
+                    "minItems": 32,
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  },
+                  "signature": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "community",
+                  "owner",
+                  "challenge",
+                  "chatPublicKey",
+                  "issuedAt",
+                  "expiresAt",
+                  "signature"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "action",
+              "grant",
+              "authorization",
+              "request"
+            ],
+            "type": "object"
+          }
+        ],
+        "title": "AccountServiceRequest"
+      },
+      "AccountServiceResponse": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "description": "Completion of the actual durable registration; never record authority.",
+            "properties": {
+              "action": {
+                "enum": [
+                  "recordRecipient"
+                ],
+                "type": "string"
+              },
+              "value": {
+                "additionalProperties": false,
+                "properties": {
+                  "recipient_key": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 32,
+                    "minItems": 32,
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "recipient_key"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "action",
+              "value"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "enum": [
+                  "apply"
+                ],
+                "type": "string"
+              },
+              "value": {
+                "additionalProperties": false,
+                "description": "The operator certifies acceptance of an opaque state. Peers additionally\nneed the private reservation proof and current cmsg consent before release.",
+                "properties": {
+                  "acceptedAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "proofScope": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "circuitDigest": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "verifyingKeyDigest": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "circuitDigest",
+                      "verifyingKeyDigest"
+                    ],
+                    "type": "object"
+                  },
+                  "requestDigest": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 32,
+                    "minItems": 32,
+                    "type": "array"
+                  },
+                  "requestId": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 32,
+                    "minItems": 32,
+                    "type": "array"
+                  },
+                  "signature": {
+                    "type": "string"
+                  },
+                  "statement": {
+                    "additionalProperties": false,
+                    "description": "Complete public input. The role, peer, nonce, group, balances and map paths\nbelong exclusively to the private witness and cannot be added to this wire.",
+                    "properties": {
+                      "community": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "enrollmentRoot": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "genesis": {
+                        "type": "boolean"
+                      },
+                      "nextState": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "nextVersion": {
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "now": {
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "owner": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "policy": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "abandonAfter": {
+                            "description": "Waiting period for new outgoing reservations. Existing slots retain their deadline.",
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "incomingReservation": {
+                            "format": "uint32",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "initialCredit": {
+                            "format": "uint32",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "maximumAdmissions": {
+                            "format": "uint32",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "maximumAvailable": {
+                            "description": "Mature total capacity, including both available and reserved units.",
+                            "format": "uint32",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "newcomerAdmissions": {
+                            "format": "uint32",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "newcomerPeriod": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "outgoingReservation": {
+                            "format": "uint32",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "policyRevision": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "policyValidFrom": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "policyValidUntil": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "rateWindow": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "refillPeriod": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "refillUnits": {
+                            "format": "uint32",
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "initialCredit",
+                          "maximumAvailable",
+                          "outgoingReservation",
+                          "incomingReservation",
+                          "policyRevision",
+                          "policyValidFrom",
+                          "policyValidUntil",
+                          "newcomerPeriod",
+                          "rateWindow",
+                          "newcomerAdmissions",
+                          "maximumAdmissions",
+                          "refillPeriod",
+                          "refillUnits",
+                          "abandonAfter"
+                        ],
+                        "type": "object"
+                      },
+                      "policyDigest": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "previousState": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "previousVersion": {
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "protocolVersion": {
+                        "format": "uint32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "settlementMarker": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "validUntil": {
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "protocolVersion",
+                      "community",
+                      "owner",
+                      "policyDigest",
+                      "enrollmentRoot",
+                      "now",
+                      "validUntil",
+                      "genesis",
+                      "previousVersion",
+                      "nextVersion",
+                      "previousState",
+                      "nextState",
+                      "settlementMarker",
+                      "policy"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "statement",
+                  "requestId",
+                  "requestDigest",
+                  "proofScope",
+                  "acceptedAt",
+                  "signature"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "action",
+              "value"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "enum": [
+                  "status"
+                ],
+                "type": "string"
+              },
+              "value": {
+                "additionalProperties": false,
+                "properties": {
+                  "acceptance": {
+                    "additionalProperties": false,
+                    "description": "The operator certifies acceptance of an opaque state. Peers additionally\nneed the private reservation proof and current cmsg consent before release.",
+                    "properties": {
+                      "acceptedAt": {
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "proofScope": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "circuitDigest": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          },
+                          "verifyingKeyDigest": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          }
+                        },
+                        "required": [
+                          "circuitDigest",
+                          "verifyingKeyDigest"
+                        ],
+                        "type": "object"
+                      },
+                      "requestDigest": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "requestId": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "signature": {
+                        "type": "string"
+                      },
+                      "statement": {
+                        "additionalProperties": false,
+                        "description": "Complete public input. The role, peer, nonce, group, balances and map paths\nbelong exclusively to the private witness and cannot be added to this wire.",
+                        "properties": {
+                          "community": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          },
+                          "enrollmentRoot": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          },
+                          "genesis": {
+                            "type": "boolean"
+                          },
+                          "nextState": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          },
+                          "nextVersion": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "now": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "owner": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          },
+                          "policy": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "abandonAfter": {
+                                "description": "Waiting period for new outgoing reservations. Existing slots retain their deadline.",
+                                "format": "uint64",
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "incomingReservation": {
+                                "format": "uint32",
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "initialCredit": {
+                                "format": "uint32",
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "maximumAdmissions": {
+                                "format": "uint32",
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "maximumAvailable": {
+                                "description": "Mature total capacity, including both available and reserved units.",
+                                "format": "uint32",
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "newcomerAdmissions": {
+                                "format": "uint32",
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "newcomerPeriod": {
+                                "format": "uint64",
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "outgoingReservation": {
+                                "format": "uint32",
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "policyRevision": {
+                                "format": "uint64",
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "policyValidFrom": {
+                                "format": "uint64",
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "policyValidUntil": {
+                                "format": "uint64",
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "rateWindow": {
+                                "format": "uint64",
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "refillPeriod": {
+                                "format": "uint64",
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "refillUnits": {
+                                "format": "uint32",
+                                "minimum": 0,
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "initialCredit",
+                              "maximumAvailable",
+                              "outgoingReservation",
+                              "incomingReservation",
+                              "policyRevision",
+                              "policyValidFrom",
+                              "policyValidUntil",
+                              "newcomerPeriod",
+                              "rateWindow",
+                              "newcomerAdmissions",
+                              "maximumAdmissions",
+                              "refillPeriod",
+                              "refillUnits",
+                              "abandonAfter"
+                            ],
+                            "type": "object"
+                          },
+                          "policyDigest": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          },
+                          "previousState": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          },
+                          "previousVersion": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "protocolVersion": {
+                            "format": "uint32",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "settlementMarker": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          },
+                          "validUntil": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "protocolVersion",
+                          "community",
+                          "owner",
+                          "policyDigest",
+                          "enrollmentRoot",
+                          "now",
+                          "validUntil",
+                          "genesis",
+                          "previousVersion",
+                          "nextVersion",
+                          "previousState",
+                          "nextState",
+                          "settlementMarker",
+                          "policy"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "statement",
+                      "requestId",
+                      "requestDigest",
+                      "proofScope",
+                      "acceptedAt",
+                      "signature"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "observedAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "signature": {
+                    "type": "string"
+                  },
+                  "statusRequestDigest": {
+                    "description": "Binds the fresh challenge, owner, requested lookup and caller authority.",
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 32,
+                    "minItems": 32,
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "statusRequestDigest",
+                  "observedAt",
+                  "signature"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "action",
+              "value"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "enum": [
+                  "applyExtended"
+                ],
+                "type": "string"
+              },
+              "value": {
+                "additionalProperties": false,
+                "properties": {
+                  "acceptance": {
+                    "additionalProperties": false,
+                    "description": "The operator certifies acceptance of an opaque state. Peers additionally\nneed the private reservation proof and current cmsg consent before release.",
+                    "properties": {
+                      "acceptedAt": {
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "proofScope": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "circuitDigest": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          },
+                          "verifyingKeyDigest": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          }
+                        },
+                        "required": [
+                          "circuitDigest",
+                          "verifyingKeyDigest"
+                        ],
+                        "type": "object"
+                      },
+                      "requestDigest": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "requestId": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "signature": {
+                        "type": "string"
+                      },
+                      "statement": {
+                        "additionalProperties": false,
+                        "description": "Complete public input. The role, peer, nonce, group, balances and map paths\nbelong exclusively to the private witness and cannot be added to this wire.",
+                        "properties": {
+                          "community": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          },
+                          "enrollmentRoot": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          },
+                          "genesis": {
+                            "type": "boolean"
+                          },
+                          "nextState": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          },
+                          "nextVersion": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "now": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "owner": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          },
+                          "policy": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "abandonAfter": {
+                                "description": "Waiting period for new outgoing reservations. Existing slots retain their deadline.",
+                                "format": "uint64",
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "incomingReservation": {
+                                "format": "uint32",
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "initialCredit": {
+                                "format": "uint32",
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "maximumAdmissions": {
+                                "format": "uint32",
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "maximumAvailable": {
+                                "description": "Mature total capacity, including both available and reserved units.",
+                                "format": "uint32",
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "newcomerAdmissions": {
+                                "format": "uint32",
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "newcomerPeriod": {
+                                "format": "uint64",
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "outgoingReservation": {
+                                "format": "uint32",
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "policyRevision": {
+                                "format": "uint64",
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "policyValidFrom": {
+                                "format": "uint64",
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "policyValidUntil": {
+                                "format": "uint64",
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "rateWindow": {
+                                "format": "uint64",
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "refillPeriod": {
+                                "format": "uint64",
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "refillUnits": {
+                                "format": "uint32",
+                                "minimum": 0,
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "initialCredit",
+                              "maximumAvailable",
+                              "outgoingReservation",
+                              "incomingReservation",
+                              "policyRevision",
+                              "policyValidFrom",
+                              "policyValidUntil",
+                              "newcomerPeriod",
+                              "rateWindow",
+                              "newcomerAdmissions",
+                              "maximumAdmissions",
+                              "refillPeriod",
+                              "refillUnits",
+                              "abandonAfter"
+                            ],
+                            "type": "object"
+                          },
+                          "policyDigest": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          },
+                          "previousState": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          },
+                          "previousVersion": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "protocolVersion": {
+                            "format": "uint32",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "settlementMarker": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          },
+                          "validUntil": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "protocolVersion",
+                          "community",
+                          "owner",
+                          "policyDigest",
+                          "enrollmentRoot",
+                          "now",
+                          "validUntil",
+                          "genesis",
+                          "previousVersion",
+                          "nextVersion",
+                          "previousState",
+                          "nextState",
+                          "settlementMarker",
+                          "policy"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "statement",
+                      "requestId",
+                      "requestDigest",
+                      "proofScope",
+                      "acceptedAt",
+                      "signature"
+                    ],
+                    "type": "object"
+                  },
+                  "ancestry": {
+                    "additionalProperties": false,
+                    "description": "Original ancestry issued only in this acceptance's verified CAS.",
+                    "properties": {
+                      "community": {
+                        "description": "Hash of the issuer's community identifier.",
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "epoch": {
+                        "description": "Published epoch number.",
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "frozenLeaf": {
+                        "description": "Commitment to the original blinded owner frontier leaf.",
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "issuedAt": {
+                        "description": "Original acceptance time, unchanged by an exact retry.",
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "owner": {
+                        "description": "Private community-scoped account owner.",
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "proofScope": {
+                        "additionalProperties": false,
+                        "description": "Original circuit and verification-key digests.",
+                        "properties": {
+                          "circuitDigest": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          },
+                          "verifyingKeyDigest": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          }
+                        },
+                        "required": [
+                          "circuitDigest",
+                          "verifyingKeyDigest"
+                        ],
+                        "type": "object"
+                      },
+                      "record": {
+                        "additionalProperties": false,
+                        "description": "Same private signed-leaf packet used by frozen and descendant records.",
+                        "properties": {
+                          "leaf": {
+                            "additionalProperties": false,
+                            "description": "Private opening of the public blinded leaf.",
+                            "properties": {
+                              "blinding": {
+                                "items": {
+                                  "format": "uint8",
+                                  "maximum": 255,
+                                  "minimum": 0,
+                                  "type": "integer"
+                                },
+                                "maxItems": 32,
+                                "minItems": 32,
+                                "type": "array"
+                              },
+                              "owner": {
+                                "items": {
+                                  "format": "uint8",
+                                  "maximum": 255,
+                                  "minimum": 0,
+                                  "type": "integer"
+                                },
+                                "maxItems": 32,
+                                "minItems": 32,
+                                "type": "array"
+                              },
+                              "requiredInbox": {
+                                "items": {
+                                  "format": "uint8",
+                                  "maximum": 255,
+                                  "minimum": 0,
+                                  "type": "integer"
+                                },
+                                "maxItems": 32,
+                                "minItems": 32,
+                                "type": "array"
+                              },
+                              "state": {
+                                "items": {
+                                  "format": "uint8",
+                                  "maximum": 255,
+                                  "minimum": 0,
+                                  "type": "integer"
+                                },
+                                "maxItems": 32,
+                                "minItems": 32,
+                                "type": "array"
+                              },
+                              "version": {
+                                "format": "uint64",
+                                "minimum": 0,
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "owner",
+                              "version",
+                              "state",
+                              "requiredInbox",
+                              "blinding"
+                            ],
+                            "type": "object"
+                          },
+                          "signature": {
+                            "description": "Standard Ed25519 signature on community, epoch and the blinded leaf.",
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "type": "array"
+                          }
+                        },
+                        "required": [
+                          "leaf",
+                          "signature"
+                        ],
+                        "type": "object"
+                      },
+                      "root": {
+                        "description": "Original published epoch root.",
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "signature": {
+                        "description": "Canonical low-S P-256 signature, exactly 64 bytes.",
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "type": "array"
+                      },
+                      "state": {
+                        "description": "Newly accepted private state commitment.",
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "version": {
+                        "description": "Newly accepted private version.",
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "community",
+                      "owner",
+                      "epoch",
+                      "root",
+                      "frozenLeaf",
+                      "state",
+                      "version",
+                      "proofScope",
+                      "issuedAt",
+                      "signature",
+                      "record"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "certificate": {
+                    "additionalProperties": false,
+                    "description": "Private input to a delayed deposit proof, returned only to the accepting holder.",
+                    "properties": {
+                      "acceptedAt": {
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "signature": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "acceptedAt",
+                      "signature"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "acceptance",
+                  "certificate"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "action",
+              "value"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "enum": [
+                  "obligations"
+                ],
+                "type": "string"
+              },
+              "value": {
+                "additionalProperties": false,
+                "properties": {
+                  "entries": {
+                    "items": {
+                      "additionalProperties": false,
+                      "description": "Pending opaque entry, removed atomically when its recipient consumes it.",
+                      "properties": {
+                        "commitment": {
+                          "items": {
+                            "format": "uint8",
+                            "maximum": 255,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "maxItems": 32,
+                          "minItems": 32,
+                          "type": "array"
+                        },
+                        "previous": {
+                          "additionalProperties": false,
+                          "description": "Settlement frontier, not a balance or an outcome counter.",
+                          "properties": {
+                            "root": {
+                              "items": {
+                                "format": "uint8",
+                                "maximum": 255,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "maxItems": 32,
+                              "minItems": 32,
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "root"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "previous",
+                        "commitment"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "inbox": {
+                    "additionalProperties": false,
+                    "description": "Settlement frontier, not a balance or an outcome counter.",
+                    "properties": {
+                      "root": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "root"
+                    ],
+                    "type": "object"
+                  },
+                  "observedAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "requestDigest": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 32,
+                    "minItems": 32,
+                    "type": "array"
+                  },
+                  "signature": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "requestDigest",
+                  "observedAt",
+                  "inbox",
+                  "entries",
+                  "signature"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "action",
+              "value"
+            ],
+            "type": "object"
+          }
+        ],
+        "title": "AccountServiceResponse"
+      },
+      "AdmissionGrant": {
+        "additionalProperties": false,
+        "properties": {
+          "chatPublicKey": {
+            "type": "string"
+          },
+          "communityId": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "issuedAt": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "issuerKeyId": {
+            "type": "string"
+          },
+          "memberId": {
+            "type": "string"
+          },
+          "passportPolicyDigest": {
+            "description": "Opaque digest of the exact authenticated global passport cohort.",
+            "type": "string"
+          },
+          "policyDigest": {
+            "type": "string"
+          },
+          "policyEpoch": {
+            "description": "Community admission epoch from the same validated credential decision.",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "pseudonym": {
+            "description": "Canonical cpsd pseudonym bytes in lowercase hex, authenticated by the issuer.",
+            "type": "string"
+          },
+          "signature": {
+            "description": "Base64url canonical csgn COSE Sign1, never a detached signature.",
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "issuerKeyId",
+          "communityId",
+          "memberId",
+          "pseudonym",
+          "chatPublicKey",
+          "policyDigest",
+          "policyEpoch",
+          "passportPolicyDigest",
+          "issuedAt",
+          "expiresAt",
+          "signature"
+        ],
+        "type": "object"
+      },
       "Amount": {
         "additionalProperties": false,
         "properties": {
@@ -511,6 +3586,171 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/v1/account": {
+      "post": {
+        "operationId": "account",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountServiceRequest",
+                "description": "Transparent original tagged member request. The leaf retains every variant,\nfield, nested bound and strict unknown-field refusal; no local DTO copies."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountServiceResponse",
+                  "description": "Transparent original owner response, never a host-made acceptance."
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Forward this admitted member's original account operation",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "member",
+        "x-scope": "community"
+      }
+    },
+    "/v1/account_credential_issue": {
+      "post": {
+        "operationId": "account_credential_issue",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Request the original account grant from the same real admission decision.",
+                "properties": {
+                  "credential": {
+                    "$ref": "#/components/schemas/CredentialRequest"
+                  },
+                  "device": {
+                    "description": "Must already be authorized by this original membership.",
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "credential",
+                  "device"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "No grant is returned until the actual configured accounting owner and the\nsame complete credential decision have supplied one.",
+                  "properties": {
+                    "account": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/AdmissionGrant"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "credential": {
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
+                    "lobby": {
+                      "$ref": "#/components/schemas/Lobby"
+                    }
+                  },
+                  "required": [
+                    "lobby"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Request the original account grant from the same full admission decision",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "member",
+        "x-scope": "community"
+      }
+    },
     "/v1/community_self_ban_begin": {
       "post": {
         "operationId": "community_self_ban_begin",
@@ -1887,6 +5127,108 @@
         "x-scope": "community"
       }
     },
+    "/v1/global_initial_registration_continue": {
+      "post": {
+        "operationId": "global_initial_registration_continue",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Continue the retained wallet ceremony after its genuine UUID is known.",
+                "properties": {
+                  "ceremony": {
+                    "type": "string"
+                  },
+                  "seed": {
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "ceremony",
+                  "seed"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "The original first-registration ceremony and its retained server deadline.\nThese public lifecycle fields do not authorize completion or extend its life.",
+                  "properties": {
+                    "ceremony": {
+                      "type": "string"
+                    },
+                    "checked_at": {
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "expires_at": {
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "options": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "user": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "ceremony",
+                    "user",
+                    "options",
+                    "checked_at",
+                    "expires_at"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [],
+        "summary": "Bind creation provenance to the retained first wallet registration",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "public",
+        "x-scope": "global"
+      }
+    },
     "/v1/global_public": {
       "post": {
         "operationId": "global_public",
@@ -2591,7 +5933,7 @@
         "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "member",
-        "x-scope": "community"
+        "x-scope": "both"
       }
     },
     "/v1/initial_publication_bind": {
@@ -2703,7 +6045,7 @@
         "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
-        "x-scope": "community"
+        "x-scope": "both"
       }
     },
     "/v1/initial_registration_begin": {

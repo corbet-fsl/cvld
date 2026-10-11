@@ -4,6 +4,40 @@
  */
 
 export interface paths {
+    "/v1/account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Forward this admitted member's original account operation */
+        post: operations["account"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/account_credential_issue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Request the original account grant from the same full admission decision */
+        post: operations["account_credential_issue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/community_self_ban_begin": {
         parameters: {
             query?: never;
@@ -253,6 +287,23 @@ export interface paths {
         put?: never;
         /** Withdraw a retained community gate */
         post: operations["gate_withdraw"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/global_initial_registration_continue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Bind creation provenance to the retained first wallet registration */
+        post: operations["global_initial_registration_continue"];
         delete?: never;
         options?: never;
         head?: never;
@@ -954,6 +1005,777 @@ export interface components {
             /** Format: int64 */
             starts_at: number;
         };
+        /** AccountServiceRequest */
+        AccountServiceRequest: {
+            /** @enum {string} */
+            action: "registerRecordRecipient";
+            /** @description Member-owned root authorization. Eligibility issuers cannot create this proof. */
+            authorization: {
+                communityId: string;
+                devicePublicKey: string;
+                /** Format: uint64 */
+                expiresAt: number;
+                /** Format: uint64 */
+                issuedAt: number;
+                memberId: string;
+                rootPublicKey: string;
+                signature: string;
+                /** Format: uint32 */
+                version: number;
+            };
+            grant: {
+                chatPublicKey: string;
+                communityId: string;
+                /** Format: uint64 */
+                expiresAt: number;
+                /** Format: uint64 */
+                issuedAt: number;
+                issuerKeyId: string;
+                memberId: string;
+                /** @description Opaque digest of the exact authenticated global passport cohort. */
+                passportPolicyDigest: string;
+                policyDigest: string;
+                /**
+                 * Format: uint64
+                 * @description Community admission epoch from the same validated credential decision.
+                 */
+                policyEpoch: number;
+                /** @description Canonical cpsd pseudonym bytes in lowercase hex, authenticated by the issuer. */
+                pseudonym: string;
+                /** @description Base64url canonical csgn COSE Sign1, never a detached signature. */
+                signature: string;
+                /** Format: uint32 */
+                version: number;
+            };
+            /**
+             * @description The existing admitted account's device signs its common-root-derived recipient
+             *     key. This is an account enrollment operation, never a listing/contact request.
+             */
+            request: {
+                chatPublicKey: string;
+                community: number[];
+                /** Format: uint64 */
+                expiresAt: number;
+                /** Format: uint64 */
+                issuedAt: number;
+                owner: number[];
+                recipientKey: number[];
+                signature: string;
+            };
+        } | {
+            /** @enum {string} */
+            action: "apply";
+            /** @description Member-owned root authorization. Eligibility issuers cannot create this proof. */
+            authorization: {
+                communityId: string;
+                devicePublicKey: string;
+                /** Format: uint64 */
+                expiresAt: number;
+                /** Format: uint64 */
+                issuedAt: number;
+                memberId: string;
+                rootPublicKey: string;
+                signature: string;
+                /** Format: uint32 */
+                version: number;
+            };
+            grant: {
+                chatPublicKey: string;
+                communityId: string;
+                /** Format: uint64 */
+                expiresAt: number;
+                /** Format: uint64 */
+                issuedAt: number;
+                issuerKeyId: string;
+                memberId: string;
+                /** @description Opaque digest of the exact authenticated global passport cohort. */
+                passportPolicyDigest: string;
+                policyDigest: string;
+                /**
+                 * Format: uint64
+                 * @description Community admission epoch from the same validated credential decision.
+                 */
+                policyEpoch: number;
+                /** @description Canonical cpsd pseudonym bytes in lowercase hex, authenticated by the issuer. */
+                pseudonym: string;
+                /** @description Base64url canonical csgn COSE Sign1, never a detached signature. */
+                signature: string;
+                /** Format: uint32 */
+                version: number;
+            };
+            request: {
+                chatPublicKey: string;
+                /** Format: uint64 */
+                expiresAt: number;
+                /** Format: uint64 */
+                issuedAt: number;
+                proof: number[];
+                proofScope: {
+                    circuitDigest: number[];
+                    verifyingKeyDigest: number[];
+                };
+                requestId: number[];
+                signature: string;
+                /**
+                 * @description Complete public input. The role, peer, nonce, group, balances and map paths
+                 *     belong exclusively to the private witness and cannot be added to this wire.
+                 */
+                statement: {
+                    community: number[];
+                    enrollmentRoot: number[];
+                    genesis: boolean;
+                    nextState: number[];
+                    /** Format: uint64 */
+                    nextVersion: number;
+                    /** Format: uint64 */
+                    now: number;
+                    owner: number[];
+                    policy: {
+                        /**
+                         * Format: uint64
+                         * @description Waiting period for new outgoing reservations. Existing slots retain their deadline.
+                         */
+                        abandonAfter: number;
+                        /** Format: uint32 */
+                        incomingReservation: number;
+                        /** Format: uint32 */
+                        initialCredit: number;
+                        /** Format: uint32 */
+                        maximumAdmissions: number;
+                        /**
+                         * Format: uint32
+                         * @description Mature total capacity, including both available and reserved units.
+                         */
+                        maximumAvailable: number;
+                        /** Format: uint32 */
+                        newcomerAdmissions: number;
+                        /** Format: uint64 */
+                        newcomerPeriod: number;
+                        /** Format: uint32 */
+                        outgoingReservation: number;
+                        /** Format: uint64 */
+                        policyRevision: number;
+                        /** Format: uint64 */
+                        policyValidFrom: number;
+                        /** Format: uint64 */
+                        policyValidUntil: number;
+                        /** Format: uint64 */
+                        rateWindow: number;
+                        /** Format: uint64 */
+                        refillPeriod: number;
+                        /** Format: uint32 */
+                        refillUnits: number;
+                    };
+                    policyDigest: number[];
+                    previousState: number[];
+                    /** Format: uint64 */
+                    previousVersion: number;
+                    /** Format: uint32 */
+                    protocolVersion: number;
+                    settlementMarker: number[];
+                    /** Format: uint64 */
+                    validUntil: number;
+                };
+            };
+        } | {
+            /** @enum {string} */
+            action: "applyExtended";
+            /** @description Member-owned root authorization. Eligibility issuers cannot create this proof. */
+            authorization: {
+                communityId: string;
+                devicePublicKey: string;
+                /** Format: uint64 */
+                expiresAt: number;
+                /** Format: uint64 */
+                issuedAt: number;
+                memberId: string;
+                rootPublicKey: string;
+                signature: string;
+                /** Format: uint32 */
+                version: number;
+            };
+            grant: {
+                chatPublicKey: string;
+                communityId: string;
+                /** Format: uint64 */
+                expiresAt: number;
+                /** Format: uint64 */
+                issuedAt: number;
+                issuerKeyId: string;
+                memberId: string;
+                /** @description Opaque digest of the exact authenticated global passport cohort. */
+                passportPolicyDigest: string;
+                policyDigest: string;
+                /**
+                 * Format: uint64
+                 * @description Community admission epoch from the same validated credential decision.
+                 */
+                policyEpoch: number;
+                /** @description Canonical cpsd pseudonym bytes in lowercase hex, authenticated by the issuer. */
+                pseudonym: string;
+                /** @description Base64url canonical csgn COSE Sign1, never a detached signature. */
+                signature: string;
+                /** Format: uint32 */
+                version: number;
+            };
+            request: {
+                chatPublicKey: string;
+                /** Format: uint64 */
+                expiresAt: number;
+                /** Format: uint64 */
+                issuedAt: number;
+                proof: number[];
+                proofScope: {
+                    circuitDigest: number[];
+                    verifyingKeyDigest: number[];
+                };
+                requestId: number[];
+                signature: string;
+                /**
+                 * @description Complete public input. The role, peer, nonce, group, balances and map paths
+                 *     belong exclusively to the private witness and cannot be added to this wire.
+                 */
+                statement: {
+                    community: number[];
+                    enrollmentRoot: number[];
+                    genesis: boolean;
+                    nextState: number[];
+                    /** Format: uint64 */
+                    nextVersion: number;
+                    /** Format: uint64 */
+                    now: number;
+                    owner: number[];
+                    policy: {
+                        /**
+                         * Format: uint64
+                         * @description Waiting period for new outgoing reservations. Existing slots retain their deadline.
+                         */
+                        abandonAfter: number;
+                        /** Format: uint32 */
+                        incomingReservation: number;
+                        /** Format: uint32 */
+                        initialCredit: number;
+                        /** Format: uint32 */
+                        maximumAdmissions: number;
+                        /**
+                         * Format: uint32
+                         * @description Mature total capacity, including both available and reserved units.
+                         */
+                        maximumAvailable: number;
+                        /** Format: uint32 */
+                        newcomerAdmissions: number;
+                        /** Format: uint64 */
+                        newcomerPeriod: number;
+                        /** Format: uint32 */
+                        outgoingReservation: number;
+                        /** Format: uint64 */
+                        policyRevision: number;
+                        /** Format: uint64 */
+                        policyValidFrom: number;
+                        /** Format: uint64 */
+                        policyValidUntil: number;
+                        /** Format: uint64 */
+                        rateWindow: number;
+                        /** Format: uint64 */
+                        refillPeriod: number;
+                        /** Format: uint32 */
+                        refillUnits: number;
+                    };
+                    policyDigest: number[];
+                    previousState: number[];
+                    /** Format: uint64 */
+                    previousVersion: number;
+                    /** Format: uint32 */
+                    protocolVersion: number;
+                    settlementMarker: number[];
+                    /** Format: uint64 */
+                    validUntil: number;
+                };
+            };
+            update: {
+                /** @description The public effect to prove in addition to all ordinary account constraints. */
+                effect: {
+                    /** @enum {string} */
+                    kind: "update";
+                } | {
+                    binding: number[];
+                    /** @enum {string} */
+                    kind: "change";
+                };
+                /** @description Settlement frontier, not a balance or an outcome counter. */
+                inbox: {
+                    root: number[];
+                };
+                /** @description Settlement frontier, not a balance or an outcome counter. */
+                previousInbox: {
+                    root: number[];
+                };
+            };
+        } | {
+            /** @enum {string} */
+            action: "obligations";
+            /** @description Member-owned root authorization. Eligibility issuers cannot create this proof. */
+            authorization: {
+                communityId: string;
+                devicePublicKey: string;
+                /** Format: uint64 */
+                expiresAt: number;
+                /** Format: uint64 */
+                issuedAt: number;
+                memberId: string;
+                rootPublicKey: string;
+                signature: string;
+                /** Format: uint32 */
+                version: number;
+            };
+            grant: {
+                chatPublicKey: string;
+                communityId: string;
+                /** Format: uint64 */
+                expiresAt: number;
+                /** Format: uint64 */
+                issuedAt: number;
+                issuerKeyId: string;
+                memberId: string;
+                /** @description Opaque digest of the exact authenticated global passport cohort. */
+                passportPolicyDigest: string;
+                policyDigest: string;
+                /**
+                 * Format: uint64
+                 * @description Community admission epoch from the same validated credential decision.
+                 */
+                policyEpoch: number;
+                /** @description Canonical cpsd pseudonym bytes in lowercase hex, authenticated by the issuer. */
+                pseudonym: string;
+                /** @description Base64url canonical csgn COSE Sign1, never a detached signature. */
+                signature: string;
+                /** Format: uint32 */
+                version: number;
+            };
+            /**
+             * @description A fresh, authenticated request can recover an old accepted response after
+             *     its original device/request expires. A new device needs root authorization.
+             */
+            request: {
+                challenge: number[];
+                chatPublicKey: string;
+                community: number[];
+                /** Format: uint64 */
+                expiresAt: number;
+                /** Format: uint64 */
+                issuedAt: number;
+                owner: number[];
+                requestId?: number[] | null;
+                signature: string;
+            };
+        } | {
+            /** @enum {string} */
+            action: "status";
+            /** @description Member-owned root authorization. Eligibility issuers cannot create this proof. */
+            authorization: {
+                communityId: string;
+                devicePublicKey: string;
+                /** Format: uint64 */
+                expiresAt: number;
+                /** Format: uint64 */
+                issuedAt: number;
+                memberId: string;
+                rootPublicKey: string;
+                signature: string;
+                /** Format: uint32 */
+                version: number;
+            };
+            grant: {
+                chatPublicKey: string;
+                communityId: string;
+                /** Format: uint64 */
+                expiresAt: number;
+                /** Format: uint64 */
+                issuedAt: number;
+                issuerKeyId: string;
+                memberId: string;
+                /** @description Opaque digest of the exact authenticated global passport cohort. */
+                passportPolicyDigest: string;
+                policyDigest: string;
+                /**
+                 * Format: uint64
+                 * @description Community admission epoch from the same validated credential decision.
+                 */
+                policyEpoch: number;
+                /** @description Canonical cpsd pseudonym bytes in lowercase hex, authenticated by the issuer. */
+                pseudonym: string;
+                /** @description Base64url canonical csgn COSE Sign1, never a detached signature. */
+                signature: string;
+                /** Format: uint32 */
+                version: number;
+            };
+            /**
+             * @description A fresh, authenticated request can recover an old accepted response after
+             *     its original device/request expires. A new device needs root authorization.
+             */
+            request: {
+                challenge: number[];
+                chatPublicKey: string;
+                community: number[];
+                /** Format: uint64 */
+                expiresAt: number;
+                /** Format: uint64 */
+                issuedAt: number;
+                owner: number[];
+                requestId?: number[] | null;
+                signature: string;
+            };
+        };
+        /** AccountServiceResponse */
+        AccountServiceResponse: {
+            /** @enum {string} */
+            action: "recordRecipient";
+            value: {
+                recipient_key: number[];
+            };
+        } | {
+            /** @enum {string} */
+            action: "apply";
+            /**
+             * @description The operator certifies acceptance of an opaque state. Peers additionally
+             *     need the private reservation proof and current cmsg consent before release.
+             */
+            value: {
+                /** Format: uint64 */
+                acceptedAt: number;
+                proofScope: {
+                    circuitDigest: number[];
+                    verifyingKeyDigest: number[];
+                };
+                requestDigest: number[];
+                requestId: number[];
+                signature: string;
+                /**
+                 * @description Complete public input. The role, peer, nonce, group, balances and map paths
+                 *     belong exclusively to the private witness and cannot be added to this wire.
+                 */
+                statement: {
+                    community: number[];
+                    enrollmentRoot: number[];
+                    genesis: boolean;
+                    nextState: number[];
+                    /** Format: uint64 */
+                    nextVersion: number;
+                    /** Format: uint64 */
+                    now: number;
+                    owner: number[];
+                    policy: {
+                        /**
+                         * Format: uint64
+                         * @description Waiting period for new outgoing reservations. Existing slots retain their deadline.
+                         */
+                        abandonAfter: number;
+                        /** Format: uint32 */
+                        incomingReservation: number;
+                        /** Format: uint32 */
+                        initialCredit: number;
+                        /** Format: uint32 */
+                        maximumAdmissions: number;
+                        /**
+                         * Format: uint32
+                         * @description Mature total capacity, including both available and reserved units.
+                         */
+                        maximumAvailable: number;
+                        /** Format: uint32 */
+                        newcomerAdmissions: number;
+                        /** Format: uint64 */
+                        newcomerPeriod: number;
+                        /** Format: uint32 */
+                        outgoingReservation: number;
+                        /** Format: uint64 */
+                        policyRevision: number;
+                        /** Format: uint64 */
+                        policyValidFrom: number;
+                        /** Format: uint64 */
+                        policyValidUntil: number;
+                        /** Format: uint64 */
+                        rateWindow: number;
+                        /** Format: uint64 */
+                        refillPeriod: number;
+                        /** Format: uint32 */
+                        refillUnits: number;
+                    };
+                    policyDigest: number[];
+                    previousState: number[];
+                    /** Format: uint64 */
+                    previousVersion: number;
+                    /** Format: uint32 */
+                    protocolVersion: number;
+                    settlementMarker: number[];
+                    /** Format: uint64 */
+                    validUntil: number;
+                };
+            };
+        } | {
+            /** @enum {string} */
+            action: "status";
+            value: {
+                /**
+                 * @description The operator certifies acceptance of an opaque state. Peers additionally
+                 *     need the private reservation proof and current cmsg consent before release.
+                 */
+                acceptance?: {
+                    /** Format: uint64 */
+                    acceptedAt: number;
+                    proofScope: {
+                        circuitDigest: number[];
+                        verifyingKeyDigest: number[];
+                    };
+                    requestDigest: number[];
+                    requestId: number[];
+                    signature: string;
+                    /**
+                     * @description Complete public input. The role, peer, nonce, group, balances and map paths
+                     *     belong exclusively to the private witness and cannot be added to this wire.
+                     */
+                    statement: {
+                        community: number[];
+                        enrollmentRoot: number[];
+                        genesis: boolean;
+                        nextState: number[];
+                        /** Format: uint64 */
+                        nextVersion: number;
+                        /** Format: uint64 */
+                        now: number;
+                        owner: number[];
+                        policy: {
+                            /**
+                             * Format: uint64
+                             * @description Waiting period for new outgoing reservations. Existing slots retain their deadline.
+                             */
+                            abandonAfter: number;
+                            /** Format: uint32 */
+                            incomingReservation: number;
+                            /** Format: uint32 */
+                            initialCredit: number;
+                            /** Format: uint32 */
+                            maximumAdmissions: number;
+                            /**
+                             * Format: uint32
+                             * @description Mature total capacity, including both available and reserved units.
+                             */
+                            maximumAvailable: number;
+                            /** Format: uint32 */
+                            newcomerAdmissions: number;
+                            /** Format: uint64 */
+                            newcomerPeriod: number;
+                            /** Format: uint32 */
+                            outgoingReservation: number;
+                            /** Format: uint64 */
+                            policyRevision: number;
+                            /** Format: uint64 */
+                            policyValidFrom: number;
+                            /** Format: uint64 */
+                            policyValidUntil: number;
+                            /** Format: uint64 */
+                            rateWindow: number;
+                            /** Format: uint64 */
+                            refillPeriod: number;
+                            /** Format: uint32 */
+                            refillUnits: number;
+                        };
+                        policyDigest: number[];
+                        previousState: number[];
+                        /** Format: uint64 */
+                        previousVersion: number;
+                        /** Format: uint32 */
+                        protocolVersion: number;
+                        settlementMarker: number[];
+                        /** Format: uint64 */
+                        validUntil: number;
+                    };
+                } | null;
+                /** Format: uint64 */
+                observedAt: number;
+                signature: string;
+                /** @description Binds the fresh challenge, owner, requested lookup and caller authority. */
+                statusRequestDigest: number[];
+            };
+        } | {
+            /** @enum {string} */
+            action: "applyExtended";
+            value: {
+                /**
+                 * @description The operator certifies acceptance of an opaque state. Peers additionally
+                 *     need the private reservation proof and current cmsg consent before release.
+                 */
+                acceptance: {
+                    /** Format: uint64 */
+                    acceptedAt: number;
+                    proofScope: {
+                        circuitDigest: number[];
+                        verifyingKeyDigest: number[];
+                    };
+                    requestDigest: number[];
+                    requestId: number[];
+                    signature: string;
+                    /**
+                     * @description Complete public input. The role, peer, nonce, group, balances and map paths
+                     *     belong exclusively to the private witness and cannot be added to this wire.
+                     */
+                    statement: {
+                        community: number[];
+                        enrollmentRoot: number[];
+                        genesis: boolean;
+                        nextState: number[];
+                        /** Format: uint64 */
+                        nextVersion: number;
+                        /** Format: uint64 */
+                        now: number;
+                        owner: number[];
+                        policy: {
+                            /**
+                             * Format: uint64
+                             * @description Waiting period for new outgoing reservations. Existing slots retain their deadline.
+                             */
+                            abandonAfter: number;
+                            /** Format: uint32 */
+                            incomingReservation: number;
+                            /** Format: uint32 */
+                            initialCredit: number;
+                            /** Format: uint32 */
+                            maximumAdmissions: number;
+                            /**
+                             * Format: uint32
+                             * @description Mature total capacity, including both available and reserved units.
+                             */
+                            maximumAvailable: number;
+                            /** Format: uint32 */
+                            newcomerAdmissions: number;
+                            /** Format: uint64 */
+                            newcomerPeriod: number;
+                            /** Format: uint32 */
+                            outgoingReservation: number;
+                            /** Format: uint64 */
+                            policyRevision: number;
+                            /** Format: uint64 */
+                            policyValidFrom: number;
+                            /** Format: uint64 */
+                            policyValidUntil: number;
+                            /** Format: uint64 */
+                            rateWindow: number;
+                            /** Format: uint64 */
+                            refillPeriod: number;
+                            /** Format: uint32 */
+                            refillUnits: number;
+                        };
+                        policyDigest: number[];
+                        previousState: number[];
+                        /** Format: uint64 */
+                        previousVersion: number;
+                        /** Format: uint32 */
+                        protocolVersion: number;
+                        settlementMarker: number[];
+                        /** Format: uint64 */
+                        validUntil: number;
+                    };
+                };
+                /** @description Original ancestry issued only in this acceptance's verified CAS. */
+                ancestry?: {
+                    /** @description Hash of the issuer's community identifier. */
+                    community: number[];
+                    /**
+                     * Format: uint64
+                     * @description Published epoch number.
+                     */
+                    epoch: number;
+                    /** @description Commitment to the original blinded owner frontier leaf. */
+                    frozenLeaf: number[];
+                    /**
+                     * Format: uint64
+                     * @description Original acceptance time, unchanged by an exact retry.
+                     */
+                    issuedAt: number;
+                    /** @description Private community-scoped account owner. */
+                    owner: number[];
+                    /** @description Original circuit and verification-key digests. */
+                    proofScope: {
+                        circuitDigest: number[];
+                        verifyingKeyDigest: number[];
+                    };
+                    /** @description Same private signed-leaf packet used by frozen and descendant records. */
+                    record: {
+                        /** @description Private opening of the public blinded leaf. */
+                        leaf: {
+                            blinding: number[];
+                            owner: number[];
+                            requiredInbox: number[];
+                            state: number[];
+                            /** Format: uint64 */
+                            version: number;
+                        };
+                        /** @description Standard Ed25519 signature on community, epoch and the blinded leaf. */
+                        signature: number[];
+                    };
+                    /** @description Original published epoch root. */
+                    root: number[];
+                    /** @description Canonical low-S P-256 signature, exactly 64 bytes. */
+                    signature: number[];
+                    /** @description Newly accepted private state commitment. */
+                    state: number[];
+                    /**
+                     * Format: uint64
+                     * @description Newly accepted private version.
+                     */
+                    version: number;
+                } | null;
+                /** @description Private input to a delayed deposit proof, returned only to the accepting holder. */
+                certificate: {
+                    /** Format: uint64 */
+                    acceptedAt: number;
+                    signature: number[];
+                };
+            };
+        } | {
+            /** @enum {string} */
+            action: "obligations";
+            value: {
+                entries: {
+                    commitment: number[];
+                    /** @description Settlement frontier, not a balance or an outcome counter. */
+                    previous: {
+                        root: number[];
+                    };
+                }[];
+                /** @description Settlement frontier, not a balance or an outcome counter. */
+                inbox: {
+                    root: number[];
+                };
+                /** Format: uint64 */
+                observedAt: number;
+                requestDigest: number[];
+                signature: string;
+            };
+        };
+        AdmissionGrant: {
+            chatPublicKey: string;
+            communityId: string;
+            /** Format: int64 */
+            expiresAt: number;
+            /** Format: int64 */
+            issuedAt: number;
+            issuerKeyId: string;
+            memberId: string;
+            /** @description Opaque digest of the exact authenticated global passport cohort. */
+            passportPolicyDigest: string;
+            policyDigest: string;
+            /**
+             * Format: int64
+             * @description Community admission epoch from the same validated credential decision.
+             */
+            policyEpoch: number;
+            /** @description Canonical cpsd pseudonym bytes in lowercase hex, authenticated by the issuer. */
+            pseudonym: string;
+            /** @description Base64url canonical csgn COSE Sign1, never a detached signature. */
+            signature: string;
+            /** Format: int32 */
+            version: number;
+        };
         Amount: {
             /** Format: int64 */
             atoms: number;
@@ -1081,6 +1903,84 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    account: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountServiceRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountServiceResponse"];
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    account_credential_issue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    credential: components["schemas"]["CredentialRequest"];
+                    /** @description Must already be authorized by this original membership. */
+                    device: number[];
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        account?: components["schemas"]["AdmissionGrant"] | null;
+                        credential?: number[] | null;
+                        lobby: components["schemas"]["Lobby"];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
     community_self_ban_begin: {
         parameters: {
             query?: never;
@@ -1721,6 +2621,54 @@ export interface operations {
                     "application/json": {
                         credential?: number[] | null;
                         lobby: components["schemas"]["Lobby"];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    global_initial_registration_continue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    ceremony: string;
+                    seed: number[];
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ceremony: string;
+                        /** Format: int64 */
+                        checked_at: number;
+                        /** Format: int64 */
+                        expires_at: number;
+                        options: {
+                            [key: string]: unknown;
+                        };
+                        user: string;
                     };
                 };
             };
