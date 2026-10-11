@@ -30,18 +30,35 @@ async fn genuine_original_passkey_revoked_after_reservation_and_discovery_preven
         .migrate(&cvld::service::community_migrations())
         .await
         .unwrap();
+    // Match the original Membership's namespace, RP ID and allowed origins.
+    // The API host is an origin; the RP ID is the parent community domain.
+    let community = "alpha";
+    let rp_id = format!("{community}.{DOMAIN}");
     let keyhole = ckyh::Passkeys::new(
-        ckyh::LibsqlStore::new(&database, "alpha", tokio::runtime::Handle::current()).unwrap(),
-        "alpha",
-        HOST,
-        &[ckyh::Url::parse(&format!("https://{HOST}")).unwrap()],
+        ckyh::LibsqlStore::new(&database, community, tokio::runtime::Handle::current()).unwrap(),
+        community,
+        &rp_id,
+        &[
+            ckyh::Url::parse(&format!("https://{HOST}")).unwrap(),
+            ckyh::Url::parse(&format!("https://{rp_id}")).unwrap(),
+            ckyh::Url::parse(&format!("https://vault.{rp_id}")).unwrap(),
+        ],
     )
     .unwrap();
-    *remote.original.lock().unwrap() = Some((
-        keyhole,
-        ckyh::Uuid::parse_str(&member.user).unwrap(),
-        member.credential.clone().into(),
-    ));
+    let user = ckyh::Uuid::parse_str(&member.user).unwrap();
+    let credential: ckyh::CredentialID = member.credential.clone().into();
+    let original = tokio::task::spawn_blocking(move || {
+        let registered = keyhole.list(user).unwrap();
+        assert_eq!(registered.len(), 1);
+        assert_eq!(registered[0].community(), community);
+        assert_eq!(registered[0].member(), user);
+        assert_eq!(registered[0].credential_id(), &credential);
+        assert!(!registered[0].is_revoked());
+        (keyhole, user, credential)
+    })
+    .await
+    .unwrap();
+    *remote.original.lock().unwrap() = Some(original);
     let preview = client(&service, HOST, Some(&member.session))
         .call("payment_plan", plan())
         .await
