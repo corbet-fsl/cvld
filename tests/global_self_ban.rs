@@ -3,7 +3,7 @@
 mod support;
 use cvld::api::*;
 use cvld::service::Clock;
-use serde_json::{Value, json};
+use serde_json::json;
 use support::{
     resident::strip_prf,
     self_ban::{Wallet, confirmation, discover, wallet},
