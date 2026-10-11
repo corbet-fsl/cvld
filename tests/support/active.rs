@@ -128,9 +128,6 @@ pub async fn found(running: &Running, name: &str, public: &GlobalPublic) {
     let host = format!("api.{name}.{DOMAIN}");
     let founder = enrol_community(running, &host, &passport).await;
     let api = client(running, &host, Some(&founder.session));
-    api.call("handle_reserve", json!({"handle":"founder"}))
-        .await
-        .unwrap();
     let prepared: CreationRecipient = serde_json::from_value(
         api.call(
             "community_creation_recipient",
@@ -150,6 +147,9 @@ pub async fn found(running: &Running, name: &str, public: &GlobalPublic) {
             .unwrap(),
     )
     .unwrap();
+    api.call("handle_reserve", json!({"handle":"founder"}))
+        .await
+        .unwrap();
     let subject = passport
         .pseudonym(&cpsd::CommunityId::new(name).unwrap())
         .to_hex();
