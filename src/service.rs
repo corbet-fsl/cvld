@@ -635,7 +635,7 @@ impl Door {
         self.auth(&ctx.host)?
             .lock()
             .await
-            .register_finish(request, ctx.now)
+            .register_finish_live(request, ctx.now, self.inner.clock.as_ref())
             .await
     }
     pub(crate) async fn login_begin(&self, ctx: Context, request: LoginStart) -> Result<Ceremony> {

@@ -7,6 +7,8 @@ const NOW: u64 = 1_800_000_000;
 const ORIGIN: &str = "https://auth.example.test";
 const BOOTSTRAP: &str = "synthetic-operator-enrolment-capability";
 
+#[path = "tests/enrollment.rs"]
+mod enrollment;
 #[path = "tests/global_self_ban.rs"]
 mod global_self_ban;
 #[path = "tests/passkey_management.rs"]

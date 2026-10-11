@@ -264,9 +264,10 @@ macro_rules! actions {
 actions! {
     register_begin(RegisterStart) -> Ceremony, Public, Both, Record, Forward, "Begin UV-required passkey registration";
     register_finish(RegisterFinish) -> User, Public, Both, Record, Forward, "Verify and store the first passkey";
+    global_initial_registration_continue(GlobalInitialRegistrationContinue) -> InitialCeremony, Public, Global, Record, Forward, "Bind creation provenance to the retained first wallet registration";
     initial_registration_begin(InitialRegistrationBegin) -> InitialCeremony, Public, Community, Record, Forward, "Begin first community registration with original creation provenance";
-    initial_creation(Empty) -> InitialCreationResponse, Member, Community, Check, Forward, "Read this current passkey's original enrollment provenance";
-    initial_publication_bind(InitialPublicationBind) -> InitialCreationResponse, Member, Community, Record, Forward, "Bind one original publication to this current passkey's initial enrollment";
+    initial_creation(Empty) -> InitialCreationResponse, Member, Both, Check, Forward, "Read this current passkey's original enrollment provenance";
+    initial_publication_bind(InitialPublicationBind) -> InitialCreationResponse, Member, Both, Record, Forward, "Bind one original publication to this current passkey's initial enrollment";
     login_begin(LoginStart) -> Ceremony, Public, Both, Check, Forward, "Begin credential-first passkey authentication";
     login_discoverable_begin(Empty) -> DiscoverableCeremony, Public, Both, Check, Forward, "Begin usernameless sign-in with a synced passkey";
     login_finish(LoginFinish) -> Session, Public, Both, Record, Trusted, "Verify user and counter; create an ephemeral session";

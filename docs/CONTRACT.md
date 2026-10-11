@@ -409,3 +409,32 @@ that is valid JSON but has the wrong DTO shape remains an uncertain post-dispatc
 outcome (`Reconcile`); clients never retry a record operation automatically. The
 server build consumes its live registry; portable device builds consume the exact
 committed OpenAPI projection verified by CI.
+
+
+A wallet with a new passkey root first calls `register_begin` to obtain the actual
+server-assigned UUID. It can then call `global_initial_registration_continue`
+with that retained ceremony and its opaque creation commitment before creating
+its passkey. The continuation returns the same UUID and original exclusive
+expiry, a fresh UV-required challenge, and the actual checked time. Equal seed
+retries return that exact retained challenge; a different seed refuses. The
+original finish and continuation share the bounded Auth owner, and a response
+for the replaced challenge cannot complete the new one. Operator registrations,
+additional keys and completed legacy registrations cannot gain this provenance.
+
+`initial_creation` and `initial_publication_bind` also serve the global wallet
+member host. They use this session's actual original passkey authentication;
+no request names a user or credential. The SDK owns the first publication CAS:
+an equal retry returns the winner, while a different commitment refuses. A bind
+checks original CGbl account eligibility before and after the write under the
+original Auth-to-Global lock order. Permanent suspension never becomes renewed
+eligibility. An own query remains data-only even after suspension and grants no
+root creation, signing, membership or recovery authority.
+
+Only the opaque seed and immutable publication commitment are stored with the
+actual first passkey. The server stores no private root, candidate, evidence or
+new persistent pending ceremony. The original client must durably retain its
+private candidate and exact prepared publication before dispatch. A lost reply
+or failed post-write clock/key/eligibility check is `Reconcile`; fresh original
+key authentication may inspect the retained winner, but cannot reconstruct
+missing private evidence or mint a replacement. Original pending wall and
+monotonic deadlines and latest live observation floors are never renewed.

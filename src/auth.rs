@@ -7,6 +7,7 @@ use ckyh::{LibsqlStore, Passkeys, PendingAuthentication, PendingRegistration, Uu
 use std::{collections::HashMap, sync::Arc};
 use subtle::ConstantTimeEq;
 
+mod enrollment;
 pub(crate) mod global_self_ban;
 mod passkeys;
 
@@ -30,6 +31,9 @@ struct Pending<T> {
     state: T,
     user: Uuid,
     expires: u64,
+    observed: u64,
+    deadline: std::time::Instant,
+    initial: Option<([u8; 32], serde_json::Value)>,
 }
 struct PendingLogin {
     state: LoginCeremony,
@@ -88,13 +92,18 @@ impl Auth {
         })
     }
     fn prune(&mut self, now: u64) {
-        self.registrations.retain(|_, p| p.expires > now);
+        self.registrations
+            .retain(|_, p| p.expires > now && std::time::Instant::now() < p.deadline);
         self.logins.retain(|_, p| p.expires > now);
         self.sessions.retain(|_, p| p.grant.expires > now);
         self.additions.retain(|_, p| p.until > now);
         self.self_bans.retain(|_, p| p.until > now);
     }
     pub async fn register_begin(&mut self, request: RegisterStart, now: u64) -> Result<Ceremony> {
+        let deadline = std::time::Instant::now()
+            .checked_add(std::time::Duration::from_secs(300))
+            .ok_or(Error::Invalid)?;
+        let expires = now.checked_add(300).ok_or(Error::Invalid)?;
         self.prune(now);
         if self.registrations.len() >= self.capacity {
             return Err(Error::Throttled);
@@ -122,23 +131,31 @@ impl Auth {
             Uuid::new_v4()
         };
         let passkeys = self.passkeys.clone();
+        let passkeys_role = self.role == Role::Member && self.operator.is_none();
         let (options, state) = tokio::task::spawn_blocking(move || {
             if !passkeys.list(user)?.is_empty() {
                 return Err(ckyh::Error::DuplicateCredential);
             }
-            passkeys.start_registration(user)
+            if passkeys_role {
+                passkeys.start_initial_registration(user, None)
+            } else {
+                passkeys.start_registration(user)
+            }
         })
         .await
         .map_err(Error::Unavailable.redact())?
         .map_err(Error::Refused.redact())?;
         let ceremony = token();
-        crate::service::publication::expires_at(now + 300)?;
+        crate::service::publication::expires_at(expires)?;
         self.registrations.insert(
             ceremony.clone(),
             Pending {
                 state,
                 user,
-                expires: now + 300,
+                expires,
+                observed: now,
+                deadline,
+                initial: None,
             },
         );
         Ok(Ceremony {
@@ -148,13 +165,26 @@ impl Auth {
         })
     }
     pub async fn register_finish(&mut self, request: RegisterFinish, now: u64) -> Result<User> {
+        self.register_finish_live(request, now, &enrollment::FixedClock(now))
+            .await
+    }
+    pub(crate) async fn register_finish_live(
+        &mut self,
+        request: RegisterFinish,
+        now: u64,
+        clock: &dyn crate::service::Clock,
+    ) -> Result<User> {
         self.prune(now);
         let pending = self
             .registrations
             .remove(&request.ceremony)
             .ok_or(Error::Unauthorized)?;
+        let completed_user = pending.user;
+        let observed = enrollment::pending_time(&pending, now, clock)?;
         crate::service::publication::expires_at(pending.expires)?;
         let month = creation_month(now)?;
+        let expires = pending.expires;
+        let deadline = pending.deadline;
         let passkeys = self.passkeys.clone();
         tokio::task::spawn_blocking(move || {
             if !passkeys.list(pending.user)?.is_empty() {
@@ -163,13 +193,20 @@ impl Auth {
             passkeys.finish_registration(pending.state, &request.credential, month)
         })
         .await
-        .map_err(Error::Unavailable.redact())?
-        .map_err(Error::Refused.redact())?;
+        .map_err(Error::Reconcile.redact())?
+        .map_err(|error| {
+            if error == ckyh::Error::Storage {
+                Error::Reconcile
+            } else {
+                Error::Refused
+            }
+        })?;
+        enrollment::fresh(clock, observed, expires, deadline).map_err(|_| Error::Reconcile)?;
         if self.operator.is_some() {
             self.bootstrap = None;
         }
         Ok(User {
-            user: pending.user.to_string(),
+            user: completed_user.to_string(),
         })
     }
     pub async fn login_begin(&mut self, request: LoginStart, now: u64) -> Result<Ceremony> {

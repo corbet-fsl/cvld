@@ -40,3 +40,11 @@ pub struct InitialCreationResponse {
     pub publication: Option<[u8; 32]>,
     pub checked_at: u64,
 }
+
+/// Continue the retained wallet ceremony after its genuine UUID is known.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct GlobalInitialRegistrationContinue {
+    pub ceremony: String,
+    pub seed: [u8; 32],
+}
