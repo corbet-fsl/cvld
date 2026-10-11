@@ -546,3 +546,26 @@ join, then drains HTTP within the minimum of the explicitly configured component
 budgets. Native cancellation and actual worker/build joins finish before the
 runtime is torn down; this cleanup is not a hard real-time operating-system bound.
 The same original signal deadline applies through startup, serving and cleanup.
+
+Configured native accounting also requires explicit `settlement` files: an
+original outcome-only public epoch, its provisioned PKCS#1 private key, the
+complete independent room-key inventory, incarnation, quota catalogue key and
+resource capacities. There are no period or allowance defaults. The actual
+held Policy supplies its effective epoch, immutable configured period and
+quota; this product requires the original daily period of 86,400 seconds.
+Bounded private bytes are wiped even on read failure, then only the original
+opaque issuer crosses the native construction handoff.
+
+The same combined account/enrollment worker is installed before settlement
+reconciliation. Its actual cancellation/join owner is retained before that
+await. Reconciliation checks current Policy at the original native writer and
+holds it through original Balance/Beacon publication, before startup bootstrap
+or any operational account write. Failed or abandoned startup fences the owner
+and requires its real join; it does not assert publication rollback. Original
+key inventory, allowances, replay and clock floors survive reopen. Legacy
+populated ledgers have no implicit daily-mode migration or quota reset.
+
+Provisioned-key/configuration tests and lower native-RAM/Policy-SQL composition
+tests are source reviewed. A matching-alpha native activation and actual
+production Store/factory run remain required for shared-database qualification;
+the older `community.example` capture cannot be relabeled for that journey.

@@ -3,6 +3,7 @@ use super::{
     clock::AccountRuntime,
     config::{AccountConfig, Service},
     enrollment::Enrollment,
+    settlement::{Owners, Prepared},
 };
 use crate::{
     error::{Error, Result},
@@ -11,7 +12,7 @@ use crate::{
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 
-type Parts = (Service, Enrollment, Arc<AccountRuntime>);
+type Parts = (Service, Enrollment, Arc<AccountRuntime>, Prepared);
 type Cancel = Box<dyn Fn() + Send + Sync>;
 
 #[derive(Default)]
@@ -263,7 +264,7 @@ impl NativeConstruction {
         config: AccountConfig,
         db: crlt::Db,
         community: String,
-        keys: cblc::accounting_ledger::AdmissionKeyReconciliation,
+        owners: Owners,
         clock: Arc<dyn Clock>,
         runtime: tokio::runtime::Handle,
     ) -> Result<Parts> {
@@ -274,7 +275,7 @@ impl NativeConstruction {
             }
             // Register under the shutdown lock before the first async wait.
             let task = Task::start(move |cancellation| {
-                config.build(&db, &community, keys, clock, runtime, cancellation)
+                config.build(&db, &community, owners, clock, runtime, cancellation)
             })?;
             registry.tasks.push(task.clone());
             task

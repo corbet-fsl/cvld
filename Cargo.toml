@@ -70,6 +70,7 @@ wasm-bindgen-test = "0.3.79"
 gloo-net = { version = "0.7", default-features = false, features = ["http", "json"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+openssl = "0.10"
 tower = { version = "0.5", features = ["util"] }
 crgs = { git = "https://git.corbet.ch/corbet-foss/crgs", branch = "main" }
 cvfy = { git = "https://git.corbet.ch/corbet-foss/cvfy", branch = "main" }

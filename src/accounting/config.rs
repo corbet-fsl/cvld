@@ -3,6 +3,7 @@ use super::{
     build::Cancellation,
     clock::AccountRuntime,
     enrollment::{Enrollment, EnrollmentLimits},
+    settlement::{Owners, Prepared, SettlementFiles},
     storage::Store,
 };
 use crate::{
@@ -12,9 +13,7 @@ use crate::{
 };
 use cblc::{
     accounting::AccountStatement,
-    accounting_ledger::{
-        AccountLedger, AccountLedgerPolicy, AdmissionKeyReconciliation, startup_clock_floor,
-    },
+    accounting_ledger::{AccountLedger, AccountLedgerPolicy, startup_clock_floor},
     accounting_service::{AccountService, NativeAccountVerifier},
     admission::AdmissionTrust,
     artifacts::{AccountArtifacts, ArtifactBytes, ExtensionArtifacts, NativeVerifierOptions},
@@ -44,6 +43,9 @@ pub struct AccountConfig {
     pub anonymous_execution: NativeExecution,
     pub extension_limits: VerificationLimits,
     pub enrollment: EnrollmentLimits,
+    /// Mandatory daily settlement configuration; there is no native legacy
+    /// early-application route or inferred quota for the configured product.
+    pub settlement: SettlementFiles,
     pub max_request_bytes: usize,
 }
 
@@ -152,7 +154,7 @@ impl PublicArtifacts {
         }
     }
 }
-fn bounded(path: &str, maximum: usize) -> Result<Vec<u8>> {
+pub(super) fn bounded(path: &str, maximum: usize) -> Result<Vec<u8>> {
     let file = std::fs::File::open(path).map_err(Error::Unavailable.redact())?;
     let mut bytes = Vec::new();
     file.take(maximum as u64 + 1)
@@ -173,11 +175,15 @@ impl AccountConfig {
         &self,
         db: &crlt::Db,
         community: &str,
-        keys: AdmissionKeyReconciliation,
+        owners: Owners,
         clock: Arc<dyn Clock>,
         runtime: tokio::runtime::Handle,
         cancellation: &Cancellation,
-    ) -> Result<(Service, Enrollment, Arc<AccountRuntime>)> {
+    ) -> Result<(Service, Enrollment, Arc<AccountRuntime>, Prepared)> {
+        let Owners {
+            admission: keys,
+            settlement: target,
+        } = owners;
         if self.period_key.is_empty()
             || self.period_key.len() > 256
             || self.max_request_bytes == 0
@@ -187,6 +193,7 @@ impl AccountConfig {
             return Err(Error::Invalid);
         }
         cancellation.check()?;
+        let settlement = self.settlement.prepare(community, target)?;
         let mut store =
             Store::new(db, community, runtime.clone()).map_err(Error::Unavailable.redact())?;
         let durable_floor = startup_clock_floor(&mut store).map_err(Error::Unavailable.redact())?;
@@ -296,6 +303,7 @@ impl AccountConfig {
                     service.with_extension_issuer(certificate),
                     enrollment,
                     observed,
+                    settlement,
                 )
             })
             .map_err(Error::Invalid.redact())

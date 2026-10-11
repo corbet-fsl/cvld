@@ -278,6 +278,29 @@ impl CommunityService {
                 .map_err(Error::Refused.redact())?;
         }
         let account_parts = if let Some(account) = config.accounting.clone() {
+            // Capture these from the SAME exclusively held Policy as its ring
+            // and original transition history. No file supplies period/quota or
+            // effective authority; CMTY rechecks all three under the writer.
+            let observed = clock.now();
+            let period = policy
+                .record_epoch_settings(&account.period_key, observed)
+                .await
+                .map_err(Error::Invalid.redact())?;
+            let quota = policy
+                .outcome_quota_settings(&account.settlement.quota_key, observed)
+                .await
+                .map_err(Error::Invalid.redact())?;
+            if period.period_seconds != 86_400 {
+                return Err(Error::Invalid);
+            }
+            let settlement = crate::accounting::settlement::Target {
+                policy_epoch: policy
+                    .epoch(observed)
+                    .await
+                    .map_err(Error::Invalid.redact())?,
+                period_seconds: period.period_seconds,
+                quota: quota.quota,
+            };
             let ring = policy
                 .key_ring()
                 .map_err(Error::Unavailable.redact())?
@@ -302,22 +325,25 @@ impl CommunityService {
             // Native proof verification and every synchronous CRLT call remain
             // off the async executor. The original CGTS worker then owns/drops
             // this ONE service; no second ledger or database is created.
-            let (service, enrollment, observed) = construction
+            let (service, enrollment, observed, settlement) = construction
                 .build(
                     account,
                     account_db,
                     account_community,
-                    keys,
+                    crate::accounting::settlement::Owners {
+                        admission: keys,
+                        settlement,
+                    },
                     account_clock,
                     runtime,
                 )
                 .await?;
-            Some((service, enrollment, observed))
+            Some((service, enrollment, observed, settlement))
         } else {
             None
         };
         let owner_clock: Arc<dyn Clock> = match &account_parts {
-            Some((_, _, observed)) => observed.clone(),
+            Some((_, _, observed, _)) => observed.clone(),
             None => clock.clone(),
         };
         // Entry, legal/lifecycle checks, payments and final publication share
@@ -398,15 +424,16 @@ impl CommunityService {
             cmty::Community::new(storage, issuer_keys, parts, facade_config)
         }
         .map_err(Error::Invalid.redact())?;
-        let accounts = if let Some((service, enrollment, observed)) = account_parts {
-            facade = facade
-                .with_native_account_enrollment(service, enrollment)
-                .await
-                .map_err(Error::Unavailable.redact())?;
-            Some(observed)
-        } else {
-            None
-        };
+        let (accounts, settlement) =
+            if let Some((service, enrollment, observed, settlement)) = account_parts {
+                facade = facade
+                    .with_native_account_enrollment(service, enrollment)
+                    .await
+                    .map_err(Error::Unavailable.redact())?;
+                (Some(observed), Some(settlement))
+            } else {
+                (None, None)
+            };
         // Capture the actual join owner BEFORE bootstrap or any later fallible
         // wait. Returned errors await completion; abandoned futures start it.
         let shutdown = if accounts.is_some() {
@@ -419,8 +446,28 @@ impl CommunityService {
             None
         };
         let startup = crate::accounting::startup::Startup::new(accounts.clone(), shutdown);
+        let settlement_cut = settlement.as_ref().map(|prepared| {
+            (
+                prepared.config.policy_epoch,
+                prepared.config.epoch.valid_until / 1000,
+            )
+        });
         let scope = config.community.clone();
         let result = async {
+            if let (Some(observed), Some(settlement)) = (&accounts, settlement) {
+                let publisher_clock = observed.clone();
+                facade
+                    .reconcile_account_settlement(
+                        &observed.period_key,
+                        &settlement.quota_key,
+                        settlement.config,
+                        settlement.issuer,
+                        settlement.incarnation,
+                        Arc::new(move || publisher_clock.native_time()),
+                    )
+                    .await
+                    .map_err(Error::Reconcile.redact())?;
+            }
             if let Some(observed) = &accounts {
                 let publisher_clock = observed.clone();
                 facade
@@ -463,7 +510,50 @@ impl CommunityService {
             // A configured facade must not escape a startup wait below an interior
             // native/host observation. Keep every already signed deadline unchanged.
             if let Some(observed) = &accounts {
-                observed.observe()?;
+                let (expected_epoch, expires_at) = settlement_cut.ok_or(Error::Reconcile)?;
+                let policy = facade.policy().lock().await;
+                let at = observed.observe().map_err(Error::Reconcile.redact())?;
+                let epoch = policy.epoch(at).await.map_err(Error::Reconcile.redact())?;
+                let after = observed.observe().map_err(Error::Reconcile.redact())?;
+                // Scheduled activation can cross an awaited owner read. A new
+                // second requires retry; this never refreshes signed authority.
+                if after != at
+                    || epoch != expected_epoch
+                    || public.policy_epoch != expected_epoch
+                    || after >= expires_at
+                {
+                    return Err(Error::Reconcile);
+                }
+                let ring = policy.key_ring().map_err(Error::Reconcile.redact())?;
+                let mut deadline = expires_at;
+                for (bytes, kind) in [
+                    (&public.manifest, csgn::Kind::SettingsSnapshot),
+                    (&public.settings, csgn::Kind::SettingsSnapshot),
+                    (&public.schema, csgn::Kind::SchemaSnapshot),
+                    (&public.schema_versions, csgn::Kind::SchemaSnapshot),
+                    (&public.communities, csgn::Kind::CommunitiesSnapshot),
+                    (&public.revocations, csgn::Kind::RevocationListSnapshot),
+                ] {
+                    deadline = deadline.min(
+                        ring.verify(bytes, kind, after)
+                            .map_err(Error::Reconcile.redact())?
+                            .valid_until(),
+                    );
+                }
+                for bytes in [public.balance.as_ref(), public.root_board.as_ref()]
+                    .into_iter()
+                    .flatten()
+                {
+                    deadline = deadline.min(
+                        ring.verify(bytes, csgn::Kind::SettingsSnapshot, after)
+                            .map_err(Error::Reconcile.redact())?
+                            .valid_until(),
+                    );
+                }
+                let final_now = observed.observe().map_err(Error::Reconcile.redact())?;
+                if public.balance.is_none() || final_now != after || final_now >= deadline {
+                    return Err(Error::Reconcile);
+                }
             }
             Ok(Self {
                 facade,
