@@ -1,5 +1,10 @@
 //! Explicit operator-owned economic policy, native artifacts and execution caps.
-use super::{build::Cancellation, clock::AccountRuntime, storage::Store};
+use super::{
+    build::Cancellation,
+    clock::AccountRuntime,
+    enrollment::{Enrollment, EnrollmentLimits},
+    storage::Store,
+};
 use crate::{
     config::Config,
     error::{Error, Result},
@@ -38,6 +43,7 @@ pub struct AccountConfig {
     pub update_execution: NativeExecution,
     pub anonymous_execution: NativeExecution,
     pub extension_limits: VerificationLimits,
+    pub enrollment: EnrollmentLimits,
     pub max_request_bytes: usize,
 }
 
@@ -171,7 +177,7 @@ impl AccountConfig {
         clock: Arc<dyn Clock>,
         runtime: tokio::runtime::Handle,
         cancellation: &Cancellation,
-    ) -> Result<(Service, Arc<AccountRuntime>)> {
+    ) -> Result<(Service, Enrollment, Arc<AccountRuntime>)> {
         if self.period_key.is_empty()
             || self.period_key.len() > 256
             || self.max_request_bytes == 0
@@ -181,7 +187,8 @@ impl AccountConfig {
             return Err(Error::Invalid);
         }
         cancellation.check()?;
-        let mut store = Store::new(db, community, runtime).map_err(Error::Unavailable.redact())?;
+        let mut store =
+            Store::new(db, community, runtime.clone()).map_err(Error::Unavailable.redact())?;
         let durable_floor = startup_clock_floor(&mut store).map_err(Error::Unavailable.redact())?;
         let observed = Arc::new(AccountRuntime::new(
             clock,
@@ -227,6 +234,30 @@ impl AccountConfig {
             self.update_execution.max_proof_bytes,
         )?;
         let operator = zeroize::Zeroizing::new(Config::seed(&self.operator_seed_file)?);
+        // Both original owners use the same configured operator and checkpoint
+        // period, the same scoped database, and the same sticky live observer.
+        // Registry construction performs no enrollment or root installation.
+        let enrollment_operator = ed25519_dalek_v2::SigningKey::from_bytes(&operator);
+        let enrollment_config = self.enrollment.configuration(
+            community,
+            &self.admission_policy_digest,
+            enrollment_operator.verifying_key().to_bytes(),
+            policy.checkpoint_period_seconds,
+        )?;
+        let enrollment_store = cblc::enrollment::EnrollmentStore::new(
+            Store::new(db, community, runtime).map_err(Error::Unavailable.redact())?,
+            enrollment_config,
+        )
+        .map_err(Error::Invalid.redact())?;
+        let enrollment_clock = observed.clone();
+        let enrollment_clock: Box<dyn Fn() -> u64 + Send> =
+            Box::new(move || enrollment_clock.native_time());
+        let enrollment = cblc::enrollment::EnrollmentService::new(
+            enrollment_store,
+            enrollment_operator,
+            enrollment_clock,
+        )
+        .map_err(Error::Invalid.redact())?;
         let certificate = zeroize::Zeroizing::new(Config::seed(&self.certificate_seed_file)?);
         let certificate = cssr::certificate::CertificateIssuer::new(&certificate)
             .map_err(Error::Invalid.redact())?;
@@ -260,7 +291,13 @@ impl AccountConfig {
         let native_clock = observed.clone();
         let clock: Box<dyn Fn() -> u64 + Send> = Box::new(move || native_clock.native_time());
         AccountService::new(ledger, clock, self.max_request_bytes)
-            .map(|service| (service.with_extension_issuer(certificate), observed))
+            .map(|service| {
+                (
+                    service.with_extension_issuer(certificate),
+                    enrollment,
+                    observed,
+                )
+            })
             .map_err(Error::Invalid.redact())
     }
 }

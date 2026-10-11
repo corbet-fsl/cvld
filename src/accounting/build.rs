@@ -2,6 +2,7 @@
 use super::{
     clock::AccountRuntime,
     config::{AccountConfig, Service},
+    enrollment::Enrollment,
 };
 use crate::{
     error::{Error, Result},
@@ -10,7 +11,7 @@ use crate::{
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 
-type Parts = (Service, Arc<AccountRuntime>);
+type Parts = (Service, Enrollment, Arc<AccountRuntime>);
 type Cancel = Box<dyn Fn() + Send + Sync>;
 
 #[derive(Default)]

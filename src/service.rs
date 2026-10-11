@@ -503,7 +503,7 @@ impl Door {
         startup.finish(result).await
     }
     pub(crate) fn request_body_limit(&self, action: &Action) -> usize {
-        if matches!(action.name, "account" | "pin_change") {
+        if matches!(action.name, "account" | "account_enroll" | "pin_change") {
             self.inner.account_body_limit
         } else {
             256 * 1024

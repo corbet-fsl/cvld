@@ -151,6 +151,50 @@ async fn real_member_cannot_substitute_for_unconfigured_native_authority_or_body
         .await,
         503
     );
+    // The registry request is the original delegation, without caller-supplied
+    // Policy, trust, session or checkpoint authority. Unsigned syntax cannot
+    // substitute for an installed enrollment owner.
+    let enrollment = json!({
+        "version":1,
+        "hashScheme":cblc::enrollment::ACCOUNT_HASH_SCHEME,
+        "admission":status["grant"].clone(),
+        "authorization":status["authorization"].clone(),
+        "accountPublicKey":"unsigned",
+        "stateSecretCommitment":"unsigned",
+        "issuedAt":NOW,"expiresAt":NOW+60,"signature":"",
+    });
+    assert!(serde_json::from_value::<AccountEnrollmentRequest>(enrollment.clone()).is_ok());
+    assert_eq!(
+        call_status(&f.service, HOST, None, "account_enroll", enrollment.clone()).await,
+        401
+    );
+    assert_eq!(
+        call_status(
+            &f.service,
+            HOST,
+            Some(&f.member.session),
+            "account_enroll",
+            enrollment.clone(),
+        )
+        .await,
+        503
+    );
+    for field in ["scope", "trusted_now", "subject", "checkpoint", "trust"] {
+        let mut extra = enrollment.clone();
+        extra[field] = json!("caller-selected");
+        assert!(serde_json::from_value::<AccountEnrollmentRequest>(extra.clone()).is_err());
+        assert_eq!(
+            call_status(
+                &f.service,
+                HOST,
+                Some(&f.member.session),
+                "account_enroll",
+                extra,
+            )
+            .await,
+            400
+        );
+    }
     for (action, request) in [
         (
             "initial_publication_bind",
@@ -161,6 +205,7 @@ async fn real_member_cannot_substitute_for_unconfigured_native_authority_or_body
             json!({"credential":credential,"device":f.member.signing_key}),
         ),
         ("account", status),
+        ("account_enroll", enrollment),
     ] {
         // Whitespace changes physical size without changing valid DTO fields.
         // Without the cap, the bind would commit and account would return503.
@@ -188,7 +233,7 @@ async fn real_member_cannot_substitute_for_unconfigured_native_authority_or_body
 
 #[test]
 fn account_registry_and_owner_wire_refuse_host_authority_fields() {
-    for name in ["account", "account_credential_issue"] {
+    for name in ["account", "account_credential_issue", "account_enroll"] {
         let registered = action(name).unwrap();
         assert_eq!(registered.access, Access::Member);
         assert_eq!(registered.scope, Scope::Community);

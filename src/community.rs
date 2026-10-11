@@ -302,7 +302,7 @@ impl CommunityService {
             // Native proof verification and every synchronous CRLT call remain
             // off the async executor. The original CGTS worker then owns/drops
             // this ONE service; no second ledger or database is created.
-            let (service, observed) = construction
+            let (service, enrollment, observed) = construction
                 .build(
                     account,
                     account_db,
@@ -312,12 +312,12 @@ impl CommunityService {
                     runtime,
                 )
                 .await?;
-            Some((service, observed))
+            Some((service, enrollment, observed))
         } else {
             None
         };
         let owner_clock: Arc<dyn Clock> = match &account_parts {
-            Some((_, observed)) => observed.clone(),
+            Some((_, _, observed)) => observed.clone(),
             None => clock.clone(),
         };
         // Entry, legal/lifecycle checks, payments and final publication share
@@ -398,9 +398,9 @@ impl CommunityService {
             cmty::Community::new(storage, issuer_keys, parts, facade_config)
         }
         .map_err(Error::Invalid.redact())?;
-        let accounts = if let Some((service, observed)) = account_parts {
+        let accounts = if let Some((service, enrollment, observed)) = account_parts {
             facade = facade
-                .with_native_account_service(service)
+                .with_native_account_enrollment(service, enrollment)
                 .await
                 .map_err(Error::Unavailable.redact())?;
             Some(observed)

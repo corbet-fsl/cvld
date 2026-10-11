@@ -33,3 +33,15 @@ pub struct AccountRequest(pub AccountServiceRequest);
 #[derive(Serialize, ToSchema)]
 #[serde(transparent)]
 pub struct AccountResponse(pub AccountServiceResponse);
+
+/// The original signed enrollment request. All account coordinates and
+/// signatures are verified by the retained domain owner.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(transparent)]
+pub struct AccountEnrollmentRequest(pub cblc::enrollment::AccountingDelegation);
+
+/// Registry acknowledgment only; this does not claim an installed checkpoint
+/// or an active native account.
+#[derive(Serialize, ToSchema)]
+#[serde(transparent)]
+pub struct AccountEnrollmentResponse(pub cblc::enrollment::EnrollmentEntry);

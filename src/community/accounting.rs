@@ -1,6 +1,8 @@
 //! Member account forwarding through the real configured composition.
 use super::*;
 
+mod enrollment;
+
 impl CommunityService {
     pub(crate) fn account_runtime(&self) -> Option<Arc<crate::accounting::clock::AccountRuntime>> {
         self.accounts.clone()

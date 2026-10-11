@@ -317,6 +317,7 @@ actions! {
     credential_issue(CredentialRequest) -> CredentialResponse, Member, Community, Record, Forward, "Present a passport and request admission or renewal";
     account_credential_issue(AccountCredentialRequest) -> AccountCredentialResponse, Member, Community, Record, Forward, "Request the original account grant from the same full admission decision";
     account(AccountRequest) -> AccountResponse, Member, Community, Record, Forward, "Forward this admitted member's original account operation";
+    account_enroll(AccountEnrollmentRequest) -> AccountEnrollmentResponse, Member, Community, Record, Forward, "Enroll this member's signed account delegation in the original registry";
     account_record(Empty) -> AccountRecordResource, Public, Community, Check, Forward, "Read the fixed common record resource link";
     pin_set(PinRequest) -> PinResponse, Member, Community, Record, Forward, "Seal an initial profile fingerprint";
     pin_get(Field) -> PinResponse, Member, Community, Check, Forward, "Read a sealed fingerprint";

@@ -95,6 +95,10 @@ Native accounting is enabled only by an explicit `CommunityConfig.accounting`.
 Supply the authenticated Rulebook's `period_key`, the immutable
 `admission_policy_digest`, both economic policy files, native executable paths
 and execution limits, verification rate/key limits and `max_request_bytes`.
+The required `enrollment` object supplies `max_members`, `max_retained_slots`
+and `max_publication_bytes`. The original registry derives its scope, admission
+digest, operator and checkpoint period from that same native configuration;
+there is no second caller-selected enrollment identity.
 There is no default period, asset, policy, signer or accepted genesis. The
 admission digest is distinct from the economic digest which can change with
 native waiting-period tuning.
@@ -114,12 +118,15 @@ It publishes the actual verifier material through Policy and Beacon before
 serving. A bootstrap with no record epoch remains non-authoritative for Forum
 attendance. `account_credential_issue` requests a real admission grant from the
 same full passport/gate/device decision; `account` forwards the original strict
-account-owner request. Neither route initializes a client wallet or manufactures
-an accepted account. Record-epoch publication, its common-object delivery and
+account-owner request. `account_enroll` forwards the original signed delegation
+through that member's current session to the registry on the same native worker
+and scoped store. Its response is the original enrollment entry, not an installed
+checkpoint or accepted account. These routes do not initialize a client wallet.
+Record-epoch publication, its common-object delivery and
 trusted settlement/upkeep require the configured native host composition; the
 bootstrap publication alone does not complete that journey.
 
-Only the `account` HTTP body can exceed the ordinary 256 KiB limit, up to the
+The `account`, `account_enroll` and native `pin_change` HTTP bodies use the
 explicit configured bound (at most 16 MiB). MCP bounds each physical SDK frame
 before its parser allocates the frame and separately bounds encoded arguments;
 the same lower configured HTTP/account-owner limit still applies. A configured
