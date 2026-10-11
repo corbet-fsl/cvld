@@ -27,6 +27,11 @@ pub fn command() -> Command {
                 .subcommand(
                     Command::new("root-board")
                         .arg(Arg::new("config").long("config").required(true)),
+                )
+                .subcommand(
+                    Command::new("root-issuer")
+                        .about("Serve explicitly linked root and source communities in one process")
+                        .arg(Arg::new("config").long("config").required(true)),
                 ),
         )
         .subcommand(Command::new("openapi"))

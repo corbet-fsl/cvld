@@ -2,28 +2,33 @@
 use super::*;
 
 impl Door {
+    /// Stop native intake and start cancellation synchronously. A host owning
+    /// several Doors must call this on ALL of them before awaiting any join.
+    /// This does not establish completion; retain and await `shutdown_accounts`.
+    pub fn begin_shutdown_accounts(&self) -> Result<()> {
+        if let Some(runtime) = &self.inner.account_runtime {
+            runtime.fence();
+        }
+        let construction = self
+            .inner
+            .construction
+            .as_ref()
+            .map(|owner| owner.begin_shutdown());
+        let accounts = self
+            .inner
+            .account_shutdown
+            .as_ref()
+            .map(|owner| owner.begin_shutdown().map_err(Error::Unavailable.redact()));
+        construction.transpose()?;
+        accounts.transpose()?;
+        Ok(())
+    }
     /// Irreversibly fence configured community work, cancel its actual native
     /// verifier pools and join the single worker before closing the DB runtime.
     /// Repeated or cancelled waiters share the owner's same joined result.
     /// A global or unconfigured community door has no native account worker.
     pub async fn shutdown_accounts(&self) -> Result<()> {
-        if let Some(runtime) = &self.inner.account_runtime {
-            runtime.fence();
-        }
-        // One caller-retained group may own other factories in addition to this
-        // Door. Withdraw all their native execution before waiting for any join.
-        let construction_started = if let Some(construction) = &self.inner.construction {
-            construction.begin_shutdown()
-        } else {
-            Ok(())
-        };
-        let accounts_started = if let Some(shutdown) = &self.inner.account_shutdown {
-            shutdown
-                .begin_shutdown()
-                .map_err(Error::Unavailable.redact())
-        } else {
-            Ok(())
-        };
+        let started = self.begin_shutdown_accounts();
         let accounts = if let Some(shutdown) = &self.inner.account_shutdown {
             shutdown
                 .shutdown()
@@ -37,8 +42,7 @@ impl Door {
         } else {
             Ok(())
         };
-        construction_started?;
-        accounts_started?;
+        started?;
         accounts?;
         constructed?;
         Ok(())

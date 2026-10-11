@@ -501,3 +501,31 @@ addition to this joint proof. The service publishes the configured purpose key
 with the actual current Policy epoch and aligned cohort, preserving durable
 issuer and cohort floors across refresh and restart. This admission host does
 not issue source-role root credentials or establish remote source-role authority.
+
+
+### Linked root-purpose issuer process
+
+`serve root-issuer --config <file>` opens one actual root Door and its explicitly
+listed source Doors. The strict JSON file contains `root_board_config`,
+`source_configs` (a nonempty array of ordinary community configuration paths),
+and `purpose_key_file`. The last file contains the original CPSD private issuer
+encoding, provisioned separately for the `[root-board]` purpose and matching the
+root's configured public descriptor. Source configurations contain no purpose
+secret; their in-process link is opaque and cannot be selected by member input.
+
+Root and sources use the same explicit service domain with distinct community
+names and listener addresses. Configuration rejects root/source aliases,
+duplicate names, noncanonical hosts, incompatible domains and overlapping bind
+addresses. Original owner configuration and all links are validated before any
+listener serves. The global issuer remains a separately configured service:
+its garden and the root community's garden can have identical host/path shapes,
+so their existing independently configured domains or addressed services must
+separate them. This launcher does not merge those authentication namespaces.
+
+One signal owner is installed before the first factory is polled. Every completed
+Door and the shared construction owner remain retained across later startup
+failure or cancellation. Shutdown fences every native owner before awaiting any
+join, then drains HTTP within the minimum of the explicitly configured component
+budgets. Native cancellation and actual worker/build joins finish before the
+runtime is torn down; this cleanup is not a hard real-time operating-system bound.
+The same original signal deadline applies through startup, serving and cleanup.

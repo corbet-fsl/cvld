@@ -20,7 +20,7 @@ use webauthn_authenticator_rs::{AuthenticatorBackend, softtoken::SoftToken};
 pub const NOW: u64 = 1_800_000_000;
 pub const DOMAIN: &str = "example.test";
 pub const WALLET: &str = "wallet.example.test";
-pub const ROOT: &str = "api.root.example.test";
+pub const ROOT: &str = "api.admin.root.example.test";
 pub struct TestClock(pub AtomicU64);
 impl Clock for TestClock {
     fn now(&self) -> u64 {

@@ -11,6 +11,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[path = "main/root_issuer.rs"]
+mod root_issuer;
 #[path = "main/signals.rs"]
 mod signals;
 
@@ -75,6 +77,9 @@ async fn execute(matches: clap::ArgMatches, deadline: Arc<OnceLock<Instant>>) ->
         "serve" => {
             let (scope, args) = args.subcommand().ok_or(Error::Invalid)?;
             let path = args.get_one::<String>("config").ok_or(Error::Invalid)?;
+            if scope == "root-issuer" {
+                return root_issuer::run(path, deadline).await;
+            }
             // Read the operator's explicit budget before installing the one
             // signal owner; no factory or native verification has started yet.
             let (listen, shutdown_budget, selected) = match scope {

@@ -69,7 +69,7 @@ async fn two_communities_admission_policy_lapse_and_release_over_http() {
     );
     let ah = "api.alpha.example.test";
     let bh = "api.beta.example.test";
-    let a = enrol_community(&alpha, ah, &passport).await;
+    let mut a = enrol_community(&alpha, ah, &passport).await;
     let b = enrol_community(&beta, bh, &passport).await;
     let ac = client(&alpha, ah, Some(&a.session));
     let bc = client(&beta, bh, Some(&b.session));
@@ -217,13 +217,39 @@ async fn two_communities_admission_policy_lapse_and_release_over_http() {
         403
     );
     let admin_host = "api.admin.alpha.example.test";
-    let admin = enrol(
+    // Trusted fixture initialization of a preexisting Admin AFTER the actual
+    // passport, passkey and admission roundtrip. Signup cannot assign a role.
+    let role_db = crlt::Db::open(crlt::Config::new(
+        format!("file://{}", alpha.dir.path().join("community.db").display()),
+        "",
+    ))
+    .await
+    .unwrap();
+    role_db
+        .migrate(&cvld::service::community_migrations())
+        .await
+        .unwrap();
+    let register = crgs::Register::new(
+        crgs::LibsqlStorage::new(role_db.community("alpha").unwrap()),
+        crgs::ReleasePeriod::default(),
+    );
+    let actual = register
+        .set_role(
+            &crgs::MemberId::new(ids[0].as_bytes().to_vec()).unwrap(),
+            crgs::Role::Admin,
+        )
+        .await
+        .unwrap();
+    assert_eq!(actual.role, crgs::Role::Admin);
+    let garden = login(
         &alpha,
         admin_host,
-        Some("synthetic-admin-enrolment-capability"),
+        &mut a.authenticator,
+        &a.user,
+        &a.credential,
     )
     .await;
-    let admin_client = client(&alpha, admin_host, Some(&admin.session));
+    let admin_client = client(&alpha, admin_host, Some(&garden));
     let before: TrustFeed =
         serde_json::from_value(ac.call("trust_feed", json!({})).await.unwrap()).unwrap();
     let watcher = client(&alpha, ah, None);

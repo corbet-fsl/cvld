@@ -107,11 +107,19 @@ impl CommunityService {
             let mut now = self.account_time(runtime, admitted_at.max(runtime.floor()), u64::MAX)?;
             let (grant, authentication) = self.authenticate_current(bearer, now).await?;
             now = self.account_time(runtime, now.max(runtime.floor()), grant.expires)?;
+            let session = self.sessions.get(bearer).ok_or(Error::Unauthorized)?;
+            if !Arc::ptr_eq(&session.authentication, &authentication) {
+                return Err(Error::Unauthorized);
+            }
+            let authority =
+                session
+                    .authority
+                    .lease(session.started, session.grant.expires, runtime.clone());
             self.refresh_global(now).await?;
             now = self.account_time(runtime, now.max(runtime.floor()), grant.expires)?;
             let value = self
                 .facade
-                .account(&authentication, request.0, now)
+                .account(authentication.clone(), request.0, now, authority)
                 .await
                 .map_err(|error| match error {
                     cmty::Error::Reconcile => Error::Reconcile,

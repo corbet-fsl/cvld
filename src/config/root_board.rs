@@ -18,6 +18,11 @@ impl RootCommunityConfig {
     pub fn shutdown_budget(&self) -> Result<Duration> {
         self.community.shutdown_budget()
     }
+    /// Explicit service domain used to validate trusted in-process links.
+    pub fn domain(&self) -> &str {
+        &self.community.domain
+    }
+
     pub fn listen(&self) -> &str {
         &self.community.listen
     }

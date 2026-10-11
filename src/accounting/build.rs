@@ -221,7 +221,9 @@ impl NativeConstruction {
     pub fn new() -> Self {
         Self(Arc::new(Inner(Mutex::new(Registry::default()))))
     }
-    pub(crate) fn begin_shutdown(&self) -> Result<()> {
+    /// Close intake and start cancellation of every retained construction.
+    /// This does not join a builder; await `shutdown` before runtime teardown.
+    pub fn begin_shutdown(&self) -> Result<()> {
         let tasks = {
             let mut registry = self.0.0.lock().map_err(Error::Unavailable.redact())?;
             registry.closed = true;

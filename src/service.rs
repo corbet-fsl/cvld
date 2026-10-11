@@ -22,11 +22,14 @@ mod account_tuning;
 mod accounting;
 mod contacts;
 mod enrollment;
+mod garden;
 mod global_self_ban;
 mod migrations;
 mod payments;
 pub(crate) mod publication;
 mod root_board;
+mod root_issuance;
+pub use root_issuance::RootBoardPurpose;
 mod shutdown;
 pub use crate::accounting::NativeConstruction;
 pub use migrations::community_migrations;
@@ -78,6 +81,7 @@ struct Inner {
     hosts: BTreeMap<String, Arc<Mutex<Auth>>>,
     backend: Backend,
     member_host: Option<String>,
+    community_garden_host: Option<String>,
     root_board_admin_host: Option<String>,
     throttle: cthl::Throttle<cthl::MemoryStore>,
     clock: Arc<dyn Clock>,
@@ -168,7 +172,7 @@ impl Door {
         let published = Published::Global(global.changes.subscribe());
         let mut hosts = BTreeMap::new();
         let wallet = format!("wallet.{}", config.domain);
-        let root = format!("api.root.{}", config.domain);
+        let root = format!("api.admin.root.{}", config.domain);
         for (host, role, scope, operator) in [
             (wallet, Role::Member, "wallet", None),
             (
@@ -178,16 +182,22 @@ impl Door {
                 Some(uuid::Uuid::parse_str(&config.root_user).map_err(Error::Invalid.redact())?),
             ),
         ] {
-            let passkeys =
-                ckyh::Passkeys::new(
-                    ckyh::LibsqlStore::new(&db, scope, tokio::runtime::Handle::current())
-                        .map_err(Error::Unavailable.redact())?,
-                    scope,
-                    &host,
-                    &[ckyh::Url::parse(&format!("https://{host}"))
-                        .map_err(Error::Invalid.redact())?],
-                )
-                .map_err(Error::Invalid.redact())?;
+            let origins = if operator.is_some() {
+                garden::operator_origins(&host)?
+            } else {
+                vec![
+                    ckyh::Url::parse(&format!("https://{host}"))
+                        .map_err(Error::Invalid.redact())?,
+                ]
+            };
+            let passkeys = ckyh::Passkeys::new(
+                ckyh::LibsqlStore::new(&db, scope, tokio::runtime::Handle::current())
+                    .map_err(Error::Unavailable.redact())?,
+                scope,
+                host.strip_prefix("api.admin.").unwrap_or(&host),
+                &origins,
+            )
+            .map_err(Error::Invalid.redact())?;
             let bootstrap = if operator.is_some() {
                 config
                     .root_bootstrap_file
@@ -237,6 +247,7 @@ impl Door {
                 hosts,
                 backend: Backend::Global(Box::new(Mutex::new(global))),
                 member_host: None,
+                community_garden_host: None,
                 root_board_admin_host: None,
                 throttle,
                 clock,
@@ -392,31 +403,25 @@ impl Door {
         );
         let result = async {
             let config = &community.config;
+            let community_garden_host = format!("api.admin.{}.{}", config.community, config.domain);
             let operators = match &root_board_admin_host {
-                Some(host) => vec![(host.clone(), Role::Root, "operator:root", &config.root)],
-                None => vec![
-                    (
-                        format!("api.admin.{}.{}", config.community, config.domain),
-                        Role::Admin,
-                        "operator:admin",
-                        &config.admin,
-                    ),
-                    (
-                        format!("api.root.{}", config.domain),
-                        Role::Root,
-                        "operator:root",
-                        &config.root,
-                    ),
-                ],
+                // The ROOT garden uses actual ROOT memberships. A configured
+                // platform operator cannot authenticate on that same host.
+                Some(_) => vec![],
+                None => vec![(
+                    format!("api.admin.root.{}", config.domain),
+                    Role::Root,
+                    "operator:root",
+                    &config.root,
+                )],
             };
             for (host, role, scope, operator) in operators {
                 let passkeys = ckyh::Passkeys::new(
                     ckyh::LibsqlStore::new(&db, scope, tokio::runtime::Handle::current())
                         .map_err(Error::Unavailable.redact())?,
                     scope,
-                    &host,
-                    &[ckyh::Url::parse(&format!("https://{host}"))
-                        .map_err(Error::Invalid.redact())?],
+                    host.strip_prefix("api.admin.").unwrap_or(&host),
+                    &garden::operator_origins(&host)?,
                 )
                 .map_err(Error::Invalid.redact())?;
                 let bootstrap = operator
@@ -467,6 +472,7 @@ impl Door {
                     hosts,
                     backend: Backend::Community(Box::new(Mutex::new(community))),
                     member_host: Some(member_host),
+                    community_garden_host: Some(community_garden_host),
                     root_board_admin_host,
                     throttle,
                     clock,
@@ -488,8 +494,13 @@ impl Door {
         }
     }
     pub(crate) fn allows_origin(&self, host: &str, origin: &str) -> bool {
-        (self.inner.hosts.contains_key(host) || self.inner.member_host.as_deref() == Some(host))
+        (self.inner.hosts.contains_key(host) || self.is_membership_host(host))
             && (origin == format!("https://{host}")
+                || ((self.inner.hosts.contains_key(host) || self.is_garden(host))
+                    && host.strip_prefix("api.admin.").is_some_and(|canonical| {
+                        origin == format!("https://admin.{canonical}")
+                            || origin == format!("https://vault.{canonical}")
+                    }))
                 || (self.inner.member_host.as_deref() == Some(host)
                     && host.strip_prefix("api.").is_some_and(|canonical| {
                         origin == format!("https://{canonical}")
@@ -516,6 +527,12 @@ impl Door {
     pub(crate) fn is_community_member(&self, host: &str) -> bool {
         self.inner.member_host.as_deref() == Some(host)
     }
+    pub(crate) fn is_garden(&self, host: &str) -> bool {
+        self.inner.community_garden_host.as_deref() == Some(host)
+    }
+    pub(crate) fn is_membership_host(&self, host: &str) -> bool {
+        self.is_community_member(host) || self.is_garden(host)
+    }
     pub(crate) fn auth(&self, host: &str) -> Result<Arc<Mutex<Auth>>> {
         self.inner.hosts.get(host).cloned().ok_or(Error::WrongHost)
     }
@@ -532,10 +549,14 @@ impl Door {
             "global_public" | "trust_feed" | "trust_changes"
         ) && let Some(token) = &ctx.token
         {
-            if self.inner.member_host.as_deref() == Some(ctx.host.as_str()) {
+            if self.is_membership_host(&ctx.host) {
                 let mut community = self.community_backend()?.lock().await;
                 ctx.now = self.current_time(&ctx)?;
-                let (grant, authentication) = community.authenticate(token, ctx.now).await?;
+                let (grant, authentication) = if self.is_garden(&ctx.host) {
+                    community.authenticate_garden(token, ctx.now).await?
+                } else {
+                    community.authenticate(token, ctx.now).await?
+                };
                 ctx.grant = Some(grant);
                 ctx.authentication = Some(authentication);
             } else {
@@ -584,7 +605,7 @@ impl Door {
             .and_then(|v| v.to_str().ok())
             .ok_or(Error::WrongHost)?
             .to_owned();
-        let community_member = self.inner.member_host.as_deref() == Some(host.as_str());
+        let community_member = self.is_membership_host(&host);
         if !community_member && !self.inner.hosts.contains_key(&host) {
             return Err(Error::WrongHost);
         }
@@ -622,12 +643,12 @@ impl Door {
         };
         let (grant, authentication) = if let Some(token) = &token {
             if community_member {
-                let (grant, authentication) = self
-                    .community_backend()?
-                    .lock()
-                    .await
-                    .authenticate(token, now)
-                    .await?;
+                let mut community = self.community_backend()?.lock().await;
+                let (grant, authentication) = if self.is_garden(&host) {
+                    community.authenticate_garden(token, now).await?
+                } else {
+                    community.authenticate(token, now).await?
+                };
                 (Some(grant), Some(authentication))
             } else {
                 (
@@ -648,14 +669,21 @@ impl Door {
             Access::Public => true,
             access => {
                 let grant = grant.as_ref().ok_or(Error::Unauthorized)?;
-                matches!(
-                    (access, grant.role),
-                    (Access::Authenticated, _)
-                        | (Access::Member, Role::Member)
-                        | (Access::Admin, Role::Admin)
-                        | (Access::Root, Role::Root)
-                ) || (matches!((access, grant.role), (Access::Admin, Role::Root))
-                    && self.inner.root_board_admin_host.as_deref() == Some(host.as_str()))
+                match access {
+                    Access::Authenticated => true,
+                    Access::Member => grant.role == Role::Member,
+                    Access::Admin => {
+                        grant.role == Role::Admin
+                            || (grant.role == Role::Root && self.is_garden(&host))
+                    }
+                    Access::Root => {
+                        grant.role == Role::Root
+                            && (!self.is_garden(&host)
+                                || self.inner.root_board_admin_host.as_deref()
+                                    == Some(host.as_str()))
+                    }
+                    Access::Public => true,
+                }
             }
         };
         if !allowed {
@@ -674,6 +702,9 @@ impl Door {
         ctx: Context,
         request: RegisterStart,
     ) -> Result<Ceremony> {
+        if self.is_garden(&ctx.host) {
+            return Err(Error::Forbidden);
+        }
         if self.inner.member_host.as_deref() == Some(ctx.host.as_str()) {
             return self
                 .community_backend()?
@@ -693,6 +724,9 @@ impl Door {
         ctx: Context,
         request: RegisterFinish,
     ) -> Result<User> {
+        if self.is_garden(&ctx.host) {
+            return Err(Error::Forbidden);
+        }
         if self.inner.member_host.as_deref() == Some(ctx.host.as_str()) {
             return self
                 .community_backend()?
@@ -708,13 +742,13 @@ impl Door {
             .await
     }
     pub(crate) async fn login_begin(&self, ctx: Context, request: LoginStart) -> Result<Ceremony> {
-        if self.inner.member_host.as_deref() == Some(ctx.host.as_str()) {
-            return self
-                .community_backend()?
-                .lock()
-                .await
-                .login_begin(request, ctx.now)
-                .await;
+        if self.is_membership_host(&ctx.host) {
+            let mut community = self.community_backend()?.lock().await;
+            return if self.is_garden(&ctx.host) {
+                community.login_begin_for(request, ctx.now, true).await
+            } else {
+                community.login_begin(request, ctx.now).await
+            };
         }
         self.auth(&ctx.host)?
             .lock()
@@ -727,13 +761,13 @@ impl Door {
         ctx: Context,
         _: Empty,
     ) -> Result<DiscoverableCeremony> {
-        if self.inner.member_host.as_deref() == Some(ctx.host.as_str()) {
-            return self
-                .community_backend()?
-                .lock()
-                .await
-                .login_discoverable_begin(ctx.now)
-                .await;
+        if self.is_membership_host(&ctx.host) {
+            let mut community = self.community_backend()?.lock().await;
+            return if self.is_garden(&ctx.host) {
+                community.login_discoverable_begin_for(ctx.now, true).await
+            } else {
+                community.login_discoverable_begin(ctx.now).await
+            };
         }
         self.auth(&ctx.host)?
             .lock()
@@ -742,13 +776,13 @@ impl Door {
             .await
     }
     pub(crate) async fn login_finish(&self, ctx: Context, request: LoginFinish) -> Result<Session> {
-        if self.inner.member_host.as_deref() == Some(ctx.host.as_str()) {
-            return self
-                .community_backend()?
-                .lock()
-                .await
-                .login_finish(request, ctx.now)
-                .await;
+        if self.is_membership_host(&ctx.host) {
+            let mut community = self.community_backend()?.lock().await;
+            return if self.is_garden(&ctx.host) {
+                community.login_finish_for(request, ctx.now, true).await
+            } else {
+                community.login_finish(request, ctx.now).await
+            };
         }
         self.auth(&ctx.host)?
             .lock()
@@ -757,7 +791,7 @@ impl Door {
             .await
     }
     pub(crate) async fn logout(&self, ctx: Context, _: Empty) -> Result<Empty> {
-        if self.inner.member_host.as_deref() == Some(ctx.host.as_str()) {
+        if self.is_membership_host(&ctx.host) {
             self.community_backend()?
                 .lock()
                 .await

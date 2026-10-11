@@ -19,12 +19,15 @@ mod account_tuning;
 mod accounting;
 mod certificate;
 mod enrollment;
+pub(crate) mod garden;
 mod legal;
 mod payments;
 mod pin_change;
 mod root_board;
+pub(crate) mod root_issuance;
 mod self_ban;
 mod self_ban_status;
+mod session_authority;
 use legal::CommunityAuthority;
 use payments::PaymentClock;
 use root_board::root_descriptor;
@@ -58,6 +61,13 @@ mod negative;
 #[path = "community/tests/publication.rs"]
 mod publication_tests;
 
+#[cfg(all(test, feature = "development-gate"))]
+#[path = "community/tests/garden.rs"]
+mod garden_tests;
+#[cfg(all(test, feature = "development-gate"))]
+#[path = "community/tests/root_issuance.rs"]
+mod root_issuance_tests;
+
 struct Pending<T> {
     value: T,
     user: ckyh::Uuid,
@@ -65,6 +75,9 @@ struct Pending<T> {
 }
 struct PendingLogin {
     value: cmbr::PendingLogin,
+    garden: bool,
+    started: u64,
+    born: std::time::Instant,
     until: u64,
 }
 struct Challenge {
@@ -74,13 +87,18 @@ struct Challenge {
 }
 struct SessionState {
     authentication: Arc<ckyh::Authentication>,
+    authority: session_authority::Owner,
     grant: Grant,
+    garden: bool,
+    started: u64,
 }
 pub struct CommunityService {
     pub facade: Facade,
     db: crlt::Db,
     issuer_public_key: Vec<u8>,
     root_board_issuer: Option<cpsd::IssuerPublicKey>,
+    pub(crate) root_purpose: Option<Arc<crate::service::RootBoardPurpose>>,
+    root_issuances: HashMap<String, root_issuance::PendingRootIssuance>,
     pub config: CommunityConfig,
     pub public: TrustFeed,
     pub changes: tokio::sync::watch::Sender<Arc<TrustFeed>>,
@@ -324,6 +342,10 @@ impl CommunityService {
                         .map_err(Error::Invalid.redact())?,
                     ckyh::Url::parse(&format!("https://vault.{scope}.{}", config.domain))
                         .map_err(Error::Invalid.redact())?,
+                    ckyh::Url::parse(&format!("https://admin.{scope}.{}", config.domain))
+                        .map_err(Error::Invalid.redact())?,
+                    ckyh::Url::parse(&format!("https://api.admin.{scope}.{}", config.domain))
+                        .map_err(Error::Invalid.redact())?,
                 ],
             },
             authority.clone(),
@@ -448,6 +470,8 @@ impl CommunityService {
                 db: db.clone(),
                 issuer_public_key: status.issuer_public_key,
                 root_board_issuer: root_board.map(|descriptor| descriptor.issuer().clone()),
+                root_purpose: None,
+                root_issuances: HashMap::new(),
                 config,
                 public,
                 changes,
@@ -508,6 +532,7 @@ impl CommunityService {
     }
     fn prune(&mut self, now: u64) {
         self.challenges.retain(|_, p| p.until > now);
+        self.root_issuances.retain(|_, p| p.until > now);
         self.registrations.retain(|_, p| p.until > now);
         self.logins.retain(|_, p| p.until > now);
         self.additions.retain(|_, p| p.until > now);
@@ -531,7 +556,9 @@ impl CommunityService {
         let session = self
             .sessions
             .get(token)
-            .filter(|session| now < session.grant.expires)
+            .filter(|session| {
+                !session.garden && session.started <= now && now < session.grant.expires
+            })
             .ok_or(Error::Unauthorized)?;
         if !self
             .facade
@@ -658,6 +685,15 @@ impl CommunityService {
         })
     }
     pub async fn login_begin(&mut self, request: LoginStart, now: u64) -> Result<Ceremony> {
+        self.login_begin_for(request, now, false).await
+    }
+    pub(crate) async fn login_begin_for(
+        &mut self,
+        request: LoginStart,
+        now: u64,
+        garden: bool,
+    ) -> Result<Ceremony> {
+        let born = std::time::Instant::now();
         self.prune(now);
         if self.logins.len() >= self.config.pending_capacity {
             return Err(Error::Throttled);
@@ -675,6 +711,9 @@ impl CommunityService {
             id.clone(),
             PendingLogin {
                 value,
+                garden,
+                started: now,
+                born,
                 until: now + 300,
             },
         );
@@ -685,6 +724,14 @@ impl CommunityService {
         })
     }
     pub async fn login_discoverable_begin(&mut self, now: u64) -> Result<DiscoverableCeremony> {
+        self.login_discoverable_begin_for(now, false).await
+    }
+    pub(crate) async fn login_discoverable_begin_for(
+        &mut self,
+        now: u64,
+        garden: bool,
+    ) -> Result<DiscoverableCeremony> {
+        let born = std::time::Instant::now();
         self.prune(now);
         if self.logins.len() >= self.config.pending_capacity {
             return Err(Error::Throttled);
@@ -701,6 +748,9 @@ impl CommunityService {
             id.clone(),
             PendingLogin {
                 value,
+                garden,
+                started: now,
+                born,
                 until: now + 300,
             },
         );
@@ -710,6 +760,14 @@ impl CommunityService {
         })
     }
     pub async fn login_finish(&mut self, request: LoginFinish, now: u64) -> Result<Session> {
+        self.login_finish_for(request, now, false).await
+    }
+    pub(crate) async fn login_finish_for(
+        &mut self,
+        request: LoginFinish,
+        now: u64,
+        garden: bool,
+    ) -> Result<Session> {
         self.prune(now);
         if self.sessions.len() >= self.config.pending_capacity {
             return Err(Error::Throttled);
@@ -718,6 +776,20 @@ impl CommunityService {
             .logins
             .remove(&request.ceremony)
             .ok_or(Error::Unauthorized)?;
+        let ceremony_lifetime = std::time::Duration::from_secs(
+            pending
+                .until
+                .checked_sub(pending.started)
+                .ok_or(Error::Unauthorized)?,
+        );
+        if pending.garden != garden
+            || now < pending.started
+            || pending.born.elapsed() >= ceremony_lifetime
+        {
+            return Err(Error::Unauthorized);
+        }
+        let ceremony_until = pending.until;
+        let ceremony_born = pending.born;
         crate::service::publication::expires_at(pending.until)?;
         let credential = request.credential.raw_id.clone().into();
         let login = self
@@ -727,16 +799,47 @@ impl CommunityService {
             .await
             .map_err(Error::Unauthorized.redact())?;
         let user = login.authentication.member();
-        let expires = now + self.config.session_seconds;
+        let mut expires = now
+            .checked_add(self.config.session_seconds)
+            .ok_or(Error::Invalid)?;
+        let lease = if garden {
+            Some(
+                self.garden_lease(&login.authentication, now, expires)
+                    .await?,
+            )
+        } else {
+            None
+        };
+        let role = match &lease {
+            Some(lease) => {
+                expires = expires.min(lease.valid_until());
+                garden::public_role(lease.role())
+            }
+            None => Role::Member,
+        };
+        let completed = self.clock.now();
+        if completed < now
+            || completed >= ceremony_until
+            || completed >= expires
+            || ceremony_born.elapsed() >= ceremony_lifetime
+            || lease
+                .as_ref()
+                .is_some_and(|lease| !lease.is_current(completed))
+        {
+            return Err(Error::Unauthorized);
+        }
         crate::service::publication::expires_at(expires)?;
         let id = token();
         self.sessions.insert(
             id.clone(),
             SessionState {
                 authentication: Arc::new(login.authentication),
+                authority: session_authority::Owner::default(),
+                garden,
+                started: completed,
                 grant: Grant {
                     user,
-                    role: Role::Member,
+                    role,
                     expires,
                     credential,
                     session_id: rand::random(),
@@ -746,12 +849,14 @@ impl CommunityService {
         Ok(Session {
             token: id,
             user: user.to_string(),
-            role: Role::Member,
+            role,
             expires,
         })
     }
     pub fn logout(&mut self, token: &str) {
         if let Some(session) = self.sessions.remove(token) {
+            self.root_issuances
+                .retain(|_, p| p.session_id != session.grant.session_id);
             self.additions
                 .retain(|_, p| p.session_id != session.grant.session_id);
             self.self_bans

@@ -234,36 +234,74 @@ impl Door {
             }
             None => cplc::SettingEdit::Community((!request.inherit).then_some(request.value)),
         };
+        let mut policy = community.facade.policy().lock().await;
+        let mut lease = self.policy_garden_lease(&ctx, &community).await?;
+        let now = self
+            .policy_garden_release(&ctx, &community, lease.as_mut())
+            .await?;
+        match lease.as_mut() {
+            Some(lease) => {
+                let mut guard = crate::community::garden::GardenCommit::new(
+                    &community,
+                    &ctx,
+                    lease,
+                    "setting_set",
+                );
+                policy
+                    .edit_setting_checked(
+                        &request.key,
+                        edit,
+                        now,
+                        request.effective_at,
+                        community.config.minimum_notice_seconds,
+                        &mut guard,
+                    )
+                    .await
+                    .map_err(Error::Reconcile.redact())?;
+            }
+            None => {
+                policy
+                    .edit_setting(
+                        &request.key,
+                        edit,
+                        now,
+                        request.effective_at,
+                        community.config.minimum_notice_seconds,
+                    )
+                    .await
+                    .map_err(Error::Refused.redact())?;
+            }
+        }
+        let completed = self
+            .policy_garden_release(&ctx, &community, lease.as_mut())
+            .await
+            .map_err(Error::Reconcile.redact())?;
+        drop(lease);
+        drop(policy);
         community
-            .facade
-            .policy()
-            .lock()
+            .refresh(completed)
             .await
-            .edit_setting(
-                &request.key,
-                edit,
-                ctx.now,
-                request.effective_at,
-                community.config.minimum_notice_seconds,
-            )
-            .await
-            .map_err(Error::Refused.redact())?;
-        community.refresh(ctx.now).await?;
+            .map_err(Error::Reconcile.redact())?;
         Ok(community.public.clone())
     }
     pub(crate) async fn schema_check(
         &self,
-        _: Context,
+        ctx: Context,
         request: SchemaRequest,
     ) -> Result<SchemaChanges> {
         let community = self.community_backend()?.lock().await;
         let policy = community.facade.policy().lock().await;
+        let mut lease = self.policy_garden_lease(&ctx, &community).await?;
+        self.policy_garden_release(&ctx, &community, lease.as_mut())
+            .await?;
         let old = policy
             .schema()
             .map_err(Error::Unavailable.redact())?
             .ok_or(Error::Unavailable)?;
         let changes =
             cplc::cshm::classify_changes(old, &request.schema).map_err(Error::Invalid.redact())?;
+        self.policy_garden_release(&ctx, &community, lease.as_mut())
+            .await?;
         Ok(SchemaChanges {
             changes: serde_json::to_value(changes).map_err(Error::Unavailable.redact())?,
         })
@@ -274,15 +312,40 @@ impl Door {
         request: SchemaRequest,
     ) -> Result<TrustFeed> {
         let mut community = self.community_backend()?.lock().await;
+        let mut policy = community.facade.policy().lock().await;
+        let mut lease = self.policy_garden_lease(&ctx, &community).await?;
+        self.policy_garden_release(&ctx, &community, lease.as_mut())
+            .await?;
+        match lease.as_mut() {
+            Some(lease) => {
+                let mut guard = crate::community::garden::GardenCommit::new(
+                    &community,
+                    &ctx,
+                    lease,
+                    "schema_set",
+                );
+                policy
+                    .set_schema_checked(request.schema, &mut guard)
+                    .await
+                    .map_err(Error::Reconcile.redact())?;
+            }
+            None => {
+                policy
+                    .set_schema(request.schema)
+                    .await
+                    .map_err(Error::Refused.redact())?;
+            }
+        }
+        let completed = self
+            .policy_garden_release(&ctx, &community, lease.as_mut())
+            .await
+            .map_err(Error::Reconcile.redact())?;
+        drop(lease);
+        drop(policy);
         community
-            .facade
-            .policy()
-            .lock()
+            .refresh(completed)
             .await
-            .set_schema(request.schema)
-            .await
-            .map_err(Error::Refused.redact())?;
-        community.refresh(ctx.now).await?;
+            .map_err(Error::Reconcile.redact())?;
         Ok(community.public.clone())
     }
     pub(crate) async fn trust_feed(&self, _: Context, _: Empty) -> Result<TrustFeed> {
@@ -303,7 +366,7 @@ impl Door {
         })
     }
     pub(crate) async fn passkey_list(&self, ctx: Context, _: Empty) -> Result<PasskeyList> {
-        if !self.is_community_member(&ctx.host) {
+        if !self.is_membership_host(&ctx.host) {
             return self
                 .auth(&ctx.host)?
                 .lock()
@@ -330,7 +393,7 @@ impl Door {
         ctx: Context,
         request: AddPasskey,
     ) -> Result<AddedPasskey> {
-        if !self.is_community_member(&ctx.host) {
+        if !self.is_membership_host(&ctx.host) {
             return self
                 .auth(&ctx.host)?
                 .lock()
@@ -401,7 +464,7 @@ impl Door {
         ctx: Context,
         request: RevokePasskey,
     ) -> Result<Empty> {
-        if !self.is_community_member(&ctx.host) {
+        if !self.is_membership_host(&ctx.host) {
             self.auth(&ctx.host)?
                 .lock()
                 .await
