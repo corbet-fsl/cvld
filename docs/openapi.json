@@ -3033,6 +3033,66 @@
         ],
         "title": "AccountServiceResponse"
       },
+      "AccountingDelegation": {
+        "additionalProperties": false,
+        "description": "Original delegation wire object. Its device signature authorizes the P-256\ncoordinate; subsequent accounting signatures prove possession of that key.",
+        "properties": {
+          "accountPublicKey": {
+            "description": "Canonical lowercase P-256 X || Y hex, without a SEC1 prefix.",
+            "type": "string"
+          },
+          "admission": {
+            "$ref": "#/components/schemas/AdmissionGrant",
+            "description": "Current Policy's signed eligibility envelope."
+          },
+          "authorization": {
+            "$ref": "#/components/schemas/DeviceAuthorization",
+            "description": "Member root's authorization for the signing device."
+          },
+          "expiresAt": {
+            "description": "Exclusive end, no later than either authenticated authority's end.",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "hashScheme": {
+            "description": "Original account hash scheme, never selected by a verifier callback.",
+            "type": "string"
+          },
+          "issuedAt": {
+            "description": "Device-selected start of the bounded delegation interval.",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "signature": {
+            "description": "Canonical base64url strict Ed25519 device signature.",
+            "type": "string"
+          },
+          "stateSecretCommitment": {
+            "description": "Canonical lowercase bytes32 secret-commitment hex.",
+            "type": "string"
+          },
+          "version": {
+            "description": "Original delegation protocol version, exactly one.",
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "hashScheme",
+          "admission",
+          "authorization",
+          "accountPublicKey",
+          "stateSecretCommitment",
+          "issuedAt",
+          "expiresAt",
+          "signature"
+        ],
+        "type": "object"
+      },
       "AdmissionGrant": {
         "additionalProperties": false,
         "properties": {
@@ -3164,6 +3224,53 @@
         ],
         "type": "object"
       },
+      "DeviceAuthorization": {
+        "additionalProperties": false,
+        "description": "Member-owned root authorization. Eligibility issuers cannot create this proof.",
+        "properties": {
+          "communityId": {
+            "type": "string"
+          },
+          "devicePublicKey": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "issuedAt": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "memberId": {
+            "type": "string"
+          },
+          "rootPublicKey": {
+            "type": "string"
+          },
+          "signature": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "communityId",
+          "memberId",
+          "rootPublicKey",
+          "devicePublicKey",
+          "issuedAt",
+          "expiresAt",
+          "signature"
+        ],
+        "type": "object"
+      },
       "DummyOutcome": {
         "enum": [
           "settled",
@@ -3172,6 +3279,125 @@
           "uncertain"
         ],
         "type": "string"
+      },
+      "EnrollmentDelegation": {
+        "additionalProperties": false,
+        "description": "Original whole delegation paired with its exact public header.",
+        "properties": {
+          "delegation": {
+            "$ref": "#/components/schemas/AccountingDelegation"
+          },
+          "entry": {
+            "$ref": "#/components/schemas/EnrollmentEntry"
+          }
+        },
+        "required": [
+          "delegation",
+          "entry"
+        ],
+        "type": "object"
+      },
+      "EnrollmentEntry": {
+        "additionalProperties": false,
+        "description": "Public account enrollment header, not a holder opening or membership grant.",
+        "properties": {
+          "accountKey": {
+            "type": "string"
+          },
+          "delegationDigest": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "issuedAt": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "memberId": {
+            "type": "string"
+          },
+          "secretHash": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "memberId",
+          "accountKey",
+          "secretHash",
+          "issuedAt",
+          "expiresAt",
+          "delegationDigest"
+        ],
+        "type": "object"
+      },
+      "EnrollmentPublication": {
+        "additionalProperties": false,
+        "description": "Original complete common enrollment publication. Decoding or authenticating\nits operator signature alone does not establish a verified common root.",
+        "properties": {
+          "communityId": {
+            "type": "string"
+          },
+          "delegations": {
+            "items": {
+              "$ref": "#/components/schemas/EnrollmentDelegation"
+            },
+            "type": "array"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "notBefore": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "policyDigest": {
+            "type": "string"
+          },
+          "root": {
+            "items": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "signature": {
+            "type": "string"
+          },
+          "slot": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "version": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "domain",
+          "communityId",
+          "policyDigest",
+          "slot",
+          "notBefore",
+          "expiresAt",
+          "root",
+          "delegations",
+          "signature"
+        ],
+        "type": "object"
       },
       "Error": {
         "enum": [
@@ -3644,6 +3870,78 @@
         "x-scope": "community"
       }
     },
+    "/v1/account_checkpoint": {
+      "post": {
+        "operationId": "account_checkpoint",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Omit the slot to publish the current roster; a specified slot reads only an\nalready installed historical roster. Neither form grants account authority.",
+                "properties": {
+                  "slot": {
+                    "format": "int64",
+                    "minimum": 0,
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/EnrollmentPublication",
+                      "description": "Original signed common publication, or absence of that retained slot."
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [],
+        "summary": "Publish the current common enrollment roster or read an installed historical slot",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "public",
+        "x-scope": "community"
+      }
+    },
     "/v1/account_credential_issue": {
       "post": {
         "operationId": "account_credential_issue",
@@ -3748,6 +4046,174 @@
         "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
+        "x-scope": "community"
+      }
+    },
+    "/v1/account_enroll": {
+      "post": {
+        "operationId": "account_enroll",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountingDelegation",
+                "description": "The original signed enrollment request. All account coordinates and\nsignatures are verified by the retained domain owner."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrollmentEntry",
+                  "description": "Registry acknowledgment only; this does not claim an installed checkpoint\nor an active native account."
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Enroll this member's signed account delegation in the original registry",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "member",
+        "x-scope": "community"
+      }
+    },
+    "/v1/account_record": {
+      "post": {
+        "operationId": "account_record",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "media_type": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "description": "Fixed relative resource path. This link carries no descriptor authority.",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "media_type"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [],
+        "summary": "Read the fixed common record resource link",
+        "x-client-access": "forward",
+        "x-effect": "check",
+        "x-role": "public",
+        "x-scope": "community"
+      }
+    },
+    "/v1/account_record_object": {
+      "get": {
+        "operationId": "account_record_object",
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Whole original owner object; verify against the current signed Epoch descriptor"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [],
+        "summary": "Download the same whole authenticated common record object",
+        "x-cvld-resource": "account-record-object",
+        "x-effect": "check",
+        "x-role": "public",
         "x-scope": "community"
       }
     },
@@ -6542,6 +7008,147 @@
         "x-scope": "both"
       }
     },
+    "/v1/member_role": {
+      "post": {
+        "operationId": "member_role",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "member": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "$ref": "#/components/schemas/Role"
+                    }
+                  },
+                  "required": [
+                    "member",
+                    "role"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Read the current original local membership role",
+        "x-client-access": "forward",
+        "x-effect": "check",
+        "x-role": "member",
+        "x-scope": "community"
+      }
+    },
+    "/v1/member_role_set": {
+      "post": {
+        "operationId": "member_role_set",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "member": {
+                    "description": "Target's community pseudonym from the original enrolment lobby.",
+                    "type": "string"
+                  },
+                  "role": {
+                    "$ref": "#/components/schemas/Role"
+                  }
+                },
+                "required": [
+                  "member",
+                  "role"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Change a role under current garden membership authority",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "admin",
+        "x-scope": "community"
+      }
+    },
     "/v1/passkey_add": {
       "post": {
         "operationId": "passkey_add",
@@ -6760,11 +7367,11 @@
             "session": []
           }
         ],
-        "summary": "Certify the current registered passkey for community lineage assertions",
+        "summary": "Certify the current registered passkey for original lineage assertions",
         "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "member",
-        "x-scope": "community"
+        "x-scope": "both"
       }
     },
     "/v1/passkey_list": {
@@ -8354,6 +8961,186 @@
         "x-scope": "both"
       }
     },
+    "/v1/root_board_issue_begin": {
+      "post": {
+        "operationId": "root_board_issue_begin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "challenge": {
+                      "type": "string"
+                    },
+                    "expires": {
+                      "description": "Exclusive retained nonce/session expiry.",
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "signed_context": {
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    },
+                    "signed_source_request": {
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "challenge",
+                    "signed_context",
+                    "signed_source_request",
+                    "expires"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Begin source-authorized blind root credential issuance",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "admin",
+        "x-scope": "community"
+      }
+    },
+    "/v1/root_board_issue_finish": {
+      "post": {
+        "operationId": "root_board_issue_finish",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "challenge": {
+                    "type": "string"
+                  },
+                  "proof": {
+                    "description": "Original bounded CPSD same-holder issuance proof.",
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "challenge",
+                  "proof"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "bytes": {
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "bytes"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Complete same-holder blind root credential issuance",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "admin",
+        "x-scope": "community"
+      }
+    },
     "/v1/schema_check": {
       "post": {
         "operationId": "schema_check",
@@ -9035,6 +9822,417 @@
         "x-effect": "check",
         "x-role": "public",
         "x-scope": "community"
+      }
+    },
+    "/v1/wallet_device_authorize": {
+      "post": {
+        "operationId": "wallet_device_authorize",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Bind one actual lineage device key to the current passkey.",
+                "properties": {
+                  "key": {
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "key"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "Current public signing keys; the authenticated passkey authorizes mutations.",
+                  "properties": {
+                    "keys": {
+                      "items": {
+                        "items": {
+                          "format": "int32",
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "type": "array"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "keys"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Bind the wallet device to the exact authenticated passkey",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "member",
+        "x-scope": "global"
+      }
+    },
+    "/v1/wallet_device_keys": {
+      "post": {
+        "operationId": "wallet_device_keys",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "Current public signing keys; the authenticated passkey authorizes mutations.",
+                  "properties": {
+                    "keys": {
+                      "items": {
+                        "items": {
+                          "format": "int32",
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "type": "array"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "keys"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Read this wallet member's current public device bindings",
+        "x-client-access": "forward",
+        "x-effect": "check",
+        "x-role": "member",
+        "x-scope": "global"
+      }
+    },
+    "/v1/wallet_trust_changes": {
+      "post": {
+        "operationId": "wallet_trust_changes",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "revision": {
+                    "format": "int64",
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "revision"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "changed": {
+                      "type": "boolean"
+                    },
+                    "policy_epoch": {
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "revision": {
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "revision",
+                    "policy_epoch",
+                    "changed"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [],
+        "summary": "Read the isolated wallet whole-view revision hint",
+        "x-client-access": "forward",
+        "x-effect": "check",
+        "x-role": "public",
+        "x-scope": "global"
+      }
+    },
+    "/v1/wallet_trust_feed": {
+      "post": {
+        "operationId": "wallet_trust_feed",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "balance": {
+                      "description": "Original optional Balance publication, authenticated with the manifest.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
+                    "communities": {
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    },
+                    "key_ring": {
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    },
+                    "key_transitions": {
+                      "items": {
+                        "$ref": "#/components/schemas/TrustKeyTransition"
+                      },
+                      "type": "array"
+                    },
+                    "manifest": {
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    },
+                    "policy_epoch": {
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "revision": {
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "revocations": {
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    },
+                    "root_board": {
+                      "description": "Original optional Policy publication, authenticated with the manifest.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
+                    "schema": {
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    },
+                    "schema_versions": {
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    },
+                    "settings": {
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "revision",
+                    "policy_epoch",
+                    "key_ring",
+                    "manifest",
+                    "settings",
+                    "schema",
+                    "schema_versions",
+                    "communities",
+                    "revocations"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [],
+        "summary": "Read the isolated wallet original trust snapshots",
+        "x-client-access": "forward",
+        "x-effect": "check",
+        "x-role": "public",
+        "x-scope": "global"
       }
     }
   }

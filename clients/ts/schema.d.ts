@@ -21,6 +21,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/account_checkpoint": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish the current common enrollment roster or read an installed historical slot */
+        post: operations["account_checkpoint"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/account_credential_issue": {
         parameters: {
             query?: never;
@@ -32,6 +49,57 @@ export interface paths {
         put?: never;
         /** Request the original account grant from the same full admission decision */
         post: operations["account_credential_issue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/account_enroll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Enroll this member's signed account delegation in the original registry */
+        post: operations["account_enroll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/account_record": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read the fixed common record resource link */
+        post: operations["account_record"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/account_record_object": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download the same whole authenticated common record object */
+        get: operations["account_record_object"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -582,6 +650,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/member_role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read the current original local membership role */
+        post: operations["member_role"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/member_role_set": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Change a role under current garden membership authority */
+        post: operations["member_role_set"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/passkey_add": {
         parameters: {
             query?: never;
@@ -608,7 +710,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Certify the current registered passkey for community lineage assertions */
+        /** Certify the current registered passkey for original lineage assertions */
         post: operations["passkey_certificate"];
         delete?: never;
         options?: never;
@@ -905,6 +1007,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/root_board_issue_begin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Begin source-authorized blind root credential issuance */
+        post: operations["root_board_issue_begin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/root_board_issue_finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Complete same-holder blind root credential issuance */
+        post: operations["root_board_issue_finish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/schema_check": {
         parameters: {
             query?: never;
@@ -984,6 +1120,74 @@ export interface paths {
         put?: never;
         /** Read signed public trust snapshots */
         post: operations["trust_feed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/wallet_device_authorize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Bind the wallet device to the exact authenticated passkey */
+        post: operations["wallet_device_authorize"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/wallet_device_keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read this wallet member's current public device bindings */
+        post: operations["wallet_device_keys"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/wallet_trust_changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read the isolated wallet whole-view revision hint */
+        post: operations["wallet_trust_changes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/wallet_trust_feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read the isolated wallet original trust snapshots */
+        post: operations["wallet_trust_feed"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1752,6 +1956,39 @@ export interface components {
                 signature: string;
             };
         };
+        /**
+         * @description Original delegation wire object. Its device signature authorizes the P-256
+         *     coordinate; subsequent accounting signatures prove possession of that key.
+         */
+        AccountingDelegation: {
+            /** @description Canonical lowercase P-256 X || Y hex, without a SEC1 prefix. */
+            accountPublicKey: string;
+            /** @description Current Policy's signed eligibility envelope. */
+            admission: components["schemas"]["AdmissionGrant"];
+            /** @description Member root's authorization for the signing device. */
+            authorization: components["schemas"]["DeviceAuthorization"];
+            /**
+             * Format: int64
+             * @description Exclusive end, no later than either authenticated authority's end.
+             */
+            expiresAt: number;
+            /** @description Original account hash scheme, never selected by a verifier callback. */
+            hashScheme: string;
+            /**
+             * Format: int64
+             * @description Device-selected start of the bounded delegation interval.
+             */
+            issuedAt: number;
+            /** @description Canonical base64url strict Ed25519 device signature. */
+            signature: string;
+            /** @description Canonical lowercase bytes32 secret-commitment hex. */
+            stateSecretCommitment: string;
+            /**
+             * Format: int32
+             * @description Original delegation protocol version, exactly one.
+             */
+            version: number;
+        };
         AdmissionGrant: {
             chatPublicKey: string;
             communityId: string;
@@ -1791,8 +2028,58 @@ export interface components {
             devices: number[][];
             presentation: components["schemas"]["PresentationInput"];
         };
+        /** @description Member-owned root authorization. Eligibility issuers cannot create this proof. */
+        DeviceAuthorization: {
+            communityId: string;
+            devicePublicKey: string;
+            /** Format: int64 */
+            expiresAt: number;
+            /** Format: int64 */
+            issuedAt: number;
+            memberId: string;
+            rootPublicKey: string;
+            signature: string;
+            /** Format: int32 */
+            version: number;
+        };
         /** @enum {string} */
         DummyOutcome: "settled" | "refused" | "pending" | "uncertain";
+        /** @description Original whole delegation paired with its exact public header. */
+        EnrollmentDelegation: {
+            delegation: components["schemas"]["AccountingDelegation"];
+            entry: components["schemas"]["EnrollmentEntry"];
+        };
+        /** @description Public account enrollment header, not a holder opening or membership grant. */
+        EnrollmentEntry: {
+            accountKey: string;
+            delegationDigest: string;
+            /** Format: int64 */
+            expiresAt: number;
+            /** Format: int64 */
+            issuedAt: number;
+            memberId: string;
+            secretHash: string;
+        };
+        /**
+         * @description Original complete common enrollment publication. Decoding or authenticating
+         *     its operator signature alone does not establish a verified common root.
+         */
+        EnrollmentPublication: {
+            communityId: string;
+            delegations: components["schemas"]["EnrollmentDelegation"][];
+            domain: string;
+            /** Format: int64 */
+            expiresAt: number;
+            /** Format: int64 */
+            notBefore: number;
+            policyDigest: string;
+            root: number[];
+            signature: string;
+            /** Format: int64 */
+            slot: number;
+            /** Format: int32 */
+            version: number;
+        };
         /** @enum {string} */
         Error: "invalid" | "unauthorized" | "forbidden" | "wrong_host" | "throttled" | "refused" | "unavailable" | "reconcile";
         Lobby: {
@@ -1938,6 +2225,44 @@ export interface operations {
             };
         };
     };
+    account_checkpoint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: int64 */
+                    slot?: number | null;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnrollmentPublication"] | null;
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
     account_credential_issue: {
         parameters: {
             query?: never;
@@ -1966,6 +2291,111 @@ export interface operations {
                         credential?: number[] | null;
                         lobby: components["schemas"]["Lobby"];
                     };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    account_enroll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountingDelegation"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnrollmentEntry"];
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    account_record: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        media_type: string;
+                        /** @description Fixed relative resource path. This link carries no descriptor authority. */
+                        path: string;
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    account_record_object: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whole original owner object; verify against the current signed Epoch descriptor */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
                 };
             };
             /** @description Fixed redacted error category */
@@ -3344,6 +3774,83 @@ export interface operations {
             };
         };
     };
+    member_role: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        member: string;
+                        role: components["schemas"]["Role"];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    member_role_set: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Target's community pseudonym from the original enrolment lobby. */
+                    member: string;
+                    role: components["schemas"]["Role"];
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
     passkey_add: {
         parameters: {
             query?: never;
@@ -4158,6 +4665,91 @@ export interface operations {
             };
         };
     };
+    root_board_issue_begin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        challenge: string;
+                        /**
+                         * Format: int64
+                         * @description Exclusive retained nonce/session expiry.
+                         */
+                        expires: number;
+                        signed_context: number[];
+                        signed_source_request: number[];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    root_board_issue_finish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    challenge: string;
+                    /** @description Original bounded CPSD same-holder issuance proof. */
+                    proof: number[];
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        bytes: number[];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
     schema_check: {
         parameters: {
             query?: never;
@@ -4355,6 +4947,178 @@ export interface operations {
         };
     };
     trust_feed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Original optional Balance publication, authenticated with the manifest. */
+                        balance?: number[] | null;
+                        communities: number[];
+                        key_ring: number[];
+                        key_transitions?: components["schemas"]["TrustKeyTransition"][];
+                        manifest: number[];
+                        /** Format: int64 */
+                        policy_epoch: number;
+                        /** Format: int64 */
+                        revision: number;
+                        revocations: number[];
+                        /** @description Original optional Policy publication, authenticated with the manifest. */
+                        root_board?: number[] | null;
+                        schema: number[];
+                        schema_versions: number[];
+                        settings: number[];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    wallet_device_authorize: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    key: number[];
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        keys: number[][];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    wallet_device_keys: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        keys: number[][];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    wallet_trust_changes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: int64 */
+                    revision: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        changed: boolean;
+                        /** Format: int64 */
+                        policy_epoch: number;
+                        /** Format: int64 */
+                        revision: number;
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    wallet_trust_feed: {
         parameters: {
             query?: never;
             header?: never;
