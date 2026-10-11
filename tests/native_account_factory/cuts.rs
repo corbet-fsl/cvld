@@ -69,7 +69,7 @@ async fn final_sample(future_epoch: bool) -> u64 {
     let clock = Arc::new(ObservedClock::steady());
     let owner = NativeConstruction::new();
     let door =
-        Door::community_with_construction(fixture.config.clone(), clock.clone(), owner.clone())
+        Door::community_with_construction(fixture.duplicate_config(), clock.clone(), owner.clone())
             .await
             .unwrap();
     let last = clock.calls();
@@ -90,7 +90,7 @@ async fn refused_final_cut(future_epoch: bool, expires: bool) {
     let clock = Arc::new(ObservedClock::new(Some((last, late)), false));
     let owner = NativeConstruction::new();
     let result =
-        Door::community_with_construction(fixture.config.clone(), clock.clone(), owner.clone())
+        Door::community_with_construction(fixture.duplicate_config(), clock.clone(), owner.clone())
             .await;
     assert!(matches!(result, Err(cvld::error::Error::Reconcile)));
     // Any earlier native/publication refusal is not this final exposure test.
@@ -132,7 +132,7 @@ async fn abandoning_actual_native_construction_retains_and_joins_its_owner() {
     let clock = Arc::new(ObservedClock::new(None, true));
     let _release_on_failure = Release(clock.clone());
     let owner = NativeConstruction::new();
-    let config = fixture.config.clone();
+    let config = fixture.duplicate_config();
     let active = owner.clone();
     let native_clock = clock.clone();
     let factory = tokio::spawn(async move {
@@ -171,7 +171,7 @@ async fn abandoning_actual_native_construction_retains_and_joins_its_owner() {
     );
     assert!(matches!(
         Door::community_with_construction(
-            fixture.config.clone(),
+            fixture.duplicate_config(),
             Arc::new(ObservedClock::steady()),
             owner.clone(),
         )
