@@ -1157,6 +1157,11 @@ impl CommunityService {
             }
             Ok(Vec::new())
         };
+        if request.founder.is_some()
+            && (request.creation.is_some() || challenge.value.root_board_request().is_some())
+        {
+            return Err(Error::Invalid);
+        }
         let result = if challenge.value.root_board_request().is_some() {
             let proof = cpsd::RootBoardPresentation::from_bytes(&request.presentation.proof)
                 .map_err(Error::Invalid.redact())?;
@@ -1184,8 +1189,37 @@ impl CommunityService {
         } else {
             let proof = cpsd::Presentation::from_bytes(&request.presentation.proof)
                 .map_err(Error::Invalid.redact())?;
-            match account_device {
-                Some(device) => {
+            match (account_device, request.founder.as_deref()) {
+                (Some(device), Some(invitation)) => {
+                    self.facade
+                        .finish_founder_admin_account_with(
+                            &mut cpsd::rand::rngs::OsRng,
+                            &challenge.value,
+                            &proof,
+                            cmty::AccountAdmission {
+                                membership: admission,
+                                device,
+                            },
+                            invitation,
+                            now,
+                            checks,
+                        )
+                        .await
+                }
+                (None, Some(invitation)) => {
+                    self.facade
+                        .finish_founder_admin_with(
+                            &mut cpsd::rand::rngs::OsRng,
+                            &challenge.value,
+                            &proof,
+                            admission,
+                            invitation,
+                            now,
+                            checks,
+                        )
+                        .await
+                }
+                (Some(device), None) => {
                     self.facade
                         .finish_account_with(
                             &mut cpsd::rand::rngs::OsRng,
@@ -1200,7 +1234,7 @@ impl CommunityService {
                         )
                         .await
                 }
-                None => {
+                (None, None) => {
                     self.facade
                         .finish_with(
                             &mut cpsd::rand::rngs::OsRng,

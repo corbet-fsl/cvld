@@ -4,6 +4,7 @@ use crate::auth::{Auth, creation::RootCreationSession};
 use crate::service::Context;
 
 pub(super) struct Recipient {
+    purpose: CreationPurpose,
     session: admission::AdmissionSession,
     id: String,
     pub(super) until: u64,
@@ -65,7 +66,20 @@ impl CommunityService {
             .resume(&session.authentication)
             .await
             .map_err(Error::Refused.redact())?;
-        if row.state().is_terminal() || row.state() == cmbr::State::Started {
+        // A founder must still be joining: promotion of an admitted or lapsed
+        // member is never an entitlement.
+        let eligible = match request.purpose {
+            CreationPurpose::Root => {
+                !row.state().is_terminal() && row.state() != cmbr::State::Started
+            }
+            CreationPurpose::Founder => matches!(
+                row.state(),
+                cmbr::State::PasskeyRegistered
+                    | cmbr::State::HandleReserved
+                    | cmbr::State::GatesInProgress
+            ),
+        };
+        if !eligible {
             return Err(Error::Refused);
         }
         let completed = self.clock.now();
@@ -82,6 +96,7 @@ impl CommunityService {
         self.creation_recipients.insert(
             recipient.clone(),
             Recipient {
+                purpose: request.purpose,
                 session,
                 id: id.clone(),
                 until: request.expires_at,
@@ -117,6 +132,9 @@ impl CommunityService {
             .creation_recipients
             .remove(recipient)
             .ok_or(Error::Refused)?;
+        if pending.purpose != CreationPurpose::Root {
+            return Err(Error::Refused);
+        }
         let observed = self.clock.now();
         pending.session.release(observed)?;
         if observed >= pending.until || std::time::Instant::now() >= pending.deadline {
@@ -205,6 +223,125 @@ impl CommunityService {
         let checked_at = self.clock.now();
         pending.session.release(checked_at)?;
         if checked_at < completed.max(root_floor) || checked_at >= pending.until {
+            return Err(Error::Reconcile);
+        }
+        Ok(Created {
+            value: CommunityCreationInvitation {
+                invitation,
+                id: pending.id,
+                expires_at: pending.until,
+                checked_at,
+            },
+            session: pending.session,
+            snapshot,
+            deadline: pending.deadline,
+        })
+    }
+
+    /// Issue the original FounderAdmin entitlement for a recipient that joins
+    /// an already Active (or explicitly legacy) community. Nothing is committed
+    /// here; redemption is the original atomic admission with every gate.
+    pub(crate) async fn issue_founder(
+        &mut self,
+        recipient: &str,
+        owner: &Arc<()>,
+        root: &mut RootCreationSession,
+        auth: &mut Auth,
+        token: &str,
+        root_clock: &dyn Clock,
+    ) -> Result<Created> {
+        if !self
+            .creation_owner
+            .as_ref()
+            .is_some_and(|actual| Arc::ptr_eq(actual, owner))
+        {
+            return Err(Error::Forbidden);
+        }
+        let pending = self
+            .creation_recipients
+            .remove(recipient)
+            .ok_or(Error::Refused)?;
+        if pending.purpose != CreationPurpose::Founder {
+            return Err(Error::Refused);
+        }
+        let observed = self.clock.now();
+        pending.session.release(observed)?;
+        if observed >= pending.until || std::time::Instant::now() >= pending.deadline {
+            return Err(Error::Refused);
+        }
+        let mut policy = self.facade.policy().lock().await;
+        let snapshot = policy
+            .verified_settings(observed)
+            .await
+            .map_err(Error::Refused.redact())?;
+        if pending.until > snapshot.valid_until() {
+            return Err(Error::Refused);
+        }
+        if !matches!(
+            self.facade
+                .membership()
+                .community_phase()
+                .await
+                .map_err(Error::Refused.redact())?,
+            cmbr::CommunityPhase::Active | cmbr::CommunityPhase::LegacyActive
+        ) {
+            return Err(Error::Refused);
+        }
+        let row = self
+            .facade
+            .membership()
+            .resume(&pending.session.authentication)
+            .await
+            .map_err(Error::Refused.redact())?;
+        if !matches!(
+            row.state(),
+            cmbr::State::PasskeyRegistered
+                | cmbr::State::HandleReserved
+                | cmbr::State::GatesInProgress
+        ) {
+            return Err(Error::Refused);
+        }
+        let member = row.subject();
+        let receipt = cvch::receipt_id(&pending.id);
+        let binding = cvch::member_binding(&receipt, member.as_bytes());
+        root.check(auth, token, root_clock).await?;
+        let issued = self.clock.now();
+        pending.session.release(issued)?;
+        if issued >= pending.until {
+            return Err(Error::Refused);
+        }
+        let invitation = policy
+            .issue_role_invitation(&cvch::role::Invitation {
+                id: &pending.id,
+                community: &self.config.community,
+                member_binding: &binding,
+                purpose: cvch::role::Purpose::FounderAdmin,
+                issued_at: issued,
+                valid_until: pending.until,
+            })
+            .await
+            .map_err(Error::Refused.redact())?;
+        let verified = cvch::role::verify(
+            &invitation,
+            policy.key_ring().map_err(Error::Refused.redact())?,
+            &cvch::role::Context {
+                community: &self.config.community,
+                member: member.as_bytes(),
+                purpose: cvch::role::Purpose::FounderAdmin,
+                now: issued,
+            },
+        )
+        .map_err(Error::Refused.redact())?;
+        if verified.valid_until() != pending.until {
+            return Err(Error::Refused);
+        }
+        let root_floor = root
+            .check(auth, token, root_clock)
+            .await
+            .map_err(|_| Error::Reconcile)?;
+        let checked_at = self.clock.now();
+        pending.session.release(checked_at)?;
+        if checked_at < issued.max(root_floor) || checked_at >= pending.until {
             return Err(Error::Reconcile);
         }
         Ok(Created {

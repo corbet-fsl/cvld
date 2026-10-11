@@ -276,6 +276,7 @@ actions! {
     initial_registration_begin(InitialRegistrationBegin) -> InitialCeremony, Public, Community, Record, Forward, "Begin first community registration with original creation provenance";
     community_creation_recipient(CreationRecipientRequest) -> CreationRecipient, Member, Community, Record, Forward, "Prepare original community creation for this registered recipient";
     community_creation_initialize(CommunityCreationRequest) -> CommunityCreationInvitation, Root, Global, Record, Forward, "Initialize an explicitly linked community with its original first Root entitlement";
+    community_founder_issue(CommunityCreationRequest) -> CommunityCreationInvitation, Root, Global, Record, Forward, "Issue the original FounderAdmin entitlement for a distinct registered founder of an explicitly linked community";
     initial_creation(Empty) -> InitialCreationResponse, Member, Both, Check, Forward, "Read this current passkey's original enrollment provenance";
     initial_publication_bind(InitialPublicationBind) -> InitialCreationResponse, Member, Both, Record, Forward, "Bind one original publication to this current passkey's initial enrollment";
     login_begin(LoginStart) -> Ceremony, Public, Both, Check, Forward, "Begin credential-first passkey authentication";

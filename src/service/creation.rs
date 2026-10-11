@@ -108,6 +108,75 @@ impl Door {
         }
         Ok(value)
     }
+    pub(crate) async fn community_founder_issue(
+        &self,
+        ctx: Context,
+        request: CommunityCreationRequest,
+    ) -> Result<CommunityCreationInvitation> {
+        let target = self
+            .inner
+            .creation_targets
+            .lock()
+            .await
+            .get(&request.community)
+            .cloned()
+            .ok_or(Error::Unavailable)?;
+        let token = ctx.token.as_deref().ok_or(Error::Unauthorized)?;
+        let authentication = self.auth(&ctx.host)?;
+        let mut auth = authentication.lock().await;
+        let mut session = auth
+            .root_creation_session(
+                token,
+                ctx.grant.as_ref().ok_or(Error::Unauthorized)?,
+                ctx.now,
+                self.inner.clock.as_ref(),
+            )
+            .await?;
+        // Root Auth -> SAME original Root credential writer -> target service
+        // -> target Policy -> target writer. A shared physical database cannot
+        // acquire its second writer; original bounded acquisition refuses safely.
+        let root_writer = self
+            .inner
+            .root_creation_scope
+            .as_ref()
+            .ok_or(Error::Unavailable)?
+            .tx()
+            .await
+            .map_err(Error::Unavailable.redact())?;
+        session
+            .check(&mut auth, token, self.inner.clock.as_ref())
+            .await?;
+        let mut community = target.community_backend()?.lock().await;
+        let result = with_live_clock(community.issue_founder(
+            &request.recipient,
+            &self.inner.creation_owner,
+            &mut session,
+            &mut auth,
+            token,
+            self.inner.clock.as_ref(),
+        ))
+        .await;
+        root_writer.rollback().await.map_err(|_| Error::Reconcile)?;
+        let created = result?;
+        let root_floor = session
+            .check(&mut auth, token, self.inner.clock.as_ref())
+            .await
+            .map_err(|_| Error::Reconcile)?;
+        let created = with_live_clock(community.release_creation(created, root_floor)).await?;
+        let final_root = session
+            .check(&mut auth, token, self.inner.clock.as_ref())
+            .await
+            .map_err(|_| Error::Reconcile)?;
+        let value = community.project_creation(created, final_root)?;
+        if session
+            .release(&auth, token, self.inner.clock.as_ref())
+            .map_err(|_| Error::Reconcile)?
+            != value.checked_at
+        {
+            return Err(Error::Reconcile);
+        }
+        Ok(value)
+    }
 }
 
 #[cfg(all(test, feature = "development-gate"))]

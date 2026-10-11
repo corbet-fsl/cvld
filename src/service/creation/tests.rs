@@ -34,16 +34,55 @@ impl World {
         }
     }
     async fn prepare(&self, id: Option<&str>) -> CreationRecipient {
+        self.prepare_as(&self.member, "root", id).await
+    }
+    async fn prepare_as(&self, who: &Member, purpose: &str, id: Option<&str>) -> CreationRecipient {
         serde_json::from_value(
-            client(&self.target, TARGET, Some(&self.member.session))
+            client(&self.target, TARGET, Some(&who.session))
                 .call(
                     "community_creation_recipient",
-                    json!({"id":id,"expires_at":NOW+300}),
+                    json!({"id":id,"expires_at":NOW+300,"purpose":purpose}),
                 )
                 .await
                 .unwrap(),
         )
         .unwrap()
+    }
+    async fn founder_issue(&self, recipient: &CreationRecipient) -> Result<serde_json::Value> {
+        client(&self.global, ROOT, Some(&self.operator.session))
+            .call(
+                "community_founder_issue",
+                json!({"community":"alpha","recipient":recipient.recipient}),
+            )
+            .await
+    }
+    /// The original Root path: creation entitlement plus every admission gate.
+    async fn redeem_root(&self) {
+        let prepared = self.prepare(None).await;
+        let created: CommunityCreationInvitation =
+            serde_json::from_value(self.initialize(&prepared).await.unwrap()).unwrap();
+        let scope = cpsd::CommunityId::new("alpha").unwrap();
+        let subject = self.passport.pseudonym(&scope).to_hex();
+        let api = client(&self.target, TARGET, Some(&self.member.session));
+        api.call("handle_reserve", json!({"handle":"creator_one"}))
+            .await
+            .unwrap();
+        api.call(
+            "gate_voucher",
+            voucher("alpha", &subject, "ordinary-full-gate", NOW + 172800),
+        )
+        .await
+        .unwrap();
+        let proof = presentation(
+            &self.target,
+            TARGET,
+            Some(&self.member.session),
+            &self.passport,
+        )
+        .await;
+        api.call("credential_issue", json!({"presentation":proof,"devices":[self.member.signing_key],"creation":created.invitation}))
+            .await
+            .unwrap();
     }
     async fn initialize(&self, recipient: &CreationRecipient) -> Result<serde_json::Value> {
         client(&self.global, ROOT, Some(&self.operator.session))
@@ -253,43 +292,74 @@ async fn public_same_file_factory_isolation_preserves_the_existing_root_owner() 
     );
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn root_creation_session_is_bound_to_its_grant_expiry_inside_the_publication_scope() {
-    use crate::{api::Effect, service::publication::Publication};
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn founder_admin_needs_an_active_community_a_joining_distinct_member_and_every_gate() {
     let world = World::new().await;
-    let token = world.operator.session.clone();
-    let clock = world.global.clock.clone();
-    let auth = world.global.door.auth(ROOT).unwrap();
-    let mut auth = auth.lock().await;
-    let grant = auth.authenticate(&token, NOW).await.unwrap();
-    let context = Context {
-        host: ROOT.into(),
-        grant: Some(grant.clone()),
-        token: Some(token.clone()),
-        now: NOW,
-        authentication: None,
-    };
-    let mut session = auth
-        .root_creation_session(&token, &grant, NOW, clock.as_ref())
+    let (_, founder_passport, _) = wallet_passport(&world.global).await;
+    let founder = enrol_community(&world.target, TARGET, &founder_passport).await;
+    // The community admits nobody before its first Root is committed.
+    let early = world.prepare_as(&founder, "founder", None).await;
+    assert!(matches!(
+        world.founder_issue(&early).await,
+        Err(Error::Refused)
+    ));
+    world.redeem_root().await;
+    // A Root preparation is not a founder entitlement and the reverse.
+    let wrong = world.prepare_as(&founder, "root", None).await;
+    assert!(matches!(
+        world.founder_issue(&wrong).await,
+        Err(Error::Refused)
+    ));
+    // An admitted member is never promoted.
+    assert!(matches!(
+        client(&world.target, TARGET, Some(&world.member.session))
+            .call(
+                "community_creation_recipient",
+                json!({"id":null,"expires_at":NOW+300,"purpose":"founder"}),
+            )
+            .await,
+        Err(Error::Refused)
+    ));
+    let prepared = world.prepare_as(&founder, "founder", None).await;
+    let issued: CommunityCreationInvitation =
+        serde_json::from_value(world.founder_issue(&prepared).await.unwrap()).unwrap();
+    assert_eq!(issued.id, prepared.id);
+    // The one-use reference cannot be replayed.
+    assert!(matches!(
+        world.founder_issue(&prepared).await,
+        Err(Error::Refused)
+    ));
+    let scope = cpsd::CommunityId::new("alpha").unwrap();
+    let subject = founder_passport.pseudonym(&scope).to_hex();
+    let api = client(&world.target, TARGET, Some(&founder.session));
+    api.call("handle_reserve", json!({"handle":"founder_one"}))
         .await
         .unwrap();
-    // Sampling inside the grant never narrows the action to the sampling instant.
-    let inside = Publication::new(clock.clone(), &context, Effect::Record)
-        .run(async {
-            session
-                .check(&mut auth, &token, clock.as_ref())
-                .await
-                .map(|_| ())
-        })
-        .await;
-    assert!(inside.is_ok());
-    // A grant that ends before the final publication check withholds the result.
-    let outside = Publication::new(clock.clone(), &context, Effect::Record)
-        .run(async {
-            session.check(&mut auth, &token, clock.as_ref()).await?;
-            clock.set(grant.expires);
-            Ok(())
-        })
-        .await;
-    assert!(matches!(outside, Err(Error::Reconcile)));
+    let before = presentation(
+        &world.target,
+        TARGET,
+        Some(&founder.session),
+        &founder_passport,
+    )
+    .await;
+    let denied = api.call("credential_issue", json!({"presentation":before,"devices":[founder.signing_key],"founder":issued.invitation})).await;
+    assert!(matches!(denied, Err(Error::Refused | Error::Forbidden)));
+    api.call(
+        "gate_voucher",
+        voucher("alpha", &subject, "ordinary-full-gate", NOW + 172800),
+    )
+    .await
+    .unwrap();
+    let proof = presentation(
+        &world.target,
+        TARGET,
+        Some(&founder.session),
+        &founder_passport,
+    )
+    .await;
+    let admitted: CredentialResponse = serde_json::from_value(api.call("credential_issue", json!({"presentation":proof,"devices":[founder.signing_key],"founder":issued.invitation})).await.unwrap()).unwrap();
+    assert!(admitted.credential.is_some());
+    let role: MemberRole =
+        serde_json::from_value(api.call("member_role", json!({})).await.unwrap()).unwrap();
+    assert_eq!(serde_json::to_value(role).unwrap()["role"], "admin");
 }

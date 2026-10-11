@@ -37,8 +37,7 @@ these exact invitation bytes as `creation` in the existing `credential_issue`
 request, with a fresh genuine passport presentation and every configured
 admission gate. The original domain transaction joins the one-use receipt,
 Register Root, enrolment, probation and Active phase. No ordinary role setter
-substitutes for that redemption. FounderAdmin redemption is a separate
-remaining slice and is not enabled by this creation route.
+substitutes for that redemption. FounderAdmin has its own purpose below; this route never issues it.
 
 References are bounded RAM state and single use. Cancellation or restart drops
 them; no session, raw COSE or producer payload is journaled. A lost/late commit
@@ -52,3 +51,24 @@ Callers must retain their original public terms before requesting initialization
 Source-reviewed lower storage and target-owner tests are distinct from actual
 GlobalRoot HTTP qualification. New host tests require the current composed
 dependency graph and execution before a functioning-production claim.
+
+## FounderAdmin
+
+A distinct founder prepares with `purpose: "founder"` in
+`community_creation_recipient`. The purpose is fixed in the single-use
+reference; a Root reference cannot be initialized as a founder and the reverse
+refuses. Only a member still joining (`PasskeyRegistered`, `HandleReserved` or
+`GatesInProgress`) may prepare; an admitted or lapsed member is never promoted.
+
+The Global Root calls `community_founder_issue`, with the same Root Auth and
+original Root writer discipline as creation. The target must already be
+`Active` (or explicitly `LegacyActive`): it admits nobody while Creating. Nothing
+is committed by issuance; the target Policy signs the original CVCH
+`FounderAdmin` invitation for that exact member binding and the current Root
+session is rechecked afterwards.
+
+The founder redeems it in `credential_issue` as `founder`, never together with
+`creation` or a root-board challenge. The original admission verifies the same
+passport and every configured gate, then the lower owner writes the one-use
+receipt, RegisterAdmin and the exact effect under one writer. An exact retry is
+read-only and never regrants; it cannot extend the original lease.

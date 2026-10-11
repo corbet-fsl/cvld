@@ -70,6 +70,9 @@ pub struct CredentialRequest {
     /// Original target-Policy first-Root entitlement, redeemed with full gates.
     #[serde(default)]
     pub creation: Option<Vec<u8>>,
+    /// Original target-Policy FounderAdmin entitlement, redeemed with full gates.
+    #[serde(default)]
+    pub founder: Option<Vec<u8>>,
 }
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
