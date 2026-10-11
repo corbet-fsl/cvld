@@ -202,21 +202,8 @@ async fn committed_logout_with_a_lost_or_malformed_response_is_unknown_and_never
         atomic::{AtomicUsize, Ordering},
     };
     let service = global(100).await;
-    let mut root = enrol(
-        &service,
-        ROOT,
-        Some("synthetic-operator-enrolment-capability"),
-    )
-    .await;
     for mode in (0..10).chain(11..13) {
-        let session = login(
-            &service,
-            ROOT,
-            &mut root.authenticator,
-            &root.user,
-            &root.credential,
-        )
-        .await;
+        let session = active::relogin_root(&service).await;
         let upstream = client(&service, ROOT, Some(&session));
         let count = Arc::new(AtomicUsize::new(0));
         let observed = count.clone();
