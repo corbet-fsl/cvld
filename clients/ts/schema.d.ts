@@ -106,6 +106,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/community_creation_initialize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Initialize an explicitly linked community with its original first Root entitlement */
+        post: operations["community_creation_initialize"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/community_creation_recipient": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Prepare original community creation for this registered recipient */
+        post: operations["community_creation_recipient"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/community_self_ban_begin": {
         parameters: {
             query?: never;
@@ -2025,6 +2059,8 @@ export interface components {
         /** @enum {string} */
         Coverage: "all_accepted_requests";
         CredentialRequest: {
+            /** @description Original target-Policy first-Root entitlement, redeemed with full gates. */
+            creation?: number[] | null;
             devices: number[][];
             presentation: components["schemas"]["PresentationInput"];
         };
@@ -2396,6 +2432,101 @@ export interface operations {
                 };
                 content: {
                     "application/octet-stream": string;
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    community_creation_initialize: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description A target explicitly linked by the trusted hosting caller. */
+                    community: string;
+                    /** @description Opaque target-owned reference; no target bearer or member UUID crosses. */
+                    recipient: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: int64 */
+                        checked_at: number;
+                        /** Format: int64 */
+                        expires_at: number;
+                        id: string;
+                        invitation: number[];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    community_creation_recipient: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * Format: int64
+                     * @description Explicit original exclusive entitlement deadline, never extended on retry.
+                     */
+                    expires_at: number;
+                    /** @description Retain the original opaque ID for a retry; omitted only on first prepare. */
+                    id?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: int64 */
+                        expires_at: number;
+                        id: string;
+                        recipient: string;
+                    };
                 };
             };
             /** @description Fixed redacted error category */
@@ -2868,6 +2999,8 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /** @description Original target-Policy first-Root entitlement, redeemed with full gates. */
+                    creation?: number[] | null;
                     devices: number[][];
                     presentation: components["schemas"]["PresentationInput"];
                 };

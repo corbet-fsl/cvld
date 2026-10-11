@@ -3203,6 +3203,18 @@
       "CredentialRequest": {
         "additionalProperties": false,
         "properties": {
+          "creation": {
+            "description": "Original target-Policy first-Root entitlement, redeemed with full gates.",
+            "items": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "devices": {
             "items": {
               "items": {
@@ -4217,6 +4229,201 @@
         "x-scope": "community"
       }
     },
+    "/v1/community_creation_initialize": {
+      "post": {
+        "operationId": "community_creation_initialize",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "community": {
+                    "description": "A target explicitly linked by the trusted hosting caller.",
+                    "type": "string"
+                  },
+                  "recipient": {
+                    "description": "Opaque target-owned reference; no target bearer or member UUID crosses.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "community",
+                  "recipient"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "checked_at": {
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "expires_at": {
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "invitation": {
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "invitation",
+                    "id",
+                    "expires_at",
+                    "checked_at"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Initialize an explicitly linked community with its original first Root entitlement",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "root",
+        "x-scope": "global"
+      }
+    },
+    "/v1/community_creation_recipient": {
+      "post": {
+        "operationId": "community_creation_recipient",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "expires_at": {
+                    "description": "Explicit original exclusive entitlement deadline, never extended on retry.",
+                    "format": "int64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "id": {
+                    "description": "Retain the original opaque ID for a retry; omitted only on first prepare.",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "expires_at"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "expires_at": {
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "recipient": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "recipient",
+                    "id",
+                    "expires_at"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Prepare original community creation for this registered recipient",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "member",
+        "x-scope": "community"
+      }
+    },
     "/v1/community_self_ban_begin": {
       "post": {
         "operationId": "community_self_ban_begin",
@@ -5126,6 +5333,18 @@
               "schema": {
                 "additionalProperties": false,
                 "properties": {
+                  "creation": {
+                    "description": "Original target-Policy first-Root entitlement, redeemed with full gates.",
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  },
                   "devices": {
                     "items": {
                       "items": {

@@ -43,6 +43,10 @@ python3 -B .ci/time-controls.py
 cargo run --locked -- openapi > docs/openapi.json
 npm ci --prefix clients/ts
 npm run generate --prefix clients/ts
+# The client validates every response against the committed contract: a stale
+# document would otherwise surface as a silent reconcile in consumers.
+git ls-files --error-unmatch docs/openapi.json clients/ts/schema.d.ts
+git diff --exit-code -- docs/openapi.json clients/ts/schema.d.ts
 npm run check --prefix clients/ts
 npm test --prefix clients/ts
 cargo test --locked --features development-gate --no-fail-fast
