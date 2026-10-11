@@ -11,7 +11,7 @@ fn fence(services: &[Service], construction: &NativeConstruction) -> bool {
     failed
 }
 
-pub(super) async fn close(services: &[Service], construction: &NativeConstruction) -> Result<()> {
+pub(crate) async fn close(services: &[Service], construction: &NativeConstruction) -> Result<()> {
     let mut failed = fence(services, construction);
     for service in services {
         failed |= service.door.shutdown_accounts().await.is_err();
@@ -24,7 +24,7 @@ pub(super) async fn close(services: &[Service], construction: &NativeConstructio
     }
 }
 
-pub(super) async fn serve(
+pub(crate) async fn serve(
     services: &[Service],
     listeners: Vec<tokio::net::TcpListener>,
     construction: &NativeConstruction,

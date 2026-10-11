@@ -5,11 +5,11 @@ use cvld::service::NativeConstruction;
 #[path = "root_issuer/config.rs"]
 mod config;
 #[path = "root_issuer/lifecycle.rs"]
-mod lifecycle;
+pub(super) mod lifecycle;
 
-struct Service {
-    address: String,
-    door: Door,
+pub(super) struct Service {
+    pub(super) address: String,
+    pub(super) door: Door,
 }
 
 pub(super) async fn run(path: &str, deadline: Arc<OnceLock<Instant>>) -> Result<()> {
