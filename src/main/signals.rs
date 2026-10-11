@@ -87,4 +87,5 @@ pub(super) async fn open<T>(
 }
 
 #[cfg(test)]
+#[path = "signals/tests.rs"]
 mod tests;
