@@ -43,11 +43,24 @@ fn openapi_cli_and_mcp_have_exactly_the_registry_actions() {
     assert_eq!(tool.input_schema["type"], "object");
     assert_eq!(tool.output_schema.as_ref().unwrap()["type"], "object");
     let openapi = serde_json::to_value(api::openapi()).unwrap();
-    let openapi: BTreeSet<_> = openapi["paths"]
-        .as_object()
-        .unwrap()
+    let paths = openapi["paths"].as_object().unwrap();
+    let resources: BTreeSet<_> = paths
+        .iter()
+        .filter(|(_, item)| item.get("post").is_none())
+        .map(|(path, _)| path.as_str())
+        .collect();
+    assert_eq!(resources, BTreeSet::from(["/v1/account_record_object"]));
+    let binary = &paths["/v1/account_record_object"]["get"];
+    assert_eq!(binary["operationId"], "account_record_object");
+    assert_eq!(
+        binary["responses"]["200"]["content"]["application/octet-stream"]["schema"],
+        serde_json::json!({"type":"string","format":"binary"})
+    );
+    assert!(!expected.contains("account_record_object"));
+    let openapi: BTreeSet<_> = paths
         .values()
-        .map(|v| v["post"]["operationId"].as_str().unwrap().to_owned())
+        .filter_map(|item| item.get("post"))
+        .map(|operation| operation["operationId"].as_str().unwrap().to_owned())
         .collect();
     assert_eq!(expected, openapi);
     let cli: BTreeSet<_> = cli::command()
