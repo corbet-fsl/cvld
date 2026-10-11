@@ -343,7 +343,9 @@ async fn founder_admin_needs_an_active_community_a_joining_distinct_member_and_e
     )
     .await;
     let denied = api.call("credential_issue", json!({"presentation":before,"devices":[founder.signing_key],"founder":issued.invitation})).await;
-    assert!(matches!(denied, Err(Error::Refused | Error::Forbidden)));
+    // Without every configured gate nothing is issued and the founder stays outside.
+    let denied: CredentialResponse = serde_json::from_value(denied.unwrap()).unwrap();
+    assert!(denied.credential.is_none());
     api.call(
         "gate_voucher",
         voucher("alpha", &subject, "ordinary-full-gate", NOW + 172800),
