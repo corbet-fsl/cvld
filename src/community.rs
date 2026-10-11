@@ -682,7 +682,10 @@ impl CommunityService {
             .facade
             .begin(&mut cpsd::rand::rngs::OsRng, now)
             .await
-            .map_err(Error::Refused.redact())?;
+            .map_err(|e| {
+                eprintln!("DIAG begin {e:?} now={now}");
+                Error::Refused
+            })?;
         let request = challenge.signed_request().to_vec();
         let id = token();
         crate::service::publication::expires_at(now + 60)?;
