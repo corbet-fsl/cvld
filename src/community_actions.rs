@@ -259,7 +259,7 @@ impl Door {
                         &mut guard,
                     )
                     .await
-                    .map_err(Error::Reconcile.redact())?;
+                    .map_err(policy_edit_error)?;
             }
             None => {
                 policy
@@ -329,7 +329,7 @@ impl Door {
                 policy
                     .set_schema_checked(request.schema, &mut guard)
                     .await
-                    .map_err(Error::Reconcile.redact())?;
+                    .map_err(policy_edit_error)?;
             }
             None => {
                 policy
@@ -510,5 +510,24 @@ impl Door {
             .map_err(Error::Unavailable.redact())?;
         community.refresh(ctx.now).await?;
         Ok(Empty {})
+    }
+}
+
+/// A rejected policy edit changed nothing and is a refusal. Only an unknown
+/// storage or signing outcome, or corrupt stored state, is uncertain.
+fn policy_edit_error(error: cmty::cplc::Error) -> Error {
+    use cmty::cplc::Error as Policy;
+    match error {
+        Policy::Storage
+        | Policy::ReloadRequired
+        | Policy::Signing
+        | Policy::Corrupt
+        | Policy::Verification => Error::Reconcile,
+        Policy::Denied(_) | Policy::Revoked => Error::Forbidden,
+        Policy::Invalid(_)
+        | Policy::Missing
+        | Policy::Conflict
+        | Policy::Rulebook
+        | Policy::Schema => Error::Refused,
     }
 }
