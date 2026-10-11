@@ -92,7 +92,9 @@ async fn actual_root_two_database_creation_requires_original_full_gates_for_root
     )
     .await;
     let denied = api.call("credential_issue", json!({"presentation":before,"devices":[world.member.signing_key],"creation":created.invitation})).await;
-    assert!(matches!(denied, Err(Error::Refused | Error::Forbidden)));
+    // Without the configured gate nothing is issued and the member stays outside.
+    let denied: CredentialResponse = serde_json::from_value(denied.unwrap()).unwrap();
+    assert!(denied.credential.is_none());
     api.call(
         "gate_voucher",
         voucher("alpha", &subject, "ordinary-full-gate", NOW + 172800),
