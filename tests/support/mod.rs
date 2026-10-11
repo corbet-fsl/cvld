@@ -701,3 +701,73 @@ pub async fn preexisting_role(service: &Running, scope: &str, subject: &str, rol
     );
     assert_eq!(register.set_role(&id, role).await.unwrap().role, role);
 }
+
+/// Start the genuine isolated Wallet producer with explicit test-owned signing,
+/// rulebook, schema and lifetime configuration. No admission or custody grant
+/// is inferred; all registration, current-key and certificate calls stay real.
+pub async fn configured_wallet(burst: u32) -> Running {
+    let dir = tempfile::tempdir().unwrap();
+    let mut config = global_config(dir.path(), burst).await;
+    let mut rules = cmty::cplc::crbk::Rulebook::default();
+    rules
+        .define(
+            "quota",
+            cmty::cplc::crbk::Setting {
+                value_type: cmty::cplc::crbk::SettingType::Integer,
+                nullable: false,
+                default: json!(17),
+                bounds: cmty::cplc::crbk::Bounds {
+                    min: Some(0.into()),
+                    max: Some(100.into()),
+                },
+                lowest_layer: cmty::cplc::crbk::Layer::Community,
+                kind: cmty::cplc::crbk::SettingKind::Technical,
+            },
+        )
+        .unwrap();
+    let schema = serde_json::from_value(json!({"community":"wallet","version":1,
+        "public":[{"id":"consent","label":"Receive invitations?","kind":{"type":"yes_no"},
+            "required":true,"filterable":false,"change_preset":"stable","no_contact_details":false}],"private":[]})).unwrap();
+    let publication = cgbl::WalletPublicationConfig::new(
+        WALLET,
+        &format!("https://{WALLET}"),
+        rules,
+        cmty::cplc::SchemaVersions {
+            purpose: cmty::cplc::SchemaVersionsPurpose::SchemaVersionsV1,
+            current: 1,
+            versions: vec![cmty::cplc::SchemaVersion {
+                schema,
+                changes: None,
+            }],
+        },
+        std::collections::BTreeSet::new(),
+        2 * 86_400,
+    )
+    .unwrap();
+    let seed = dir.path().join("wallet-seed");
+    std::fs::write(&seed, [47; 32]).unwrap();
+    let settings = dir.path().join("wallet-publication.json");
+    std::fs::write(&settings, serde_json::to_vec(&publication).unwrap()).unwrap();
+    config.wallet = Some(cvld::config::WalletConfig {
+        signing_seed_file: seed.to_str().unwrap().into(),
+        publication_file: settings.to_str().unwrap().into(),
+        signer_max_seconds: 100 * 86_400,
+    });
+    let clock = Arc::new(TestClock(AtomicU64::new(NOW)));
+    let door = cvld::service::Door::global(config, clock.clone())
+        .await
+        .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let router = cvld::api::router(door.clone());
+    let task = tokio::spawn(async move {
+        axum::serve(listener, router).await.unwrap();
+    });
+    Running {
+        base,
+        door,
+        clock,
+        task,
+        dir,
+    }
+}
