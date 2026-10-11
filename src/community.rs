@@ -14,6 +14,7 @@ use std::{
 };
 
 mod account_record;
+mod account_rotation;
 mod accounting;
 mod certificate;
 mod enrollment;

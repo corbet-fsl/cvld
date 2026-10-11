@@ -203,3 +203,21 @@ fn account_registry_and_owner_wire_refuse_host_authority_fields() {
         assert!(serde_json::from_value::<AccountRequest>(request).is_err());
     }
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn trusted_rotation_requires_native_owner_and_never_enters_member_registry() {
+    let f = routes::fixture().await;
+    let api = client(&f.service, HOST, None);
+    let before = api.call("trust_feed", json!({})).await.unwrap();
+    assert!(matches!(
+        f.service
+            .door
+            .rotate_account_signer(csgn::SecretKey::from_seed(&mut [240; 32]))
+            .await,
+        Err(cvld::error::Error::Unavailable)
+    ));
+    assert_eq!(api.call("trust_feed", json!({})).await.unwrap(), before);
+    for name in ["rotate_account_signer", "reconcile_account_admission_keys"] {
+        assert!(action(name).is_none());
+    }
+}
