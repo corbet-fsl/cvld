@@ -6,7 +6,7 @@ impl Door {
         &self,
         ctx: Context,
         request: InitialRegistrationBegin,
-    ) -> Result<Ceremony> {
+    ) -> Result<InitialCeremony> {
         if !self.is_community_member(&ctx.host) {
             return Err(Error::WrongHost);
         }

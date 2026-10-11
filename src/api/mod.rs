@@ -261,7 +261,7 @@ macro_rules! actions {
 actions! {
     register_begin(RegisterStart) -> Ceremony, Public, Both, Record, Forward, "Begin UV-required passkey registration";
     register_finish(RegisterFinish) -> User, Public, Both, Record, Forward, "Verify and store the first passkey";
-    initial_registration_begin(InitialRegistrationBegin) -> Ceremony, Public, Community, Record, Forward, "Begin first community registration with original creation provenance";
+    initial_registration_begin(InitialRegistrationBegin) -> InitialCeremony, Public, Community, Record, Forward, "Begin first community registration with original creation provenance";
     initial_creation(Empty) -> InitialCreationResponse, Member, Community, Check, Forward, "Read this current passkey's original enrollment provenance";
     initial_publication_bind(InitialPublicationBind) -> InitialCreationResponse, Member, Community, Record, Forward, "Bind one original publication to this current passkey's initial enrollment";
     login_begin(LoginStart) -> Ceremony, Public, Both, Check, Forward, "Begin credential-first passkey authentication";

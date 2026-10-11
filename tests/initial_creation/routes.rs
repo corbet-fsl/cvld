@@ -30,7 +30,19 @@ async fn fixture_with(seed: Option<[u8; 32]>) -> Fixture {
         ),
         None => ("register_begin", json!({"passport":proof})),
     };
-    let start: Ceremony = serde_json::from_value(api.call(action, request).await.unwrap()).unwrap();
+    let response = api.call(action, request).await.unwrap();
+    let start = if seed.is_some() {
+        let initial: InitialCeremony = serde_json::from_value(response).unwrap();
+        assert_eq!(initial.checked_at, NOW);
+        assert!(initial.expires_at > initial.checked_at);
+        Ceremony {
+            ceremony: initial.ceremony,
+            user: initial.user,
+            options: initial.options,
+        }
+    } else {
+        serde_json::from_value(response).unwrap()
+    };
     let mut authenticator = SoftToken::new(true).unwrap().0;
     let challenge: ckyh::CreationChallengeResponse = serde_json::from_value(start.options).unwrap();
     let mut options = challenge.public_key;

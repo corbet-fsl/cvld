@@ -33,6 +33,62 @@ impl Clock for FixedClock {
     }
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn initial_ceremony_metadata_matches_the_same_pending_consumed_by_real_finish() {
+    let (global, _, cohort) = contacts::production(true).await;
+    let (_, passport, public) = contacts::wallet(&global, cohort).await;
+    let wire = payment_support::Wire::new(payment_support::Reply::Success);
+    let running = payment::community(&public, wire).await;
+    let passport = presentation(&running, HOST, None, &passport).await;
+    let mut service = running.door.community_backend().unwrap().lock().await;
+    running.clock.set(NOW + 2);
+    let initial = service
+        .initial_registration_begin(
+            InitialRegistrationBegin {
+                passport,
+                seed: SEED,
+            },
+            NOW,
+        )
+        .await
+        .unwrap();
+    let pending = service.registrations.get(&initial.ceremony).unwrap();
+    assert_eq!(initial.user, pending.user.to_string());
+    assert_eq!(initial.expires_at, pending.until);
+    assert_eq!(initial.checked_at, running.clock.now());
+    assert_eq!(initial.checked_at, NOW + 2);
+    // The response reports the original retained deadline, without reanchoring
+    // it to the later authoritative output sample.
+    assert_eq!(initial.expires_at, NOW + 300);
+    let mut authenticator = SoftToken::new(true).unwrap().0;
+    let options: ckyh::CreationChallengeResponse = serde_json::from_value(initial.options).unwrap();
+    let mut options = options.public_key;
+    options
+        .authenticator_selection
+        .as_mut()
+        .unwrap()
+        .require_resident_key = false;
+    let credential = authenticator
+        .perform_register(
+            ckyh::Url::parse(&format!("https://{HOST}")).unwrap(),
+            options,
+            300_000,
+        )
+        .unwrap();
+    let user = service
+        .register_finish(
+            RegisterFinish {
+                ceremony: initial.ceremony.clone(),
+                credential,
+            },
+            NOW + 2,
+        )
+        .await
+        .unwrap();
+    assert_eq!(user.user, initial.user);
+    assert!(!service.registrations.contains_key(&initial.ceremony));
+}
+
 #[derive(Clone)]
 struct CreationObserver {
     db: crlt::Db,

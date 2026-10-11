@@ -9,16 +9,32 @@ impl CommunityService {
         &mut self,
         request: InitialRegistrationBegin,
         now: u64,
-    ) -> Result<Ceremony> {
-        self.register_begin_for(
-            RegisterStart {
-                bootstrap: None,
-                passport: Some(request.passport),
-            },
-            Some(request.seed),
-            now,
-        )
-        .await
+    ) -> Result<InitialCeremony> {
+        let ceremony = self
+            .register_begin_for(
+                RegisterStart {
+                    bootstrap: None,
+                    passport: Some(request.passport),
+                },
+                Some(request.seed),
+                now,
+            )
+            .await?;
+        let pending = self
+            .registrations
+            .get(&ceremony.ceremony)
+            .ok_or(Error::Unavailable)?;
+        if pending.user.to_string() != ceremony.user {
+            return Err(Error::Unavailable);
+        }
+        let checked_at = self.initial_time(now, pending.until)?;
+        Ok(InitialCeremony {
+            ceremony: ceremony.ceremony,
+            user: ceremony.user,
+            options: ceremony.options,
+            checked_at,
+            expires_at: pending.until,
+        })
     }
 
     pub async fn initial_creation(
