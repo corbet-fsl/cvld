@@ -1,5 +1,5 @@
 //! Explicit operator-owned economic policy, native artifacts and execution caps.
-use super::{clock::AccountRuntime, storage::Store};
+use super::{build::Cancellation, clock::AccountRuntime, storage::Store};
 use crate::{
     config::Config,
     error::{Error, Result},
@@ -7,7 +7,9 @@ use crate::{
 };
 use cblc::{
     accounting::AccountStatement,
-    accounting_ledger::{AccountLedger, AccountLedgerPolicy},
+    accounting_ledger::{
+        AccountLedger, AccountLedgerPolicy, AdmissionKeyReconciliation, startup_clock_floor,
+    },
     accounting_service::{AccountService, NativeAccountVerifier},
     admission::AdmissionTrust,
     artifacts::{AccountArtifacts, ArtifactBytes, ExtensionArtifacts, NativeVerifierOptions},
@@ -165,18 +167,31 @@ impl AccountConfig {
         &self,
         db: &crlt::Db,
         community: &str,
-        policy_keys: csgn::KeyRing,
+        keys: AdmissionKeyReconciliation,
         clock: Arc<dyn Clock>,
         runtime: tokio::runtime::Handle,
+        cancellation: &Cancellation,
     ) -> Result<(Service, Arc<AccountRuntime>)> {
         if self.period_key.is_empty()
             || self.period_key.len() > 256
             || self.max_request_bytes == 0
             || self.max_request_bytes > 16 * 1024 * 1024
-            || policy_keys.issuer() != community
+            || keys.target.policy_keys.issuer() != community
         {
             return Err(Error::Invalid);
         }
+        cancellation.check()?;
+        let mut store = Store::new(db, community, runtime).map_err(Error::Unavailable.redact())?;
+        let durable_floor = startup_clock_floor(&mut store).map_err(Error::Unavailable.redact())?;
+        let observed = Arc::new(AccountRuntime::new(
+            clock,
+            durable_floor,
+            self.max_request_bytes,
+            self.period_key.clone(),
+        )?);
+        let fenced = observed.clone();
+        cancellation.register(move || fenced.fence());
+        cancellation.check()?;
         let policy: AccountLedgerPolicy =
             serde_json::from_slice(&bounded(&self.ledger_policy_file, 1024 * 1024)?)
                 .map_err(Error::Invalid.redact())?;
@@ -189,6 +204,8 @@ impl AccountConfig {
             AccountArtifacts::authenticate(account.bytes()).map_err(Error::Invalid.redact())?,
         )
         .map_err(Error::Invalid.redact())?;
+        let account_cancel = verifier.cancellation();
+        cancellation.register(move || account_cancel.cancel());
         let extensions = self.extension_artifacts.read()?;
         let extensions = NativeExtensionVerifier::new(
             self.update_execution.options()?,
@@ -197,6 +214,9 @@ impl AccountConfig {
                 .map_err(Error::Invalid.redact())?,
         )
         .map_err(Error::Invalid.redact())?;
+        let extension_cancel = extensions.cancellation();
+        cancellation.register(move || extension_cancel.cancel());
+        cancellation.check()?;
         cblc::extensions::ExtensionVerifier::require_record_epoch(&extensions)
             .map_err(Error::Invalid.redact())?;
         let statement: AccountStatement =
@@ -210,8 +230,9 @@ impl AccountConfig {
         let certificate = zeroize::Zeroizing::new(Config::seed(&self.certificate_seed_file)?);
         let certificate = cssr::certificate::CertificateIssuer::new(&certificate)
             .map_err(Error::Invalid.redact())?;
-        let ledger = AccountLedger::with_store(
-            Store::new(db, community, runtime.clone()).map_err(Error::Unavailable.redact())?,
+        let policy_keys = keys.target.policy_keys.clone();
+        let ledger = AccountLedger::with_store_reconciled_admission_keys(
+            store,
             AdmissionTrust {
                 community_id: community.into(),
                 policy_digest: self.admission_policy_digest.clone(),
@@ -220,6 +241,8 @@ impl AccountConfig {
             policy,
             verifier,
             ed25519_dalek_v2::SigningKey::from_bytes(&operator),
+            keys,
+            || observed.native_time(),
         )
         .map_err(Error::Invalid.redact())?
         .with_extensions(
@@ -232,15 +255,8 @@ impl AccountConfig {
             },
         )
         .map_err(Error::Invalid.redact())?;
-        let durable_floor = Store::new(db, community, runtime)
-            .and_then(|mut store| store.durable_floor())
-            .map_err(Error::Unavailable.redact())?;
-        let observed = Arc::new(AccountRuntime::new(
-            clock,
-            durable_floor,
-            self.max_request_bytes,
-            self.period_key.clone(),
-        )?);
+        cancellation.check()?;
+        observed.observe()?;
         let native_clock = observed.clone();
         let clock: Box<dyn Fn() -> u64 + Send> = Box::new(move || native_clock.native_time());
         AccountService::new(ledger, clock, self.max_request_bytes)

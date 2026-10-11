@@ -11,6 +11,15 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[path = "main/signals.rs"]
+mod signals;
+
+enum ServeConfig {
+    Global(Box<Config>),
+    Community(Box<CommunityConfig>),
+    Root(Box<RootCommunityConfig>),
+}
+
 fn main() {
     if let Err(error) = start_runtime() {
         eprintln!("{error}");
@@ -66,13 +75,15 @@ async fn execute(matches: clap::ArgMatches, deadline: Arc<OnceLock<Instant>>) ->
         "serve" => {
             let (scope, args) = args.subcommand().ok_or(Error::Invalid)?;
             let path = args.get_one::<String>("config").ok_or(Error::Invalid)?;
-            let (listen, shutdown_budget, door) = match scope {
+            // Read the operator's explicit budget before installing the one
+            // signal owner; no factory or native verification has started yet.
+            let (listen, shutdown_budget, selected) = match scope {
                 "global" => {
                     let config = Config::read(path)?;
                     (
                         config.listen.clone(),
                         config.shutdown_budget()?,
-                        Door::global(config, Arc::new(SystemClock)).await?,
+                        ServeConfig::Global(Box::new(config)),
                     )
                 }
                 "community" => {
@@ -80,7 +91,7 @@ async fn execute(matches: clap::ArgMatches, deadline: Arc<OnceLock<Instant>>) ->
                     (
                         config.listen.clone(),
                         config.shutdown_budget()?,
-                        Door::community(config, Arc::new(SystemClock)).await?,
+                        ServeConfig::Community(Box::new(config)),
                     )
                 }
                 "root-board" => {
@@ -88,10 +99,44 @@ async fn execute(matches: clap::ArgMatches, deadline: Arc<OnceLock<Instant>>) ->
                     (
                         config.listen().to_owned(),
                         config.shutdown_budget()?,
-                        Door::root_board(config, Arc::new(SystemClock)).await?,
+                        ServeConfig::Root(Box::new(config)),
                     )
                 }
                 _ => return Err(Error::Invalid),
+            };
+            let signals = signals::Signals::install(shutdown_budget, deadline.clone()).await?;
+            let construction = cvld::service::NativeConstruction::new();
+            let mut startup_signal = signals.receiver();
+            let opening = async {
+                match selected {
+                    ServeConfig::Global(config) => {
+                        Door::global(*config, Arc::new(SystemClock)).await
+                    }
+                    ServeConfig::Community(config) => {
+                        Door::community_with_construction(
+                            *config,
+                            Arc::new(SystemClock),
+                            construction.clone(),
+                        )
+                        .await
+                    }
+                    ServeConfig::Root(config) => {
+                        Door::root_board_with_construction(
+                            *config,
+                            Arc::new(SystemClock),
+                            construction.clone(),
+                        )
+                        .await
+                    }
+                }
+            };
+            let door = match signals::open(opening, &mut startup_signal).await {
+                Ok(Some(door)) => door,
+                Ok(None) => return construction.shutdown().await,
+                Err(error) => {
+                    construction.shutdown().await?;
+                    return Err(error);
+                }
             };
             let lifecycle = door.clone();
             let maintenance = door.clone();
@@ -109,32 +154,19 @@ async fn execute(matches: clap::ArgMatches, deadline: Arc<OnceLock<Instant>>) ->
                 let listener = tokio::net::TcpListener::bind(listen)
                     .await
                     .map_err(Error::Unavailable.redact())?;
-                #[cfg(unix)]
-                let mut terminate =
-                    tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-                        .map_err(Error::Unavailable.redact())?;
-                let (shutdown, stopped) = tokio::sync::oneshot::channel();
+                let mut graceful_signal = signals.receiver();
+                let mut stopped = signals.receiver();
                 let server = axum::serve(listener, api::router(door))
                     .with_graceful_shutdown(async move {
-                        #[cfg(unix)]
-                        tokio::select! {
-                            _ = tokio::signal::ctrl_c() => {},
-                            _ = terminate.recv() => {},
-                        }
-                        #[cfg(not(unix))]
-                        let _ = tokio::signal::ctrl_c().await;
-                        let began = Instant::now();
-                        let until = began.checked_add(shutdown_budget).unwrap_or(began);
-                        let _ = deadline.set(until);
-                        let _ = shutdown.send(until);
+                        let _ = signals::wait(&mut graceful_signal).await;
                     })
                     .into_future();
                 tokio::pin!(server);
                 tokio::select! {
                     result = &mut server => result.map_err(Error::Unavailable.redact()),
-                    until = stopped => {
+                    until = signals::wait(&mut stopped) => {
                         task.abort();
-                        let until = until.map_err(Error::Unavailable.redact())?;
+                        let until = until?;
                         // Stop native intake immediately while HTTP drains. The
                         // single native owner must be reaped before runtime teardown,
                         // even if the HTTP deadline has already been exhausted.
@@ -150,7 +182,10 @@ async fn execute(matches: clap::ArgMatches, deadline: Arc<OnceLock<Instant>>) ->
             }
             .await;
             task.abort();
-            lifecycle.shutdown_accounts().await?;
+            let accounts = lifecycle.shutdown_accounts().await;
+            let built = construction.shutdown().await;
+            accounts?;
+            built?;
             result?;
         }
         _ => {

@@ -27,6 +27,7 @@ mod payments;
 pub(crate) mod publication;
 mod root_board;
 mod shutdown;
+pub use crate::accounting::NativeConstruction;
 pub use migrations::community_migrations;
 
 pub trait Clock: Send + Sync {
@@ -82,6 +83,7 @@ struct Inner {
     account_body_limit: usize,
     account_runtime: Option<Arc<crate::accounting::clock::AccountRuntime>>,
     account_shutdown: Option<cmty::cgts::AccountShutdown>,
+    construction: Option<NativeConstruction>,
 }
 enum Published {
     Global(watch::Receiver<Arc<GlobalPublic>>),
@@ -239,6 +241,7 @@ impl Door {
                 clock,
                 account_body_limit: 256 * 1024,
                 account_runtime: None,
+                construction: None,
                 account_shutdown: None,
             }),
         })
@@ -294,7 +297,17 @@ impl Door {
         }
     }
     pub async fn community(config: CommunityConfig, clock: Arc<dyn Clock>) -> Result<Self> {
-        Self::community_with_optional_payment_transport(config, clock, None, None).await
+        Self::community_with_construction(config, clock, NativeConstruction::new()).await
+    }
+    /// Retain this construction owner before polling the factory. Its shutdown
+    /// must complete before the original runtime is torn down after cancellation.
+    pub async fn community_with_construction(
+        config: CommunityConfig,
+        clock: Arc<dyn Clock>,
+        construction: NativeConstruction,
+    ) -> Result<Self> {
+        Self::community_with_optional_payment_transport(config, clock, None, None, construction)
+            .await
     }
     /// Trusted host injection replaces only x402 protocol transport. It does
     /// not bypass real account, cost, policy, session or mode configuration.
@@ -303,13 +316,21 @@ impl Door {
         clock: Arc<dyn Clock>,
         transport: crate::payments::transport::AnyTransport,
     ) -> Result<Self> {
-        Self::community_with_optional_payment_transport(config, clock, Some(transport), None).await
+        Self::community_with_optional_payment_transport(
+            config,
+            clock,
+            Some(transport),
+            None,
+            NativeConstruction::new(),
+        )
+        .await
     }
     async fn community_with_optional_payment_transport(
         config: CommunityConfig,
         clock: Arc<dyn Clock>,
         transport: Option<crate::payments::transport::AnyTransport>,
         root_board: Option<cpsd::RootBoardPublicKey>,
+        construction: NativeConstruction,
     ) -> Result<Self> {
         config.shutdown_budget()?;
         if config.domain.is_empty()
@@ -337,12 +358,26 @@ impl Door {
             .map(|_| format!("api.admin.root.{}", config.domain));
         let community = match root_board {
             Some(descriptor) => {
-                CommunityService::open_root_board(&db, config, clock.clone(), descriptor, transport)
-                    .await?
+                CommunityService::open_root_board(
+                    &db,
+                    config,
+                    clock.clone(),
+                    descriptor,
+                    transport,
+                    construction.clone(),
+                )
+                .await?
             }
             None => {
-                CommunityService::open_with_payment_transport(&db, config, clock.clone(), transport)
-                    .await?
+                CommunityService::open_selected(
+                    &db,
+                    config,
+                    clock.clone(),
+                    transport,
+                    None,
+                    construction.clone(),
+                )
+                .await?
             }
         };
         let published = Published::Community(community.changes.subscribe());
@@ -436,6 +471,7 @@ impl Door {
                     clock,
                     account_body_limit,
                     account_runtime,
+                    construction: Some(construction),
                     account_shutdown,
                 }),
             })

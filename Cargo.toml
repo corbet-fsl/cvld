@@ -70,6 +70,7 @@ wasm-bindgen-test = "0.3.79"
 gloo-net = { version = "0.7", default-features = false, features = ["http", "json"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+cvfy = { git = "https://git.corbet.ch/corbet-foss/cvfy", branch = "main" }
 rcgen = { version = "0.14", features = ["crypto"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
 cgrd = { git = "https://git.corbet.ch/corbet-foss/cgrd", branch = "main", default-features = false }

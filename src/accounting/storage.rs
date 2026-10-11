@@ -34,6 +34,7 @@ impl Store {
 
     /// After the actual ledger's checked initialization, its durable clock must
     /// exist. Missing/malformed data is never a zero floor on an existing store.
+    #[cfg(test)]
     pub(crate) fn durable_floor(&mut self) -> Result<u64, Error> {
         let mut tx = self.transaction()?;
         let floor = tx.get::<u64>(b"clock")?.ok_or(Error::Storage)?;

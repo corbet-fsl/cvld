@@ -86,6 +86,7 @@ pub struct CommunityService {
     voucher: cgts::gates::VoucherGate,
     pub payments: Option<Arc<tokio::sync::Mutex<crate::payments::PaymentHost>>>,
     accounts: Option<Arc<crate::accounting::clock::AccountRuntime>>,
+    _construction: crate::accounting::NativeConstruction,
     account_record: Option<account_record::PublishedRecord>,
     challenges: HashMap<String, Challenge>,
     registrations: HashMap<String, Pending<cmbr::PendingRegistration>>,
@@ -111,14 +112,23 @@ impl CommunityService {
         clock: Arc<dyn Clock>,
         transport: Option<crate::payments::transport::AnyTransport>,
     ) -> Result<Self> {
-        Self::open_selected(db, config, clock, transport, None).await
+        Self::open_selected(
+            db,
+            config,
+            clock,
+            transport,
+            None,
+            crate::accounting::NativeConstruction::new(),
+        )
+        .await
     }
-    async fn open_selected(
+    pub(crate) async fn open_selected(
         db: &crlt::Db,
         config: CommunityConfig,
         clock: Arc<dyn Clock>,
         transport: Option<crate::payments::transport::AnyTransport>,
         root_board: Option<cpsd::RootBoardPublicKey>,
+        construction: crate::accounting::NativeConstruction,
     ) -> Result<Self> {
         use cplc::Storage;
         use csgn::Store;
@@ -260,6 +270,19 @@ impl CommunityService {
                 .key_ring()
                 .map_err(Error::Unavailable.redact())?
                 .clone();
+            let transitions = policy
+                .key_transitions()
+                .map_err(Error::Unavailable.redact())?;
+            let keys = cblc::accounting_ledger::AdmissionKeyReconciliation {
+                target: cblc::accounting_ledger::AdmissionKeyState {
+                    revision: transitions.last().map_or(0, |value| value.revision),
+                    policy_keys: ring,
+                },
+                transitions: transitions
+                    .iter()
+                    .map(|value| (value.revision, value.proof.clone()))
+                    .collect(),
+            };
             let account_db = db.clone();
             let account_community = config.community.clone();
             let account_clock = clock.clone();
@@ -267,17 +290,16 @@ impl CommunityService {
             // Native proof verification and every synchronous CRLT call remain
             // off the async executor. The original CGTS worker then owns/drops
             // this ONE service; no second ledger or database is created.
-            let (service, observed) = tokio::task::spawn_blocking(move || {
-                account.build(
-                    &account_db,
-                    &account_community,
-                    ring,
+            let (service, observed) = construction
+                .build(
+                    account,
+                    account_db,
+                    account_community,
+                    keys,
                     account_clock,
                     runtime,
                 )
-            })
-            .await
-            .map_err(Error::Unavailable.redact())??;
+                .await?;
             Some((service, observed))
         } else {
             None
@@ -438,6 +460,7 @@ impl CommunityService {
                 voucher,
                 payments,
                 accounts,
+                _construction: construction,
                 account_record: None,
                 challenges: HashMap::new(),
                 registrations: HashMap::new(),

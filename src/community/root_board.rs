@@ -8,8 +8,9 @@ impl CommunityService {
         clock: Arc<dyn Clock>,
         descriptor: cpsd::RootBoardPublicKey,
         transport: Option<crate::payments::transport::AnyTransport>,
+        construction: crate::accounting::NativeConstruction,
     ) -> Result<Self> {
-        Self::open_selected(db, config, clock, transport, Some(descriptor)).await
+        Self::open_selected(db, config, clock, transport, Some(descriptor), construction).await
     }
 
     pub(super) async fn maintain_root_board(&self, now: u64) -> Result<bool> {

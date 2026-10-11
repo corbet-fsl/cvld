@@ -10,12 +10,37 @@ impl Door {
         if let Some(runtime) = &self.inner.account_runtime {
             runtime.fence();
         }
-        if let Some(shutdown) = &self.inner.account_shutdown {
+        // One caller-retained group may own other factories in addition to this
+        // Door. Withdraw all their native execution before waiting for any join.
+        let construction_started = if let Some(construction) = &self.inner.construction {
+            construction.begin_shutdown()
+        } else {
+            Ok(())
+        };
+        let accounts_started = if let Some(shutdown) = &self.inner.account_shutdown {
+            shutdown
+                .begin_shutdown()
+                .map_err(Error::Unavailable.redact())
+        } else {
+            Ok(())
+        };
+        let accounts = if let Some(shutdown) = &self.inner.account_shutdown {
             shutdown
                 .shutdown()
                 .await
-                .map_err(Error::Unavailable.redact())?;
-        }
+                .map_err(Error::Unavailable.redact())
+        } else {
+            Ok(())
+        };
+        let constructed = if let Some(construction) = &self.inner.construction {
+            construction.shutdown().await
+        } else {
+            Ok(())
+        };
+        construction_started?;
+        accounts_started?;
+        accounts?;
+        constructed?;
         Ok(())
     }
 }

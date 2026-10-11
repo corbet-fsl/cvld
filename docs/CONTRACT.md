@@ -472,6 +472,24 @@ the maintained 64 MiB owner limit. The consumer must obtain that length from its
 current authenticated Epoch and run the original `Epoch::check_object`; fetching
 bytes itself grants no account or attendance authority.
 
+Cancellation-aware native hosts retain `service::NativeConstruction` before
+polling `Door::community_with_construction` or `root_board_with_construction`.
+The same handle remains outside the factory future and the successful Door
+retains it too. Await `shutdown()` before tearing down the original Tokio/DB
+runtime, even if the factory was dropped. Construction owns one native build
+thread and its actual process cancellation handles; late registrations after
+shutdown are immediately withdrawn. Abandoning a waiter starts cancellation
+and native draining; a retained async owner must still join the original thread
+after it finishes. No second join thread is needed, and dropping a waiter does
+not report completed cleanup. The CLI installs
+one signal owner before the first factory poll, retains the group through
+startup, and awaits it on construction errors, startup signals and final
+teardown. Startup and HTTP drain share the original signal-started monotonic
+shutdown budget; cancelled construction cannot renew it. Native startup
+uses the original owner's persisted-clock probe, followed by one shared live
+observer through original key-history reconciliation, verification, membership
+and response publication; malformed or incomplete existing state never resets.
+
 The explicit `serve root-board --config` host composes the reserved `root`
 community from a configured public CPSD root descriptor. Its member origin is
 `api.root.<domain>` and its sole operator origin is `api.admin.root.<domain>`.
