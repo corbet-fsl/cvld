@@ -337,6 +337,19 @@ async fn a_real_login_assertion_expired_intent_logout_and_revocation_never_suspe
             .await
             .unwrap();
         let before = status(&public(&service).await).epoch;
+        if cause == "revocation" {
+            assert_eq!(
+                call_status(
+                    &service,
+                    WALLET,
+                    None,
+                    "login_begin",
+                    json!({"user":owner.session.user,"credential":owner.credential})
+                )
+                .await,
+                200
+            );
+        }
         let mut body = confirmation(&service, &mut owner).await;
         match cause {
             "login-proof" => {
@@ -362,10 +375,30 @@ async fn a_real_login_assertion_expired_intent_logout_and_revocation_never_suspe
                     .unwrap();
             }
             "revocation" => {
-                client(&service, WALLET, Some(&owner.session.token))
-                    .call("passkey_revoke", json!({"credential":owner.credential}))
-                    .await
-                    .unwrap();
+                let login = json!({"user":owner.session.user,"credential":owner.credential});
+                // Revoking the authorizing key commits, then ends its session.
+                // The final authority check therefore reports reconciliation.
+                assert!(matches!(
+                    client(&service, WALLET, Some(&owner.session.token))
+                        .call("passkey_revoke", json!({"credential":owner.credential}))
+                        .await,
+                    Err(cvld::Error::Reconcile)
+                ));
+                assert_eq!(
+                    call_status(&service, WALLET, None, "login_begin", login).await,
+                    401
+                );
+                assert_eq!(
+                    call_status(
+                        &service,
+                        WALLET,
+                        Some(&owner.session.token),
+                        "passkey_list",
+                        json!({})
+                    )
+                    .await,
+                    401
+                );
             }
             _ => unreachable!(),
         }
