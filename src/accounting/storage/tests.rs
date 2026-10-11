@@ -59,7 +59,9 @@ async fn actual_scoped_transactions_rollback_isolate_and_reopen() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn current_range_is_half_open_complete_across_pages_and_bounded() {
-    let db = open(":memory:").await;
+    let dir = tempfile::tempdir().unwrap();
+    let url = format!("file://{}", dir.path().join("range.db").display());
+    let db = open(&url).await;
     let runtime = Handle::current();
     tokio::task::spawn_blocking(move || {
         let mut store = Store::new(&db, "range", runtime).unwrap();
@@ -101,7 +103,9 @@ async fn current_range_is_half_open_complete_across_pages_and_bounded() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn commit_deadline_is_live_under_the_write_lock_and_clock_is_atomic() {
-    let db = open(":memory:").await;
+    let dir = tempfile::tempdir().unwrap();
+    let url = format!("file://{}", dir.path().join("deadline.db").display());
+    let db = open(&url).await;
     let runtime = Handle::current();
     tokio::task::spawn_blocking(move || {
         let mut store = Store::new(&db, "deadline", runtime).unwrap();
