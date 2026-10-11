@@ -7,6 +7,8 @@ use webauthn_authenticator_rs::AuthenticatorBackend as _;
 
 #[path = "garden/commit.rs"]
 mod commit;
+#[path = "garden/role.rs"]
+mod role;
 
 const SOURCE: &str = "api.alpha.example.test";
 const GARDEN: &str = "api.admin.alpha.example.test";

@@ -5,6 +5,8 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 
+mod role;
+
 pub(super) struct Owner(Arc<AtomicBool>);
 
 impl Default for Owner {

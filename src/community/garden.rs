@@ -51,9 +51,21 @@ impl CommunityService {
                 Role::Admin => cmbr::Role::Admin,
                 Role::Root => cmbr::Role::Root,
             };
+            let current = self.sessions.get(bearer).ok_or(Error::Unauthorized)?;
+            if !current.garden
+                || current.grant.session_id != grant.session_id
+                || current.grant.credential != grant.credential
+                || !Arc::ptr_eq(&auth, &current.authentication)
+            {
+                return Err(Error::Unauthorized);
+            }
+            let session =
+                current
+                    .authority
+                    .role_lease(auth.clone(), grant.clone(), current.started);
             self.facade
                 .membership()
-                .set_member_role(&auth, &request.member, role, now, grant.expires)
+                .set_member_role_checked(&auth, &request.member, role, now, grant.expires, session)
                 .await
                 .map_err(|error| match error {
                     cmbr::Error::Unavailable => Error::Reconcile,
