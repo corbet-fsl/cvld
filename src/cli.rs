@@ -29,6 +29,11 @@ pub fn command() -> Command {
                         .arg(Arg::new("config").long("config").required(true)),
                 )
                 .subcommand(
+                    Command::new("platform")
+                        .about("Serve the global service with explicitly linked communities in one process")
+                        .arg(Arg::new("config").long("config").required(true)),
+                )
+                .subcommand(
                     Command::new("root-issuer")
                         .about("Serve explicitly linked root and source communities in one process")
                         .arg(Arg::new("config").long("config").required(true)),

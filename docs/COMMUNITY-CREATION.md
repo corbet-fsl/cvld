@@ -1,10 +1,15 @@
 # Explicit community creation composition
 
-The trusted hosting caller constructs the original Global Door and target
-Community Door, then calls `global.link_community_creation(&target).await`.
-This links existing owners in one process. It does not provision a database,
-deploy a service, or infer an administrative control plane. The ordinary
-launcher has not yet installed these links; unlinked targets refuse creation.
+`cvld serve platform --config FILE` is the configured launcher. FILE names the
+global configuration and the community configurations (`global_config`,
+`community_configs`); every community must share the global domain, a unique
+name and a distinct bind address. The launcher constructs the original Global
+Door and each target Community Door in one process and calls
+`global.link_community_creation(&target).await` for each; no server is exposed
+until every link validates and every bind succeeds. A library caller may do the
+same composition itself. It does not provision a database, deploy a service, or
+infer an administrative control plane. A target that is not listed refuses
+creation. Separate `serve global` and `serve community` processes cannot create.
 The Global platform Root uses its original `api.admin.root.<domain>` passkey
 session. A target recipient uses its own member host and a genuine first
 registration bound to its verified passport presentation.
