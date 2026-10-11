@@ -65,7 +65,8 @@ rustc --version
 toy/build.sh
 pushd toy/.build > /dev/null
 python3 ../../.github/check-first-party.py
-python3 -c "import tomllib; from pathlib import Path; a=tomllib.loads(Path('../../Cargo.lock').read_text()); b=tomllib.loads(Path('Cargo.lock').read_text()); key=lambda p:(p['name'],p['version'],p.get('source')); assert {key(p) for p in a['package']} <= {key(p) for p in b['package']}"
+python3 -B ../test_check_lock.py
+python3 ../check_lock.py ../../Cargo.lock Cargo.lock
 popd > /dev/null
 rustfmt --edition 2024 --check toy/src/*.rs
 set -o pipefail

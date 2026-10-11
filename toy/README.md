@@ -41,7 +41,12 @@ measurements, never identifiers, handles, tokens, request bodies or SQL.
 `prepare.py` creates an ignored test-only crate under `.build/`. Its dependencies
 come from the door's manifest and every build starts from the door's lockfile, so
 parallel dependency updates do not leave separate hardcoded leaf revisions in
-the toy. The generated lock is retained in the CI artifact. The CLI and harness
+the toy. The generated lock lives in ignored `toy/.build/Cargo.lock`; retain it
+explicitly when recording a run. The build checks
+exact used package versions, full sources/revisions and registry checksums;
+unused root dev/browser packages may be pruned, and only the exact local
+`cvld-toy` package is added. `python3 toy/test_check_lock.py` exercises that check
+without Cargo or provider calls. The CLI and harness
 share dependency build profiles; the cache key includes the build scripts and
 only successful runs publish a new cache. Nothing is published.
 
@@ -105,9 +110,9 @@ indexed-query plan policy. The run fails if the meter records no reads, so a
 missing hook cannot silently produce a zero-cost result. Latencies include the
 meter's test overhead and should be compared only between equivalent builds.
 
-CI uploads `toy-results`: readable transcripts, `scenarios.json`, `scale.json`,
-and the exact harness dependency lock. The reports retain no per-member timing
-history or member labels.
+Readable transcripts, `scenarios.json` and `scale.json` contain no per-member
+timing history or member labels. Their persistence after a remote run depends on
+the caller's explicit artifact retention; this harness does not guarantee it.
 
 ## Optional Turso
 

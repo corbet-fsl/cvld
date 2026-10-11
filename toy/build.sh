@@ -11,3 +11,4 @@ cargo rustc --locked --features development-gate --bin cvld -- \
   -C "link-arg=$toy_meter_object" -C link-arg=-Wl,--wrap=sqlite3_step
 # The toy root is new; the copied lock retains the door's exact dependency versions.
 cargo build --manifest-path toy/.build/Cargo.toml
+python3 toy/check_lock.py Cargo.lock toy/.build/Cargo.lock
