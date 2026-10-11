@@ -24,7 +24,7 @@ pub(super) async fn authentication(owner: &CommunityService) -> ckyh::Authentica
         )
         .unwrap()
         .into();
-    let credential = response.raw_id.clone();
+    let credential: ckyh::CredentialID = response.raw_id.clone().into();
     membership
         .finish_registration(pending, response)
         .await
