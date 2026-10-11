@@ -25,7 +25,7 @@ mkdir -p .moon/cache
 # CI pins Node 22, so install nix nodejs_22 (22.23.2), not latest nodejs.
 tool_source=github:NixOS/nixpkgs/b7c2ada94fe99c15b0dbcf4d11fd7850b957a436?narHash=sha256-IItrdb7Puk05RqOBWZYFC5X6Wl1sJmCfh5MWVHw5iMM=
 echo 'cvld:stage=tool-install'
-tool_paths=$(nix build --no-link --print-out-paths "$tool_source#moon" "$tool_source#proto" "$tool_source#nodejs_22" "$tool_source#python3" "$tool_source#cargo-deny" "$tool_source#cargo-llvm-cov")
+tool_paths=$(nix build --no-link --print-out-paths "$tool_source#moon" "$tool_source#proto" "$tool_source#nodejs_22" "$tool_source#python3" "$tool_source#cargo-deny" "$tool_source#cargo-llvm-cov" "$tool_source#llvmPackages.clang-unwrapped")
 for path in $tool_paths; do PATH="$path/bin:$PATH"; done
 # The toy gate preloads faketime into child processes; CI installs it via apt
 # (privileged), so resolve the pinned nix libfaketime object job-locally.
