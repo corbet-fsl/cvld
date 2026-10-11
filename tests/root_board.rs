@@ -121,6 +121,7 @@ async fn admit_opaque(
     holder: &cpsd::OpaqueHolder,
     handle: &str,
     root: bool,
+    creation: Option<&[u8]>,
 ) {
     let scope = if root { "root" } else { "alpha" };
     let subject = holder
@@ -163,7 +164,7 @@ async fn admit_opaque(
     let issued: cvld::api::CredentialResponse = serde_json::from_value(
         api.call(
             "credential_issue",
-            json!({"presentation":proof,"devices":[member.signing_key]}),
+            json!({"presentation":proof,"devices":[member.signing_key],"creation":creation}),
         )
         .await
         .unwrap(),
@@ -267,6 +268,7 @@ async fn root_operator_admin_authority_is_local_to_the_explicit_root_board() {
         &holder,
         "source_admin",
         false,
+        None,
     )
     .await;
     let source_member = holder
@@ -337,11 +339,21 @@ async fn root_operator_admin_authority_is_local_to_the_explicit_root_board() {
     )
     .unwrap();
     let mut root = finish_enrol(&board, MEMBER_HOST, begin).await;
-    admit_opaque(&board, MEMBER_HOST, &root, &holder, "root_admin", true).await;
-    let root_member = holder
-        .pseudonym(&cpsd::CommunityId::new("root").unwrap())
-        .to_hex();
-    preexisting_role(&board, "root", &root_member, crgs::Role::Root).await;
+    // The board is founded by the same Global Root creation as every community:
+    // its first Root redeems the one-use entitlement with the root-board credential.
+    let creation = active::creation_invitation(&board, "root", &public, &root)
+        .await
+        .unwrap();
+    admit_opaque(
+        &board,
+        MEMBER_HOST,
+        &root,
+        &holder,
+        "root_admin",
+        true,
+        Some(creation.as_slice()),
+    )
+    .await;
     root.session = login(
         &board,
         ROOT,

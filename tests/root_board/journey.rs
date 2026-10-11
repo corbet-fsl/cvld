@@ -181,9 +181,20 @@ async fn actual_joint_http_registration_voucher_and_renewal_remain_ordinary_memb
     let receipt = voucher("root", &member_id, "root-door-voucher", NOW + 172_800);
     client.call("gate_voucher", receipt.clone()).await.unwrap();
     assert!(client.call("gate_voucher", receipt).await.is_err());
+    // The first member of the board is its Root, founded by the one-use Global Root
+    // creation entitlement; the second pass is an ordinary renewal.
+    let mut creation = active::creation_invitation(&board, "root", &public, &member).await;
     for _ in 0..2 {
         let proof = root_presentation(&board, &holder, Some(&member.session)).await;
         let body = json!({"presentation":proof,"devices":[member.signing_key]});
+        let body = match creation.take() {
+            Some(invitation) => {
+                let mut value = body;
+                value["creation"] = json!(invitation);
+                value
+            }
+            None => body,
+        };
         let issued: CredentialResponse =
             serde_json::from_value(client.call("credential_issue", body.clone()).await.unwrap())
                 .unwrap();

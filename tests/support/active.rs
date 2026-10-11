@@ -111,12 +111,17 @@ pub async fn relogin_root(service: &Running) -> String {
     root_member(service, None).await.session
 }
 
-/// Found `running` as the community `name` of the Global behind `public`.
-/// A Global that is not registered leaves the community unfounded.
-pub async fn found(running: &Running, name: &str, public: &GlobalPublic) {
-    let Some(global) = BY_ISSUER.lock().unwrap().get(&public.issuer).cloned() else {
-        return;
-    };
+/// Link `running` as the community `name` of the Global behind `public`, let the
+/// registered `member` prepare as recipient and let the Global Root issue the
+/// one-use first-Root entitlement. The member redeems it with its own full-gate
+/// admission flow (`creation` in `credential_issue`). None when unregistered.
+pub async fn creation_invitation(
+    running: &Running,
+    name: &str,
+    public: &GlobalPublic,
+    member: &Member,
+) -> Option<Vec<u8>> {
+    let global = BY_ISSUER.lock().unwrap().get(&public.issuer).cloned()?;
     let platform = global.running();
     platform
         .door
@@ -124,10 +129,8 @@ pub async fn found(running: &Running, name: &str, public: &GlobalPublic) {
         .await
         .unwrap();
     let (root, _, _) = global.root_session(&platform).await;
-    let (_, passport, _) = wallet_passport(&platform).await;
     let host = format!("api.{name}.{DOMAIN}");
-    let founder = enrol_community(running, &host, &passport).await;
-    let api = client(running, &host, Some(&founder.session));
+    let api = client(running, &host, Some(&member.session));
     let prepared: CreationRecipient = serde_json::from_value(
         api.call(
             "community_creation_recipient",
@@ -147,6 +150,23 @@ pub async fn found(running: &Running, name: &str, public: &GlobalPublic) {
             .unwrap(),
     )
     .unwrap();
+    Some(created.invitation)
+}
+
+/// Found `running` as the community `name` of the Global behind `public`.
+/// A Global that is not registered leaves the community unfounded.
+pub async fn found(running: &Running, name: &str, public: &GlobalPublic) {
+    let Some(global) = BY_ISSUER.lock().unwrap().get(&public.issuer).cloned() else {
+        return;
+    };
+    let platform = global.running();
+    let (_, passport, _) = wallet_passport(&platform).await;
+    let host = format!("api.{name}.{DOMAIN}");
+    let founder = enrol_community(running, &host, &passport).await;
+    let invitation = creation_invitation(running, name, public, &founder)
+        .await
+        .unwrap();
+    let api = client(running, &host, Some(&founder.session));
     api.call("handle_reserve", json!({"handle":"founding_root"}))
         .await
         .unwrap();
@@ -167,7 +187,7 @@ pub async fn found(running: &Running, name: &str, public: &GlobalPublic) {
     let proof = presentation(running, &host, Some(&founder.session), &passport).await;
     api.call(
         "credential_issue",
-        json!({"presentation":proof,"devices":[founder.signing_key],"creation":created.invitation}),
+        json!({"presentation":proof,"devices":[founder.signing_key],"creation":invitation}),
     )
     .await
     .unwrap();
