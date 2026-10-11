@@ -20,6 +20,7 @@ mod account_record;
 mod account_rotation;
 mod account_tuning;
 mod accounting;
+mod bootstrap;
 mod contacts;
 mod enrollment;
 mod garden;
@@ -378,6 +379,7 @@ impl Door {
         {
             return Err(Error::Invalid);
         }
+        bootstrap::validate_operators(&config)?;
         let token = if let Some(path) = &config.database_token_file {
             String::from_utf8(Config::secret(path)?.to_vec()).map_err(Error::Invalid.redact())?
         } else {
