@@ -129,13 +129,15 @@ pub async fn global(burst: u32) -> Running {
     let task = tokio::spawn(async move {
         axum::serve(listener, router).await.unwrap();
     });
-    Running {
+    let running = Running {
         base,
         door,
         clock,
         task,
         dir,
-    }
+    };
+    active::register(&running).await;
+    running
 }
 pub fn client(service: &Running, host: &str, token: Option<&str>) -> Client {
     Client::new(service.base.clone(), host.into(), token.map(str::to_owned)).unwrap()
@@ -148,6 +150,12 @@ pub struct Member {
     pub signing_key: [u8; 32],
 }
 pub async fn enrol(service: &Running, host: &str, bootstrap: Option<&str>) -> Member {
+    if host == ROOT && active::is_registered(service) {
+        return active::root_member(service, bootstrap).await;
+    }
+    enrol_raw(service, host, bootstrap).await
+}
+pub async fn enrol_raw(service: &Running, host: &str, bootstrap: Option<&str>) -> Member {
     let client = client(service, host, None);
     let start: Ceremony = serde_json::from_value(
         client
@@ -468,13 +476,15 @@ pub async fn community_with_burst(name: &str, public: &GlobalPublic, burst: u32)
     let task = tokio::spawn(async move {
         axum::serve(listener, router).await.unwrap();
     });
-    Running {
+    let running = Running {
         base,
         door,
         clock,
         task,
         dir,
-    }
+    };
+    active::found(&running, name, public).await;
+    running
 }
 pub async fn wallet_passport(service: &Running) -> (Member, cpsd::Passport, GlobalPublic) {
     let member = enrol(service, WALLET, None).await;
