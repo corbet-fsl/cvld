@@ -16,10 +16,10 @@ pub(super) fn expected_length(length: usize) -> Result<()> {
 
 #[cfg(any(feature = "client-http", feature = "client-browser"))]
 pub(super) fn content_length(value: Option<&str>, expected: usize) -> Result<()> {
-    if let Some(value) = value {
-        if value.parse::<u64>().map_err(Error::Reconcile.redact())? != expected as u64 {
-            return Err(Error::Reconcile);
-        }
+    if let Some(value) = value
+        && value.parse::<u64>().map_err(Error::Reconcile.redact())? != expected as u64
+    {
+        return Err(Error::Reconcile);
     }
     Ok(())
 }

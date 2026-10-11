@@ -99,24 +99,17 @@ pub struct CommunityService {
     sessions: HashMap<String, SessionState>,
 }
 impl CommunityService {
+    #[cfg(test)]
     pub async fn open(
         db: &crlt::Db,
         config: CommunityConfig,
         clock: Arc<dyn Clock>,
     ) -> Result<Self> {
-        Self::open_with_payment_transport(db, config, clock, None).await
-    }
-    pub async fn open_with_payment_transport(
-        db: &crlt::Db,
-        config: CommunityConfig,
-        clock: Arc<dyn Clock>,
-        transport: Option<crate::payments::transport::AnyTransport>,
-    ) -> Result<Self> {
         Self::open_selected(
             db,
             config,
             clock,
-            transport,
+            None,
             None,
             crate::accounting::NativeConstruction::new(),
         )
