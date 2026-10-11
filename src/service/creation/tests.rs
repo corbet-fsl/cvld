@@ -250,3 +250,44 @@ async fn public_same_file_factory_isolation_preserves_the_existing_root_owner() 
         200
     );
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn root_creation_session_is_bound_to_its_grant_expiry_inside_the_publication_scope() {
+    use crate::{api::Effect, service::publication::Publication};
+    let world = World::new().await;
+    let token = world.operator.session.clone();
+    let clock = world.global.clock.clone();
+    let auth = world.global.door.auth(ROOT).unwrap();
+    let mut auth = auth.lock().await;
+    let grant = auth.authenticate(&token, NOW).await.unwrap();
+    let context = Context {
+        host: ROOT.into(),
+        grant: Some(grant.clone()),
+        token: Some(token.clone()),
+        now: NOW,
+        authentication: None,
+    };
+    let mut session = auth
+        .root_creation_session(&token, &grant, NOW, clock.as_ref())
+        .await
+        .unwrap();
+    // Sampling inside the grant never narrows the action to the sampling instant.
+    let inside = Publication::new(clock.clone(), &context, Effect::Record)
+        .run(async {
+            session
+                .check(&mut auth, &token, clock.as_ref())
+                .await
+                .map(|_| ())
+        })
+        .await;
+    assert!(inside.is_ok());
+    // A grant that ends before the final publication check withholds the result.
+    let outside = Publication::new(clock.clone(), &context, Effect::Record)
+        .run(async {
+            session.check(&mut auth, &token, clock.as_ref()).await?;
+            clock.set(grant.expires);
+            Ok(())
+        })
+        .await;
+    assert!(matches!(outside, Err(Error::Reconcile)));
+}
