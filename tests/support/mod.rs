@@ -467,6 +467,19 @@ pub fn community_config(
     config
 }
 pub async fn community_with_burst(name: &str, public: &GlobalPublic, burst: u32) -> Running {
+    let running = community_unfounded_with_burst(name, public, burst).await;
+    active::found(&running, name, public).await;
+    running
+}
+/// A community that admits nobody yet: only tests of founding itself use it.
+pub async fn community_unfounded(name: &str, public: &GlobalPublic) -> Running {
+    community_unfounded_with_burst(name, public, 100).await
+}
+pub async fn community_unfounded_with_burst(
+    name: &str,
+    public: &GlobalPublic,
+    burst: u32,
+) -> Running {
     let dir = tempfile::tempdir().unwrap();
     let config = community_config(dir.path(), name, public, burst);
     let clock = Arc::new(TestClock(AtomicU64::new(NOW)));
@@ -484,7 +497,6 @@ pub async fn community_with_burst(name: &str, public: &GlobalPublic, burst: u32)
         task,
         dir,
     };
-    active::found(&running, name, public).await;
     running
 }
 pub async fn wallet_passport(service: &Running) -> (Member, cpsd::Passport, GlobalPublic) {

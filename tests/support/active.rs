@@ -147,7 +147,7 @@ pub async fn found(running: &Running, name: &str, public: &GlobalPublic) {
             .unwrap(),
     )
     .unwrap();
-    api.call("handle_reserve", json!({"handle":"creator"}))
+    api.call("handle_reserve", json!({"handle":"founding_root"}))
         .await
         .unwrap();
     let subject = passport

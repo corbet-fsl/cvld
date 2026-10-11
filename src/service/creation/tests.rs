@@ -18,7 +18,7 @@ impl World {
         let global = global(200).await;
         let (_, passport, public) = wallet_passport(&global).await;
         let operator = enrol(&global, ROOT, Some(BOOTSTRAP)).await;
-        let target = community("alpha", &public).await;
+        let target = community_unfounded("alpha", &public).await;
         let member = enrol_community(&target, TARGET, &passport).await;
         global
             .door
