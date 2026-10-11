@@ -131,7 +131,7 @@ pub async fn found(running: &Running, name: &str, public: &GlobalPublic) {
     let prepared: CreationRecipient = serde_json::from_value(
         api.call(
             "community_creation_recipient",
-            json!({"id":null,"expires_at":running.clock.now() + 300,"purpose":"root"}),
+            json!({"id":null,"expires_at":running.clock.now() + 300}),
         )
         .await
         .unwrap(),
