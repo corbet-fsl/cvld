@@ -134,7 +134,7 @@ pub async fn creation_invitation(
     let prepared: CreationRecipient = serde_json::from_value(
         api.call(
             "community_creation_recipient",
-            json!({"id":null,"expires_at":running.clock.now() + 300}),
+            json!({"id":null,"expires_at":running.clock.now() + 300,"purpose":"root"}),
         )
         .await
         .unwrap(),
