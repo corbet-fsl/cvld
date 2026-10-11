@@ -146,7 +146,7 @@ impl Fixture {
         }
     }
     pub async fn db(&self) -> crlt::Db {
-        let db = crlt::Db::open(crlt::Config::new(&self.config.database_url, None))
+        let db = crlt::Db::open(crlt::Config::new(&self.config.database_url, ""))
             .await
             .unwrap();
         db.migrate(&cvld::service::community_migrations())
