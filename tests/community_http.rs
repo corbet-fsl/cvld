@@ -408,7 +408,7 @@ async fn community_public_and_expensive_actions_have_aggregate_quotas() {
             .unwrap(),
     )
     .unwrap();
-    let community = community_with_burst("quota", &public, 1).await;
+    let community = community_unfounded_with_burst("quota", &public, 1).await;
     let host = "api.quota.example.test";
     for (action, body) in [
         ("handle_available", json!({"handle":"available_one"})),
