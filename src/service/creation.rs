@@ -87,24 +87,39 @@ impl Door {
             self.inner.clock.as_ref(),
         ))
         .await;
-        root_writer.rollback().await.map_err(|_| Error::Reconcile)?;
+        root_writer.rollback().await.map_err(|e| {
+            eprintln!("DIAG svc {e:?}");
+            Error::Reconcile
+        })?;
         let created = result?;
         let root_floor = session
             .check(&mut auth, token, self.inner.clock.as_ref())
             .await
-            .map_err(|_| Error::Reconcile)?;
+            .map_err(|e| {
+                eprintln!("DIAG svc {e:?}");
+                Error::Reconcile
+            })?;
         let created = with_live_clock(community.release_creation(created, root_floor)).await?;
         let final_root = session
             .check(&mut auth, token, self.inner.clock.as_ref())
             .await
-            .map_err(|_| Error::Reconcile)?;
+            .map_err(|e| {
+                eprintln!("DIAG svc {e:?}");
+                Error::Reconcile
+            })?;
         let value = community.project_creation(created, final_root)?;
         if session
             .release(&auth, token, self.inner.clock.as_ref())
-            .map_err(|_| Error::Reconcile)?
+            .map_err(|e| {
+                eprintln!("DIAG svc {e:?}");
+                Error::Reconcile
+            })?
             != value.checked_at
         {
-            return Err(Error::Reconcile);
+            {
+                eprintln!("DIAG sret {}", line!());
+                return Err(Error::Reconcile);
+            }
         }
         Ok(value)
     }

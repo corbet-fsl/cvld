@@ -189,6 +189,7 @@ impl CommunityService {
             )
             .await
             .map_err(|error| {
+                eprintln!("DIAG cmbr {error:?}");
                 if error == cmbr::Error::Unavailable {
                     Error::Reconcile
                 } else {
@@ -201,11 +202,17 @@ impl CommunityService {
             .root
             .check(guard.auth, token, root_clock)
             .await
-            .map_err(|_| Error::Reconcile)?;
+            .map_err(|e| {
+                eprintln!("DIAG cr {e:?}");
+                Error::Reconcile
+            })?;
         let checked_at = self.clock.now();
         pending.session.release(checked_at)?;
         if checked_at < completed.max(root_floor) || checked_at >= pending.until {
-            return Err(Error::Reconcile);
+            {
+                eprintln!("DIAG ret {}", line!());
+                return Err(Error::Reconcile);
+            }
         }
         Ok(Created {
             value: CommunityCreationInvitation {
@@ -230,14 +237,20 @@ impl CommunityService {
             || now >= created.value.expires_at
             || std::time::Instant::now() >= created.deadline
         {
-            return Err(Error::Reconcile);
+            {
+                eprintln!("DIAG ret {}", line!());
+                return Err(Error::Reconcile);
+            }
         }
         created.session.release(now)?;
         let policy = self.facade.policy().lock().await;
         policy
             .validate_snapshot(&created.snapshot, now)
             .await
-            .map_err(|_| Error::Reconcile)?;
+            .map_err(|e| {
+                eprintln!("DIAG cr {e:?}");
+                Error::Reconcile
+            })?;
         if !self
             .facade
             .membership()
@@ -246,14 +259,23 @@ impl CommunityService {
                 created.session.authentication.credential_id(),
             )
             .await
-            .map_err(|_| Error::Reconcile)?
+            .map_err(|e| {
+                eprintln!("DIAG cr {e:?}");
+                Error::Reconcile
+            })?
         {
-            return Err(Error::Reconcile);
+            {
+                eprintln!("DIAG ret {}", line!());
+                return Err(Error::Reconcile);
+            }
         }
         let completed = self.clock.now();
         created.session.release(completed)?;
         if completed < now || completed >= created.value.expires_at {
-            return Err(Error::Reconcile);
+            {
+                eprintln!("DIAG ret {}", line!());
+                return Err(Error::Reconcile);
+            }
         }
         created.value.checked_at = completed;
         Ok(created)
@@ -268,7 +290,10 @@ impl CommunityService {
             || now >= created.value.expires_at
             || std::time::Instant::now() >= created.deadline
         {
-            return Err(Error::Reconcile);
+            {
+                eprintln!("DIAG ret {}", line!());
+                return Err(Error::Reconcile);
+            }
         }
         created.session.release(now)?;
         created.value.checked_at = now;
