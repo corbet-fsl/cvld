@@ -1,6 +1,7 @@
 //! The exact original session survives queueing, never its removal or replacement.
 use super::*;
 use crate::auth::Grant;
+use cmty::cmbr;
 
 impl Owner {
     pub(in crate::community) fn role_lease(
