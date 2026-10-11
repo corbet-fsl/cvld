@@ -221,3 +221,29 @@ async fn trusted_rotation_requires_native_owner_and_never_enters_member_registry
         assert!(action(name).is_none());
     }
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn trusted_tuning_requires_native_owner_without_mutating_policy_or_member_state() {
+    let f = routes::fixture().await;
+    let api = client(&f.service, HOST, Some(&f.member.session));
+    let before = api.call("trust_feed", json!({})).await.unwrap();
+    let member = api.call("lobby", json!({})).await.unwrap();
+    assert!(matches!(
+        f.service.door.tune_account_waiting_period(0, 60).await,
+        Err(cvld::error::Error::Unavailable)
+    ));
+    assert_eq!(api.call("trust_feed", json!({})).await.unwrap(), before);
+    assert_eq!(api.call("lobby", json!({})).await.unwrap(), member);
+    assert!(action("tune_account_waiting_period").is_none());
+    assert_eq!(
+        call_status(
+            &f.service,
+            HOST,
+            Some(&f.member.session),
+            "tune_account_waiting_period",
+            json!({"expected_revision":0,"seconds":60})
+        )
+        .await,
+        404
+    );
+}
