@@ -197,9 +197,11 @@ impl Journal for DurableJournal {
             .map_err(storage)?;
         let budget = budgets.first().ok_or(cpmt::payments::Error::Storage)?;
         let used = budget.get_i64(0).map_err(storage)?;
+        let previous_exposure = integer(exposure(&old)?)?;
+        let next_exposure = integer(exposure(record)?)?;
         let next = used
-            .checked_sub(integer(exposure(&old)?)?)
-            .and_then(|used| used.checked_add(integer(exposure(record)?).ok()?))
+            .checked_sub(previous_exposure)
+            .and_then(|used| used.checked_add(next_exposure))
             .filter(|used| *used >= 0)
             .ok_or(cpmt::payments::Error::Storage)?;
         let poisoned = i64::from(
