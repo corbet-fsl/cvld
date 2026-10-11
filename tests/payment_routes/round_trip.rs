@@ -13,6 +13,14 @@ async fn actual_registry_settlement_paid_gate_and_signed_community_credential_ro
     .await;
     let member = enrol_community(&service, HOST, &passport).await;
     let api = client(&service, HOST, Some(&member.session));
+    // Genuine membership issuance also requires a reserved community handle.
+    let reserved: Lobby = serde_json::from_value(
+        api.call("handle_reserve", json!({"handle":"member_paid_access"}))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(reserved.handle.as_deref(), Some("member_paid_access"));
     let offer = api.call("payment_offer", json!({})).await.unwrap();
     assert_eq!(offer["access"]["level"], "caller-level");
     assert!(offer["payment_required"].is_string());
@@ -41,6 +49,8 @@ async fn actual_registry_settlement_paid_gate_and_signed_community_credential_ro
     assert_eq!(accepted["access"]["level"], "caller-level");
     assert_eq!(wire.settled.load(Ordering::SeqCst), 1);
     let credential = issue_community(&service, HOST, &member, &passport).await;
+    assert_eq!(credential.lobby.state, "admitted");
+    assert_eq!(credential.lobby.handle, reserved.handle);
     assert!(credential.credential.is_some());
     let bytes = credential.credential.unwrap();
     let feed: TrustFeed = serde_json::from_value(
@@ -53,6 +63,7 @@ async fn actual_registry_settlement_paid_gate_and_signed_community_credential_ro
     let ring = csgn::KeyRing::from_cbor(&feed.key_ring).unwrap();
     let signed = ring.verify(&bytes, csgn::Kind::Credential, NOW).unwrap();
     let claims: cmty::cplc::Credential = serde_json::from_slice(signed.payload()).unwrap();
+    assert_eq!(claims.handle, "member_paid_access");
     assert_eq!(claims.gates.len(), 1);
     assert_eq!(claims.gates[0].gate, "crpt");
     assert_eq!(claims.gates[0].provider, "fixture-facilitator");
