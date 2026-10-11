@@ -4,6 +4,176 @@
  */
 
 export interface paths {
+    "/v1/community_self_ban_begin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm permanent community self-ban with a fresh passkey ceremony */
+        post: operations["community_self_ban_begin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/community_self_ban_finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Permanently end this membership; no recovery or operator override */
+        post: operations["community_self_ban_finish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/community_self_ban_status_begin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Begin passkey authentication solely to inspect your own self-ban outcome */
+        post: operations["community_self_ban_status_begin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/community_self_ban_status_finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Inspect your own permanent self-ban with fresh UV; never restore access */
+        post: operations["community_self_ban_status_finish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/contact_accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Accept a real typed contact fact through the global facade */
+        post: operations["contact_accept"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/contact_check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview one check of this RAM-held contact session */
+        post: operations["contact_check"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/contact_execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Explicitly authorize the exact prepared contact cost preview */
+        post: operations["contact_execute"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/contact_plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview enabled contact verification costs without dispatch */
+        post: operations["contact_plan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/contact_simulate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Simulate dummy contact planning locally without providers or credentials */
+        post: operations["contact_simulate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/contact_status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read the minimal outcome and reserved contact exposure */
+        post: operations["contact_status"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/credential_issue": {
         parameters: {
             query?: never;
@@ -100,6 +270,57 @@ export interface paths {
         put?: never;
         /** Read authenticated global issuer material */
         post: operations["global_public"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/global_self_ban_begin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm permanent global self-ban with a fresh passkey ceremony */
+        post: operations["global_self_ban_begin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/global_self_ban_finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Permanently suspend this authenticated global account; no recovery */
+        post: operations["global_self_ban_finish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/global_self_ban_status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read this authenticated wallet's permanent self-ban outcome */
+        post: operations["global_self_ban_status"];
         delete?: never;
         options?: never;
         head?: never;
@@ -268,8 +489,42 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Register another UV-required passkey for this membership */
+        /** Register another UV-required passkey for this account */
         post: operations["passkey_add"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/passkey_certificate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Certify the current registered passkey for community lineage assertions */
+        post: operations["passkey_certificate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/passkey_list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** List this account's passkeys and revocation status */
+        post: operations["passkey_list"];
         delete?: never;
         options?: never;
         head?: never;
@@ -285,7 +540,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Revoke a community passkey */
+        /** Revoke one of this account's passkeys */
         post: operations["passkey_revoke"];
         delete?: never;
         options?: never;
@@ -321,6 +576,108 @@ export interface paths {
         put?: never;
         /** Issue a blind passport after global policy checks */
         post: operations["passport_issue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/payment_accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Accept genuine paid access through the community gate owner */
+        post: operations["payment_accept"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/payment_execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Explicitly execute the exact prepared x402 settlement */
+        post: operations["payment_execute"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/payment_offer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read the configured original x402 offer and requested access */
+        post: operations["payment_offer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/payment_plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview the exact paid-access operation without provider calls */
+        post: operations["payment_plan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/payment_simulate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Simulate dummy payment planning locally without provider I/O */
+        post: operations["payment_simulate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/payment_status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read only this member's minimal payment outcome */
+        post: operations["payment_status"];
         delete?: never;
         options?: never;
         head?: never;
@@ -535,10 +892,34 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * @description An exact level and interval selected by the caller. No level ordering, price
+         *     or subscription period is supplied by this integration.
+         */
+        AccessTerms: {
+            /** Format: int64 */
+            expires_at: number;
+            level: string;
+            /** Format: int64 */
+            starts_at: number;
+        };
+        Amount: {
+            /** Format: int64 */
+            atoms: number;
+            /** Format: int32 */
+            scale: number;
+            unit: string;
+        };
+        /** @enum {string} */
+        Channel: "sms" | "whatsapp" | "call" | "email";
+        /** @enum {string} */
+        Coverage: "all_accepted_requests";
         CredentialRequest: {
             devices: number[][];
             presentation: components["schemas"]["PresentationInput"];
         };
+        /** @enum {string} */
+        DummyOutcome: "settled" | "refused" | "pending" | "uncertain";
         /** @enum {string} */
         Error: "invalid" | "unauthorized" | "forbidden" | "wrong_host" | "throttled" | "refused" | "unavailable" | "reconcile";
         Lobby: {
@@ -560,6 +941,34 @@ export interface components {
             /** @enum {string} */
             kind: "add_second_device_or_synced_passkey";
         };
+        Offer: {
+            channel: components["schemas"]["Channel"];
+            coverage: components["schemas"]["Coverage"];
+            exact: boolean;
+            maximum: components["schemas"]["Amount"];
+            option: string;
+            scope: string;
+            source: string;
+            /** Format: int64 */
+            valid_until: number;
+        };
+        /** @enum {string} */
+        Order: "configured" | "cheapest";
+        /** @enum {string} */
+        Outcome: "pending" | "verified" | "safe_failure" | "refused" | "uncertain";
+        /** @description Account-owned management metadata, without keys, counters or last-use data. */
+        PasskeyView: {
+            authenticator_type?: string | null;
+            /** Format: int32 */
+            created_month: number;
+            /** Format: int32 */
+            created_year: number;
+            credential: number[];
+            current: boolean;
+            revoked: boolean;
+        };
+        /** @enum {string} */
+        PaymentOutcome: "prepared" | "settled" | "refused" | "pending" | "uncertain";
         /** @description Wire schema of cmbr's versioned pin capability; cmbr validates every binding. */
         PinEnvelope: {
             community: string;
@@ -580,6 +989,13 @@ export interface components {
         };
         /** @enum {string} */
         Role: "member" | "admin" | "root";
+        /**
+         * @description Explicit purpose displayed before the holder confirms with their passkey.
+         *     Permanent global self-ban ends access through this wallet forever. There is
+         *     no undo, recovery or operator override; burned uniqueness remains consumed.
+         * @enum {string}
+         */
+        SelfBanIntent: "permanent_global_self_ban" | "permanent_community_self_ban";
         Setting: {
             /** Format: int64 */
             effective_at: number;
@@ -587,6 +1003,23 @@ export interface components {
             key: string;
             /** @description Explicit null is a value. Set inherit to remove this layer's row. */
             value: unknown;
+        };
+        SimulationOffer: {
+            channel: components["schemas"]["Channel"];
+            exact: boolean;
+            maximum?: components["schemas"]["Amount"] | null;
+            outcome: components["schemas"]["SimulationOutcome"];
+            source: string;
+            /** Format: int64 */
+            valid_until: number;
+        };
+        /** @enum {string} */
+        SimulationOutcome: "success" | "safe_failure" | "refused" | "pending" | "uncertain";
+        /** @description Original publishing-key endorsement; routing metadata is not authority. */
+        TrustKeyTransition: {
+            proof: number[];
+            /** Format: int64 */
+            revision: number;
         };
     };
     responses: never;
@@ -597,6 +1030,453 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    community_self_ban_begin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ceremony: string;
+                        /**
+                         * Format: int64
+                         * @description Exclusive confirmation deadline; the operation cannot be undone.
+                         */
+                        expires: number;
+                        intent: components["schemas"]["SelfBanIntent"];
+                        options: unknown;
+                        /** @description Display before requesting the confirming passkey assertion. */
+                        warning: string;
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    community_self_ban_finish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    ceremony: string;
+                    credential: {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    community_self_ban_status_begin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ceremony: string;
+                        /** Format: int64 */
+                        expires: number;
+                        options: unknown;
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    community_self_ban_status_finish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    ceremony: string;
+                    credential: {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        self_banned: boolean;
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    contact_accept: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    operation: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        gate: string;
+                        provider: string;
+                        /** Format: int64 */
+                        valid_until: number;
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    contact_check: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    code: string;
+                    operation: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Consent identifies this exact preview generation. Beginning a later OTP
+                         *     check invalidates consent from the previous begin/check preparation.
+                         */
+                        authorization: string;
+                        budget: components["schemas"]["Amount"];
+                        excluded: string[];
+                        max_attempts: number;
+                        offers: components["schemas"]["Offer"][];
+                        operation: string;
+                        /** Format: int64 */
+                        valid_until: number;
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    contact_execute: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    authorization: string;
+                    operation: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Conservative reserved exposure, never an invented actual charge. */
+                        exposure: components["schemas"]["Amount"];
+                        operation: string;
+                        outcome: components["schemas"]["Outcome"];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    contact_plan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    budget: components["schemas"]["Amount"];
+                    destination: string;
+                    max_attempts: number;
+                    options: string[];
+                    order: components["schemas"]["Order"];
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Consent identifies this exact preview generation. Beginning a later OTP
+                         *     check invalidates consent from the previous begin/check preparation.
+                         */
+                        authorization: string;
+                        budget: components["schemas"]["Amount"];
+                        excluded: string[];
+                        max_attempts: number;
+                        offers: components["schemas"]["Offer"][];
+                        operation: string;
+                        /** Format: int64 */
+                        valid_until: number;
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    contact_simulate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    budget: components["schemas"]["Amount"];
+                    /** @description Explicit dummy identifier. Never published or persisted. */
+                    destination: string;
+                    max_attempts: number;
+                    offers: components["schemas"]["SimulationOffer"][];
+                    order: components["schemas"]["Order"];
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        attempts: number;
+                        exposure: components["schemas"]["Amount"];
+                        outcome: components["schemas"]["SimulationOutcome"];
+                        simulated: boolean;
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    contact_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    operation: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Conservative reserved exposure, never an invented actual charge. */
+                        exposure: components["schemas"]["Amount"];
+                        operation: string;
+                        outcome: components["schemas"]["Outcome"];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
     credential_issue: {
         parameters: {
             query?: never;
@@ -829,6 +1709,129 @@ export interface operations {
                         issuer: number[];
                         key_ring: number[];
                         status: number[];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    global_self_ban_begin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ceremony: string;
+                        /**
+                         * Format: int64
+                         * @description Exclusive confirmation deadline; the operation cannot be undone.
+                         */
+                        expires: number;
+                        intent: components["schemas"]["SelfBanIntent"];
+                        options: unknown;
+                        /** @description Display before requesting the confirming passkey assertion. */
+                        warning: string;
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    global_self_ban_finish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    ceremony: string;
+                    credential: {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    global_self_ban_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        self_banned: boolean;
                     };
                 };
             };
@@ -1267,6 +2270,82 @@ export interface operations {
             };
         };
     };
+    passkey_certificate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        bytes: number[];
+                        /** Format: int64 */
+                        checked_at: number;
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    passkey_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        passkeys: components["schemas"]["PasskeyView"][];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
     passkey_revoke: {
         parameters: {
             query?: never;
@@ -1365,6 +2444,276 @@ export interface operations {
                 content: {
                     "application/json": {
                         bytes: number[];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    payment_accept: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    operation: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        access?: components["schemas"]["AccessTerms"] | null;
+                        operation: string;
+                        outcome: components["schemas"]["PaymentOutcome"];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    payment_execute: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    authorization: string;
+                    operation: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        access?: components["schemas"]["AccessTerms"] | null;
+                        operation: string;
+                        outcome: components["schemas"]["PaymentOutcome"];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    payment_offer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        access: components["schemas"]["AccessTerms"];
+                        option: string;
+                        payment_required: string;
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    payment_plan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Member can lower only the configured operator service-fee budget. */
+                    budget: components["schemas"]["Amount"];
+                    option: string;
+                    /** @description Hostile original x402 payment payload. No authenticated fact is accepted. */
+                    payload: number[];
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        access: components["schemas"]["AccessTerms"];
+                        authorization: string;
+                        budget: components["schemas"]["Amount"];
+                        exact: boolean;
+                        /** Format: int64 */
+                        expires_at: number;
+                        maximum: components["schemas"]["Amount"];
+                        operation: string;
+                        option: string;
+                        scope: string;
+                        source: string;
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    payment_simulate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    access: components["schemas"]["AccessTerms"];
+                    actual_fee?: components["schemas"]["Amount"] | null;
+                    budget: components["schemas"]["Amount"];
+                    /** @description Explicit dummy terms/evidence remain transient. No provider is accepted. */
+                    dummy_offer: unknown;
+                    dummy_payload: number[];
+                    /** Format: int64 */
+                    expires_at: number;
+                    maximum?: components["schemas"]["Amount"] | null;
+                    outcome: components["schemas"]["DummyOutcome"];
+                    satisfies_terms: boolean;
+                    source: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        access?: components["schemas"]["AccessTerms"] | null;
+                        charge_violation: boolean;
+                        exposure: components["schemas"]["Amount"];
+                        outcome: components["schemas"]["PaymentOutcome"];
+                        simulated: boolean;
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    payment_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    operation: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        access?: components["schemas"]["AccessTerms"] | null;
+                        operation: string;
+                        outcome: components["schemas"]["PaymentOutcome"];
                     };
                 };
             };
@@ -1524,14 +2873,19 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** @description Original optional Balance publication, authenticated with the manifest. */
+                        balance?: number[] | null;
                         communities: number[];
                         key_ring: number[];
+                        key_transitions?: components["schemas"]["TrustKeyTransition"][];
                         manifest: number[];
                         /** Format: int64 */
                         policy_epoch: number;
                         /** Format: int64 */
                         revision: number;
                         revocations: number[];
+                        /** @description Original optional Policy publication, authenticated with the manifest. */
+                        root_board?: number[] | null;
                         schema: number[];
                         schema_versions: number[];
                         settings: number[];
@@ -1735,14 +3089,19 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** @description Original optional Balance publication, authenticated with the manifest. */
+                        balance?: number[] | null;
                         communities: number[];
                         key_ring: number[];
+                        key_transitions?: components["schemas"]["TrustKeyTransition"][];
                         manifest: number[];
                         /** Format: int64 */
                         policy_epoch: number;
                         /** Format: int64 */
                         revision: number;
                         revocations: number[];
+                        /** @description Original optional Policy publication, authenticated with the manifest. */
+                        root_board?: number[] | null;
                         schema: number[];
                         schema_versions: number[];
                         settings: number[];
@@ -1789,14 +3148,19 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** @description Original optional Balance publication, authenticated with the manifest. */
+                        balance?: number[] | null;
                         communities: number[];
                         key_ring: number[];
+                        key_transitions?: components["schemas"]["TrustKeyTransition"][];
                         manifest: number[];
                         /** Format: int64 */
                         policy_epoch: number;
                         /** Format: int64 */
                         revision: number;
                         revocations: number[];
+                        /** @description Original optional Policy publication, authenticated with the manifest. */
+                        root_board?: number[] | null;
                         schema: number[];
                         schema_versions: number[];
                         settings: number[];
@@ -1880,14 +3244,19 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** @description Original optional Balance publication, authenticated with the manifest. */
+                        balance?: number[] | null;
                         communities: number[];
                         key_ring: number[];
+                        key_transitions?: components["schemas"]["TrustKeyTransition"][];
                         manifest: number[];
                         /** Format: int64 */
                         policy_epoch: number;
                         /** Format: int64 */
                         revision: number;
                         revocations: number[];
+                        /** @description Original optional Policy publication, authenticated with the manifest. */
+                        root_board?: number[] | null;
                         schema: number[];
                         schema_versions: number[];
                         settings: number[];

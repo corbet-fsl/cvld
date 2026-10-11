@@ -1,6 +1,70 @@
 {
   "components": {
     "schemas": {
+      "AccessTerms": {
+        "additionalProperties": false,
+        "description": "An exact level and interval selected by the caller. No level ordering, price\nor subscription period is supplied by this integration.",
+        "properties": {
+          "expires_at": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "level": {
+            "type": "string"
+          },
+          "starts_at": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "level",
+          "starts_at",
+          "expires_at"
+        ],
+        "type": "object"
+      },
+      "Amount": {
+        "additionalProperties": false,
+        "properties": {
+          "atoms": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "scale": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "unit": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "unit",
+          "scale",
+          "atoms"
+        ],
+        "type": "object"
+      },
+      "Channel": {
+        "enum": [
+          "sms",
+          "whatsapp",
+          "call",
+          "email"
+        ],
+        "type": "string"
+      },
+      "Coverage": {
+        "enum": [
+          "all_accepted_requests"
+        ],
+        "type": "string"
+      },
       "CredentialRequest": {
         "additionalProperties": false,
         "properties": {
@@ -24,6 +88,15 @@
           "devices"
         ],
         "type": "object"
+      },
+      "DummyOutcome": {
+        "enum": [
+          "settled",
+          "refused",
+          "pending",
+          "uncertain"
+        ],
+        "type": "string"
       },
       "Error": {
         "enum": [
@@ -116,6 +189,118 @@
           }
         ]
       },
+      "Offer": {
+        "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/Channel"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/Coverage"
+          },
+          "exact": {
+            "type": "boolean"
+          },
+          "maximum": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "option": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "valid_until": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "coverage",
+          "option",
+          "channel",
+          "maximum",
+          "exact",
+          "source",
+          "scope",
+          "valid_until"
+        ],
+        "type": "object"
+      },
+      "Order": {
+        "enum": [
+          "configured",
+          "cheapest"
+        ],
+        "type": "string"
+      },
+      "Outcome": {
+        "enum": [
+          "pending",
+          "verified",
+          "safe_failure",
+          "refused",
+          "uncertain"
+        ],
+        "type": "string"
+      },
+      "PasskeyView": {
+        "additionalProperties": false,
+        "description": "Account-owned management metadata, without keys, counters or last-use data.",
+        "properties": {
+          "authenticator_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_month": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "created_year": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "credential": {
+            "items": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "current": {
+            "type": "boolean"
+          },
+          "revoked": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "credential",
+          "created_year",
+          "created_month",
+          "revoked",
+          "current"
+        ],
+        "type": "object"
+      },
+      "PaymentOutcome": {
+        "enum": [
+          "prepared",
+          "settled",
+          "refused",
+          "pending",
+          "uncertain"
+        ],
+        "type": "string"
+      },
       "PinEnvelope": {
         "description": "Wire schema of cmbr's versioned pin capability; cmbr validates every binding.",
         "properties": {
@@ -203,6 +388,14 @@
         ],
         "type": "string"
       },
+      "SelfBanIntent": {
+        "description": "Explicit purpose displayed before the holder confirms with their passkey.\nPermanent global self-ban ends access through this wallet forever. There is\nno undo, recovery or operator override; burned uniqueness remains consumed.",
+        "enum": [
+          "permanent_global_self_ban",
+          "permanent_community_self_ban"
+        ],
+        "type": "string"
+      },
       "Setting": {
         "additionalProperties": false,
         "properties": {
@@ -228,6 +421,81 @@
           "effective_at"
         ],
         "type": "object"
+      },
+      "SimulationOffer": {
+        "additionalProperties": false,
+        "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/Channel"
+          },
+          "exact": {
+            "type": "boolean"
+          },
+          "maximum": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Amount",
+                "description": "None is unknown; it does not authorize even a hypothetical dispatch."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/SimulationOutcome"
+          },
+          "source": {
+            "type": "string"
+          },
+          "valid_until": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "channel",
+          "exact",
+          "source",
+          "valid_until",
+          "outcome"
+        ],
+        "type": "object"
+      },
+      "SimulationOutcome": {
+        "enum": [
+          "success",
+          "safe_failure",
+          "refused",
+          "pending",
+          "uncertain"
+        ],
+        "type": "string"
+      },
+      "TrustKeyTransition": {
+        "additionalProperties": false,
+        "description": "Original publishing-key endorsement; routing metadata is not authority.",
+        "properties": {
+          "proof": {
+            "items": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "revision": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "revision",
+          "proof"
+        ],
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -243,6 +511,906 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/v1/community_self_ban_begin": {
+      "post": {
+        "operationId": "community_self_ban_begin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "ceremony": {
+                      "type": "string"
+                    },
+                    "expires": {
+                      "description": "Exclusive confirmation deadline; the operation cannot be undone.",
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "intent": {
+                      "$ref": "#/components/schemas/SelfBanIntent"
+                    },
+                    "options": {},
+                    "warning": {
+                      "description": "Display before requesting the confirming passkey assertion.",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "ceremony",
+                    "intent",
+                    "warning",
+                    "expires",
+                    "options"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Confirm permanent community self-ban with a fresh passkey ceremony",
+        "x-client-access": "forward",
+        "x-effect": "check",
+        "x-role": "member",
+        "x-scope": "community"
+      }
+    },
+    "/v1/community_self_ban_finish": {
+      "post": {
+        "operationId": "community_self_ban_finish",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "ceremony": {
+                    "type": "string"
+                  },
+                  "credential": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "ceremony",
+                  "credential"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Permanently end this membership; no recovery or operator override",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "member",
+        "x-scope": "community"
+      }
+    },
+    "/v1/community_self_ban_status_begin": {
+      "post": {
+        "operationId": "community_self_ban_status_begin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "Dedicated discoverable authentication for outcome inspection, never login.",
+                  "properties": {
+                    "ceremony": {
+                      "type": "string"
+                    },
+                    "expires": {
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "options": {}
+                  },
+                  "required": [
+                    "ceremony",
+                    "expires",
+                    "options"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [],
+        "summary": "Begin passkey authentication solely to inspect your own self-ban outcome",
+        "x-client-access": "forward",
+        "x-effect": "check",
+        "x-role": "public",
+        "x-scope": "community"
+      }
+    },
+    "/v1/community_self_ban_status_finish": {
+      "post": {
+        "operationId": "community_self_ban_status_finish",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "ceremony": {
+                    "type": "string"
+                  },
+                  "credential": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "ceremony",
+                  "credential"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "Read only the holder's committed permanent self-ban, without restoring access.",
+                  "properties": {
+                    "self_banned": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "self_banned"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [],
+        "summary": "Inspect your own permanent self-ban with fresh UV; never restore access",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "public",
+        "x-scope": "community"
+      }
+    },
+    "/v1/contact_accept": {
+      "post": {
+        "operationId": "contact_accept",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "operation": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "operation"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "gate": {
+                      "type": "string"
+                    },
+                    "provider": {
+                      "type": "string"
+                    },
+                    "valid_until": {
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "gate",
+                    "provider",
+                    "valid_until"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Accept a real typed contact fact through the global facade",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "member",
+        "x-scope": "global"
+      }
+    },
+    "/v1/contact_check": {
+      "post": {
+        "operationId": "contact_check",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "operation": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "operation",
+                  "code"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "authorization": {
+                      "description": "Consent identifies this exact preview generation. Beginning a later OTP\ncheck invalidates consent from the previous begin/check preparation.",
+                      "type": "string"
+                    },
+                    "budget": {
+                      "$ref": "#/components/schemas/Amount"
+                    },
+                    "excluded": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "max_attempts": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "offers": {
+                      "items": {
+                        "$ref": "#/components/schemas/Offer"
+                      },
+                      "type": "array"
+                    },
+                    "operation": {
+                      "type": "string"
+                    },
+                    "valid_until": {
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "operation",
+                    "authorization",
+                    "offers",
+                    "excluded",
+                    "budget",
+                    "max_attempts",
+                    "valid_until"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Preview one check of this RAM-held contact session",
+        "x-client-access": "forward",
+        "x-effect": "check",
+        "x-role": "member",
+        "x-scope": "global"
+      }
+    },
+    "/v1/contact_execute": {
+      "post": {
+        "operationId": "contact_execute",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "authorization": {
+                    "type": "string"
+                  },
+                  "operation": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "operation",
+                  "authorization"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "exposure": {
+                      "$ref": "#/components/schemas/Amount",
+                      "description": "Conservative reserved exposure, never an invented actual charge."
+                    },
+                    "operation": {
+                      "type": "string"
+                    },
+                    "outcome": {
+                      "$ref": "#/components/schemas/Outcome"
+                    }
+                  },
+                  "required": [
+                    "operation",
+                    "outcome",
+                    "exposure"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Explicitly authorize the exact prepared contact cost preview",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "member",
+        "x-scope": "global"
+      }
+    },
+    "/v1/contact_plan": {
+      "post": {
+        "operationId": "contact_plan",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Selected configured options and a caller budget. Provider credentials,\npolicy scope, original check and evidence lifetime are host-owned.",
+                "properties": {
+                  "budget": {
+                    "$ref": "#/components/schemas/Amount"
+                  },
+                  "destination": {
+                    "type": "string"
+                  },
+                  "max_attempts": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "options": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "order": {
+                    "$ref": "#/components/schemas/Order"
+                  }
+                },
+                "required": [
+                  "options",
+                  "destination",
+                  "budget",
+                  "max_attempts",
+                  "order"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "authorization": {
+                      "description": "Consent identifies this exact preview generation. Beginning a later OTP\ncheck invalidates consent from the previous begin/check preparation.",
+                      "type": "string"
+                    },
+                    "budget": {
+                      "$ref": "#/components/schemas/Amount"
+                    },
+                    "excluded": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "max_attempts": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "offers": {
+                      "items": {
+                        "$ref": "#/components/schemas/Offer"
+                      },
+                      "type": "array"
+                    },
+                    "operation": {
+                      "type": "string"
+                    },
+                    "valid_until": {
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "operation",
+                    "authorization",
+                    "offers",
+                    "excluded",
+                    "budget",
+                    "max_attempts",
+                    "valid_until"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Preview enabled contact verification costs without dispatch",
+        "x-client-access": "forward",
+        "x-effect": "check",
+        "x-role": "member",
+        "x-scope": "global"
+      }
+    },
+    "/v1/contact_simulate": {
+      "post": {
+        "operationId": "contact_simulate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "budget": {
+                    "$ref": "#/components/schemas/Amount"
+                  },
+                  "destination": {
+                    "description": "Explicit dummy identifier. Never published or persisted.",
+                    "type": "string"
+                  },
+                  "max_attempts": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "offers": {
+                    "items": {
+                      "$ref": "#/components/schemas/SimulationOffer"
+                    },
+                    "type": "array"
+                  },
+                  "order": {
+                    "$ref": "#/components/schemas/Order"
+                  }
+                },
+                "required": [
+                  "destination",
+                  "offers",
+                  "budget",
+                  "max_attempts",
+                  "order"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "attempts": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "exposure": {
+                      "$ref": "#/components/schemas/Amount"
+                    },
+                    "outcome": {
+                      "$ref": "#/components/schemas/SimulationOutcome"
+                    },
+                    "simulated": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "simulated",
+                    "outcome",
+                    "exposure",
+                    "attempts"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Simulate dummy contact planning locally without providers or credentials",
+        "x-client-access": "forward",
+        "x-effect": "check",
+        "x-role": "member",
+        "x-scope": "global"
+      }
+    },
+    "/v1/contact_status": {
+      "post": {
+        "operationId": "contact_status",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "operation": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "operation"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "exposure": {
+                      "$ref": "#/components/schemas/Amount",
+                      "description": "Conservative reserved exposure, never an invented actual charge."
+                    },
+                    "operation": {
+                      "type": "string"
+                    },
+                    "outcome": {
+                      "$ref": "#/components/schemas/Outcome"
+                    }
+                  },
+                  "required": [
+                    "operation",
+                    "outcome",
+                    "exposure"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Read the minimal outcome and reserved contact exposure",
+        "x-client-access": "forward",
+        "x-effect": "check",
+        "x-role": "member",
+        "x-scope": "global"
+      }
+    },
     "/v1/credential_issue": {
       "post": {
         "operationId": "credential_issue",
@@ -334,6 +1502,7 @@
           }
         ],
         "summary": "Present a passport and request admission or renewal",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
@@ -422,6 +1591,7 @@
           }
         ],
         "summary": "Authorize the lineage device key with this live passkey",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
@@ -496,6 +1666,7 @@
           }
         ],
         "summary": "Read current passkey-authorized signing keys",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "member",
         "x-scope": "community"
@@ -617,6 +1788,7 @@
           }
         ],
         "summary": "Verify a member-bound voucher",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
@@ -709,6 +1881,7 @@
           }
         ],
         "summary": "Withdraw a retained community gate",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
@@ -793,8 +1966,231 @@
         },
         "security": [],
         "summary": "Read authenticated global issuer material",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "public",
+        "x-scope": "global"
+      }
+    },
+    "/v1/global_self_ban_begin": {
+      "post": {
+        "operationId": "global_self_ban_begin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "ceremony": {
+                      "type": "string"
+                    },
+                    "expires": {
+                      "description": "Exclusive confirmation deadline; the operation cannot be undone.",
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "intent": {
+                      "$ref": "#/components/schemas/SelfBanIntent"
+                    },
+                    "options": {},
+                    "warning": {
+                      "description": "Display before requesting the confirming passkey assertion.",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "ceremony",
+                    "intent",
+                    "warning",
+                    "expires",
+                    "options"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Confirm permanent global self-ban with a fresh passkey ceremony",
+        "x-client-access": "forward",
+        "x-effect": "check",
+        "x-role": "member",
+        "x-scope": "global"
+      }
+    },
+    "/v1/global_self_ban_finish": {
+      "post": {
+        "operationId": "global_self_ban_finish",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "ceremony": {
+                    "type": "string"
+                  },
+                  "credential": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "ceremony",
+                  "credential"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Permanently suspend this authenticated global account; no recovery",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "member",
+        "x-scope": "global"
+      }
+    },
+    "/v1/global_self_ban_status": {
+      "post": {
+        "operationId": "global_self_ban_status",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "Read only the holder's committed permanent self-ban, without restoring access.",
+                  "properties": {
+                    "self_banned": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "self_banned"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Read this authenticated wallet's permanent self-ban outcome",
+        "x-client-access": "forward",
+        "x-effect": "check",
+        "x-role": "member",
         "x-scope": "global"
       }
     },
@@ -864,6 +2260,7 @@
           }
         ],
         "summary": "Temporarily suspend and advance the global epoch",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "root",
         "x-scope": "global"
@@ -929,6 +2326,7 @@
           }
         ],
         "summary": "Record the warning preceding temporary suspension",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "root",
         "x-scope": "global"
@@ -998,6 +2396,7 @@
         },
         "security": [],
         "summary": "Check a community handle",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "public",
         "x-scope": "community"
@@ -1100,6 +2499,7 @@
           }
         ],
         "summary": "Reserve a community handle",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
@@ -1194,6 +2594,7 @@
           }
         ],
         "summary": "Read enrolment and missing requirements",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "member",
         "x-scope": "community"
@@ -1278,6 +2679,7 @@
         },
         "security": [],
         "summary": "Begin credential-first passkey authentication",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "public",
         "x-scope": "both"
@@ -1342,6 +2744,7 @@
         },
         "security": [],
         "summary": "Begin usernameless sign-in with a synced passkey",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "public",
         "x-scope": "both"
@@ -1430,6 +2833,7 @@
         },
         "security": [],
         "summary": "Verify user and counter; create an ephemeral session",
+        "x-client-access": "trusted",
         "x-effect": "record",
         "x-role": "public",
         "x-scope": "both"
@@ -1487,6 +2891,7 @@
           }
         ],
         "summary": "End this ephemeral session",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "authenticated",
         "x-scope": "both"
@@ -1632,10 +3037,158 @@
             "session": []
           }
         ],
-        "summary": "Register another UV-required passkey for this membership",
+        "summary": "Register another UV-required passkey for this account",
+        "x-client-access": "forward",
         "x-effect": "record",
+        "x-role": "authenticated",
+        "x-scope": "both"
+      }
+    },
+    "/v1/passkey_certificate": {
+      "post": {
+        "operationId": "passkey_certificate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "Original registered-key certificate with its actual checked output time.\nThe signed certificate is unchanged; this observation is from the fresh\nauthenticated server response, not retained prior device observations.",
+                  "properties": {
+                    "bytes": {
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    },
+                    "checked_at": {
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "bytes",
+                    "checked_at"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Certify the current registered passkey for community lineage assertions",
+        "x-client-access": "forward",
+        "x-effect": "check",
         "x-role": "member",
         "x-scope": "community"
+      }
+    },
+    "/v1/passkey_list": {
+      "post": {
+        "operationId": "passkey_list",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "passkeys": {
+                      "items": {
+                        "$ref": "#/components/schemas/PasskeyView"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "passkeys"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "List this account's passkeys and revocation status",
+        "x-client-access": "forward",
+        "x-effect": "check",
+        "x-role": "authenticated",
+        "x-scope": "both"
       }
     },
     "/v1/passkey_revoke": {
@@ -1702,10 +3255,11 @@
             "session": []
           }
         ],
-        "summary": "Revoke a community passkey",
+        "summary": "Revoke one of this account's passkeys",
+        "x-client-access": "forward",
         "x-effect": "record",
-        "x-role": "member",
-        "x-scope": "community"
+        "x-role": "authenticated",
+        "x-scope": "both"
       }
     },
     "/v1/passport_challenge": {
@@ -1773,6 +3327,7 @@
           }
         ],
         "summary": "Reserve a blind passport issuance challenge",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "global"
@@ -1865,9 +3420,629 @@
           }
         ],
         "summary": "Issue a blind passport after global policy checks",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "global"
+      }
+    },
+    "/v1/payment_accept": {
+      "post": {
+        "operationId": "payment_accept",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "operation": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "operation"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "access": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/AccessTerms",
+                          "description": "Set only after the actual domain establishes exact settled terms."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "operation": {
+                      "type": "string"
+                    },
+                    "outcome": {
+                      "$ref": "#/components/schemas/PaymentOutcome"
+                    }
+                  },
+                  "required": [
+                    "operation",
+                    "outcome"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Accept genuine paid access through the community gate owner",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "member",
+        "x-scope": "community"
+      }
+    },
+    "/v1/payment_execute": {
+      "post": {
+        "operationId": "payment_execute",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "authorization": {
+                    "type": "string"
+                  },
+                  "operation": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "operation",
+                  "authorization"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "access": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/AccessTerms",
+                          "description": "Set only after the actual domain establishes exact settled terms."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "operation": {
+                      "type": "string"
+                    },
+                    "outcome": {
+                      "$ref": "#/components/schemas/PaymentOutcome"
+                    }
+                  },
+                  "required": [
+                    "operation",
+                    "outcome"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Explicitly execute the exact prepared x402 settlement",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "member",
+        "x-scope": "community"
+      }
+    },
+    "/v1/payment_offer": {
+      "post": {
+        "operationId": "payment_offer",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "The original x402 offer must be presented before the member signs it. It is\nsupplied by caller policy, never inferred from a member payload or vendor.",
+                  "properties": {
+                    "access": {
+                      "$ref": "#/components/schemas/AccessTerms"
+                    },
+                    "option": {
+                      "type": "string"
+                    },
+                    "payment_required": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "option",
+                    "access",
+                    "payment_required"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Read the configured original x402 offer and requested access",
+        "x-client-access": "forward",
+        "x-effect": "check",
+        "x-role": "member",
+        "x-scope": "community"
+      }
+    },
+    "/v1/payment_plan": {
+      "post": {
+        "operationId": "payment_plan",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "budget": {
+                    "$ref": "#/components/schemas/Amount",
+                    "description": "Member can lower only the configured operator service-fee budget."
+                  },
+                  "option": {
+                    "type": "string"
+                  },
+                  "payload": {
+                    "description": "Hostile original x402 payment payload. No authenticated fact is accepted.",
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "option",
+                  "payload",
+                  "budget"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "access": {
+                      "$ref": "#/components/schemas/AccessTerms"
+                    },
+                    "authorization": {
+                      "type": "string"
+                    },
+                    "budget": {
+                      "$ref": "#/components/schemas/Amount"
+                    },
+                    "exact": {
+                      "type": "boolean"
+                    },
+                    "expires_at": {
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maximum": {
+                      "$ref": "#/components/schemas/Amount"
+                    },
+                    "operation": {
+                      "type": "string"
+                    },
+                    "option": {
+                      "type": "string"
+                    },
+                    "scope": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "operation",
+                    "authorization",
+                    "option",
+                    "access",
+                    "maximum",
+                    "budget",
+                    "exact",
+                    "source",
+                    "scope",
+                    "expires_at"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Preview the exact paid-access operation without provider calls",
+        "x-client-access": "forward",
+        "x-effect": "check",
+        "x-role": "member",
+        "x-scope": "community"
+      }
+    },
+    "/v1/payment_simulate": {
+      "post": {
+        "operationId": "payment_simulate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "access": {
+                    "$ref": "#/components/schemas/AccessTerms"
+                  },
+                  "actual_fee": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/Amount"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "budget": {
+                    "$ref": "#/components/schemas/Amount"
+                  },
+                  "dummy_offer": {
+                    "description": "Explicit dummy terms/evidence remain transient. No provider is accepted."
+                  },
+                  "dummy_payload": {
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "expires_at": {
+                    "format": "int64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "maximum": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/Amount"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "outcome": {
+                    "$ref": "#/components/schemas/DummyOutcome"
+                  },
+                  "satisfies_terms": {
+                    "type": "boolean"
+                  },
+                  "source": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "dummy_offer",
+                  "dummy_payload",
+                  "access",
+                  "budget",
+                  "source",
+                  "expires_at",
+                  "outcome",
+                  "satisfies_terms"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "access": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/AccessTerms"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "charge_violation": {
+                      "type": "boolean"
+                    },
+                    "exposure": {
+                      "$ref": "#/components/schemas/Amount"
+                    },
+                    "outcome": {
+                      "$ref": "#/components/schemas/PaymentOutcome"
+                    },
+                    "simulated": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "simulated",
+                    "outcome",
+                    "exposure",
+                    "charge_violation"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Simulate dummy payment planning locally without provider I/O",
+        "x-client-access": "forward",
+        "x-effect": "check",
+        "x-role": "member",
+        "x-scope": "community"
+      }
+    },
+    "/v1/payment_status": {
+      "post": {
+        "operationId": "payment_status",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "operation": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "operation"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "access": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/AccessTerms",
+                          "description": "Set only after the actual domain establishes exact settled terms."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "operation": {
+                      "type": "string"
+                    },
+                    "outcome": {
+                      "$ref": "#/components/schemas/PaymentOutcome"
+                    }
+                  },
+                  "required": [
+                    "operation",
+                    "outcome"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Read only this member's minimal payment outcome",
+        "x-client-access": "forward",
+        "x-effect": "check",
+        "x-role": "member",
+        "x-scope": "community"
       }
     },
     "/v1/pin_change": {
@@ -1955,6 +4130,7 @@
           }
         ],
         "summary": "Change a fingerprint using spent-token evidence",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
@@ -2032,6 +4208,7 @@
           }
         ],
         "summary": "Read a sealed fingerprint",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "member",
         "x-scope": "community"
@@ -2113,6 +4290,7 @@
           }
         ],
         "summary": "Seal an initial profile fingerprint",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
@@ -2151,6 +4329,18 @@
                 "schema": {
                   "additionalProperties": false,
                   "properties": {
+                    "balance": {
+                      "description": "Original optional Balance publication, authenticated with the manifest.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
                     "communities": {
                       "items": {
                         "format": "int32",
@@ -2164,6 +4354,12 @@
                         "format": "int32",
                         "minimum": 0,
                         "type": "integer"
+                      },
+                      "type": "array"
+                    },
+                    "key_transitions": {
+                      "items": {
+                        "$ref": "#/components/schemas/TrustKeyTransition"
                       },
                       "type": "array"
                     },
@@ -2192,6 +4388,18 @@
                         "type": "integer"
                       },
                       "type": "array"
+                    },
+                    "root_board": {
+                      "description": "Original optional Policy publication, authenticated with the manifest.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     },
                     "schema": {
                       "items": {
@@ -2261,6 +4469,7 @@
           }
         ],
         "summary": "Edit a platform setting or force switch",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "root",
         "x-scope": "community"
@@ -2331,6 +4540,7 @@
         },
         "security": [],
         "summary": "Begin a signed community passport presentation",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "public",
         "x-scope": "community"
@@ -2418,6 +4628,7 @@
         },
         "security": [],
         "summary": "Begin UV-required passkey registration",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "public",
         "x-scope": "both"
@@ -2492,6 +4703,7 @@
         },
         "security": [],
         "summary": "Verify and store the first passkey",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "public",
         "x-scope": "both"
@@ -2563,6 +4775,7 @@
           }
         ],
         "summary": "Classify profile schema changes",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "admin",
         "x-scope": "community"
@@ -2597,6 +4810,18 @@
                 "schema": {
                   "additionalProperties": false,
                   "properties": {
+                    "balance": {
+                      "description": "Original optional Balance publication, authenticated with the manifest.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
                     "communities": {
                       "items": {
                         "format": "int32",
@@ -2610,6 +4835,12 @@
                         "format": "int32",
                         "minimum": 0,
                         "type": "integer"
+                      },
+                      "type": "array"
+                    },
+                    "key_transitions": {
+                      "items": {
+                        "$ref": "#/components/schemas/TrustKeyTransition"
                       },
                       "type": "array"
                     },
@@ -2638,6 +4869,18 @@
                         "type": "integer"
                       },
                       "type": "array"
+                    },
+                    "root_board": {
+                      "description": "Original optional Policy publication, authenticated with the manifest.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     },
                     "schema": {
                       "items": {
@@ -2707,6 +4950,7 @@
           }
         ],
         "summary": "Publish a profile schema",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "admin",
         "x-scope": "community"
@@ -2755,6 +4999,18 @@
                 "schema": {
                   "additionalProperties": false,
                   "properties": {
+                    "balance": {
+                      "description": "Original optional Balance publication, authenticated with the manifest.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
                     "communities": {
                       "items": {
                         "format": "int32",
@@ -2768,6 +5024,12 @@
                         "format": "int32",
                         "minimum": 0,
                         "type": "integer"
+                      },
+                      "type": "array"
+                    },
+                    "key_transitions": {
+                      "items": {
+                        "$ref": "#/components/schemas/TrustKeyTransition"
                       },
                       "type": "array"
                     },
@@ -2796,6 +5058,18 @@
                         "type": "integer"
                       },
                       "type": "array"
+                    },
+                    "root_board": {
+                      "description": "Original optional Policy publication, authenticated with the manifest.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     },
                     "schema": {
                       "items": {
@@ -2865,6 +5139,7 @@
           }
         ],
         "summary": "Edit a community setting",
+        "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "admin",
         "x-scope": "community"
@@ -2948,6 +5223,7 @@
         },
         "security": [],
         "summary": "Wait for a public revision announcement",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "public",
         "x-scope": "community"
@@ -2974,6 +5250,18 @@
                 "schema": {
                   "additionalProperties": false,
                   "properties": {
+                    "balance": {
+                      "description": "Original optional Balance publication, authenticated with the manifest.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
                     "communities": {
                       "items": {
                         "format": "int32",
@@ -2987,6 +5275,12 @@
                         "format": "int32",
                         "minimum": 0,
                         "type": "integer"
+                      },
+                      "type": "array"
+                    },
+                    "key_transitions": {
+                      "items": {
+                        "$ref": "#/components/schemas/TrustKeyTransition"
                       },
                       "type": "array"
                     },
@@ -3015,6 +5309,18 @@
                         "type": "integer"
                       },
                       "type": "array"
+                    },
+                    "root_board": {
+                      "description": "Original optional Policy publication, authenticated with the manifest.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     },
                     "schema": {
                       "items": {
@@ -3080,6 +5386,7 @@
         },
         "security": [],
         "summary": "Read signed public trust snapshots",
+        "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "public",
         "x-scope": "community"
