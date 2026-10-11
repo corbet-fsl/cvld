@@ -141,7 +141,7 @@ async fn facade_with_store<S: cgbl::storage::Store>(store: S) -> Facade<S> {
         ["cphn", "cmbx"].map(|g| GateId::new(g).unwrap()).to_vec(),
     )
     .unwrap();
-    let mut facade = Global::open(
+    let facade = Global::open(
         store,
         cpsd::MemoryStore::new(cpsd::CommunityId::new(b"global").unwrap(), 10).unwrap(),
         issuer,
