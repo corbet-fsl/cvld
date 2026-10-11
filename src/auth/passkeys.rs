@@ -9,6 +9,31 @@ pub(super) struct PendingAddition {
 }
 
 impl Auth {
+    // Only inspect this owner's retained session/ceremony before the Wallet
+    // signals a mutation. The caller retains this same Auth lock; the original
+    // finish method still authenticates, rechecks and consumes before its SDK call.
+    pub(crate) fn check_passkey_addition(
+        &self,
+        token: &str,
+        request: &AddPasskey,
+        now: u64,
+    ) -> Result<()> {
+        let grant = &self.sessions.get(token).ok_or(Error::Unauthorized)?.grant;
+        if now >= grant.expires {
+            return Err(Error::Unauthorized);
+        }
+        if let AddPasskey::Finish { ceremony, .. } = request {
+            let pending = self.additions.get(ceremony).ok_or(Error::Unauthorized)?;
+            if now >= pending.until
+                || pending.session_id != grant.session_id
+                || pending.authorizer != grant.credential
+            {
+                return Err(Error::Unauthorized);
+            }
+        }
+        Ok(())
+    }
+
     pub async fn list_passkeys(&mut self, token: &str, now: u64) -> Result<PasskeyList> {
         let grant = self.authenticate(token, now).await?;
         let keys = self.passkeys.clone();

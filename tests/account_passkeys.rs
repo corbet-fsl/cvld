@@ -197,6 +197,63 @@ async fn manage(
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn configured_wallet_refuses_consumed_addition_before_publication_effects() {
+    use cgbl::storage::{Key, Store};
+    let service = configured_wallet(100).await;
+    let (mut original, _, _) =
+        register_account(&service, WALLET, json!({"bootstrap":null,"passport":null})).await;
+    let first = discover(&service, WALLET, &mut original).await;
+    let api = client(&service, WALLET, Some(&first.token));
+    let begin: AddedPasskey = serde_json::from_value(
+        api.call("passkey_add", json!({"step":"begin"}))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let AddedPasskey::Challenge {
+        ceremony, options, ..
+    } = begin
+    else {
+        panic!("challenge")
+    };
+    let mut added = Resident::default();
+    let mut credential = added
+        .ceremony(options, true, &format!("https://{WALLET}"))
+        .await;
+    strip_prf(&mut credential);
+    let body = json!({"step":"finish", "ceremony":ceremony, "credential":credential});
+    api.call("passkey_add", body.clone()).await.unwrap();
+    let public = client(&service, WALLET, None);
+    let feed = public.call("wallet_trust_feed", json!({})).await.unwrap();
+    let db = crlt::Db::open(crlt::Config::new(
+        format!("file://{}", service.dir.path().join("global.db").display()),
+        "",
+    ))
+    .await
+    .unwrap();
+    let store = cgbl::storage::LibsqlStore::new(&db, "global").unwrap();
+    let keys = [
+        Key::new("wallet", "publications"),
+        Key::new("wallet-device", &first.user),
+    ];
+    let before = store.read(&keys).await.unwrap();
+    assert_eq!(
+        call_status(&service, WALLET, Some(&first.token), "passkey_add", body).await,
+        401
+    );
+    let after = store.read(&keys).await.unwrap();
+    assert_eq!(after.revisions, before.revisions);
+    for key in &keys {
+        assert_eq!(after.records[key].value, before.records[key].value);
+        assert_eq!(after.records[key].deadline, before.records[key].deadline);
+    }
+    assert_eq!(
+        public.call("wallet_trust_feed", json!({})).await.unwrap(),
+        feed
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn wallet_and_global_operator_manage_equal_passkeys_through_real_http_routes() {
     let service = global(100).await;
     scenario(&service, WALLET, ROOT, Role::Member, None).await;

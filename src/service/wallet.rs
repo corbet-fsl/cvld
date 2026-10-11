@@ -208,6 +208,7 @@ impl Door {
             .check(&mut auth, token, ctx.now, self.inner.clock.as_ref())
             .await?;
         let writing = matches!(request, AddPasskey::Finish { .. });
+        auth.check_passkey_addition(token, &request, session.checked_at()?)?;
         let mutation = if writing {
             global.wallet_mutation().await?
         } else {
