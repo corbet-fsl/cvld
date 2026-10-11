@@ -43,6 +43,9 @@ python3 -B .ci/time-controls.py
 cargo run --locked -- openapi > docs/openapi.json
 npm ci --prefix clients/ts
 npm run generate --prefix clients/ts
+git diff -- docs/openapi.json clients/ts/schema.d.ts > "${ARTIFACT_ROOT:-/tmp}/schema.diff" || true
+git diff --stat -- docs/openapi.json clients/ts/schema.d.ts || true
+git diff -- docs/openapi.json clients/ts/schema.d.ts | sed "s/^/SCHEMADIFF /" || true
 npm run check --prefix clients/ts
 npm test --prefix clients/ts
 cargo test --locked --features development-gate --no-fail-fast
