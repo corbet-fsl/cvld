@@ -140,6 +140,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/community_founder_issue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Issue the original FounderAdmin entitlement for a distinct registered founder of an explicitly linked community */
+        post: operations["community_founder_issue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/community_self_ban_begin": {
         parameters: {
             query?: never;
@@ -2058,10 +2075,18 @@ export interface components {
         Channel: "sms" | "whatsapp" | "call" | "email";
         /** @enum {string} */
         Coverage: "all_accepted_requests";
+        /**
+         * @description What the prepared recipient may later receive; fixed at preparation and
+         *     never reinterpreted by the Global Root.
+         * @enum {string}
+         */
+        CreationPurpose: "root" | "founder";
         CredentialRequest: {
             /** @description Original target-Policy first-Root entitlement, redeemed with full gates. */
             creation?: number[] | null;
             devices: number[][];
+            /** @description Original target-Policy FounderAdmin entitlement, redeemed with full gates. */
+            founder?: number[] | null;
             presentation: components["schemas"]["PresentationInput"];
         };
         /** @description Member-owned root authorization. Eligibility issuers cannot create this proof. */
@@ -2511,6 +2536,7 @@ export interface operations {
                     expires_at: number;
                     /** @description Retain the original opaque ID for a retry; omitted only on first prepare. */
                     id?: string | null;
+                    purpose: components["schemas"]["CreationPurpose"];
                 };
             };
         };
@@ -2526,6 +2552,53 @@ export interface operations {
                         expires_at: number;
                         id: string;
                         recipient: string;
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    community_founder_issue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description A target explicitly linked by the trusted hosting caller. */
+                    community: string;
+                    /** @description Opaque target-owned reference; no target bearer or member UUID crosses. */
+                    recipient: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: int64 */
+                        checked_at: number;
+                        /** Format: int64 */
+                        expires_at: number;
+                        id: string;
+                        invitation: number[];
                     };
                 };
             };
@@ -3002,6 +3075,8 @@ export interface operations {
                     /** @description Original target-Policy first-Root entitlement, redeemed with full gates. */
                     creation?: number[] | null;
                     devices: number[][];
+                    /** @description Original target-Policy FounderAdmin entitlement, redeemed with full gates. */
+                    founder?: number[] | null;
                     presentation: components["schemas"]["PresentationInput"];
                 };
             };

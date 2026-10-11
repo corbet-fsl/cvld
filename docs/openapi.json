@@ -3200,6 +3200,14 @@
         ],
         "type": "string"
       },
+      "CreationPurpose": {
+        "description": "What the prepared recipient may later receive; fixed at preparation and\nnever reinterpreted by the Global Root.",
+        "enum": [
+          "root",
+          "founder"
+        ],
+        "type": "string"
+      },
       "CredentialRequest": {
         "additionalProperties": false,
         "properties": {
@@ -3225,6 +3233,18 @@
               "type": "array"
             },
             "type": "array"
+          },
+          "founder": {
+            "description": "Original target-Policy FounderAdmin entitlement, redeemed with full gates.",
+            "items": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "presentation": {
             "$ref": "#/components/schemas/PresentationInput"
@@ -4351,9 +4371,13 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "purpose": {
+                    "$ref": "#/components/schemas/CreationPurpose"
                   }
                 },
                 "required": [
+                  "purpose",
                   "expires_at"
                 ],
                 "type": "object"
@@ -4422,6 +4446,107 @@
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
+      }
+    },
+    "/v1/community_founder_issue": {
+      "post": {
+        "operationId": "community_founder_issue",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "community": {
+                    "description": "A target explicitly linked by the trusted hosting caller.",
+                    "type": "string"
+                  },
+                  "recipient": {
+                    "description": "Opaque target-owned reference; no target bearer or member UUID crosses.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "community",
+                  "recipient"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "checked_at": {
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "expires_at": {
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "invitation": {
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "invitation",
+                    "id",
+                    "expires_at",
+                    "checked_at"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Issue the original FounderAdmin entitlement for a distinct registered founder of an explicitly linked community",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "root",
+        "x-scope": "global"
       }
     },
     "/v1/community_self_ban_begin": {
@@ -5355,6 +5480,18 @@
                       "type": "array"
                     },
                     "type": "array"
+                  },
+                  "founder": {
+                    "description": "Original target-Policy FounderAdmin entitlement, redeemed with full gates.",
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ]
                   },
                   "presentation": {
                     "$ref": "#/components/schemas/PresentationInput"
