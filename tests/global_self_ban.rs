@@ -382,7 +382,7 @@ async fn a_real_login_assertion_expired_intent_logout_and_revocation_never_suspe
                     client(&service, WALLET, Some(&owner.session.token))
                         .call("passkey_revoke", json!({"credential":owner.credential}))
                         .await,
-                    Err(cvld::Error::Reconcile)
+                    Err(cvld::error::Error::Reconcile)
                 ));
                 assert_eq!(
                     call_status(&service, WALLET, None, "login_begin", login).await,
