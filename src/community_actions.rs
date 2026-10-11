@@ -126,7 +126,13 @@ impl Door {
             .membership()
             .reserve_handle(ctx.member()?, &request.handle, &reserved)
             .await
-            .map_err(Error::Refused.redact())?;
+            .map_err(|e| {
+                eprintln!(
+                    "DIAG reserve {e:?} handle={} reserved={:?}",
+                    request.handle, reserved
+                );
+                Error::Refused
+            })?;
         community.lobby(ctx.member()?, ctx.now).await
     }
     pub(crate) async fn gate_voucher(&self, ctx: Context, request: Voucher) -> Result<Lobby> {
