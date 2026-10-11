@@ -29,12 +29,13 @@ async fn genuine_schema_commit_succeeds_then_independent_key_revocation_refuses_
         .await
         .unwrap();
     let mut policy = owner.facade.policy().lock().await;
-    let mut guard = GardenCommit::new(&owner, &ctx, &mut lease, "schema_set");
-    policy
-        .set_schema_checked(community_schema("alpha", 2), &mut guard)
-        .await
-        .unwrap();
-    drop(guard);
+    {
+        let mut guard = GardenCommit::new(&owner, &ctx, &mut lease, "schema_set");
+        policy
+            .set_schema_checked(community_schema("alpha", 2), &mut guard)
+            .await
+            .unwrap();
+    }
     let store = cplc::LibsqlStore::new(&owner.db, "alpha").unwrap();
     let before = store.load().await.unwrap();
     assert_eq!(
@@ -56,14 +57,15 @@ async fn genuine_schema_commit_succeeds_then_independent_key_revocation_refuses_
         .await
         .unwrap()
         .unwrap();
-    let mut guard = GardenCommit::new(&owner, &ctx, &mut lease, "schema_set");
-    assert!(
-        policy
-            .set_schema_checked(community_schema("alpha", 3), &mut guard)
-            .await
-            .is_err()
-    );
-    drop(guard);
+    {
+        let mut guard = GardenCommit::new(&owner, &ctx, &mut lease, "schema_set");
+        assert!(
+            policy
+                .set_schema_checked(community_schema("alpha", 3), &mut guard)
+                .await
+                .is_err()
+        );
+    }
     assert_eq!(store.load().await.unwrap(), before);
     assert!(!lease.is_current(NOW));
     assert!(matches!(policy.schema(), Err(cplc::Error::ReloadRequired)));

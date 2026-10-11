@@ -134,10 +134,9 @@ impl cmbr::RoleSession for RetainedEntry {
             .entries
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
             == 1
+            && let Some(sender) = self.completing.lock().unwrap().take()
         {
-            if let Some(sender) = self.completing.lock().unwrap().take() {
-                let _ = sender.send(());
-            }
+            let _ = sender.send(());
         }
         Ok(())
     }
