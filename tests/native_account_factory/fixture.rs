@@ -40,6 +40,10 @@ fn hex(bytes: &str) -> Vec<u8> {
         .collect()
 }
 impl Fixture {
+    /// The configuration is a plain serde value; an exact copy is its own round trip.
+    pub fn duplicate_config(&self) -> CommunityConfig {
+        serde_json::from_value(serde_json::to_value(&self.config).unwrap()).unwrap()
+    }
     pub async fn new() -> Self {
         // This is operator fixture configuration of the ACTUAL application
         // types and pins. It is not part of a public member/provider DTO.
@@ -225,7 +229,7 @@ impl Fixture {
         );
     }
     pub async fn seed_policy(&self, future: bool) {
-        let mut config = self.config.clone();
+        let mut config = self.duplicate_config();
         config.accounting = None;
         let door = Door::community(config, Arc::new(support::TestClock(AtomicU64::new(NOW))))
             .await
@@ -245,7 +249,7 @@ impl Fixture {
             .await
             .unwrap();
             let mut policy = cplc::Policy::open(
-                crbk::Rules::new(crbk::LibsqlStore::new(db.clone())),
+                cmty::adapters::SharedRulebook::new(crbk::LibsqlStore::new(db.clone())),
                 cplc::LibsqlStore::new(&db, "alpha").unwrap(),
                 signer,
             )
