@@ -169,7 +169,10 @@ impl Door {
         } else {
             String::new()
         };
-        let db = crlt::Db::open(crlt::Config::new(&config.database_url, token))
+        let mut database = crlt::Config::new(&config.database_url, token);
+        // Atomic mutations hold one lease while current-owner checks read the same database.
+        database.max_connections = 2;
+        let db = crlt::Db::open(database)
             .await
             .map_err(Error::Unavailable.redact())?;
         let now = clock.now();
@@ -380,7 +383,10 @@ impl Door {
         } else {
             String::new()
         };
-        let db = crlt::Db::open(crlt::Config::new(&config.database_url, token))
+        let mut database = crlt::Config::new(&config.database_url, token);
+        // Atomic mutations hold one lease while current-owner checks read the same database.
+        database.max_connections = 2;
+        let db = crlt::Db::open(database)
             .await
             .map_err(Error::Unavailable.redact())?;
         let mut hosts = BTreeMap::new();
