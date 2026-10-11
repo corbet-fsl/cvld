@@ -13,6 +13,7 @@ use std::{
     sync::Arc,
 };
 
+mod account_record;
 mod accounting;
 mod certificate;
 mod enrollment;
@@ -80,6 +81,7 @@ pub struct CommunityService {
     voucher: cgts::gates::VoucherGate,
     pub payments: Option<Arc<tokio::sync::Mutex<crate::payments::PaymentHost>>>,
     accounts: Option<Arc<crate::accounting::clock::AccountRuntime>>,
+    account_record: Option<account_record::PublishedRecord>,
     challenges: HashMap<String, Challenge>,
     registrations: HashMap<String, Pending<cmbr::PendingRegistration>>,
     logins: HashMap<String, PendingLogin>,
@@ -397,6 +399,7 @@ impl CommunityService {
                 voucher,
                 payments,
                 accounts,
+                account_record: None,
                 challenges: HashMap::new(),
                 registrations: HashMap::new(),
                 logins: HashMap::new(),
@@ -972,6 +975,9 @@ impl CommunityService {
             .flush_revocations(now)
             .await
             .map_err(Error::Unavailable.redact())?;
+        // Expired/invalidated Balance blocks Beacon refresh. Let its actual
+        // native owner recover first, including its original same-epoch bytes.
+        self.maintain_account_record().await?;
         let policy = self.facade.policy().lock().await;
         let epoch = policy
             .epoch(now)

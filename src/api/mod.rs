@@ -8,8 +8,10 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use utoipa::ToSchema;
+mod account_record;
 mod accounting;
 mod community;
+pub use account_record::*;
 pub use accounting::*;
 pub use community::*;
 mod enrollment;
@@ -251,7 +253,7 @@ macro_rules! actions {
                     }
                 ).layer(DefaultBodyLimit::max(body_limit)));
             } )*
-            router.layer(door.cors())
+            account_record::router(router).layer(door.cors())
                 .layer(axum::middleware::map_response(|mut response: axum::response::Response| async move {
                     response.headers_mut().insert(axum::http::header::CACHE_CONTROL,
                         axum::http::HeaderValue::from_static("no-store"));
@@ -303,6 +305,7 @@ actions! {
     credential_issue(CredentialRequest) -> CredentialResponse, Member, Community, Record, Forward, "Present a passport and request admission or renewal";
     account_credential_issue(AccountCredentialRequest) -> AccountCredentialResponse, Member, Community, Record, Forward, "Request the original account grant from the same full admission decision";
     account(AccountRequest) -> AccountResponse, Member, Community, Record, Forward, "Forward this admitted member's original account operation";
+    account_record(Empty) -> AccountRecordResource, Public, Community, Check, Forward, "Read the fixed common record resource link";
     pin_set(PinRequest) -> PinResponse, Member, Community, Record, Forward, "Seal an initial profile fingerprint";
     pin_get(Field) -> PinResponse, Member, Community, Check, Forward, "Read a sealed fingerprint";
     pin_change(PinChange) -> PinResponse, Member, Community, Record, Forward, "Change a fingerprint using spent-token evidence";
@@ -391,6 +394,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
             PathItem::new(HttpMethod::Post, operation),
         );
     }
+    account_record::declare(&mut paths, &error_response);
     let mut document = OpenApi::new(Info::new("cvld", "0.2.0"), paths);
     document.components = Some(components);
     document

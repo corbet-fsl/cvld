@@ -16,6 +16,7 @@ use std::{
 };
 use tokio::sync::{Mutex, OwnedSemaphorePermit, Semaphore, watch};
 
+mod account_record;
 mod accounting;
 mod contacts;
 mod enrollment;
@@ -460,7 +461,7 @@ impl Door {
                     .zip(origin.to_str().ok())
                     .is_some_and(|(host, origin)| door.allows_origin(host, origin))
             }))
-            .allow_methods([Method::POST])
+            .allow_methods([Method::POST, Method::GET])
             .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE])
             .max_age(Duration::from_secs(600))
     }

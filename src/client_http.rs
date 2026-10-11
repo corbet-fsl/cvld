@@ -122,4 +122,61 @@ impl super::AuthenticatedTransport for HttpClient {
         }
         Ok(url.origin().ascii_serialization())
     }
+    async fn account_record_object(&mut self, expected_length: usize) -> Result<Vec<u8>> {
+        super::record::expected_length(expected_length)?;
+        self.authenticated_origin()?;
+        // Anonymous common bytes: never send an account session to this route.
+        let request = self
+            .client
+            .get(format!("{}{}", self.base, super::record::PATH))
+            .header("host", &self.host)
+            .header(reqwest::header::ACCEPT, "application/octet-stream")
+            .build()
+            .map_err(Error::Invalid.redact())?;
+        let mut response = self
+            .client
+            .execute(request)
+            .await
+            .map_err(Error::Reconcile.redact())?;
+        if response.status().as_u16() != 200 {
+            // Preserve the original redacted status contract on bounded errors.
+            let status = response.status().as_u16();
+            let mut bytes = Vec::new();
+            while let Some(chunk) = response.chunk().await.map_err(Error::Reconcile.redact())? {
+                if chunk.len() > 16 * 1024 * 1024 - bytes.len() {
+                    return Err(Error::Reconcile);
+                }
+                bytes.extend_from_slice(&chunk);
+            }
+            return match super::decode_response("", status, &bytes) {
+                Err(error) => Err(error),
+                Ok(_) => Err(Error::Reconcile),
+            };
+        }
+        if response
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            != Some("application/octet-stream")
+        {
+            return Err(Error::Reconcile);
+        }
+        let length = response
+            .headers()
+            .get(reqwest::header::CONTENT_LENGTH)
+            .map(|value| value.to_str().map_err(Error::Reconcile.redact()))
+            .transpose()?;
+        super::record::content_length(length, expected_length)?;
+        let mut bytes = Vec::new();
+        while let Some(chunk) = response.chunk().await.map_err(Error::Reconcile.redact())? {
+            if chunk.len() > expected_length - bytes.len() {
+                return Err(Error::Reconcile);
+            }
+            bytes.extend_from_slice(&chunk);
+        }
+        if bytes.len() != expected_length {
+            return Err(Error::Reconcile);
+        }
+        Ok(bytes)
+    }
 }

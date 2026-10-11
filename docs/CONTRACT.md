@@ -451,3 +451,23 @@ or failed post-write clock/key/eligibility check is `Reconcile`; fresh original
 key authentication may inspect the retained winner, but cannot reconstruct
 missing private evidence or mint a replacement. Original pending wall and
 monotonic deadlines and latest live observation floors are never renewed.
+
+Configured native accounting upkeep obtains record publication from the same
+retained owner worker, using the actual signed Rulebook record period. Startup
+verifier material with no record epoch does not qualify Forum G2. A failed or
+uncertain publication leaves delivery unavailable; it never becomes an empty
+successful epoch. On retry or restart the worker recovers its original immutable
+published bytes. New members and changed policy cannot force a frozen epoch to
+be rebuilt.
+
+`account_record` projects the fixed anonymous resource link. GET
+`/v1/account_record_object` returns the same whole `application/octet-stream`
+object for everyone, without recipient selectors. Delivery checks the current
+signed Balance, exact retained descriptor, configured period and original
+exclusive deadlines through the shared clock. The OpenAPI binary resource stays
+separate from JSON actions and their CLI/MCP body limits. Original HTTP/browser
+clients fetch only this path at their configured HTTPS origin, without bearer,
+cookies or redirects, and bound each chunk to the exact expected length within
+the maintained 64 MiB owner limit. The consumer must obtain that length from its
+current authenticated Epoch and run the original `Epoch::check_object`; fetching
+bytes itself grants no account or attendance authority.

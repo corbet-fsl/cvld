@@ -5,6 +5,9 @@ use crate::error::{Error, Result};
 use serde_json::{Map, Value};
 use std::{collections::BTreeMap, future::Future, sync::LazyLock};
 
+#[path = "client_record.rs"]
+pub(crate) mod record;
+
 #[cfg(any(feature = "client-http", feature = "client-browser"))]
 #[path = "client_json.rs"]
 mod json;
@@ -89,8 +92,18 @@ static FORWARD_DOCUMENT: LazyLock<Value> = LazyLock::new(|| {
 
 static RESPONSES: LazyLock<Result<BTreeMap<String, jsonschema::Validator>>> = LazyLock::new(|| {
     PATHS
-        .values()
-        .map(|item| {
+        .iter()
+        .filter(|(path, item)| {
+            // Only this owner's explicitly declared fixed binary resource is
+            // excluded. Missing/malformed JSON actions still fail below.
+            !(path.as_str() == record::PATH
+                && item.get("post").is_none()
+                && item["get"]["x-cvld-resource"] == record::RESOURCE
+                && item["get"]["operationId"] == "account_record_object"
+                && item["get"]["responses"]["200"]["content"]["application/octet-stream"]["schema"]
+                    == serde_json::json!({"type":"string","format":"binary"}))
+        })
+        .map(|(_, item)| {
             let operation = &item["post"];
             let name = operation["operationId"].as_str().ok_or(Error::Reconcile)?;
             let mut schema =
@@ -198,6 +211,9 @@ mod sealed {
 ///     fn authenticated_origin(&self) -> cvld::error::Result<String> {
 ///         unreachable!()
 ///     }
+///     async fn account_record_object(&mut self, _: usize) -> cvld::error::Result<Vec<u8>> {
+///         unreachable!()
+///     }
 /// }
 /// ```
 pub trait AuthenticatedTransport: SessionTransport + sealed::Authenticated {
@@ -205,6 +221,14 @@ pub trait AuthenticatedTransport: SessionTransport + sealed::Authenticated {
     /// HTTP loopback fixture overrides cannot qualify. This inert configuration
     /// accessor does not replace a fresh successful authenticated server call.
     fn authenticated_origin(&self) -> Result<String>;
+    /// Fetch the fixed anonymous whole-object resource at this exact HTTPS
+    /// origin. Length is a bounded resource budget, never proof authority.
+    /// The relying owner must obtain it from a current authenticated descriptor
+    /// and verify the returned object with that original descriptor afterward.
+    fn account_record_object(
+        &mut self,
+        expected_length: usize,
+    ) -> impl Future<Output = Result<Vec<u8>>>;
 }
 
 /// Public result of authentication; the server bearer stays in its transport.
@@ -273,5 +297,12 @@ impl<T: AuthenticatedTransport> Client<T> {
     /// making the fresh call; never infer origin from response metadata.
     pub fn authenticated_origin(&self) -> Result<String> {
         self.transport.authenticated_origin()
+    }
+    /// Return exactly the bounded whole resource; no recipient selector or
+    /// descriptor reconstruction is accepted. This grants no account authority.
+    pub async fn account_record_object(&mut self, expected_length: usize) -> Result<Vec<u8>> {
+        record::expected_length(expected_length)?;
+        self.transport.authenticated_origin()?;
+        self.transport.account_record_object(expected_length).await
     }
 }

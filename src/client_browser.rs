@@ -136,4 +136,95 @@ impl super::AuthenticatedTransport for BrowserClient {
         }
         Ok(url.origin().ascii_serialization())
     }
+    async fn account_record_object(&mut self, expected_length: usize) -> Result<Vec<u8>> {
+        super::record::expected_length(expected_length)?;
+        self.authenticated_origin()?;
+        let window = web_sys::window().ok_or(Error::Unavailable)?;
+        let headers = web_sys::Headers::new().map_err(|_| Error::Invalid)?;
+        headers
+            .set("accept", "application/octet-stream")
+            .map_err(|_| Error::Invalid)?;
+        // This whole-object route is anonymous; retained bearer stays private.
+        let controller = web_sys::AbortController::new().map_err(|_| Error::Unavailable)?;
+        let cancellation = CancelOnDrop(controller.clone());
+        let timeout = gloo_timers::callback::Timeout::new(30_000, move || controller.abort());
+        let options = web_sys::RequestInit::new();
+        options.set_method("GET");
+        options.set_mode(web_sys::RequestMode::Cors);
+        options.set_headers(&headers);
+        options.set_redirect(web_sys::RequestRedirect::Error);
+        options.set_credentials(web_sys::RequestCredentials::Omit);
+        options.set_cache(web_sys::RequestCache::NoStore);
+        options.set_referrer_policy(web_sys::ReferrerPolicy::NoReferrer);
+        options.set_signal(Some(&cancellation.0.signal()));
+        let request = web_sys::Request::new_with_str_and_init(
+            &format!("{}{}", self.base, super::record::PATH),
+            &options,
+        )
+        .map_err(|_| Error::Invalid)?;
+        let response = JsFuture::from(window.fetch_with_request(&request))
+            .await
+            .map_err(|_| Error::Reconcile)?
+            .dyn_into::<web_sys::Response>()
+            .map_err(|_| Error::Reconcile)?;
+        let status = response.status();
+        let limit = if status == 200 {
+            if response
+                .headers()
+                .get("content-type")
+                .map_err(|_| Error::Reconcile)?
+                .as_deref()
+                != Some("application/octet-stream")
+            {
+                return Err(Error::Reconcile);
+            }
+            let length = response
+                .headers()
+                .get("content-length")
+                .map_err(|_| Error::Reconcile)?;
+            super::record::content_length(length.as_deref(), expected_length)?;
+            expected_length
+        } else {
+            16 * 1024 * 1024
+        };
+        let reader = response
+            .body()
+            .ok_or(Error::Reconcile)?
+            .get_reader()
+            .dyn_into::<web_sys::ReadableStreamDefaultReader>()
+            .map_err(|_| Error::Reconcile)?;
+        let mut bytes = Vec::new();
+        loop {
+            let next = JsFuture::from(reader.read())
+                .await
+                .map_err(|_| Error::Reconcile)?;
+            let done = js_sys::Reflect::get(&next, &"done".into())
+                .map_err(|_| Error::Reconcile)?
+                .as_bool()
+                .ok_or(Error::Reconcile)?;
+            if done {
+                break;
+            }
+            let chunk = js_sys::Reflect::get(&next, &"value".into())
+                .map_err(|_| Error::Reconcile)?
+                .dyn_into::<js_sys::Uint8Array>()
+                .map_err(|_| Error::Reconcile)?;
+            if chunk.length() as usize > limit - bytes.len() {
+                return Err(Error::Reconcile);
+            }
+            bytes.extend_from_slice(&chunk.to_vec());
+        }
+        if status != 200 {
+            return match super::decode_response("", status, &bytes) {
+                Err(error) => Err(error),
+                Ok(_) => Err(Error::Reconcile),
+            };
+        }
+        if bytes.len() != expected_length {
+            return Err(Error::Reconcile);
+        }
+        drop(timeout);
+        drop(cancellation);
+        Ok(bytes)
+    }
 }
