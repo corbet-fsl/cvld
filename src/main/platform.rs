@@ -132,3 +132,7 @@ fn bind(used: &mut BTreeSet<SocketAddr>, input: &str) -> Result<()> {
     used.insert(address);
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "platform/tests.rs"]
+mod tests;
