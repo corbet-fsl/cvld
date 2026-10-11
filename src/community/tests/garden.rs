@@ -34,11 +34,10 @@ async fn member_and_garden_sessions_are_distinct_and_signup_does_not_create_admi
     assert!(owner.sessions.get(&world.garden).unwrap().garden);
     drop(owner);
     for (host, bearer) in [(GARDEN, &world.member.session), (SOURCE, &world.garden)] {
-        let (status, _) =
-            call_status(&world.source, host, Some(bearer), "member_role", json!({})).await;
+        let status = call_status(&world.source, host, Some(bearer), "member_role", json!({})).await;
         assert_eq!(status, 401);
     }
-    let (status, _) = call_status(
+    let status = call_status(
         &world.source,
         GARDEN,
         None,
@@ -47,7 +46,7 @@ async fn member_and_garden_sessions_are_distinct_and_signup_does_not_create_admi
     )
     .await;
     assert_eq!(status, 403);
-    let (status, _) = call_status(
+    let status = call_status(
         &world.source,
         SOURCE,
         Some(&world.member.session),
@@ -83,11 +82,11 @@ async fn login_finish_cannot_move_a_real_member_challenge_to_the_garden() {
         )
         .unwrap();
     let body = json!({"ceremony":start.ceremony,"credential":response});
-    let (status, _) = call_status(&world.source, GARDEN, None, "login_finish", body.clone()).await;
+    let status = call_status(&world.source, GARDEN, None, "login_finish", body.clone()).await;
     assert_eq!(status, 401);
     // The original server pending is consumed by the wrong-realm attempt;
     // neither a role flag nor a new challenge is fabricated on retry.
-    let (status, _) = call_status(&world.source, SOURCE, None, "login_finish", body).await;
+    let status = call_status(&world.source, SOURCE, None, "login_finish", body).await;
     assert_eq!(status, 401);
     assert!(
         client(&world.source, SOURCE, Some(&world.member.session))
@@ -102,7 +101,7 @@ async fn garden_logout_removes_only_the_exact_garden_session() {
     let world = world().await;
     let garden = client(&world.source, GARDEN, Some(&world.garden));
     garden.call("logout", json!({})).await.unwrap();
-    let (status, _) = call_status(
+    let status = call_status(
         &world.source,
         GARDEN,
         Some(&world.garden),

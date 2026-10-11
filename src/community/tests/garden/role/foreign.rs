@@ -1,5 +1,6 @@
 //! A genuine separately registered key supplies a sealed foreign Authentication.
 use super::*;
+use webauthn_authenticator_rs::softtoken::SoftToken;
 
 pub(super) async fn authentication(owner: &CommunityService) -> ckyh::Authentication {
     let user = ckyh::Uuid::new_v4();

@@ -1,6 +1,7 @@
 //! The real host session owner remains authoritative without native accounts.
 use super::*;
 use cmbr::RoleSession as _;
+use webauthn_authenticator_rs::softtoken::SoftToken;
 
 #[path = "role/foreign.rs"]
 mod foreign;
