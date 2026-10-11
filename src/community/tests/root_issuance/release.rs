@@ -1,4 +1,5 @@
 use super::*;
+use crate::error::ErrorBody;
 use std::sync::atomic::Ordering;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
