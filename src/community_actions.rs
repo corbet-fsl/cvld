@@ -259,7 +259,10 @@ impl Door {
                         &mut guard,
                     )
                     .await
-                    .map_err(Error::Reconcile.redact())?;
+                    .map_err(|e| {
+                        eprintln!("DIAG setting_set checked {e:?}");
+                        Error::Reconcile
+                    })?;
             }
             None => {
                 policy

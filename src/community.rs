@@ -1215,6 +1215,7 @@ impl CommunityService {
             }
         }
         .map_err(|error| {
+            eprintln!("DIAG cmty {error:?}");
             if error == cmty::Error::Reconcile {
                 Error::Reconcile
             } else {
