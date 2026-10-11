@@ -6,10 +6,34 @@ const revision = '6b94dacd7fa04aa8847c62c6471a1fc5c0f6c9dc';
 const older = '9c076b1e4050529406df27533e12c8e0dd1fc0db';
 const source = (name, rev = revision) =>
   `git+https://github.com/corbet-foss/${name}?branch=main#${rev}`;
-const pkg = (name, source = null, dependencies = []) => ({ name, source, dependencies });
-const graph = (...packages) => ({
-  packages: [pkg('crbk'), pkg('crlt', source('crlt')), ...packages],
+let nextID = 0;
+const pkg = (name, source = null, dependencies = []) => ({
+  id: `${name}:${nextID++}`, name, source,
+  targets: [{ kind: ['lib'], name: name.replaceAll('-', '_') }],
+  dependencies: dependencies.map(dependency => ({
+    name: dependency.name ?? new URL(dependency.source.slice(4)).pathname.split('/').at(-1).replace(/\.git$/, ''),
+    kind: null, target: null, ...dependency,
+  })),
 });
+const metadata = (...packages) => ({
+  packages,
+  workspace_members: packages.length ? [packages[0].id] : [],
+  resolve: {
+    root: packages[0]?.id ?? null,
+    nodes: packages.map(owner => {
+      const deps = owner.dependencies.map(dependency => {
+        const target = packages.find(candidate => candidate.name === dependency.name);
+        return {
+          name: (dependency.rename ?? dependency.name).replaceAll('-', '_'),
+          pkg: target?.id ?? 'missing',
+          dep_kinds: [{ kind: dependency.kind, target: dependency.target }],
+        };
+      });
+      return { id: owner.id, deps, dependencies: [...new Set(deps.map(dep => dep.pkg))], features: [] };
+    }),
+  },
+});
+const graph = (...packages) => metadata(pkg('crbk'), pkg('crlt', source('crlt')), ...packages);
 
 test('accept a single revision per leaf and unrelated registry duplicates', () => {
   checkPins(graph(pkg('serde'), pkg('thiserror'), pkg('thiserror')));
@@ -35,7 +59,7 @@ test('reject every matching transitive revision pin', () => {
   assert.throws(() => checkPins(graph(pkg('csgn', pinned))), /Expected main/);
   assert.throws(() => checkPins(graph(pkg('csgn', source('csgn'), [
     { source: pinned.split('#')[0] },
-  ]))), /Expected main/);
+  ]))), /Expected main|Mismatched/);
 });
 
 test('accept main declarations with a unique complete resolution', () => {
@@ -47,16 +71,16 @@ test('accept main declarations with a unique complete resolution', () => {
 });
 
 test('require the crlt Git dependency', () => {
-  assert.throws(() => checkPins({ packages: [pkg('crbk')] }), /Missing/);
-  assert.throws(() => checkPins({ packages: [pkg('crbk'), pkg('crlt')] }), /invalid/);
+  assert.throws(() => checkPins(metadata(pkg('crbk'))), /Missing/);
+  assert.throws(() => checkPins(metadata(pkg('crbk'), pkg('crlt'))), /invalid/);
 });
 
 
 test('canonical sources reject pins and mixed-origin duplicates', () => {
   const canonical = source('crlt').replace('github.com', 'git.corbet.ch');
-  checkPins({ packages: [pkg('crlt', canonical)] });
+  checkPins(metadata(pkg('crlt', canonical)));
   assert.throws(() => checkPins(graph(pkg('crlt', canonical))), /duplicated/);
-  assert.throws(() => checkPins({ packages: [pkg('crlt', canonical.replace('branch=main', `rev=${revision}`))] }), /Expected main/);
+  assert.throws(() => checkPins(metadata(pkg('crlt', canonical.replace('branch=main', `rev=${revision}`)))), /Expected main/);
 });
 
 test('accept exact original issuer resolutions and transitive declarations', () => {
@@ -126,5 +150,77 @@ test('reject altered and unresolved original transitive selectors', () => {
   )));
   assert.throws(() => checkPins(graph(
     owner, pkg('cblc', source('cblc'), [{ name: 'other', source: declaration }]),
-  )), /Expected main/);
+  )));
+});
+
+test('ignore inactive upstream dev and optional declarations, not selected edges', () => {
+  const inactive = pkg('cgbl', source('cgbl'), [
+    { name: 'cchr', source: source('cchr').split('#')[0].replace('branch=main', 'branch=v01'), kind: 'dev' },
+    { name: 'cvlk', source: source('cvlk').split('#')[0].replace('branch=main', 'branch=v01'), optional: true },
+  ]);
+  const unused = graph(inactive);
+  const node = unused.resolve.nodes.find(value => value.id === inactive.id);
+  node.deps = []; node.dependencies = [];
+  checkPins(unused);
+  const activated = pkg('cchr', source('cchr').replace('branch=main', 'branch=v01'));
+  const activeOwner = { ...inactive, dependencies: [inactive.dependencies[0]] };
+  assert.throws(() => checkPins(graph(activeOwner, activated)), /Expected main/);
+});
+
+test('retain active workspace dev and build selectors, including renamed targets', () => {
+  for (const kind of ['dev', 'build', null]) {
+    const dependency = {
+      name: 'cpns', rename: 'renamed-owner', kind, target: 'cfg(unix)',
+      source: source('cpns').split('#')[0],
+    };
+    const owner = pkg('workspace', null, [dependency]);
+    checkPins(metadata(owner, pkg('crlt', source('crlt')), pkg('cpns', source('cpns'))));
+    const bad = { ...dependency, source: dependency.source.replace('branch=main', 'branch=v01') };
+    assert.throws(() => checkPins(metadata(
+      pkg('workspace', null, [bad]), pkg('crlt', source('crlt')),
+      pkg('cpns', source('cpns').replace('branch=main', 'branch=v01')),
+    )), /Expected main/);
+  }
+});
+
+test('match an original library name distinct from its package name', () => {
+  const library = pkg('crlt', source('crlt'));
+  library.targets[0].name = 'transaction_owner';
+  const value = metadata(pkg('workspace', null, [
+    { name: 'crlt', source: source('crlt').split('#')[0] },
+  ]), library);
+  value.resolve.nodes[0].deps[0].name = 'transaction_owner';
+  checkPins(value);
+});
+
+test('refuse absent, incomplete, contradictory and unknown resolved graph data', () => {
+  const mutations = [
+    value => { delete value.resolve; },
+    value => { value.resolve.nodes.pop(); },
+    value => { value.resolve.nodes[0].id = 'unknown'; },
+    value => { value.resolve.root = 'unknown'; },
+    value => { value.workspace_members.push('unknown'); },
+    value => { value.packages[1].id = value.packages[0].id; },
+    value => { delete value.resolve.nodes[0].deps; },
+    value => { value.resolve.nodes[0].dependencies.push('unknown'); },
+    value => {
+      value.resolve.nodes[0].dependencies = ['unknown'];
+      value.resolve.nodes[0].deps = [{ pkg: 'unknown', name: 'x', dep_kinds: [{ kind: null, target: null }] }];
+    },
+  ];
+  for (const mutate of mutations) {
+    const value = graph(); mutate(value);
+    assert.throws(() => checkPins(value));
+  }
+  for (const mutate of [
+    value => { value.resolve.nodes[2].deps[0].dep_kinds = []; },
+    value => { value.resolve.nodes[2].deps[0].dep_kinds[0].kind = 'other'; },
+    value => { value.resolve.nodes[2].deps[0].dep_kinds[0].target = 7; },
+    value => { value.resolve.nodes[2].deps[0].name = 'other'; },
+    value => { value.resolve.nodes[2].deps[0].dep_kinds[0].kind = 'dev'; },
+    value => { value.packages[2].dependencies[0].source = source('cpns').split('#')[0]; },
+  ]) {
+    const value = graph(pkg('caller', null, [{ name: 'crlt', source: source('crlt').split('#')[0] }]));
+    mutate(value); assert.throws(() => checkPins(value));
+  }
 });
