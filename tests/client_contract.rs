@@ -110,7 +110,21 @@ async fn authentication_adopts_the_real_session_without_exporting_its_bearer() {
 #[test]
 fn portable_action_lookup_preserves_every_generated_path_and_schema() {
     let paths = contract()["paths"].as_object().unwrap();
-    assert_eq!(paths.len(), cvld::api::ACTIONS.len());
+    assert_eq!(
+        paths
+            .values()
+            .filter(|path| path.get("post").is_some())
+            .count(),
+        cvld::api::ACTIONS.len()
+    );
+    let resources: Vec<_> = paths
+        .iter()
+        .filter(|(_, path)| path.get("post").is_none())
+        .map(|(name, _)| name.as_str())
+        .collect();
+    assert_eq!(resources, ["/v1/account_record_object"]);
+    assert!(paths[resources[0]].get("get").is_some());
+    assert!(action("account_record_object").is_none());
     for owner in cvld::api::ACTIONS {
         let metadata = action(owner.name).unwrap();
         assert_eq!(metadata.path(), format!("/v1/{}", owner.name));
