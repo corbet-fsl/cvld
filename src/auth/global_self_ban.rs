@@ -107,6 +107,7 @@ impl Auth {
         })
     }
 
+    #[cfg(test)]
     pub(crate) async fn finish_global_self_ban(
         &mut self,
         token: &str,
@@ -114,6 +115,23 @@ impl Auth {
         now: u64,
         clock: &dyn Clock,
     ) -> Result<ConfirmedSelfBan> {
+        self.finish_global_self_ban_wallet(token, request, now, clock, None)
+            .await
+    }
+    pub(crate) async fn finish_global_self_ban_wallet(
+        &mut self,
+        token: &str,
+        request: SelfBanConfirmation,
+        now: u64,
+        clock: &dyn Clock,
+        mutation: Option<cgbl::WalletMutation>,
+    ) -> Result<ConfirmedSelfBan> {
+        if mutation
+            .as_ref()
+            .is_some_and(|owner| !owner.matches(&self.passkeys))
+        {
+            return Err(Error::Unauthorized);
+        }
         let grant = self.authenticate(token, now).await?;
         let pending = self
             .self_bans
@@ -134,11 +152,15 @@ impl Auth {
             .ok_or(Error::Unauthorized)?;
         crate::service::publication::expires_at(pending.until)?;
         let keys = self.passkeys.clone();
-        let authentication = tokio::task::spawn_blocking(move || {
+        let operation = move |keys: &Passkeys<LibsqlStore>| {
             keys.finish_authentication(pending.state, &request.credential)
-        })
-        .await
-        .map_err(Error::Unavailable.redact())?
+        };
+        let authentication = match mutation {
+            Some(owner) => owner.execute(operation).await,
+            None => tokio::task::spawn_blocking(move || operation(&keys))
+                .await
+                .map_err(Error::Unavailable.redact())?,
+        }
         .map_err(Error::Unauthorized.redact())?;
         let completed = fresh(clock, observed, pending.until)?;
         if authentication.member() != grant.user

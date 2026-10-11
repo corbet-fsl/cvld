@@ -91,6 +91,7 @@ pub async fn global_config_at(dir: &Path, burst: u32, now: u64) -> Config {
         .await
         .unwrap();
     Config {
+        wallet: None,
         listen: "127.0.0.1:0".into(),
         domain: DOMAIN.into(),
         database_url: format!("file://{}", dir.join("global.db").display()),

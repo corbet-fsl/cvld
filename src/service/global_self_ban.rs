@@ -66,10 +66,33 @@ impl Door {
         let token = ctx.token.as_deref().ok_or(Error::Unauthorized)?;
         let authentication = self.auth(&ctx.host)?;
         let mut auth = authentication.lock().await;
-        let confirmed = auth
-            .finish_global_self_ban(token, request, ctx.now, self.inner.clock.as_ref())
+        let mut session = auth
+            .wallet_session(
+                token,
+                ctx.grant.as_ref().ok_or(Error::Unauthorized)?,
+                ctx.now,
+                self.inner.clock.as_ref(),
+            )
             .await?;
         let mut global = self.global_backend()?.lock().await;
+        session
+            .check(&mut auth, token, ctx.now, self.inner.clock.as_ref())
+            .await?;
+        let mutation = global.wallet_mutation().await?;
+        if let Some(mutation) = &mutation {
+            global
+                .signal_wallet_mutation(&session, mutation, self.inner.clock.as_ref())
+                .await?;
+        }
+        let confirmed = auth
+            .finish_global_self_ban_wallet(
+                token,
+                request,
+                session.checked_at()?,
+                self.inner.clock.as_ref(),
+                mutation,
+            )
+            .await?;
         let now = self.current_time(&ctx)?;
         let grant = auth.authenticate(token, now).await?;
         let now = confirmed.validate(&grant, now, self.inner.clock.as_ref())?;
@@ -85,6 +108,7 @@ impl Door {
             .map_err(Error::Reconcile.redact())?;
         auth.logout_account(confirmed.user());
         // Suspension has committed even if publishing the advanced epoch fails.
+        global.publish_wallet(self.inner.clock.now()).await?;
         global
             .refresh(self.inner.clock.now())
             .await

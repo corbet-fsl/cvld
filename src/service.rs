@@ -29,6 +29,7 @@ mod payments;
 pub(crate) mod publication;
 mod root_board;
 mod root_issuance;
+mod wallet;
 pub use root_issuance::RootBoardPurpose;
 mod shutdown;
 pub use crate::accounting::NativeConstruction;
@@ -88,6 +89,7 @@ struct Inner {
     account_body_limit: usize,
     account_runtime: Option<Arc<crate::accounting::clock::AccountRuntime>>,
     account_shutdown: Option<cmty::cgts::AccountShutdown>,
+    wallet_shutdown: Option<cgbl::WalletShutdown>,
     construction: Option<NativeConstruction>,
 }
 enum Published {
@@ -167,7 +169,7 @@ impl Door {
             .await
             .map_err(Error::Unavailable.redact())?;
         let now = clock.now();
-        let global =
+        let mut global =
             GlobalService::open_with_transport(&db, &config, now, clock.clone(), transport).await?;
         let published = Published::Global(global.changes.subscribe());
         let mut hosts = BTreeMap::new();
@@ -225,6 +227,14 @@ impl Door {
                 )?)),
             );
         }
+        let wallet_auth = hosts
+            .get(&format!("wallet.{}", config.domain))
+            .ok_or(Error::WrongHost)?;
+        let wallet_keys = wallet_auth.lock().await.passkeys.clone();
+        global
+            .attach_wallet(&db, &config, wallet_keys, clock.now())
+            .await?;
+        let wallet_shutdown = global.wallet.as_ref().map(cgbl::Wallet::shutdown_handle);
         let limit = cthl::Limit::new(
             config.throttle_burst,
             Duration::from_millis(config.throttle_interval_ms),
@@ -255,6 +265,7 @@ impl Door {
                 account_runtime: None,
                 construction: None,
                 account_shutdown: None,
+                wallet_shutdown,
             }),
         })
     }
@@ -265,7 +276,11 @@ impl Door {
     ) -> Option<tokio::sync::OwnedMutexGuard<()>> {
         if matches!(
             action.name,
-            "global_public" | "trust_feed" | "trust_changes"
+            "global_public"
+                | "trust_feed"
+                | "trust_changes"
+                | "wallet_trust_feed"
+                | "wallet_trust_changes"
         ) {
             None
         } else {
@@ -480,6 +495,7 @@ impl Door {
                     account_runtime,
                     construction: Some(construction),
                     account_shutdown,
+                    wallet_shutdown: None,
                 }),
             })
         }
@@ -546,7 +562,11 @@ impl Door {
         // revoked grant. Recheck the exact credential at execution time.
         if !matches!(
             action.name,
-            "global_public" | "trust_feed" | "trust_changes"
+            "global_public"
+                | "trust_feed"
+                | "trust_changes"
+                | "wallet_trust_feed"
+                | "wallet_trust_changes"
         ) && let Some(token) = &ctx.token
         {
             if self.is_membership_host(&ctx.host) {
@@ -634,6 +654,8 @@ impl Door {
             "global_public"
                 | "trust_feed"
                 | "trust_changes"
+                | "wallet_trust_feed"
+                | "wallet_trust_changes"
                 | "community_self_ban_status_begin"
                 | "community_self_ban_status_finish"
         ) {
@@ -735,6 +757,9 @@ impl Door {
                 .register_finish(request, ctx.now)
                 .await;
         }
+        if self.inner.scope == Scope::Global {
+            return self.wallet_register_finish(ctx, request).await;
+        }
         self.auth(&ctx.host)?
             .lock()
             .await
@@ -783,6 +808,9 @@ impl Door {
             } else {
                 community.login_finish(request, ctx.now).await
             };
+        }
+        if self.inner.scope == Scope::Global {
+            return self.wallet_login_finish(ctx, request).await;
         }
         self.auth(&ctx.host)?
             .lock()

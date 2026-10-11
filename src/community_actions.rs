@@ -49,6 +49,9 @@ impl Door {
         ctx: Context,
         _: Empty,
     ) -> Result<PasskeyCertificateResponse> {
+        if !self.is_membership_host(&ctx.host) {
+            return self.wallet_passkey_certificate(ctx).await;
+        }
         self.community_backend()?
             .lock()
             .await
@@ -394,6 +397,14 @@ impl Door {
         request: AddPasskey,
     ) -> Result<AddedPasskey> {
         if !self.is_membership_host(&ctx.host) {
+            if self.inner.scope == Scope::Global
+                && ctx
+                    .grant
+                    .as_ref()
+                    .is_some_and(|grant| grant.role == Role::Member)
+            {
+                return self.wallet_add_passkey(ctx, request).await;
+            }
             return self
                 .auth(&ctx.host)?
                 .lock()
@@ -465,6 +476,14 @@ impl Door {
         request: RevokePasskey,
     ) -> Result<Empty> {
         if !self.is_membership_host(&ctx.host) {
+            if self.inner.scope == Scope::Global
+                && ctx
+                    .grant
+                    .as_ref()
+                    .is_some_and(|grant| grant.role == Role::Member)
+            {
+                return self.wallet_revoke_passkey(ctx, request).await;
+            }
             self.auth(&ctx.host)?
                 .lock()
                 .await

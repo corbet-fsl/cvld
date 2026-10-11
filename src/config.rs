@@ -1,5 +1,7 @@
 mod root_board;
+mod wallet;
 pub use root_board::RootCommunityConfig;
+pub use wallet::WalletConfig;
 
 use crate::error::{Error, Result};
 use serde::{Deserialize, Serialize};
@@ -33,6 +35,9 @@ pub struct Config {
     /// Providers are enabled only through explicit contact configuration.
     #[serde(default)]
     pub contacts: Option<crate::contact_gates::ContactConfig>,
+    /// Unconfigured wallet certificate/trust authority is unavailable.
+    #[serde(default)]
+    pub wallet: Option<WalletConfig>,
 }
 fn shutdown_budget(seconds: u64) -> Result<Duration> {
     let duration = Duration::from_secs(seconds);

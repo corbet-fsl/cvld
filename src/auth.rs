@@ -10,9 +10,12 @@ use subtle::ConstantTimeEq;
 mod enrollment;
 pub(crate) mod global_self_ban;
 mod passkeys;
+pub(crate) mod wallet;
 
 pub struct Auth {
     pub passkeys: Arc<Passkeys<LibsqlStore>>,
+    #[cfg(test)]
+    pub(crate) wallet_worker_gate: Option<Arc<wallet::WorkerGate>>,
     pub role: Role,
     pub operator: Option<Uuid>,
     pub bootstrap: Option<zeroize::Zeroizing<String>>,
@@ -79,6 +82,8 @@ impl Auth {
         }
         Ok(Self {
             passkeys: Arc::new(passkeys),
+            #[cfg(test)]
+            wallet_worker_gate: None,
             role,
             operator,
             bootstrap,
@@ -175,6 +180,22 @@ impl Auth {
         now: u64,
         clock: &dyn crate::service::Clock,
     ) -> Result<User> {
+        self.register_finish_wallet_live(request, now, clock, None)
+            .await
+    }
+    pub(crate) async fn register_finish_wallet_live(
+        &mut self,
+        request: RegisterFinish,
+        now: u64,
+        clock: &dyn crate::service::Clock,
+        mutation: Option<cgbl::WalletMutation>,
+    ) -> Result<User> {
+        if mutation
+            .as_ref()
+            .is_some_and(|owner| !owner.matches(&self.passkeys))
+        {
+            return Err(Error::Unauthorized);
+        }
         self.prune(now);
         let pending = self
             .registrations
@@ -187,14 +208,18 @@ impl Auth {
         let expires = pending.expires;
         let deadline = pending.deadline;
         let passkeys = self.passkeys.clone();
-        tokio::task::spawn_blocking(move || {
+        let operation = move |passkeys: &Passkeys<LibsqlStore>| {
             if !passkeys.list(pending.user)?.is_empty() {
                 return Err(ckyh::Error::DuplicateCredential);
             }
             passkeys.finish_registration(pending.state, &request.credential, month)
-        })
-        .await
-        .map_err(Error::Reconcile.redact())?
+        };
+        match mutation {
+            Some(owner) => owner.execute(operation).await,
+            None => tokio::task::spawn_blocking(move || operation(&passkeys))
+                .await
+                .map_err(Error::Reconcile.redact())?,
+        }
         .map_err(|error| {
             if error == ckyh::Error::Storage {
                 Error::Reconcile
@@ -267,6 +292,20 @@ impl Auth {
         })
     }
     pub async fn login_finish(&mut self, request: LoginFinish, now: u64) -> Result<Session> {
+        self.login_finish_wallet(request, now, None).await
+    }
+    pub(crate) async fn login_finish_wallet(
+        &mut self,
+        request: LoginFinish,
+        now: u64,
+        mutation: Option<cgbl::WalletMutation>,
+    ) -> Result<Session> {
+        if mutation
+            .as_ref()
+            .is_some_and(|owner| !owner.matches(&self.passkeys))
+        {
+            return Err(Error::Unauthorized);
+        }
         self.prune(now);
         if self.sessions.len() >= self.capacity {
             return Err(Error::Throttled);
@@ -278,16 +317,20 @@ impl Auth {
         crate::service::publication::expires_at(pending.expires)?;
         let credential: ckyh::CredentialID = request.credential.raw_id.clone().into();
         let passkeys = self.passkeys.clone();
-        let authentication = tokio::task::spawn_blocking(move || match pending.state {
+        let operation = move |passkeys: &Passkeys<LibsqlStore>| match pending.state {
             LoginCeremony::Credential(state) => {
                 passkeys.finish_authentication(state, &request.credential)
             }
             LoginCeremony::Discoverable(state) => {
                 passkeys.finish_discoverable_authentication(state, &request.credential)
             }
-        })
-        .await
-        .map_err(Error::Unavailable.redact())?
+        };
+        let authentication = match mutation {
+            Some(owner) => owner.execute(operation).await,
+            None => tokio::task::spawn_blocking(move || operation(&passkeys))
+                .await
+                .map_err(Error::Unavailable.redact())?,
+        }
         .map_err(Error::Unauthorized.redact())?;
         if self
             .operator

@@ -6,6 +6,9 @@ impl Door {
     /// several Doors must call this on ALL of them before awaiting any join.
     /// This does not establish completion; retain and await `shutdown_accounts`.
     pub fn begin_shutdown_accounts(&self) -> Result<()> {
+        if let Some(wallet) = &self.inner.wallet_shutdown {
+            wallet.begin_shutdown();
+        }
         if let Some(runtime) = &self.inner.account_runtime {
             runtime.fence();
         }
@@ -42,6 +45,11 @@ impl Door {
         } else {
             Ok(())
         };
+        // Intake for BOTH owners was fenced above before any join. The caller
+        // retains its one original total budget across these waits.
+        if let Some(wallet) = &self.inner.wallet_shutdown {
+            wallet.shutdown().await;
+        }
         started?;
         accounts?;
         constructed?;

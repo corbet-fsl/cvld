@@ -25,6 +25,22 @@ impl Auth {
         request: AddPasskey,
         now: u64,
     ) -> Result<AddedPasskey> {
+        self.add_passkey_wallet(token, request, now, None).await
+    }
+
+    pub(crate) async fn add_passkey_wallet(
+        &mut self,
+        token: &str,
+        request: AddPasskey,
+        now: u64,
+        mutation: Option<cgbl::WalletMutation>,
+    ) -> Result<AddedPasskey> {
+        if mutation
+            .as_ref()
+            .is_some_and(|owner| !owner.matches(&self.passkeys))
+        {
+            return Err(Error::Unauthorized);
+        }
         let grant = self.authenticate(token, now).await?;
         let authentication = self
             .sessions
@@ -79,11 +95,15 @@ impl Auth {
                 crate::service::publication::expires_at(pending.until)?;
                 let month = creation_month(now)?;
                 let keys = self.passkeys.clone();
-                let record = tokio::task::spawn_blocking(move || {
+                let operation = move |keys: &Passkeys<LibsqlStore>| {
                     keys.finish_registration(pending.state, &credential, month)
-                })
-                .await
-                .map_err(Error::Unavailable.redact())?
+                };
+                let record = match mutation {
+                    Some(owner) => owner.execute(operation).await,
+                    None => tokio::task::spawn_blocking(move || operation(&keys))
+                        .await
+                        .map_err(Error::Unavailable.redact())?,
+                }
                 .map_err(Error::Refused.redact())?;
                 Ok(AddedPasskey::Registered {
                     user: record.member().to_string(),
@@ -99,13 +119,51 @@ impl Auth {
         credential: ckyh::CredentialID,
         now: u64,
     ) -> Result<()> {
+        self.revoke_passkey_wallet(token, credential, now, None)
+            .await
+    }
+
+    pub(crate) async fn revoke_passkey_wallet(
+        &mut self,
+        token: &str,
+        credential: ckyh::CredentialID,
+        now: u64,
+        mutation: Option<cgbl::WalletMutation>,
+    ) -> Result<()> {
+        if mutation
+            .as_ref()
+            .is_some_and(|owner| !owner.matches(&self.passkeys))
+        {
+            return Err(Error::Unauthorized);
+        }
         let grant = self.authenticate(token, now).await?;
         let keys = self.passkeys.clone();
         let target = credential.clone();
-        tokio::task::spawn_blocking(move || keys.revoke(grant.user, &target))
-            .await
-            .map_err(Error::Unavailable.redact())?
-            .map_err(Error::Refused.redact())?;
+        #[cfg(test)]
+        let gate = self.wallet_worker_gate.clone();
+        let operation = move |keys: &Passkeys<LibsqlStore>| {
+            #[cfg(test)]
+            if let Some(gate) = &gate {
+                if !gate.after {
+                    gate.wait();
+                }
+            }
+            let result = keys.revoke(grant.user, &target);
+            #[cfg(test)]
+            if let Some(gate) = &gate {
+                if gate.after {
+                    gate.wait();
+                }
+            }
+            result
+        };
+        match mutation {
+            Some(owner) => owner.execute(operation).await,
+            None => tokio::task::spawn_blocking(move || operation(&keys))
+                .await
+                .map_err(Error::Unavailable.redact())?,
+        }
+        .map_err(Error::Refused.redact())?;
         self.sessions
             .retain(|_, session| session.grant.credential != credential);
         self.additions

@@ -4,12 +4,14 @@ use crate::{
     error::{Error, Result},
 };
 use cgbl::Global;
+mod wallet;
 use crlt::{Db, Migration};
 #[cfg(test)]
 mod tests;
 pub type Facade =
     Global<cgbl::storage::LibsqlStore, csgn::LibsqlStore, cpsd::storage::libsql::LibsqlStore>;
 pub struct GlobalService {
+    pub(crate) wallet: Option<wallet::WalletOwner>,
     pub facade: Facade,
     pub contacts: Option<crate::contact_gates::Contacts>,
     pub contact_ceremony_seconds: Option<u64>,
@@ -173,6 +175,7 @@ impl GlobalService {
             (None, None) => None,
         };
         Ok(Self {
+            wallet: None,
             facade,
             contacts,
             contact_ceremony_seconds: config
