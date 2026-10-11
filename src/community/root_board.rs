@@ -12,7 +12,7 @@ impl CommunityService {
         Self::open_selected(db, config, clock, transport, Some(descriptor)).await
     }
 
-    async fn maintain_root_board(&self, now: u64) -> Result<bool> {
+    pub(super) async fn maintain_root_board(&self, now: u64) -> Result<bool> {
         let Some(issuer) = &self.root_board_issuer else {
             return Ok(false);
         };
@@ -41,7 +41,7 @@ impl CommunityService {
         Ok(!current)
     }
 
-    async fn refresh_root_board(&self, now: u64) -> Result<()> {
+    pub(super) async fn refresh_root_board(&self, now: u64) -> Result<()> {
         if let Some(issuer) = &self.root_board_issuer {
             let mut policy = self.facade.policy().lock().await;
             let descriptor = root_descriptor(
