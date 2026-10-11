@@ -348,7 +348,7 @@ async fn founder_admin_needs_an_active_community_a_joining_distinct_member_and_e
     assert!(denied.credential.is_none());
     api.call(
         "gate_voucher",
-        voucher("alpha", &subject, "ordinary-full-gate", NOW + 172800),
+        voucher("alpha", &subject, "founder-full-gate", NOW + 172800),
     )
     .await
     .unwrap();
