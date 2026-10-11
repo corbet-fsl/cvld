@@ -145,6 +145,10 @@ async fn all_account_roles_add_list_and_revoke_equal_keys_without_changing_ident
         ))
         .await
         .unwrap();
+        reopened_db
+            .migrate(&[crlt::Migration::new(1, "passkeys", ckyh::LIBSQL_SCHEMA)])
+            .await
+            .unwrap();
         let mut reopened = account_auth(&reopened_db, role, operator, 4);
         let keys = reopened.passkeys.clone();
         let account = Uuid::parse_str(&user.user).unwrap();

@@ -26,6 +26,10 @@ async fn genuine_original_passkey_revoked_after_reservation_and_discovery_preven
     ))
     .await
     .unwrap();
+    database
+        .migrate(&cvld::service::community_migrations())
+        .await
+        .unwrap();
     let keyhole = ckyh::Passkeys::new(
         ckyh::LibsqlStore::new(&database, "alpha", tokio::runtime::Handle::current()).unwrap(),
         "alpha",

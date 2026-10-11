@@ -78,6 +78,10 @@ async fn actual_registry_settlement_paid_gate_and_signed_community_credential_ro
     ))
     .await
     .unwrap();
+    database
+        .migrate(&cvld::service::community_migrations())
+        .await
+        .unwrap();
     let scope = database.community("alpha").unwrap();
     let metadata = scope
         .query("SELECT metadata FROM cvld_payment_operation", ())

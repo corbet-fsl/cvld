@@ -119,23 +119,7 @@ impl CommunityService {
         {
             return Err(Error::Invalid);
         }
-        let mut schemas = cmbr::SCHEMAS.to_vec();
-        schemas.extend([
-            ("cgts", cgts::SCHEMA),
-            ("crbk", crbk::SCHEMA),
-            ("cplc", cplc::SCHEMA),
-            ("csgn", csgn::SCHEMA),
-            ("cpsd", cmty::storage::SCHEMA),
-            ("service", crate::identity::SCHEMA),
-            ("global-trust", crate::global_trust::SCHEMA),
-            ("cmbr-device-keys", cmbr::DEVICE_KEYS_SCHEMA),
-            ("payment-operations", crate::payments::state::SCHEMA),
-        ]);
-        let migrations: Vec<_> = schemas
-            .iter()
-            .enumerate()
-            .map(|(i, (name, sql))| crlt::Migration::new(i as u32 + 1, name, sql))
-            .collect();
+        let migrations = crate::service::community_migrations();
         db.migrate(&migrations)
             .await
             .map_err(Error::Unavailable.redact())?;

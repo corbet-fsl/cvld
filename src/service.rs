@@ -18,8 +18,10 @@ use tokio::sync::{Mutex, OwnedSemaphorePermit, Semaphore, watch};
 
 mod contacts;
 mod global_self_ban;
+mod migrations;
 mod payments;
 pub(crate) mod publication;
+pub use migrations::community_migrations;
 
 pub trait Clock: Send + Sync {
     fn now(&self) -> u64;
