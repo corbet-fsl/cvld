@@ -19,6 +19,8 @@ pub fn community_migrations() -> Vec<crlt::Migration<'static>> {
         ("cmbr-device-keys", cmbr::DEVICE_KEYS_SCHEMA),
         ("payment-operations", crate::payments::state::SCHEMA),
         ("account-current", crate::accounting::storage::SCHEMA),
+        ("cmbr-creation", cmbr::CREATION_SCHEMA),
+        ("cmbr-role-redemption", cmbr::ROLE_REDEMPTION_SCHEMA),
     ]);
     schemas
         .iter()
