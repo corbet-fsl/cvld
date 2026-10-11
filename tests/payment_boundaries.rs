@@ -75,17 +75,18 @@ async fn actual_discovery_then_clock_rollback_retains_exposure_and_poisons_furth
     .unwrap();
     let owner = owner("member");
     let preview = prepare(&mut host, &owner);
-    let receipt = host
+    let result = host
         .execute(
             &preview.operation,
             &preview.authorization,
             &owner,
             authority(clock.clone()),
         )
-        .await
-        .unwrap();
-    assert_eq!(receipt.outcome, PaymentOutcome::Uncertain);
-    assert!(receipt.access.is_none());
+        .await;
+    assert!(matches!(result, Err(Error::Uncertain)));
+    let status = host.status(&preview.operation, &owner).await.unwrap();
+    assert_eq!(status.outcome, PaymentOutcome::Uncertain);
+    assert!(status.access.is_none());
     assert_eq!(wire.supported.load(Ordering::SeqCst), 1);
     assert_eq!(wire.verified.load(Ordering::SeqCst), 0);
     assert_eq!(wire.settled.load(Ordering::SeqCst), 0);
