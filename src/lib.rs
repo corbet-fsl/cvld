@@ -39,3 +39,7 @@ extern crate self as cvld;
 #[cfg(all(test, feature = "server"))]
 #[path = "../tests/support/mod.rs"]
 mod test_support;
+
+#[cfg(all(test, feature = "server"))]
+#[path = "../tests/payment_support/mod.rs"]
+mod payment_test_support;

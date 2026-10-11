@@ -1,7 +1,5 @@
 use super::*;
-#[path = "../../../tests/payment_support/mod.rs"]
-mod fixture;
-use fixture::*;
+use crate::payment_test_support::*;
 
 #[tokio::test]
 async fn terminal_success_and_uncertainty_forget_actual_owned_request_buffers() {

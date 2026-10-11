@@ -1,5 +1,6 @@
 //! Real enrollment/authentication with held owner leases and clock substitution.
 use super::*;
+use crate::payment_test_support as payment_support;
 use crate::service::{Clock, Door};
 use crate::test_support as support;
 use ed25519_dalek::SigningKey;
@@ -16,8 +17,6 @@ mod contacts;
 #[allow(dead_code)]
 #[path = "../../../tests/production_journey/payment.rs"]
 mod payment;
-#[path = "../../../tests/payment_support/mod.rs"]
-mod payment_support;
 #[allow(dead_code)]
 #[path = "../../../tests/initial_creation/routes.rs"]
 mod routes;
@@ -79,7 +78,8 @@ async fn initial_ceremony_metadata_matches_the_same_pending_consumed_by_real_fin
         .register_finish(
             RegisterFinish {
                 ceremony: initial.ceremony.clone(),
-                credential,
+                credential: serde_json::from_value(serde_json::to_value(credential).unwrap())
+                    .unwrap(),
             },
             NOW + 2,
         )
@@ -158,7 +158,7 @@ async fn original_login(service: &mut CommunityService, member: &mut Member, now
     let options: ckyh::RequestChallengeResponse = serde_json::from_value(start.options).unwrap();
     let credential = member
         .authenticator
-        .perform_authenticate(
+        .perform_auth(
             ckyh::Url::parse(&format!("https://{HOST}")).unwrap(),
             options.public_key,
             300_000,
@@ -168,7 +168,8 @@ async fn original_login(service: &mut CommunityService, member: &mut Member, now
         .login_finish(
             LoginFinish {
                 ceremony: start.ceremony,
-                credential,
+                credential: serde_json::from_value(serde_json::to_value(credential).unwrap())
+                    .unwrap(),
             },
             now,
         )
