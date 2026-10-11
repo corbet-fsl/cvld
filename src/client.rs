@@ -49,6 +49,7 @@ fn origin(base: &str, host: &str) -> Result<url::Url> {
 fn decode_response(name: &str, status: u16, body: &[u8]) -> Result<Value> {
     if status != 200 {
         let error: crate::error::ErrorBody = json::decode(body)?;
+        eprintln!("DIAG decode {name} status={status} error={:?} mapped={}", error.error, error.error.http_status());
         return Err(if error.error.http_status() == status {
             error.error
         } else {
@@ -126,6 +127,7 @@ pub fn validate_response(name: &str, response: &Value) -> Result<()> {
     let validators = RESPONSES.as_ref().map_err(Error::Reconcile.redact())?;
     let validator = validators.get(name).ok_or(Error::Invalid)?;
     if !validator.is_valid(response) {
+        eprintln!("DIAG invalid response {name}: {:?}", validator.iter_errors(response).map(|e| e.to_string()).collect::<Vec<_>>());
         return Err(Error::Reconcile);
     }
     Ok(())
