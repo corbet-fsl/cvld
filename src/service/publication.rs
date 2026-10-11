@@ -15,6 +15,7 @@ pub(crate) struct Publication {
     deadline: AtomicU64,
     invalid: AtomicBool,
     effect: Effect,
+    last: std::sync::Mutex<String>,
 }
 
 impl Publication {
@@ -25,6 +26,7 @@ impl Publication {
             deadline: AtomicU64::new(ctx.grant.as_ref().map_or(u64::MAX, |g| g.expires)),
             invalid: AtomicBool::new(false),
             effect,
+            last: std::sync::Mutex::new(String::new()),
         }
     }
 
@@ -51,6 +53,13 @@ impl Publication {
             .scope(publication.clone(), async move {
                 let result = operation.await;
                 if publication.check().is_err() {
+                    eprintln!(
+                        "DIAG publication failed now={} observed={} deadline={} last={}",
+                        publication.clock.now(),
+                        publication.observed.load(Ordering::SeqCst),
+                        publication.deadline.load(Ordering::SeqCst),
+                        publication.last.lock().unwrap()
+                    );
                     // The action may already have committed. Withhold its output;
                     // neither rollback nor safe automatic retry is implied.
                     return Err(match publication.effect {
@@ -66,10 +75,19 @@ impl Publication {
 
 /// Bind an exclusive deadline obtained from owned, authenticated pending state.
 /// Direct library calls still perform their own validation without this scope.
+#[track_caller]
 pub(crate) fn expires_at(deadline: u64) -> Result<()> {
+    let location = std::panic::Location::caller();
     ACTIVE
         .try_with(|publication| {
-            publication.deadline.fetch_min(deadline, Ordering::SeqCst);
+            let before = publication.deadline.fetch_min(deadline, Ordering::SeqCst);
+            if deadline < before {
+                *publication.last.lock().unwrap() = format!(
+                    "{}:{} deadline={deadline}",
+                    location.file(),
+                    location.line()
+                );
+            }
             publication.check()
         })
         .unwrap_or(Ok(()))
