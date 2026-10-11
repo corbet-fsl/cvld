@@ -67,6 +67,9 @@ pub struct Withdraw {
 pub struct CredentialRequest {
     pub presentation: PresentationInput,
     pub devices: Vec<[u8; 32]>,
+    /// Original target-Policy first-Root entitlement, redeemed with full gates.
+    #[serde(default)]
+    pub creation: Option<Vec<u8>>,
 }
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]

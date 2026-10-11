@@ -19,6 +19,7 @@ mod account_tuning;
 mod accounting;
 mod admission;
 mod certificate;
+mod creation;
 mod enrollment;
 pub(crate) mod garden;
 mod legal;
@@ -94,6 +95,8 @@ struct SessionState {
     started: u64,
 }
 pub struct CommunityService {
+    creation_owner: Option<Arc<()>>,
+    creation_recipients: HashMap<String, creation::Recipient>,
     pub facade: Facade,
     db: crlt::Db,
     issuer_public_key: Vec<u8>,
@@ -562,6 +565,8 @@ impl CommunityService {
                 issuer_public_key: status.issuer_public_key,
                 root_board_issuer: root_board.map(|descriptor| descriptor.issuer().clone()),
                 root_purpose: None,
+                creation_owner: None,
+                creation_recipients: HashMap::new(),
                 root_issuances: HashMap::new(),
                 config,
                 public,
@@ -624,6 +629,7 @@ impl CommunityService {
     fn prune(&mut self, now: u64) {
         self.challenges.retain(|_, p| p.until > now);
         self.root_issuances.retain(|_, p| p.until > now);
+        self.creation_recipients.retain(|_, p| p.until > now);
         self.registrations.retain(|_, p| p.until > now);
         self.logins.retain(|_, p| p.until > now);
         self.additions.retain(|_, p| p.until > now);
@@ -1143,7 +1149,7 @@ impl CommunityService {
             devices: &request.devices,
             lease,
             session: &session,
-            creation: None,
+            creation: request.creation.as_deref(),
         };
         let checks = async |gates: &cgts::Gatekeeper<_, _>, context: cgts::Context<'_>| {
             if let Some((gate, provider)) = withdrawal {
