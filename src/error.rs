@@ -39,8 +39,17 @@ pub type Result<T> = std::result::Result<T, Error>;
 impl Error {
     /// Discard a dependency error without formatting or forwarding its private data.
     /// The call site still chooses the exact public error category.
+    #[track_caller]
     pub fn redact<T>(self) -> impl FnOnce(T) -> Self {
-        move |_| self
+        let location = std::panic::Location::caller();
+        move |_| {
+            eprintln!(
+                "DIAG redact {self:?} at {}:{}",
+                location.file(),
+                location.line()
+            );
+            self
+        }
     }
 
     /// The owner's original status for this redacted error category.
