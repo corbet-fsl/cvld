@@ -2,6 +2,34 @@
 use super::*;
 
 impl CommunityService {
+    pub(crate) async fn account_checkpoint(
+        &self,
+        request: AccountCheckpointRequest,
+        admitted_at: u64,
+    ) -> Result<AccountCheckpointResponse> {
+        let runtime = self.accounts.as_ref().ok_or(Error::Unavailable)?;
+        let publishing = request.slot.is_none();
+        crate::service::with_live_clock(async {
+            let now = self.account_time(runtime, admitted_at.max(runtime.floor()), u64::MAX)?;
+            let clock = runtime.clone();
+            let publication = self
+                .facade
+                .account_checkpoint(request.slot, move || clock.native_time())
+                .await
+                .map_err(|error| match error {
+                    cmty::Error::Reconcile => Error::Reconcile,
+                    cmty::Error::AccountUnavailable => Error::Unavailable,
+                    _ => Error::Refused,
+                })?;
+            // A current publication may already be installed. Historical data
+            // never renews its original signed interval or a member's grant.
+            self.account_time(runtime, now.max(runtime.floor()), u64::MAX)
+                .map_err(|error| if publishing { Error::Reconcile } else { error })?;
+            Ok(AccountCheckpointResponse(publication))
+        })
+        .await
+    }
+
     pub(crate) async fn account_enroll(
         &self,
         bearer: &str,

@@ -103,6 +103,43 @@ async fn real_member_cannot_substitute_for_unconfigured_native_authority_or_body
         503
     );
     assert_eq!(api.call("lobby", json!({})).await.unwrap(), before);
+    for request in [json!({}), json!({"slot":null}), json!({"slot":1})] {
+        assert!(serde_json::from_value::<AccountCheckpointRequest>(request.clone()).is_ok());
+        // Common roster access has no member selector or session dependency.
+        // These checks establish route boundaries, not native publication.
+        for token in [None, Some("expired-or-foreign-session")] {
+            assert_eq!(
+                call_status(
+                    &f.service,
+                    HOST,
+                    token,
+                    "account_checkpoint",
+                    request.clone()
+                )
+                .await,
+                503
+            );
+        }
+        assert_eq!(
+            call_status(&f._global, WALLET, None, "account_checkpoint", request).await,
+            421
+        );
+    }
+    for request in [
+        json!({"slot":-1}),
+        json!({"slot":1.5}),
+        json!({"slot":"1"}),
+        json!({"slot":1,"root":"caller-selected"}),
+        json!({"trusted_now":NOW}),
+        json!({"member":"caller-selected"}),
+        json!({"publication":{}}),
+    ] {
+        assert!(serde_json::from_value::<AccountCheckpointRequest>(request.clone()).is_err());
+        assert_eq!(
+            call_status(&f.service, HOST, None, "account_checkpoint", request).await,
+            400
+        );
+    }
     for request in [
         json!({"action":"status","clock":NOW}),
         json!({"action":"reset"}),
@@ -206,6 +243,7 @@ async fn real_member_cannot_substitute_for_unconfigured_native_authority_or_body
         ),
         ("account", status),
         ("account_enroll", enrollment),
+        ("account_checkpoint", json!({})),
     ] {
         // Whitespace changes physical size without changing valid DTO fields.
         // Without the cap, the bind would commit and account would return503.
@@ -233,6 +271,13 @@ async fn real_member_cannot_substitute_for_unconfigured_native_authority_or_body
 
 #[test]
 fn account_registry_and_owner_wire_refuse_host_authority_fields() {
+    let checkpoint = action("account_checkpoint").unwrap();
+    assert_eq!(checkpoint.access, Access::Public);
+    assert_eq!(checkpoint.scope, Scope::Community);
+    // The no-slot request can install a checkpoint; transports must not label
+    // the whole action read-only merely because historical queries also exist.
+    assert_eq!(checkpoint.effect, Effect::Record);
+    assert_eq!(checkpoint.client_access, ClientAccess::Forward);
     for name in ["account", "account_credential_issue", "account_enroll"] {
         let registered = action(name).unwrap();
         assert_eq!(registered.access, Access::Member);

@@ -122,6 +122,16 @@ account-owner request. `account_enroll` forwards the original signed delegation
 through that member's current session to the registry on the same native worker
 and scoped store. Its response is the original enrollment entry, not an installed
 checkpoint or accepted account. These routes do not initialize a client wallet.
+The public `account_checkpoint` action accepts only an optional `slot`. Omission
+or `null` asks the original owner to publish the current slot; a specified slot
+reads only an already installed historical publication, returning `null` when
+absent and refusing future slots. It never rebuilds an old slot. The response is
+the original signed common roster, with no member selector or login dependency.
+Its original interval remains unchanged, including when a current-slot retry
+returns frozen data. Consumers verify its signature and original context; the
+publication alone grants no current membership or native account authority.
+The action is conservatively marked as recording because current publication
+can commit. Generated transport descriptions must not present it as read-only.
 Record-epoch publication, its common-object delivery and
 trusted settlement/upkeep require the configured native host composition; the
 bootstrap publication alone does not complete that journey.

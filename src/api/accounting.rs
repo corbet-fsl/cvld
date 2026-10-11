@@ -45,3 +45,16 @@ pub struct AccountEnrollmentRequest(pub cblc::enrollment::AccountingDelegation);
 #[derive(Serialize, ToSchema)]
 #[serde(transparent)]
 pub struct AccountEnrollmentResponse(pub cblc::enrollment::EnrollmentEntry);
+
+/// Omit the slot to publish the current roster; a specified slot reads only an
+/// already installed historical roster. Neither form grants account authority.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AccountCheckpointRequest {
+    pub slot: Option<u64>,
+}
+
+/// Original signed common publication, or absence of that retained slot.
+#[derive(Serialize, ToSchema)]
+#[serde(transparent)]
+pub struct AccountCheckpointResponse(pub Option<cblc::enrollment::EnrollmentPublication>);

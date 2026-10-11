@@ -277,6 +277,7 @@ impl Door {
         if matches!(
             action.name,
             "global_public"
+                | "account_checkpoint"
                 | "trust_feed"
                 | "trust_changes"
                 | "wallet_trust_feed"

@@ -1,6 +1,21 @@
 //! No operator or caller-selected subject can substitute for member authority.
 use super::*;
 impl Door {
+    pub(crate) async fn account_checkpoint(
+        &self,
+        ctx: Context,
+        request: AccountCheckpointRequest,
+    ) -> Result<AccountCheckpointResponse> {
+        if !self.is_community_member(&ctx.host) {
+            return Err(Error::WrongHost);
+        }
+        self.community_backend()?
+            .lock()
+            .await
+            .account_checkpoint(request, ctx.now)
+            .await
+    }
+
     pub(crate) async fn account_enroll(
         &self,
         ctx: Context,
