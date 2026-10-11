@@ -1252,7 +1252,7 @@ checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 [[package]]
 name = "cbcn"
 version = "0.1.0"
-source = "git+https://git.corbet.ch/corbet-foss/cbcn?branch=main#30ba3b49ca2bb1dc52707296a67ec1ccb61b1732"
+source = "git+https://git.corbet.ch/corbet-foss/cbcn?branch=main#b00b4c8385d6a22f850987fc2d17d23043cfd2ac"
 dependencies = [
  "csgn",
  "serde",
@@ -1262,7 +1262,7 @@ dependencies = [
 [[package]]
 name = "cblc"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cblc?branch=main#f4f2be33ff272c4f888ae40b31b677e3738c2e30"
+source = "git+https://git.corbet.ch/corbet-libs/cblc?branch=main#b9a816f87388aec95fbd927f3ccc5cd75188de16"
 dependencies = [
  "cbcn",
  "cpns",
@@ -1280,9 +1280,11 @@ dependencies = [
  "rand_chacha 0.10.0",
  "rand_core 0.10.1",
  "rs_merkle",
+ "schemars 1.2.2",
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "utoipa",
  "zeroize",
 ]
 
@@ -1327,7 +1329,7 @@ checksum = "f079e83a288787bcd14a6aea84cee5c87a67c5a3e660c30f557a3d24761b3527"
 [[package]]
 name = "cgbl"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cgbl.git?branch=main#c90dfaa0d12a70a2bc3c063fc7b586f05275a9db"
+source = "git+https://git.corbet.ch/corbet-libs/cgbl.git?branch=main#20205a56b7ac0fcf4feebe59e19aeafd3feaa4cd"
 dependencies = [
  "cbcn",
  "cmbx",
@@ -1367,7 +1369,7 @@ dependencies = [
 [[package]]
 name = "cgts"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cgts?branch=main#6884e887df2f848f216771d266b1c6c5c548d270"
+source = "git+https://git.corbet.ch/corbet-libs/cgts?branch=main#891ee2a666d9a9d554c6b695cf4e9cf0c9a692d6"
 dependencies = [
  "cblc",
  "cgrd",
@@ -1594,7 +1596,7 @@ dependencies = [
 [[package]]
 name = "cmbr"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cmbr?branch=main#1e9a046fde730661742feb151d5c18cfa2bce238"
+source = "git+https://git.corbet.ch/corbet-libs/cmbr?branch=main#170cc7b79f8663e460d29a1e1e55b11f931d1d0d"
 dependencies = [
  "cgrd",
  "cgts",
@@ -1641,7 +1643,7 @@ checksum = "0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a"
 [[package]]
 name = "cmty"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cmty?branch=main#5c44da58d6026903847dea2c5f33abfe06e3d5c6"
+source = "git+https://git.corbet.ch/corbet-libs/cmty?branch=main#46931f2fc69d3f6dfa1bc9111bff442ce63bcd6f"
 dependencies = [
  "cgts",
  "chrono",
@@ -1856,7 +1858,7 @@ dependencies = [
 [[package]]
 name = "cplc"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cplc?branch=main#96b1ce568da976bb4528e769f7936d2969f48a1c"
+source = "git+https://git.corbet.ch/corbet-libs/cplc?branch=main#661a5f0a267afb99449500e4f016b39e4369f9c7"
 dependencies = [
  "cbcn",
  "cblc",
@@ -1903,7 +1905,7 @@ dependencies = [
 [[package]]
 name = "cpsd"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-foss/cpsd?branch=main#fb26b81b842a9aa46c45cb067e1fd713cb011afd"
+source = "git+https://git.corbet.ch/corbet-foss/cpsd?branch=main#260f7541f0bfcd4970214ade9516bb28d3d53873"
 dependencies = [
  "ark-bls12-381",
  "ark-ec 0.4.2",
@@ -1921,6 +1923,7 @@ dependencies = [
  "js-sys",
  "proof_system",
  "rand_chacha 0.3.1",
+ "schnorr_pok",
  "wasm-bindgen",
  "zeroize",
 ]
@@ -2294,7 +2297,7 @@ dependencies = [
 [[package]]
 name = "cvfy"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-foss/cvfy?branch=main#f08e46235635c52dbb487b85a6ca356fdc3557be"
+source = "git+https://git.corbet.ch/corbet-foss/cvfy?branch=main#a17352654185c30a498fa80ffcb35c8953b674ac"
 dependencies = [
  "czkp",
  "data-encoding",
@@ -2309,6 +2312,7 @@ version = "0.2.0"
 dependencies = [
  "async-trait",
  "axum",
+ "cblc",
  "cfbk",
  "cgbl",
  "cgrd",
@@ -2325,8 +2329,10 @@ dependencies = [
  "crlt",
  "crpt",
  "csgn",
+ "cssr",
  "cthl",
  "cvch",
+ "ed25519-dalek 2.2.0",
  "ed25519-dalek 3.0.0",
  "futures-util",
  "gloo-net",
@@ -2369,9 +2375,11 @@ dependencies = [
  "ed25519-dalek 3.0.0",
  "pso-poseidon",
  "rs_merkle",
+ "schemars 1.2.2",
  "serde",
  "serde_json",
  "sha2 0.11.0",
+ "utoipa",
 ]
 
 [[package]]
