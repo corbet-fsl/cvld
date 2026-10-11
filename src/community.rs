@@ -14,6 +14,7 @@ use std::{
 };
 
 mod certificate;
+mod enrollment;
 mod legal;
 mod payments;
 mod self_ban;
@@ -435,6 +436,14 @@ impl CommunityService {
         })
     }
     pub async fn register_begin(&mut self, request: RegisterStart, now: u64) -> Result<Ceremony> {
+        self.register_begin_for(request, None, now).await
+    }
+    async fn register_begin_for(
+        &mut self,
+        request: RegisterStart,
+        seed: Option<[u8; 32]>,
+        now: u64,
+    ) -> Result<Ceremony> {
         self.refresh_global(now).await?;
         self.prune(now);
         if self.registrations.len() >= self.config.pending_capacity {
@@ -460,11 +469,15 @@ impl CommunityService {
             .await
             .map_err(Error::Refused.redact())?;
         let user = ckyh::Uuid::new_v4();
-        let (options, value) = self
-            .facade
-            .begin_registration(passport, user, now)
-            .await
-            .map_err(Error::Refused.redact())?;
+        let (options, value) = match seed {
+            Some(seed) => {
+                self.facade
+                    .begin_initial_registration(passport, user, seed, now)
+                    .await
+            }
+            None => self.facade.begin_registration(passport, user, now).await,
+        }
+        .map_err(Error::Refused.redact())?;
         let id = token();
         crate::service::publication::expires_at(now + 300)?;
         self.registrations.insert(

@@ -17,6 +17,7 @@ use std::{
 use tokio::sync::{Mutex, OwnedSemaphorePermit, Semaphore, watch};
 
 mod contacts;
+mod enrollment;
 mod global_self_ban;
 mod migrations;
 mod payments;
