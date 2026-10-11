@@ -397,7 +397,7 @@ impl Door {
         request: AddPasskey,
     ) -> Result<AddedPasskey> {
         if !self.is_membership_host(&ctx.host) {
-            if self.inner.scope == Scope::Global
+            if self.service_scope() == Scope::Global
                 && ctx
                     .grant
                     .as_ref()
@@ -476,7 +476,7 @@ impl Door {
         request: RevokePasskey,
     ) -> Result<Empty> {
         if !self.is_membership_host(&ctx.host) {
-            if self.inner.scope == Scope::Global
+            if self.service_scope() == Scope::Global
                 && ctx
                     .grant
                     .as_ref()

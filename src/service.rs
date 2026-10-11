@@ -131,6 +131,10 @@ impl Context {
     }
 }
 impl Door {
+    /// Original constructed service kind, without exposing its retained owners.
+    pub(crate) fn service_scope(&self) -> Scope {
+        self.inner.scope
+    }
     pub async fn global(config: Config, clock: Arc<dyn Clock>) -> Result<Self> {
         Self::global_with_optional_transport(config, clock, None).await
     }
