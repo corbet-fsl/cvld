@@ -201,11 +201,17 @@ impl CommunityService {
             .root
             .check(guard.auth, token, root_clock)
             .await
-            .map_err(|_| Error::Reconcile)?;
+            .map_err(|e| {
+                eprintln!("DIAG cr {e:?} line={}", line!());
+                Error::Reconcile
+            })?;
         let checked_at = self.clock.now();
         pending.session.release(checked_at)?;
         if checked_at < completed.max(root_floor) || checked_at >= pending.until {
-            return Err(Error::Reconcile);
+            {
+                eprintln!("DIAG cret line={}", line!());
+                return Err(Error::Reconcile);
+            }
         }
         Ok(Created {
             value: CommunityCreationInvitation {
@@ -230,14 +236,20 @@ impl CommunityService {
             || now >= created.value.expires_at
             || std::time::Instant::now() >= created.deadline
         {
-            return Err(Error::Reconcile);
+            {
+                eprintln!("DIAG cret line={}", line!());
+                return Err(Error::Reconcile);
+            }
         }
         created.session.release(now)?;
         let policy = self.facade.policy().lock().await;
         policy
             .validate_snapshot(&created.snapshot, now)
             .await
-            .map_err(|_| Error::Reconcile)?;
+            .map_err(|e| {
+                eprintln!("DIAG cr {e:?} line={}", line!());
+                Error::Reconcile
+            })?;
         if !self
             .facade
             .membership()
@@ -246,14 +258,23 @@ impl CommunityService {
                 created.session.authentication.credential_id(),
             )
             .await
-            .map_err(|_| Error::Reconcile)?
+            .map_err(|e| {
+                eprintln!("DIAG cr {e:?} line={}", line!());
+                Error::Reconcile
+            })?
         {
-            return Err(Error::Reconcile);
+            {
+                eprintln!("DIAG cret line={}", line!());
+                return Err(Error::Reconcile);
+            }
         }
         let completed = self.clock.now();
         created.session.release(completed)?;
         if completed < now || completed >= created.value.expires_at {
-            return Err(Error::Reconcile);
+            {
+                eprintln!("DIAG cret line={}", line!());
+                return Err(Error::Reconcile);
+            }
         }
         created.value.checked_at = completed;
         Ok(created)
@@ -268,7 +289,10 @@ impl CommunityService {
             || now >= created.value.expires_at
             || std::time::Instant::now() >= created.deadline
         {
-            return Err(Error::Reconcile);
+            {
+                eprintln!("DIAG cret line={}", line!());
+                return Err(Error::Reconcile);
+            }
         }
         created.session.release(now)?;
         created.value.checked_at = now;
@@ -293,12 +317,16 @@ impl cmbr::CreationGuard for Producer<'_> {
         observed: u64,
     ) -> cmbr::Result<()> {
         if std::time::Instant::now() >= self.deadline {
+            eprintln!("DIAG producer deadline");
             return Err(cmbr::Error::Transition);
         }
         self.root
             .check(self.auth, self.token, self.root_clock)
             .await
-            .map_err(|_| cmbr::Error::Identity)?;
+            .map_err(|e| {
+                eprintln!("DIAG producer root check {e:?}");
+                cmbr::Error::Identity
+            })?;
         self.policy
             .validate_snapshot(self.snapshot, observed)
             .await
@@ -329,9 +357,13 @@ impl cmbr::CreationGuard for Producer<'_> {
         if self
             .root
             .release(self.auth, self.token, self.root_clock)
-            .map_err(|_| cmbr::Error::Identity)?
+            .map_err(|e| {
+                eprintln!("DIAG producer root release {e:?}");
+                cmbr::Error::Identity
+            })?
             != observed
         {
+            eprintln!("DIAG producer release mismatch observed={observed}");
             return Err(cmbr::Error::Transition);
         }
         Ok(())

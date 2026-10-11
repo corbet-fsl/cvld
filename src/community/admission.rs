@@ -15,6 +15,7 @@ impl cmbr::RoleSession for AdmissionSession {
     }
     fn check(&self, authentication: &ckyh::Authentication, observed: u64) -> cmbr::Result<()> {
         if !self.valid.load(Ordering::Acquire) {
+            eprintln!("DIAG session invalid observed={observed}");
             return Err(cmbr::Error::Unavailable);
         }
         self.actual
@@ -22,7 +23,9 @@ impl cmbr::RoleSession for AdmissionSession {
             .inspect_err(|_| {
                 self.valid.store(false, Ordering::Release);
             })?;
-        if observed < self.observed.fetch_max(observed, Ordering::AcqRel) {
+        let previous = self.observed.fetch_max(observed, Ordering::AcqRel);
+        if observed < previous {
+            eprintln!("DIAG session regress observed={observed} previous={previous}");
             self.valid.store(false, Ordering::Release);
             return Err(cmbr::Error::Unavailable);
         }
@@ -34,7 +37,13 @@ impl cmbr::RoleSession for AdmissionSession {
 }
 impl AdmissionSession {
     pub(super) fn release(&self, observed: u64) -> Result<()> {
-        cmbr::RoleSession::check(self, &self.authentication, observed).map_err(|_| Error::Reconcile)
+        cmbr::RoleSession::check(self, &self.authentication, observed).map_err(|e| {
+            eprintln!(
+                "DIAG admission release {e:?} observed={observed} line={}",
+                line!()
+            );
+            Error::Reconcile
+        })
     }
 }
 impl CommunityService {
