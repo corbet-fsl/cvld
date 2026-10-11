@@ -143,17 +143,17 @@ impl Auth {
         let gate = self.wallet_worker_gate.clone();
         let operation = move |keys: &Passkeys<LibsqlStore>| {
             #[cfg(test)]
-            if let Some(gate) = &gate {
-                if !gate.after {
-                    gate.wait();
-                }
+            if let Some(gate) = &gate
+                && !gate.after
+            {
+                gate.wait();
             }
             let result = keys.revoke(grant.user, &target);
             #[cfg(test)]
-            if let Some(gate) = &gate {
-                if gate.after {
-                    gate.wait();
-                }
+            if let Some(gate) = &gate
+                && gate.after
+            {
+                gate.wait();
             }
             result
         };
