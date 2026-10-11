@@ -22,7 +22,7 @@ async fn real_factory_publishes_daily_capability_and_reopens_the_same_store() {
     let clock = Arc::new(cuts::ObservedClock::steady());
     let construction = NativeConstruction::new();
     let door = Door::community_with_construction(
-        fixture.config.clone(),
+        fixture.duplicate_config(),
         clock.clone(),
         construction.clone(),
     )
@@ -39,7 +39,7 @@ async fn real_factory_publishes_daily_capability_and_reopens_the_same_store() {
     drop(door);
     let reopened_owner = NativeConstruction::new();
     let reopened = Door::community_with_construction(
-        fixture.config.clone(),
+        fixture.duplicate_config(),
         Arc::new(cuts::ObservedClock::steady()),
         reopened_owner.clone(),
     )
@@ -70,7 +70,7 @@ async fn corrupted_actual_activation_proof_never_installs_daily_mode() {
     .unwrap();
     let owner = NativeConstruction::new();
     let result = Door::community_with_construction(
-        fixture.config.clone(),
+        fixture.duplicate_config(),
         Arc::new(cuts::ObservedClock::steady()),
         owner.clone(),
     )
