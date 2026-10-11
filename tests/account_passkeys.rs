@@ -179,14 +179,16 @@ async fn manage(
         .unwrap();
     assert!(!current.revoked);
     assert!(current.current);
-    // Revoking the authorizing key commits, then ends its own session: the
-    // final authority check withholds the answer as a reconcile.
-    assert!(matches!(
-        second_api
-            .call("passkey_revoke", json!({"credential":added_id}))
-            .await,
-        Err(cvld::error::Error::Reconcile)
-    ));
+    let revoked = second_api
+        .call("passkey_revoke", json!({"credential":added_id}))
+        .await;
+    if host == WALLET {
+        // The wallet owner commits the revocation, then its final authority
+        // check sees the ended session and withholds the answer as a reconcile.
+        assert!(matches!(revoked, Err(cvld::error::Error::Reconcile)));
+    } else {
+        revoked.unwrap();
+    }
     assert_eq!(
         call_status(
             service,
