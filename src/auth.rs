@@ -371,7 +371,8 @@ impl Auth {
 
 fn creation_month(now: u64) -> Result<ckyh::CreationMonth> {
     use chrono::Datelike;
-    let date = chrono::DateTime::from_timestamp(now as i64, 0).ok_or(Error::Invalid)?;
-    ckyh::CreationMonth::new(date.year() as u16, date.month() as u8)
-        .map_err(Error::Invalid.redact())
+    let seconds = i64::try_from(now).map_err(Error::Invalid.redact())?;
+    let date = chrono::DateTime::from_timestamp(seconds, 0).ok_or(Error::Invalid)?;
+    let year = u16::try_from(date.year()).map_err(Error::Invalid.redact())?;
+    ckyh::CreationMonth::new(year, date.month() as u8).map_err(Error::Invalid.redact())
 }

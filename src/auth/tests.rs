@@ -307,14 +307,22 @@ async fn session_capacity_logout_and_revocation_preserve_real_authentication() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn registration_rejects_unsupported_calendar_time_without_storing_a_credential() {
+    use chrono::TimeZone;
     let (_directory, db) = database().await;
     let mut member = auth(&db, None, 1);
-    for now in [253_402_300_800, i64::MAX as u64] {
+    let wrapped_year = chrono::Utc
+        .with_ymd_and_hms(67_536, 1, 1, 0, 0, 0)
+        .single()
+        .unwrap()
+        .timestamp()
+        .try_into()
+        .unwrap();
+    for now in [253_402_300_800, wrapped_year, i64::MAX as u64] {
         let begin = member.register_begin(start(None), now).await.unwrap();
         let user = Uuid::parse_str(&begin.user).unwrap();
         let finish = registration(&mut Resident::default(), begin).await;
         let result = member.register_finish(finish, now).await;
-        if now == 253_402_300_800 {
+        if now != i64::MAX as u64 {
             assert!(matches!(result, Err(Error::Invalid)));
         } else {
             assert!(matches!(result, Err(Error::Unauthorized)));
@@ -329,4 +337,21 @@ async fn registration_rejects_unsupported_calendar_time_without_storing_a_creden
                 .is_empty()
         );
     }
+}
+
+#[test]
+fn creation_month_does_not_reinterpret_unsigned_time_as_a_negative_year() {
+    use chrono::TimeZone;
+    let negative = chrono::Utc
+        .with_ymd_and_hms(-63_536, 1, 1, 0, 0, 0)
+        .single()
+        .unwrap()
+        .timestamp();
+    // Both the signed seconds and the signed year would wrap through the old
+    // casts into a plausible year 2000. The public clock domain is unsigned.
+    assert_eq!(negative as u64 as i64, negative);
+    assert!(matches!(
+        creation_month(negative as u64),
+        Err(Error::Invalid)
+    ));
 }
