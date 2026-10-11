@@ -4,6 +4,8 @@
 compile_error!("development-gate is forbidden in release builds");
 
 #[cfg(feature = "server")]
+pub mod accounting;
+#[cfg(feature = "server")]
 pub mod api;
 #[cfg(feature = "server")]
 mod auth;

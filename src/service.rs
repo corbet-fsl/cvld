@@ -16,6 +16,7 @@ use std::{
 };
 use tokio::sync::{Mutex, OwnedSemaphorePermit, Semaphore, watch};
 
+mod accounting;
 mod contacts;
 mod enrollment;
 mod global_self_ban;
@@ -73,6 +74,7 @@ struct Inner {
     member_host: Option<String>,
     throttle: cthl::Throttle<cthl::MemoryStore>,
     clock: Arc<dyn Clock>,
+    account_body_limit: usize,
 }
 enum Published {
     Global(watch::Receiver<Arc<GlobalPublic>>),
@@ -227,6 +229,7 @@ impl Door {
                 member_host: None,
                 throttle,
                 clock,
+                account_body_limit: 256 * 1024,
             }),
         })
     }
@@ -332,6 +335,8 @@ impl Door {
         };
         let published = Published::Community(community.changes.subscribe());
         let config = &community.config;
+        let account_body_limit = community.account_body_limit();
+        let clock = community.account_clock().unwrap_or(clock);
         for (host, role, scope, operator) in [
             (
                 format!("api.admin.{}.{}", config.community, config.domain),
@@ -403,8 +408,16 @@ impl Door {
                 member_host: Some(member_host),
                 throttle,
                 clock,
+                account_body_limit,
             }),
         })
+    }
+    pub(crate) fn request_body_limit(&self, action: &Action) -> usize {
+        if action.name == "account" {
+            self.inner.account_body_limit
+        } else {
+            256 * 1024
+        }
     }
     pub(crate) fn allows_origin(&self, host: &str, origin: &str) -> bool {
         (self.inner.hosts.contains_key(host) || self.inner.member_host.as_deref() == Some(host))

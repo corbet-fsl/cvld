@@ -6,6 +6,20 @@ use crate::{
 use rmcp::{ErrorData, RoleServer, ServerHandler, model::*, service::RequestContext};
 use serde_json::{Value, json};
 
+mod bounded;
+
+/// Original SDK stdio with an intake byte bound on every physical JSON-RPC
+/// frame. The maintained SDK retains parsing, cancellation and protocol errors.
+pub fn stdio() -> (
+    impl tokio::io::AsyncRead + Send + Unpin + 'static,
+    impl tokio::io::AsyncWrite + Send + Unpin + 'static,
+) {
+    (
+        bounded::BoundedRead::new(tokio::io::stdin(), bounded::FRAME_BYTES),
+        tokio::io::stdout(),
+    )
+}
+
 #[derive(Clone)]
 pub struct Mcp {
     pub client: Client,
@@ -54,13 +68,11 @@ impl ServerHandler for Mcp {
         request: CallToolRequestParams,
         _: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, ErrorData> {
-        let result = self
-            .client
-            .call(
-                &request.name,
-                Value::Object(request.arguments.unwrap_or_default()),
-            )
-            .await;
+        let arguments = Value::Object(request.arguments.unwrap_or_default());
+        let result = match bounded::arguments_fit(&request.name, &arguments) {
+            Ok(()) => self.client.call(&request.name, arguments).await,
+            Err(error) => Err(error),
+        };
         Ok(match result {
             Ok(value) => CallToolResult::structured(value),
             Err(error) => CallToolResult::structured_error(json!({"error": error})),

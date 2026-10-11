@@ -101,6 +101,9 @@ pub struct CommunityConfig {
     /// Paid access is off unless an exact account/offer is supplied explicitly.
     #[serde(default)]
     pub payments: Option<crate::payments::PaymentConfig>,
+    /// Native accounts require an explicit economic policy, verifier and period.
+    #[serde(default)]
+    pub accounting: Option<crate::accounting::AccountConfig>,
 }
 impl CommunityConfig {
     pub fn shutdown_budget(&self) -> Result<Duration> {

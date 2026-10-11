@@ -446,6 +446,7 @@ pub fn community_config(
         minimum_notice_seconds: 0,
         voucher_provider: "sponsor".into(),
         payments: None,
+        accounting: None,
         voucher_public_key_file: write(
             dir,
             "voucher-key",

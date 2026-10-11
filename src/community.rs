@@ -13,6 +13,7 @@ use std::{
     sync::Arc,
 };
 
+mod accounting;
 mod certificate;
 mod enrollment;
 mod legal;
@@ -78,6 +79,7 @@ pub struct CommunityService {
     pub changes: tokio::sync::watch::Sender<Arc<TrustFeed>>,
     voucher: cgts::gates::VoucherGate,
     pub payments: Option<Arc<tokio::sync::Mutex<crate::payments::PaymentHost>>>,
+    accounts: Option<Arc<crate::accounting::clock::AccountRuntime>>,
     challenges: HashMap<String, Challenge>,
     registrations: HashMap<String, Pending<cmbr::PendingRegistration>>,
     logins: HashMap<String, PendingLogin>,
@@ -216,8 +218,43 @@ impl CommunityService {
                 .await
                 .map_err(Error::Refused.redact())?;
         }
+        let account_parts = if let Some(account) = config.accounting.clone() {
+            let ring = policy
+                .key_ring()
+                .map_err(Error::Unavailable.redact())?
+                .clone();
+            let account_db = db.clone();
+            let account_community = config.community.clone();
+            let account_clock = clock.clone();
+            let runtime = tokio::runtime::Handle::current();
+            // Native proof verification and every synchronous CRLT call remain
+            // off the async executor. The original CGTS worker then owns/drops
+            // this ONE service; no second ledger or database is created.
+            let (service, observed) = tokio::task::spawn_blocking(move || {
+                account.build(
+                    &account_db,
+                    &account_community,
+                    ring,
+                    account_clock,
+                    runtime,
+                )
+            })
+            .await
+            .map_err(Error::Unavailable.redact())??;
+            Some((service, observed))
+        } else {
+            None
+        };
+        let owner_clock: Arc<dyn Clock> = match &account_parts {
+            Some((_, observed)) => observed.clone(),
+            None => clock.clone(),
+        };
+        // Entry, legal/lifecycle checks, payments and final publication share
+        // the native owner's greatest observation when accounts are installed.
+        let clock = owner_clock.clone();
         let host = format!("api.{}.{}", scope, config.domain);
-        let authority = CommunityAuthority::new(scope, clock.clone(), config.pending_capacity)?;
+        let authority =
+            CommunityAuthority::new(scope, owner_clock.clone(), config.pending_capacity)?;
         let membership = cmbr::Membership::new(
             db,
             cmbr::LibsqlStorage::new(db, scope).map_err(Error::Unavailable.redact())?,
@@ -237,7 +274,7 @@ impl CommunityService {
                 ],
             },
             authority.clone(),
-            CommunityClock(clock.clone()),
+            CommunityClock(owner_clock),
         )
         .map_err(Error::Invalid.redact())?;
         // One process owns this database. cmbr serializes member operations;
@@ -251,7 +288,7 @@ impl CommunityService {
             ),
         )
         .map_err(Error::Invalid.redact())?;
-        let facade = cmty::Community::new(
+        let mut facade = cmty::Community::new(
             cmty::storage::LibsqlStorage::new(
                 db,
                 cpsd::CommunityId::new(scope.as_bytes()).map_err(Error::Invalid.redact())?,
@@ -283,6 +320,22 @@ impl CommunityService {
             },
         )
         .map_err(Error::Invalid.redact())?;
+        let accounts = if let Some((service, observed)) = account_parts {
+            facade = facade
+                .with_account_service(service)
+                .await
+                .map_err(Error::Unavailable.redact())?;
+            let publisher_clock = observed.clone();
+            facade
+                .publish_account_material(&observed.period_key, move || {
+                    publisher_clock.native_time()
+                })
+                .await
+                .map_err(Error::Unavailable.redact())?;
+            Some(observed)
+        } else {
+            None
+        };
         let key: [u8; 32] = std::fs::read(&config.voucher_public_key_file)
             .map_err(Error::Unavailable.redact())?
             .try_into()
@@ -292,7 +345,10 @@ impl CommunityService {
             ed25519_dalek::VerifyingKey::from_bytes(&key).map_err(Error::Invalid.redact())?,
         )
         .map_err(Error::Invalid.redact())?;
-        let public = publish(&facade, now).await?;
+        let public_now = accounts
+            .as_ref()
+            .map_or(Ok(now), |observed| observed.observe())?;
+        let public = publish(&facade, public_now).await?;
         let payments = match config.payments.clone() {
             Some(payment) => Some(Arc::new(tokio::sync::Mutex::new(
                 crate::payments::PaymentHost::open(
@@ -310,6 +366,11 @@ impl CommunityService {
             None => None,
         };
         let (changes, _) = tokio::sync::watch::channel(Arc::new(public.clone()));
+        // A configured facade must not escape a startup wait below an interior
+        // native/host observation. Keep every already signed deadline unchanged.
+        if let Some(observed) = &accounts {
+            observed.observe()?;
+        }
         Ok(Self {
             facade,
             db: db.clone(),
@@ -319,6 +380,7 @@ impl CommunityService {
             changes,
             voucher,
             payments,
+            accounts,
             challenges: HashMap::new(),
             registrations: HashMap::new(),
             logins: HashMap::new(),
@@ -762,6 +824,18 @@ impl CommunityService {
         withdrawal: Option<(String, String)>,
         now: u64,
     ) -> Result<CredentialResponse> {
+        self.issue_selected(auth, request, withdrawal, None, now)
+            .await
+            .map(|(response, _)| response)
+    }
+    async fn issue_selected(
+        &mut self,
+        auth: &ckyh::Authentication,
+        request: CredentialRequest,
+        withdrawal: Option<(String, String)>,
+        account_device: Option<[u8; 32]>,
+        now: u64,
+    ) -> Result<(CredentialResponse, Option<cblc::admission::AdmissionGrant>)> {
         use chrono::Datelike;
         self.refresh_global(now).await?;
         self.prune(now);
@@ -781,43 +855,81 @@ impl CommunityService {
             .ok_or(Error::Invalid)?;
         let lease = cmbr::YearMonth::new(date.year() as u16, date.month() as u8)
             .map_err(Error::Invalid.redact())?;
-        let result = self
-            .facade
-            .finish_with(
-                &mut cpsd::rand::rngs::OsRng,
-                &challenge.value,
-                &proof,
-                cmty::Admission {
-                    authentication: auth,
-                    devices: &request.devices,
-                    lease,
-                },
-                now,
-                async |gates, context| {
-                    if let Some((gate, provider)) = withdrawal {
-                        gates.withdraw(context.subject, &gate, &provider).await?;
-                    }
-                    Ok(Vec::new())
-                },
-            )
-            .await
-            .map_err(Error::Refused.redact())?;
-        let credential = match result {
-            cmty::Outcome::Issued(value) => Some(value.cose),
-            cmty::Outcome::Missing(_) => None,
+        let admission = cmty::Admission {
+            authentication: auth,
+            devices: &request.devices,
+            lease,
+        };
+        let checks = async |gates: &cgts::Gatekeeper<_, _>, context: cgts::Context<'_>| {
+            if let Some((gate, provider)) = withdrawal {
+                gates.withdraw(context.subject, &gate, &provider).await?;
+            }
+            Ok(Vec::new())
+        };
+        let result = match account_device {
+            Some(device) => {
+                self.facade
+                    .finish_account_with(
+                        &mut cpsd::rand::rngs::OsRng,
+                        &challenge.value,
+                        &proof,
+                        cmty::AccountAdmission {
+                            membership: admission,
+                            device,
+                        },
+                        now,
+                        checks,
+                    )
+                    .await
+            }
+            None => {
+                self.facade
+                    .finish_with(
+                        &mut cpsd::rand::rngs::OsRng,
+                        &challenge.value,
+                        &proof,
+                        admission,
+                        now,
+                        checks,
+                    )
+                    .await
+            }
+        }
+        .map_err(|error| {
+            if account_device.is_some() && error == cmty::Error::Reconcile {
+                Error::Reconcile
+            } else {
+                Error::Refused
+            }
+        })?;
+        let (credential, account) = match result {
+            cmty::Outcome::Issued(value) => (Some(value.cose), value.account),
+            cmty::Outcome::Missing(_) => (None, None),
             cmty::Outcome::Vetoed => return Err(Error::Forbidden),
         };
-        if self
-            .facade
-            .flush_revocations(now)
-            .await
-            .map_err(Error::Unavailable.redact())?
-            > 0
-        {
-            self.refresh(now).await?;
+        let completed = async {
+            if self
+                .facade
+                .flush_revocations(now)
+                .await
+                .map_err(Error::Unavailable.redact())?
+                > 0
+            {
+                self.refresh(now).await?;
+            }
+            let lobby = self.lobby(auth, now).await?;
+            Ok((CredentialResponse { credential, lobby }, account))
         }
-        let lobby = self.lobby(auth, now).await?;
-        Ok(CredentialResponse { credential, lobby })
+        .await;
+        // The selected account admission may already be durable. A later
+        // publication/lobby failure withholds its result without a rollback claim.
+        completed.map_err(|error| {
+            if account_device.is_some() {
+                Error::Reconcile
+            } else {
+                error
+            }
+        })
     }
     pub async fn refresh(&mut self, now: u64) -> Result<()> {
         self.public = publish(&self.facade, now).await?;

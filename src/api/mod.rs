@@ -8,7 +8,9 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use utoipa::ToSchema;
+mod accounting;
 mod community;
+pub use accounting::*;
 pub use community::*;
 mod enrollment;
 pub use enrollment::*;
@@ -234,6 +236,7 @@ macro_rules! actions {
         pub fn router(door: Door) -> Router {
             let mut router = Router::new();
             $( $(#[$attr])* {
+                let body_limit = door.request_body_limit(action(stringify!($name)).expect("registered action"));
                 router = router.route(concat!("/v1/", stringify!($name)), post(
                     |State(door): State<Door>, request: Request| async move {
                         let action = action(stringify!($name)).expect("registered action");
@@ -246,9 +249,9 @@ macro_rules! actions {
                         let response: $response = publication.run(crate::service::at(ctx.now, door.$name(ctx, request))).await?;
                         Ok::<_, Error>(Json(response))
                     }
-                ));
+                ).layer(DefaultBodyLimit::max(body_limit)));
             } )*
-            router.layer(DefaultBodyLimit::max(256 * 1024)).layer(door.cors())
+            router.layer(door.cors())
                 .layer(axum::middleware::map_response(|mut response: axum::response::Response| async move {
                     response.headers_mut().insert(axum::http::header::CACHE_CONTROL,
                         axum::http::HeaderValue::from_static("no-store"));
@@ -297,6 +300,8 @@ actions! {
     gate_voucher(Voucher) -> Lobby, Member, Community, Record, Forward, "Verify a member-bound voucher";
     gate_withdraw(Withdraw) -> CredentialResponse, Member, Community, Record, Forward, "Withdraw a retained community gate";
     credential_issue(CredentialRequest) -> CredentialResponse, Member, Community, Record, Forward, "Present a passport and request admission or renewal";
+    account_credential_issue(AccountCredentialRequest) -> AccountCredentialResponse, Member, Community, Record, Forward, "Request the original account grant from the same full admission decision";
+    account(AccountRequest) -> AccountResponse, Member, Community, Record, Forward, "Forward this admitted member's original account operation";
     pin_set(PinRequest) -> PinResponse, Member, Community, Record, Forward, "Seal an initial profile fingerprint";
     pin_get(Field) -> PinResponse, Member, Community, Check, Forward, "Read a sealed fingerprint";
     pin_change(PinChange) -> PinResponse, Member, Community, Record, Forward, "Change a fingerprint using spent-token evidence";

@@ -1,0 +1,250 @@
+//! Explicit operator-owned economic policy, native artifacts and execution caps.
+use super::{clock::AccountRuntime, storage::Store};
+use crate::{
+    config::Config,
+    error::{Error, Result},
+    service::Clock,
+};
+use cblc::{
+    accounting::AccountStatement,
+    accounting_ledger::{AccountLedger, AccountLedgerPolicy},
+    accounting_service::{AccountService, NativeAccountVerifier},
+    admission::AdmissionTrust,
+    artifacts::{AccountArtifacts, ArtifactBytes, ExtensionArtifacts, NativeVerifierOptions},
+    extensions::{ExtensionActivation, ExtensionPolicy},
+    verification::{ExtensionLimits, NativeExtensionVerifier},
+};
+use serde::{Deserialize, Serialize};
+use std::{io::Read, num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AccountConfig {
+    /// Key in the actual authenticated Rulebook; no period is inferred.
+    pub period_key: String,
+    pub ledger_policy_file: String,
+    pub extension_policy_file: String,
+    /// Immutable admission trust, distinct from a tunable economic digest.
+    pub admission_policy_digest: String,
+    pub operator_seed_file: String,
+    pub certificate_seed_file: String,
+    pub account_artifacts: ArtifactFiles,
+    pub extension_artifacts: ArtifactFiles,
+    pub activation_statement_file: String,
+    pub activation_proof_file: String,
+    pub account_execution: NativeExecution,
+    pub update_execution: NativeExecution,
+    pub anonymous_execution: NativeExecution,
+    pub extension_limits: VerificationLimits,
+    pub max_request_bytes: usize,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ArtifactFiles {
+    pub manifest_file: String,
+    /// Independently configured pin, never taken from the downloaded manifest.
+    pub manifest_sha256: [u8; 32],
+    pub circuit_file: String,
+    pub keys_file: String,
+    pub srs_g1_file: String,
+    pub srs_g2_file: String,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NativeExecution {
+    pub executable: String,
+    pub timeout_ms: u64,
+    pub maximum_parallel: usize,
+    pub max_proof_bytes: usize,
+    pub threads: usize,
+    pub memory_megabytes: usize,
+}
+impl NativeExecution {
+    fn options(&self) -> Result<NativeVerifierOptions> {
+        let executable = PathBuf::from(&self.executable);
+        let timeout = Duration::from_millis(self.timeout_ms);
+        if !executable.is_absolute()
+            || self.timeout_ms == 0
+            || std::time::Instant::now().checked_add(timeout).is_none()
+            || self.maximum_parallel == 0
+            || self.max_proof_bytes == 0
+            || self.max_proof_bytes > 4 * 1024 * 1024
+            || self.threads == 0
+            || self.memory_megabytes == 0
+        {
+            return Err(Error::Invalid);
+        }
+        Ok(NativeVerifierOptions {
+            executable,
+            timeout,
+            maximum_parallel: self.maximum_parallel,
+            max_proof_bytes: self.max_proof_bytes,
+            threads: self.threads,
+            memory_megabytes: self.memory_megabytes,
+        })
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct VerificationLimits {
+    pub global_burst: u32,
+    pub subject_burst: u32,
+    pub replenish_ms: u64,
+    pub maximum_keys: usize,
+}
+impl VerificationLimits {
+    fn limits(&self) -> Result<ExtensionLimits> {
+        if self.global_burst == 0 || self.subject_burst == 0 || self.replenish_ms == 0 {
+            return Err(Error::Invalid);
+        }
+        Ok(ExtensionLimits {
+            global_burst: self.global_burst,
+            subject_burst: self.subject_burst,
+            replenish: Duration::from_millis(self.replenish_ms),
+            maximum_keys: NonZeroUsize::new(self.maximum_keys).ok_or(Error::Invalid)?,
+        })
+    }
+}
+
+struct PublicArtifacts {
+    manifest: Vec<u8>,
+    circuit: Vec<u8>,
+    keys: Vec<u8>,
+    g1: Vec<u8>,
+    g2: Vec<u8>,
+    pin: [u8; 32],
+}
+impl ArtifactFiles {
+    fn read(&self) -> Result<PublicArtifacts> {
+        if self.manifest_sha256 == [0; 32] {
+            return Err(Error::Invalid);
+        }
+        Ok(PublicArtifacts {
+            manifest: bounded(&self.manifest_file, 65536)?,
+            circuit: bounded(&self.circuit_file, 64 * 1024 * 1024)?,
+            keys: bounded(&self.keys_file, 1024 * 1024)?,
+            g1: bounded(&self.srs_g1_file, 128 * 1024 * 1024)?,
+            g2: bounded(&self.srs_g2_file, 128)?,
+            pin: self.manifest_sha256,
+        })
+    }
+}
+impl PublicArtifacts {
+    fn bytes(&self) -> ArtifactBytes<'_> {
+        ArtifactBytes {
+            manifest: &self.manifest,
+            manifest_sha256: self.pin,
+            circuit: &self.circuit,
+            keys: &self.keys,
+            srs_g1: &self.g1,
+            srs_g2: &self.g2,
+        }
+    }
+}
+fn bounded(path: &str, maximum: usize) -> Result<Vec<u8>> {
+    let file = std::fs::File::open(path).map_err(Error::Unavailable.redact())?;
+    let mut bytes = Vec::new();
+    file.take(maximum as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(Error::Unavailable.redact())?;
+    if bytes.len() > maximum {
+        return Err(Error::Invalid);
+    }
+    Ok(bytes)
+}
+
+pub(crate) type Service = AccountService<NativeAccountVerifier, Box<dyn Fn() -> u64 + Send>>;
+
+impl AccountConfig {
+    /// Call once on an ordinary native owner thread. No service request can
+    /// select files, a signer, clock, period, asset or verifier configuration.
+    pub(crate) fn build(
+        &self,
+        db: &crlt::Db,
+        community: &str,
+        policy_keys: csgn::KeyRing,
+        clock: Arc<dyn Clock>,
+        runtime: tokio::runtime::Handle,
+    ) -> Result<(Service, Arc<AccountRuntime>)> {
+        if self.period_key.is_empty()
+            || self.period_key.len() > 256
+            || self.max_request_bytes == 0
+            || self.max_request_bytes > 16 * 1024 * 1024
+            || policy_keys.issuer() != community
+        {
+            return Err(Error::Invalid);
+        }
+        let policy: AccountLedgerPolicy =
+            serde_json::from_slice(&bounded(&self.ledger_policy_file, 1024 * 1024)?)
+                .map_err(Error::Invalid.redact())?;
+        let extension: ExtensionPolicy =
+            serde_json::from_slice(&bounded(&self.extension_policy_file, 1024 * 1024)?)
+                .map_err(Error::Invalid.redact())?;
+        let account = self.account_artifacts.read()?;
+        let verifier = NativeAccountVerifier::new(
+            self.account_execution.options()?,
+            AccountArtifacts::authenticate(account.bytes()).map_err(Error::Invalid.redact())?,
+        )
+        .map_err(Error::Invalid.redact())?;
+        let extensions = self.extension_artifacts.read()?;
+        let extensions = NativeExtensionVerifier::new(
+            self.update_execution.options()?,
+            self.anonymous_execution.options()?,
+            ExtensionArtifacts::authenticate(extensions.bytes())
+                .map_err(Error::Invalid.redact())?,
+        )
+        .map_err(Error::Invalid.redact())?;
+        cblc::extensions::ExtensionVerifier::require_record_epoch(&extensions)
+            .map_err(Error::Invalid.redact())?;
+        let statement: AccountStatement =
+            serde_json::from_slice(&bounded(&self.activation_statement_file, 1024 * 1024)?)
+                .map_err(Error::Invalid.redact())?;
+        let proof = bounded(
+            &self.activation_proof_file,
+            self.update_execution.max_proof_bytes,
+        )?;
+        let operator = zeroize::Zeroizing::new(Config::seed(&self.operator_seed_file)?);
+        let certificate = zeroize::Zeroizing::new(Config::seed(&self.certificate_seed_file)?);
+        let certificate = cssr::certificate::CertificateIssuer::new(&certificate)
+            .map_err(Error::Invalid.redact())?;
+        let ledger = AccountLedger::with_store(
+            Store::new(db, community, runtime.clone()).map_err(Error::Unavailable.redact())?,
+            AdmissionTrust {
+                community_id: community.into(),
+                policy_digest: self.admission_policy_digest.clone(),
+                policy_keys,
+            },
+            policy,
+            verifier,
+            ed25519_dalek_v2::SigningKey::from_bytes(&operator),
+        )
+        .map_err(Error::Invalid.redact())?
+        .with_extensions(
+            extension,
+            extensions,
+            self.extension_limits.limits()?,
+            ExtensionActivation {
+                account: statement,
+                proof,
+            },
+        )
+        .map_err(Error::Invalid.redact())?;
+        let durable_floor = Store::new(db, community, runtime)
+            .and_then(|mut store| store.durable_floor())
+            .map_err(Error::Unavailable.redact())?;
+        let observed = Arc::new(AccountRuntime::new(
+            clock,
+            durable_floor,
+            self.max_request_bytes,
+            self.period_key.clone(),
+        )?);
+        let native_clock = observed.clone();
+        let clock: Box<dyn Fn() -> u64 + Send> = Box::new(move || native_clock.native_time());
+        AccountService::new(ledger, clock, self.max_request_bytes)
+            .map(|service| (service.with_extension_issuer(certificate), observed))
+            .map_err(Error::Invalid.redact())
+    }
+}

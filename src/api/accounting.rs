@@ -1,0 +1,35 @@
+//! Exact account-owner wire types and maintained owner-generated schemas.
+use super::{CredentialRequest, Lobby};
+use cblc::accounting_service::{AccountServiceRequest, AccountServiceResponse};
+use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
+
+/// Request the original account grant from the same real admission decision.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AccountCredentialRequest {
+    pub credential: CredentialRequest,
+    /// Must already be authorized by this original membership.
+    pub device: [u8; 32],
+}
+
+/// No grant is returned until the actual configured accounting owner and the
+/// same complete credential decision have supplied one.
+#[derive(Serialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AccountCredentialResponse {
+    pub credential: Option<Vec<u8>>,
+    pub lobby: Lobby,
+    pub account: Option<cblc::admission::AdmissionGrant>,
+}
+
+/// Transparent original tagged member request. The leaf retains every variant,
+/// field, nested bound and strict unknown-field refusal; no local DTO copies.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(transparent)]
+pub struct AccountRequest(pub AccountServiceRequest);
+
+/// Transparent original owner response, never a host-made acceptance.
+#[derive(Serialize, ToSchema)]
+#[serde(transparent)]
+pub struct AccountResponse(pub AccountServiceResponse);

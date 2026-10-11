@@ -18,6 +18,7 @@ pub fn community_migrations() -> Vec<crlt::Migration<'static>> {
         ("global-trust", crate::global_trust::SCHEMA),
         ("cmbr-device-keys", cmbr::DEVICE_KEYS_SCHEMA),
         ("payment-operations", crate::payments::state::SCHEMA),
+        ("account-current", crate::accounting::storage::SCHEMA),
     ]);
     schemas
         .iter()

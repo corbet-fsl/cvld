@@ -152,7 +152,7 @@ async fn execute(matches: clap::ArgMatches, deadline: Arc<OnceLock<Instant>>) ->
             )?;
             if name == "mcp" {
                 let running = cvld::mcp::Mcp { client }
-                    .serve(rmcp::transport::stdio())
+                    .serve(cvld::mcp::stdio())
                     .await
                     .map_err(Error::Unavailable.redact())?;
                 running
