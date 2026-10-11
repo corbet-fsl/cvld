@@ -707,7 +707,31 @@ pub async fn preexisting_role(service: &Running, scope: &str, subject: &str, rol
 /// is inferred; all registration, current-key and certificate calls stay real.
 pub async fn configured_wallet(burst: u32) -> Running {
     let dir = tempfile::tempdir().unwrap();
-    let mut config = global_config(dir.path(), burst).await;
+    let config = wallet_config_at(dir.path(), burst, NOW).await;
+    let clock = Arc::new(TestClock(AtomicU64::new(NOW)));
+    let door = cvld::service::Door::global(config, clock.clone())
+        .await
+        .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let router = cvld::api::router(door.clone());
+    let task = tokio::spawn(async move {
+        axum::serve(listener, router).await.unwrap();
+    });
+    Running {
+        base,
+        door,
+        clock,
+        task,
+        dir,
+    }
+}
+
+/// Prepare the same explicit Wallet test configuration at the trusted caller
+/// clock. A current-time fixture supplies actual SystemClock to Door::global;
+/// this data helper starts no owner and grants no registration or custody.
+pub async fn wallet_config_at(dir: &Path, burst: u32, now: u64) -> Config {
+    let mut config = global_config_at(dir, burst, now).await;
     let mut rules = cmty::cplc::crbk::Rulebook::default();
     rules
         .define(
@@ -744,30 +768,14 @@ pub async fn configured_wallet(burst: u32) -> Running {
         2 * 86_400,
     )
     .unwrap();
-    let seed = dir.path().join("wallet-seed");
+    let seed = dir.join("wallet-seed");
     std::fs::write(&seed, [47; 32]).unwrap();
-    let settings = dir.path().join("wallet-publication.json");
+    let settings = dir.join("wallet-publication.json");
     std::fs::write(&settings, serde_json::to_vec(&publication).unwrap()).unwrap();
     config.wallet = Some(cvld::config::WalletConfig {
         signing_seed_file: seed.to_str().unwrap().into(),
         publication_file: settings.to_str().unwrap().into(),
         signer_max_seconds: 100 * 86_400,
     });
-    let clock = Arc::new(TestClock(AtomicU64::new(NOW)));
-    let door = cvld::service::Door::global(config, clock.clone())
-        .await
-        .unwrap();
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let base = format!("http://{}", listener.local_addr().unwrap());
-    let router = cvld::api::router(door.clone());
-    let task = tokio::spawn(async move {
-        axum::serve(listener, router).await.unwrap();
-    });
-    Running {
-        base,
-        door,
-        clock,
-        task,
-        dir,
-    }
+    config
 }
