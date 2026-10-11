@@ -1108,7 +1108,7 @@ dependencies = [
 [[package]]
 name = "cblc"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cblc?branch=main#4a7ca6d0519f2b7ae6b41efc9152199c6336230e"
+source = "git+https://git.corbet.ch/corbet-libs/cblc?branch=main#33eae4fc552ed9c0a6702796efbbf7d3fb577a66"
 dependencies = [
  "cbcn",
  "cmbl",
@@ -1222,7 +1222,7 @@ dependencies = [
 [[package]]
 name = "cgts"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cgts?branch=main#b57d7a9761b54e60463a444ba03e165125ea2df7"
+source = "git+https://git.corbet.ch/corbet-libs/cgts?branch=main#56a5969d8f2dde957c8b8c52661a081252a23151"
 dependencies = [
  "cblc",
  "cgrd",
@@ -1444,7 +1444,7 @@ dependencies = [
 [[package]]
 name = "cmbr"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cmbr?branch=main#58c75ca4116e6d4207688c3c1813a5bfa2415ebb"
+source = "git+https://git.corbet.ch/corbet-libs/cmbr?branch=main#46e8fe6dbbde1f327b215a699c865c0737b86fbc"
 dependencies = [
  "cgrd",
  "cgts",
@@ -1457,6 +1457,7 @@ dependencies = [
  "crbk",
  "crgs",
  "crlt",
+ "cvch",
  "ed25519-dalek 2.2.0",
  "serde",
  "serde_json",
@@ -1499,7 +1500,7 @@ checksum = "0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a"
 [[package]]
 name = "cmty"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cmty?branch=main#574f81b2c43d76b560fd06cbde6d5a12b6898555"
+source = "git+https://git.corbet.ch/corbet-libs/cmty?branch=main#96b9983439b787b1cb766803766357e932b71378"
 dependencies = [
  "cgts",
  "chrono",
@@ -1686,7 +1687,7 @@ dependencies = [
 [[package]]
 name = "cplc"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cplc?branch=main#8b3a075ac6a35ba37a7d52b42a33e618db80609e"
+source = "git+https://git.corbet.ch/corbet-libs/cplc?branch=main#bc5e86a189be3da9f65985a2d74a5b839746bc21"
 dependencies = [
  "cbcn",
  "cblc",
@@ -1782,7 +1783,7 @@ dependencies = [
 [[package]]
 name = "crbk"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-foss/crbk?branch=main#671d31f14376aa7a64dc15ab754f71f28e394b90"
+source = "git+https://git.corbet.ch/corbet-foss/crbk?branch=main#b9dba4d1f867bc1a3439f4ede6b4fdb2290cd692"
 dependencies = [
  "crlt",
  "semver 1.0.28",
@@ -2075,6 +2076,7 @@ dependencies = [
  "gloo-timers",
  "js-sys",
  "jsonschema",
+ "openssl",
  "passkey",
  "rand 0.8.8",
  "rcgen",
