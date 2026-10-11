@@ -340,7 +340,14 @@ async fn session_expiry_after_a_real_owner_wait_refuses_before_binding() {
         }
         f.service.clock.set(grant.expires);
         drop(lease);
-        assert!(matches!(bind.await, Err(Error::Unauthorized)));
+        // The wait is inside the leaf's creation-state acquisition. Its first
+        // post-lock deadline check refuses before the durable Keyhole bind.
+        let result = bind.await;
+        assert!(
+            matches!(result, Err(Error::Refused)),
+            "expected the known pre-write refusal, got {:?}",
+            result.err()
+        );
     }
     drop(service);
     f.member.session = login(
