@@ -490,14 +490,13 @@ pub async fn community_unfounded_with_burst(
     let task = tokio::spawn(async move {
         axum::serve(listener, router).await.unwrap();
     });
-    let running = Running {
+    Running {
         base,
         door,
         clock,
         task,
         dir,
-    };
-    running
+    }
 }
 pub async fn wallet_passport(service: &Running) -> (Member, cpsd::Passport, GlobalPublic) {
     let member = enrol(service, WALLET, None).await;
