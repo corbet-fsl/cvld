@@ -5,7 +5,7 @@ use crate::{
 };
 use cgbl::Global;
 mod wallet;
-use crlt::{Db, Migration};
+use crlt::Db;
 #[cfg(test)]
 mod tests;
 pub type Facade =
@@ -39,31 +39,9 @@ impl GlobalService {
         transport: Option<crate::contact_gates::transport::AnyTransport>,
     ) -> Result<Self> {
         use csgn::Store;
-        db.migrate(&[
-            Migration::new(1, "global", cgbl::storage::SCHEMA),
-            Migration::new(2, "signing", csgn::SCHEMA),
-            Migration::new(3, "passkeys", ckyh::LIBSQL_SCHEMA),
-            Migration::new(4, "service", crate::identity::SCHEMA),
-            Migration::new(5, "passport-challenges", cpsd::storage::libsql::SCHEMA),
-            Migration::new(
-                6,
-                "passport-issuance",
-                cpsd::storage::libsql::ISSUANCE_SCHEMA,
-            ),
-            Migration::new(
-                7,
-                "passport-owners",
-                cpsd::storage::libsql::ISSUANCE_UNIQUENESS_SCHEMA,
-            ),
-            Migration::new(8, "contact-operations", crate::contact_gates::state::SCHEMA),
-            Migration::new(
-                9,
-                "contact-comparison-keys",
-                crate::contact_gates::state::BINDING_SCHEMA,
-            ),
-        ])
-        .await
-        .map_err(Error::Unavailable.redact())?;
+        db.migrate(&crate::service::global_migrations())
+            .await
+            .map_err(Error::Unavailable.redact())?;
         crate::identity::bind(db, "global", "global").await?;
         let store =
             csgn::LibsqlStore::new(db.community("global").map_err(Error::Invalid.redact())?);

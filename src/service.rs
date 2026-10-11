@@ -35,7 +35,7 @@ mod wallet;
 pub use root_issuance::RootBoardPurpose;
 mod shutdown;
 pub use crate::accounting::NativeConstruction;
-pub use migrations::community_migrations;
+pub use migrations::{community_migrations, global_migrations};
 
 pub trait Clock: Send + Sync {
     fn now(&self) -> u64;

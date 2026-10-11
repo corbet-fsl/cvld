@@ -384,8 +384,29 @@ async fn a_real_login_assertion_expired_intent_logout_and_revocation_never_suspe
                         .await,
                     Err(cvld::error::Error::Reconcile)
                 ));
+                // Beginning a login is not an oracle for key status: the revoked
+                // key still receives a challenge and the refusal belongs at finish.
+                let begin: Ceremony = serde_json::from_value(
+                    client(&service, WALLET, None)
+                        .call("login_begin", login)
+                        .await
+                        .unwrap(),
+                )
+                .unwrap();
+                let mut credential = owner
+                    .device
+                    .ceremony(begin.options, false, &format!("https://{WALLET}"))
+                    .await;
+                strip_prf(&mut credential);
                 assert_eq!(
-                    call_status(&service, WALLET, None, "login_begin", login).await,
+                    call_status(
+                        &service,
+                        WALLET,
+                        None,
+                        "login_finish",
+                        json!({"ceremony":begin.ceremony,"credential":credential})
+                    )
+                    .await,
                     401
                 );
                 assert_eq!(

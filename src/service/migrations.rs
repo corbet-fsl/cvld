@@ -28,3 +28,31 @@ pub fn community_migrations() -> Vec<crlt::Migration<'static>> {
         .map(|(i, (name, sql))| crlt::Migration::new(i as u32 + 1, name, sql))
         .collect()
 }
+
+/// Original contiguous global migration history, including host-owned tables.
+/// Apply it to every newly opened database handle before using scoped stores.
+pub fn global_migrations() -> Vec<crlt::Migration<'static>> {
+    vec![
+        crlt::Migration::new(1, "global", cgbl::storage::SCHEMA),
+        crlt::Migration::new(2, "signing", csgn::SCHEMA),
+        crlt::Migration::new(3, "passkeys", ckyh::LIBSQL_SCHEMA),
+        crlt::Migration::new(4, "service", crate::identity::SCHEMA),
+        crlt::Migration::new(5, "passport-challenges", cpsd::storage::libsql::SCHEMA),
+        crlt::Migration::new(
+            6,
+            "passport-issuance",
+            cpsd::storage::libsql::ISSUANCE_SCHEMA,
+        ),
+        crlt::Migration::new(
+            7,
+            "passport-owners",
+            cpsd::storage::libsql::ISSUANCE_UNIQUENESS_SCHEMA,
+        ),
+        crlt::Migration::new(8, "contact-operations", crate::contact_gates::state::SCHEMA),
+        crlt::Migration::new(
+            9,
+            "contact-comparison-keys",
+            crate::contact_gates::state::BINDING_SCHEMA,
+        ),
+    ]
+}

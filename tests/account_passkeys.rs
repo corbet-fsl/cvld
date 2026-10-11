@@ -237,6 +237,9 @@ async fn configured_wallet_refuses_consumed_addition_before_publication_effects(
     ))
     .await
     .unwrap();
+    db.migrate(&cvld::service::global_migrations())
+        .await
+        .unwrap();
     let store = cgbl::storage::LibsqlStore::new(&db, "global").unwrap();
     let keys = [
         Key::new("wallet", "publications"),
