@@ -21,14 +21,17 @@ impl PaymentHost {
     }
     pub fn prepare(
         &mut self,
-        owner: Owner,
+        context: PreparationContext,
         option: &str,
         payload: Vec<u8>,
         budget: Amount,
-        session_expires: u64,
-        observed: u64,
-        policy: PolicyBinding,
     ) -> Result<PaymentPreview> {
+        let PreparationContext {
+            owner,
+            session_expires,
+            observed,
+            policy,
+        } = context;
         let started = Instant::now();
         let now = self.clock.now();
         if !self.clock.valid() || now < observed {

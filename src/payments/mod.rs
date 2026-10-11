@@ -99,6 +99,14 @@ pub struct PolicyBinding {
     pub epoch: u64,
     pub revision: u64,
 }
+/// Trusted authentication and policy observations captured for preparation.
+/// These fields are host inputs, never part of the member's payment request.
+pub struct PreparationContext {
+    pub owner: Owner,
+    pub session_expires: u64,
+    pub observed: u64,
+    pub policy: PolicyBinding,
+}
 pub struct ExecutionContext {
     pub policy: PolicyBinding,
     pub expires_at: u64,

@@ -1,6 +1,6 @@
 //! Paid phases run outside the community lease, with genuine owner rechecks.
 use super::*;
-use crate::payments::{self, Owner, PolicyBinding};
+use crate::payments::{self, Owner, PolicyBinding, PreparationContext};
 
 fn payment_error(error: payments::Error) -> Error {
     match error {
@@ -103,16 +103,18 @@ impl Door {
             .lock()
             .await
             .prepare(
-                authorization.owner,
+                PreparationContext {
+                    owner: authorization.owner,
+                    session_expires: authorization.session_expires,
+                    observed: authorization.observed,
+                    policy: PolicyBinding {
+                        epoch: authorization.policy_epoch,
+                        revision: authorization.policy_revision,
+                    },
+                },
                 &request.option,
                 request.payload,
                 request.budget,
-                authorization.session_expires,
-                authorization.observed,
-                PolicyBinding {
-                    epoch: authorization.policy_epoch,
-                    revision: authorization.policy_revision,
-                },
             )
             .map_err(payment_error)?;
         crate::service::publication::expires_at(preview.expires_at)?;

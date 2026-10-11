@@ -151,16 +151,18 @@ pub async fn open_host(
 }
 pub fn prepare(host: &mut PaymentHost, owner: &Owner) -> PaymentPreview {
     host.prepare(
-        owner.clone(),
+        PreparationContext {
+            owner: owner.clone(),
+            session_expires: 190,
+            observed: NOW,
+            policy: PolicyBinding {
+                epoch: 1,
+                revision: 1,
+            },
+        },
         "paid-access",
         payload(),
         amount(12),
-        190,
-        NOW,
-        PolicyBinding {
-            epoch: 1,
-            revision: 1,
-        },
     )
     .unwrap()
 }

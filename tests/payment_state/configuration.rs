@@ -37,16 +37,18 @@ async fn stable_account_scope_key_and_budget_boundaries_refuse_before_external_i
     assert!(
         current
             .prepare(
-                owner.clone(),
+                PreparationContext {
+                    owner: owner.clone(),
+                    session_expires: 190,
+                    observed: NOW,
+                    policy: PolicyBinding {
+                        epoch: 1,
+                        revision: 1,
+                    },
+                },
                 "paid-access",
                 payload(),
                 amount(13),
-                190,
-                NOW,
-                PolicyBinding {
-                    epoch: 1,
-                    revision: 1
-                }
             )
             .is_err()
     );

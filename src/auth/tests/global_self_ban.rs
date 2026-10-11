@@ -202,7 +202,7 @@ async fn expired_logged_out_revoked_and_rolled_back_ceremonies_cannot_confirm() 
             "{cause}"
         );
         assert!(
-            auth.sessions.get(&session.token).is_none()
+            !auth.sessions.contains_key(&session.token)
                 || cause == "ceremony-expiry"
                 || cause == "rollback"
         );
