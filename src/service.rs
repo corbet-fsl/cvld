@@ -22,6 +22,7 @@ mod account_tuning;
 mod accounting;
 mod bootstrap;
 mod contacts;
+mod creation;
 mod enrollment;
 mod garden;
 mod global_self_ban;
@@ -74,6 +75,9 @@ pub struct Door {
     inner: Arc<Inner>,
 }
 struct Inner {
+    root_creation_scope: Option<crlt::Community>,
+    creation_owner: Arc<()>,
+    creation_targets: Mutex<BTreeMap<String, Door>>,
     requests: Arc<Mutex<()>>,
     public_slots: Arc<Semaphore>,
     protected_slots: Arc<Semaphore>,
@@ -262,6 +266,11 @@ impl Door {
                 watch_slots: Arc::new(Semaphore::new(16)),
                 published,
                 scope: Scope::Global,
+                root_creation_scope: Some(
+                    db.community("root").map_err(Error::Unavailable.redact())?,
+                ),
+                creation_owner: Arc::new(()),
+                creation_targets: Mutex::new(BTreeMap::new()),
                 hosts,
                 backend: Backend::Global(Box::new(Mutex::new(global))),
                 member_host: None,
@@ -491,6 +500,9 @@ impl Door {
             .map_err(Error::Invalid.redact())?;
             Ok(Self {
                 inner: Arc::new(Inner {
+                    root_creation_scope: None,
+                    creation_owner: Arc::new(()),
+                    creation_targets: Mutex::new(BTreeMap::new()),
                     requests: Arc::new(Mutex::new(())),
                     public_slots: Arc::new(Semaphore::new(32)),
                     protected_slots: Arc::new(Semaphore::new(32)),
