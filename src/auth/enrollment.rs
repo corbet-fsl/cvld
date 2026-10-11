@@ -5,7 +5,9 @@ use std::time::Instant;
 
 mod provenance;
 
+#[cfg(test)]
 pub(super) struct FixedClock(pub(super) u64);
+#[cfg(test)]
 impl Clock for FixedClock {
     fn now(&self) -> u64 {
         self.0

@@ -164,6 +164,7 @@ impl Auth {
             options: serde_json::to_value(options).map_err(Error::Unavailable.redact())?,
         })
     }
+    #[cfg(test)]
     pub async fn register_finish(&mut self, request: RegisterFinish, now: u64) -> Result<User> {
         self.register_finish_live(request, now, &enrollment::FixedClock(now))
             .await
