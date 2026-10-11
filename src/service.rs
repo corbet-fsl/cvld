@@ -570,6 +570,7 @@ impl Door {
             "global_public"
                 | "trust_feed"
                 | "trust_changes"
+                | "account_checkpoint"
                 | "wallet_trust_feed"
                 | "wallet_trust_changes"
         ) && let Some(token) = &ctx.token
@@ -659,6 +660,7 @@ impl Door {
             "global_public"
                 | "trust_feed"
                 | "trust_changes"
+                | "account_checkpoint"
                 | "wallet_trust_feed"
                 | "wallet_trust_changes"
                 | "community_self_ban_status_begin"
