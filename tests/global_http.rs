@@ -83,8 +83,8 @@ async fn wallet_passkey_blind_passport_and_host_role_boundaries() {
             &service,
             ROOT,
             Some(&member.session),
-            "global_warn",
-            json!({"user":member.user})
+            "community_creation_initialize",
+            json!({"community":"alpha","recipient":"none"})
         )
         .await,
         401
@@ -94,8 +94,8 @@ async fn wallet_passkey_blind_passport_and_host_role_boundaries() {
             &service,
             WALLET,
             Some(&member.session),
-            "global_warn",
-            json!({"user":member.user})
+            "community_creation_initialize",
+            json!({"community":"alpha","recipient":"none"})
         )
         .await,
         403
@@ -122,42 +122,14 @@ async fn wallet_passkey_blind_passport_and_host_role_boundaries() {
     )
     .await;
     let root_client = support::client(&service, ROOT, Some(&root.session));
-    assert!(
-        root_client
-            .call(
-                "global_suspend",
-                json!({"user":member.user,"until":(NOW / 86400 + 1) * 86400})
-            )
-            .await
-            .is_err()
-    );
-    root_client
-        .call("global_warn", json!({"user":member.user}))
-        .await
-        .unwrap();
-    root_client
-        .call(
-            "global_suspend",
-            json!({"user":member.user,"until":(NOW / 86400 + 1) * 86400}),
-        )
-        .await
-        .unwrap();
-    let changed: GlobalPublic =
-        serde_json::from_value(client.call("global_public", json!({})).await.unwrap()).unwrap();
-    let signed = ring
-        .verify(&changed.status, csgn::Kind::SettingsSnapshot, NOW)
-        .unwrap();
-    let changed: cgbl::Status = serde_json::from_slice(signed.payload()).unwrap();
-    assert_eq!(changed.epoch, 2);
-    assert!(client.call("passport_challenge", json!({})).await.is_err());
     root_client.call("logout", json!({})).await.unwrap();
     assert_eq!(
         call_status(
             &service,
             ROOT,
             Some(&root.session),
-            "global_warn",
-            json!({"user":member.user})
+            "community_creation_initialize",
+            json!({"community":"alpha","recipient":"none"})
         )
         .await,
         401

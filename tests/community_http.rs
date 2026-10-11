@@ -461,29 +461,14 @@ async fn running_community_refreshes_expired_public_global_status() {
 #[tokio::test(flavor = "multi_thread")]
 async fn signed_global_epoch_refresh_refuses_old_proofs_and_durable_rollback() {
     let global = global(100).await;
-    let (wallet, passport, public) = wallet_passport(&global).await;
+    let (_, passport, public) = wallet_passport(&global).await;
     let community = community("epoch", &public).await;
     let host = "api.epoch.example.test";
     let member = enrol_community(&community, host, &passport).await;
     let old_proof = presentation(&community, host, Some(&member.session), &passport).await;
-    let root = enrol(
-        &global,
-        ROOT,
-        Some("synthetic-operator-enrolment-capability"),
-    )
-    .await;
-    let root_client = client(&global, ROOT, Some(&root.session));
-    root_client
-        .call("global_warn", json!({"user":wallet.user}))
-        .await
-        .unwrap();
-    root_client
-        .call(
-            "global_suspend",
-            json!({"user":wallet.user,"until":(NOW/86_400+1)*86_400}),
-        )
-        .await
-        .unwrap();
+    // Another holder's permanent self-ban advances the signed global epoch.
+    let mut banned = support::self_ban::wallet(&global, WALLET, None).await;
+    support::self_ban::self_ban(&global, &mut banned).await;
     let updated: GlobalPublic = serde_json::from_value(
         client(&global, WALLET, None)
             .call("global_public", json!({}))

@@ -156,12 +156,6 @@ pub struct GlobalPublic {
     pub issuer: Vec<u8>,
     pub status: Vec<u8>,
 }
-#[derive(Serialize, Deserialize, ToSchema)]
-#[serde(deny_unknown_fields)]
-pub struct Suspend {
-    pub user: String,
-    pub until: u64,
-}
 
 struct Protocol {
     request: utoipa::openapi::request_body::RequestBody,
@@ -340,8 +334,6 @@ actions! {
     schema_set(SchemaRequest) -> TrustFeed, Admin, Community, Record, Forward, "Publish a profile schema";
     trust_feed(Empty) -> TrustFeed, Public, Community, Check, Forward, "Read signed public trust snapshots";
     trust_changes(Since) -> Announcement, Public, Community, Check, Forward, "Wait for a public revision announcement";
-    global_warn(User) -> Empty, Root, Global, Record, Forward, "Record the warning preceding temporary suspension";
-    global_suspend(Suspend) -> Empty, Root, Global, Record, Forward, "Temporarily suspend and advance the global epoch";
     #[cfg(feature = "development-gate")]
     development_gate(Empty) -> Empty, Member, Global, Record, Forward, "Pass the development-only synthetic uniqueness gate";
 }

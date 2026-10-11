@@ -69,8 +69,8 @@ async fn generated_browser_client_reaches_the_real_keyhole_and_door() {
     assert!(matches!(
         member
             .call(
-                "global_suspend",
-                json!({"user":"wrong","until":1_800_000_001})
+                "community_creation_initialize",
+                json!({"community":"wrong","recipient":"wrong"})
             )
             .await,
         Err(Error::Forbidden)

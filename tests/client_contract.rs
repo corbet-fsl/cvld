@@ -166,7 +166,10 @@ async fn generated_client_forwards_real_public_member_and_root_calls() {
     assert!(member.call("passport_challenge", json!({})).await.is_ok());
     assert!(matches!(
         member
-            .call("global_suspend", json!({"user":"wrong","until":NOW + 1}))
+            .call(
+                "community_creation_initialize",
+                json!({"community":"wrong","recipient":"wrong"}),
+            )
             .await,
         Err(Error::Forbidden)
     ));

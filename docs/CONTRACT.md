@@ -268,8 +268,6 @@ service host; `Authenticated` means the session's exact host-selected role.
 | global_public | Public | Global | Check |
 | passport_challenge | Member | Global | Record |
 | passport_issue | Member | Global | Record |
-| global_warn | Root | Global | Record |
-| global_suspend | Root | Global | Record |
 | presentation_challenge | Public | Community | Record |
 | lobby | Member | Community | Check |
 | handle_available | Public | Community | Check |

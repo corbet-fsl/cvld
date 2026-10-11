@@ -43,8 +43,12 @@ async fn cli_and_official_mcp_client_call_the_running_http_service() {
     assert_eq!(challenge.bytes.len(), 32);
     let rejected = mcp
         .call_tool(
-            CallToolRequestParams::new("global_warn")
-                .with_arguments(json!({"user":"opaque"}).as_object().unwrap().clone()),
+            CallToolRequestParams::new("community_creation_initialize").with_arguments(
+                json!({"community":"opaque","recipient":"opaque"})
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+            ),
         )
         .await
         .unwrap();

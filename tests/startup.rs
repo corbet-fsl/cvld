@@ -327,7 +327,7 @@ async fn mcp_stdio_completes_the_official_handshake_and_clean_eof() {
         json!({"jsonrpc":"2.0", "id":1, "method":"initialize", "params":{"protocolVersion":rmcp::model::ProtocolVersion::LATEST_WITH_INITIALIZE,"capabilities":{},"clientInfo":{"name":"cvld-test","version":"1"}}}),
         json!({"jsonrpc":"2.0", "id":2, "method":"tools/list"}),
         json!({"jsonrpc":"2.0", "id":3, "method":"tools/call", "params":{"name":"global_public","arguments":{}}}),
-        json!({"jsonrpc":"2.0", "id":4, "method":"tools/call", "params":{"name":"global_warn","arguments":{"user":"private"}}}),
+        json!({"jsonrpc":"2.0", "id":4, "method":"tools/call", "params":{"name":"community_creation_initialize","arguments":{"community":"private","recipient":"private"}}}),
     ] {
         input
             .write_all(format!("{request}\n").as_bytes())

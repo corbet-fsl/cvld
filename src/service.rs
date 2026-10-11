@@ -941,32 +941,6 @@ impl Door {
             .map_err(Error::Refused.redact())?;
         Ok(Empty {})
     }
-    pub(crate) async fn global_warn(&self, _: Context, request: User) -> Result<Empty> {
-        self.global_backend()?
-            .lock()
-            .await
-            .facade
-            .warn(&cgbl::Subject::new(request.user).map_err(Error::Invalid.redact())?)
-            .await
-            .map_err(Error::Refused.redact())?;
-        Ok(Empty {})
-    }
-    pub(crate) async fn global_suspend(&self, ctx: Context, request: Suspend) -> Result<Empty> {
-        let mut global = self.global_backend()?.lock().await;
-        global
-            .facade
-            .suspend(
-                &cgbl::Subject::new(request.user).map_err(Error::Invalid.redact())?,
-                cgbl::Suspension::Temporary {
-                    until: request.until,
-                },
-                ctx.now,
-            )
-            .await
-            .map_err(Error::Refused.redact())?;
-        global.refresh(ctx.now).await?;
-        Ok(Empty {})
-    }
 }
 
 #[cfg(all(test, feature = "development-gate"))]

@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 pub mod active;
 pub mod resident;
+pub mod self_ban;
 
 use cvld::{
     api::*,

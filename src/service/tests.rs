@@ -236,19 +236,12 @@ async fn internal_context_and_backend_access_remain_scoped() {
         .call("development_gate", serde_json::json!({}))
         .await
         .unwrap();
-    let root = enrol(
-        &global,
-        ROOT,
-        Some("synthetic-operator-enrolment-capability"),
-    )
-    .await;
-    client(&global, ROOT, Some(&root.session))
-        .call("global_warn", serde_json::json!({"user":member.user}))
-        .await
-        .unwrap();
     assert!(matches!(
         client(&global, WALLET, Some(&member.session))
-            .call("global_warn", serde_json::json!({"user":member.user}))
+            .call(
+                "community_creation_initialize",
+                serde_json::json!({"community":"alpha","recipient":"none"})
+            )
             .await,
         Err(Error::Forbidden)
     ));
