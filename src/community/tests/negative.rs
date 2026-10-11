@@ -344,15 +344,22 @@ async fn admission_challenges_are_bounded_owned_and_consumed_on_rejection() {
         Err(Error::Forbidden)
     ));
     assert!(!community.challenges.contains_key(&owned.challenge));
-    let (_, auth) = community
+    let (grant, auth) = community
         .authenticate(&member.session, NOW + 60)
         .await
         .unwrap();
+    let ctx = crate::service::Context {
+        host: HOST.into(),
+        grant: Some(grant),
+        token: Some(member.session.clone()),
+        now: NOW + 60,
+        authentication: Some(auth),
+    };
     let anonymous = community.challenge(None, NOW + 60).await.unwrap();
     assert!(matches!(
         community
             .issue(
-                &auth,
+                &ctx,
                 CredentialRequest {
                     presentation: PresentationInput {
                         challenge: anonymous.challenge.clone(),
@@ -361,7 +368,6 @@ async fn admission_challenges_are_bounded_owned_and_consumed_on_rejection() {
                     devices: vec![member.signing_key]
                 },
                 None,
-                NOW + 60
             )
             .await,
         Err(Error::Forbidden)
@@ -804,7 +810,14 @@ async fn a_verified_legal_veto_after_authentication_prevents_credential_issuance
     let presentation = presentation(&service, HOST, Some(&member.session), &passport).await;
     let challenge_id = presentation.challenge.clone();
     let mut community = service.door.community_backend().unwrap().lock().await;
-    let (_, auth) = community.authenticate(&member.session, NOW).await.unwrap();
+    let (grant, auth) = community.authenticate(&member.session, NOW).await.unwrap();
+    let ctx = crate::service::Context {
+        host: HOST.into(),
+        grant: Some(grant),
+        token: Some(member.session.clone()),
+        now: NOW,
+        authentication: Some(auth),
+    };
     let order = clbs::Order {
         community: "alpha".into(),
         id: "private-order-reference".into(),
@@ -863,13 +876,12 @@ async fn a_verified_legal_veto_after_authentication_prevents_credential_issuance
     // The actual admission path must still recheck the owning legal gate.
     let result = community
         .issue(
-            &auth,
+            &ctx,
             CredentialRequest {
                 presentation,
                 devices: vec![member.signing_key],
             },
             None,
-            NOW,
         )
         .await;
     assert!(matches!(result, Err(Error::Forbidden)));

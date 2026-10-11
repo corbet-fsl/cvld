@@ -17,6 +17,7 @@ mod account_record;
 mod account_rotation;
 mod account_tuning;
 mod accounting;
+mod admission;
 mod certificate;
 mod enrollment;
 pub(crate) mod garden;
@@ -1097,26 +1098,30 @@ impl CommunityService {
             .map_err(Error::Refused.redact())?;
         Ok(())
     }
-    pub async fn issue(
+    pub(crate) async fn issue(
         &mut self,
-        auth: &ckyh::Authentication,
+        ctx: &crate::service::Context,
         request: CredentialRequest,
         withdrawal: Option<(String, String)>,
-        now: u64,
     ) -> Result<CredentialResponse> {
-        self.issue_selected(auth, request, withdrawal, None, now)
-            .await
-            .map(|(response, _)| response)
+        let session = self.admission_session(ctx)?;
+        crate::service::with_live_clock(async {
+            self.issue_selected(session, request, withdrawal, None, ctx.now)
+                .await
+                .map(|(response, _)| response)
+        })
+        .await
     }
     async fn issue_selected(
         &mut self,
-        auth: &ckyh::Authentication,
+        session: admission::AdmissionSession,
         request: CredentialRequest,
         withdrawal: Option<(String, String)>,
         account_device: Option<[u8; 32]>,
         now: u64,
     ) -> Result<(CredentialResponse, Option<cblc::admission::AdmissionGrant>)> {
         use chrono::Datelike;
+        let auth = session.authentication.as_ref();
         self.refresh_global(now).await?;
         self.prune(now);
         let challenge = self
@@ -1137,6 +1142,8 @@ impl CommunityService {
             authentication: auth,
             devices: &request.devices,
             lease,
+            session: &session,
+            creation: None,
         };
         let checks = async |gates: &cgts::Gatekeeper<_, _>, context: cgts::Context<'_>| {
             if let Some((gate, provider)) = withdrawal {
@@ -1202,7 +1209,7 @@ impl CommunityService {
             }
         }
         .map_err(|error| {
-            if account_device.is_some() && error == cmty::Error::Reconcile {
+            if error == cmty::Error::Reconcile {
                 Error::Reconcile
             } else {
                 Error::Refused
@@ -1224,18 +1231,13 @@ impl CommunityService {
                 self.refresh(now).await?;
             }
             let lobby = self.lobby(auth, now).await?;
+            session.release(self.clock.now())?;
             Ok((CredentialResponse { credential, lobby }, account))
         }
         .await;
-        // The selected account admission may already be durable. A later
-        // publication/lobby failure withholds its result without a rollback claim.
-        completed.map_err(|error| {
-            if account_device.is_some() {
-                Error::Reconcile
-            } else {
-                error
-            }
-        })
+        // Original membership admission may already be durable. Later failure
+        // withholds the response without suggesting an unspent retry.
+        completed.map_err(|_| Error::Reconcile)
     }
     pub async fn refresh(&mut self, now: u64) -> Result<()> {
         self.refresh_root_board(now).await?;

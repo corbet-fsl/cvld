@@ -55,11 +55,19 @@ impl CommunityService {
             let (grant, authentication) = self.authenticate_current(bearer, now).await?;
             now = self.account_time(&runtime, now.max(runtime.floor()), grant.expires)?;
             crate::service::publication::expires_at(grant.expires)?;
+            // Capture the exact already-authenticated originating session.
+            let session = self.admission_session(&crate::service::Context {
+                host: format!("api.{}.{}", self.config.community, self.config.domain),
+                grant: Some(grant.clone()),
+                token: Some(bearer.into()),
+                now,
+                authentication: Some(authentication.clone()),
+            })?;
             // The proof keeps its original transcript timestamp. Membership
             // authority and every interior legal sample use the live scope.
             let (response, account) = self
                 .issue_selected(
-                    &authentication,
+                    session,
                     request.credential,
                     None,
                     Some(request.device),

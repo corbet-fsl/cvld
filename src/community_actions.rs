@@ -143,10 +143,9 @@ impl Door {
             .lock()
             .await
             .issue(
-                ctx.member()?,
+                &ctx,
                 request.credential,
                 Some((request.gate, request.provider)),
-                ctx.now,
             )
             .await
     }
@@ -158,7 +157,7 @@ impl Door {
         self.community_backend()?
             .lock()
             .await
-            .issue(ctx.member()?, request, None, ctx.now)
+            .issue(&ctx, request, None)
             .await
     }
     pub(crate) async fn pin_set(&self, ctx: Context, request: PinRequest) -> Result<PinResponse> {
