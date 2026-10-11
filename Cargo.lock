@@ -1108,7 +1108,7 @@ dependencies = [
 [[package]]
 name = "cblc"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cblc?branch=main#1e47958a4e3cd452f4c858a5ef332d6bd6009c76"
+source = "git+https://git.corbet.ch/corbet-libs/cblc?branch=main#4a7ca6d0519f2b7ae6b41efc9152199c6336230e"
 dependencies = [
  "cbcn",
  "cmbl",
@@ -1499,7 +1499,7 @@ checksum = "0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a"
 [[package]]
 name = "cmty"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cmty?branch=main#658bdf506073dd8445ee243c36530aa035add571"
+source = "git+https://git.corbet.ch/corbet-libs/cmty?branch=main#574f81b2c43d76b560fd06cbde6d5a12b6898555"
 dependencies = [
  "cgts",
  "chrono",
@@ -2087,6 +2087,7 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tokio-rustls",
+ "tower",
  "tower-http",
  "url",
  "utoipa",
