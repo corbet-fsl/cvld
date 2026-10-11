@@ -131,6 +131,19 @@ missing or malformed record after native initialization. Failures after a
 possible account/credential commit return `reconcile`, without a rollback or
 automatic-retry promise.
 
+Library hosts must await `Door::shutdown_accounts()` before closing the async
+database runtime. The native installation retains cancellation handles from
+the actual account and extension verifiers; shutdown fences submissions and
+joins that single worker outside handler/member/Policy locks. The CLI starts
+native shutdown while HTTP drains, and still joins if the HTTP budget expires
+or listener setup fails. An expired budget remains a failure; joining is
+mandatory cleanup, not a promise of hard operating-system preemption.
+Construction retains that owner before native bootstrap and all later fallible
+startup waits. Returned startup errors await its join. Abandoning a factory
+future starts the maintained cancellation/join without blocking the reactor;
+it cannot report that its caller awaited completion. Do not discard a factory
+future and immediately close the database runtime as though shutdown completed.
+
 `device_authorize` binds one actual lineage device signing key to the exact
 currently authenticated live passkey through cmbr. Repeating the same binding
 is idempotent; replacing it with another raw public key is refused. Registration

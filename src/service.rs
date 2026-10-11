@@ -23,6 +23,7 @@ mod global_self_ban;
 mod migrations;
 mod payments;
 pub(crate) mod publication;
+mod shutdown;
 pub use migrations::community_migrations;
 
 pub trait Clock: Send + Sync {
@@ -75,6 +76,8 @@ struct Inner {
     throttle: cthl::Throttle<cthl::MemoryStore>,
     clock: Arc<dyn Clock>,
     account_body_limit: usize,
+    account_runtime: Option<Arc<crate::accounting::clock::AccountRuntime>>,
+    account_shutdown: Option<cmty::cgts::AccountShutdown>,
 }
 enum Published {
     Global(watch::Receiver<Arc<GlobalPublic>>),
@@ -230,6 +233,8 @@ impl Door {
                 throttle,
                 clock,
                 account_body_limit: 256 * 1024,
+                account_runtime: None,
+                account_shutdown: None,
             }),
         })
     }
@@ -334,25 +339,31 @@ impl Door {
             None => CommunityService::open(&db, config, clock.clone()).await?,
         };
         let published = Published::Community(community.changes.subscribe());
-        let config = &community.config;
         let account_body_limit = community.account_body_limit();
+        let account_runtime = community.account_runtime();
+        let account_shutdown = community.account_shutdown()?;
         let clock = community.account_clock().unwrap_or(clock);
-        for (host, role, scope, operator) in [
-            (
-                format!("api.admin.{}.{}", config.community, config.domain),
-                Role::Admin,
-                "operator:admin",
-                &config.admin,
-            ),
-            (
-                format!("api.root.{}", config.domain),
-                Role::Root,
-                "operator:root",
-                &config.root,
-            ),
-        ] {
-            let passkeys =
-                ckyh::Passkeys::new(
+        let startup = crate::accounting::startup::Startup::new(
+            account_runtime.clone(),
+            account_shutdown.clone(),
+        );
+        let result = async {
+            let config = &community.config;
+            for (host, role, scope, operator) in [
+                (
+                    format!("api.admin.{}.{}", config.community, config.domain),
+                    Role::Admin,
+                    "operator:admin",
+                    &config.admin,
+                ),
+                (
+                    format!("api.root.{}", config.domain),
+                    Role::Root,
+                    "operator:root",
+                    &config.root,
+                ),
+            ] {
+                let passkeys = ckyh::Passkeys::new(
                     ckyh::LibsqlStore::new(&db, scope, tokio::runtime::Handle::current())
                         .map_err(Error::Unavailable.redact())?,
                     scope,
@@ -361,56 +372,64 @@ impl Door {
                         .map_err(Error::Invalid.redact())?],
                 )
                 .map_err(Error::Invalid.redact())?;
-            let bootstrap = operator
-                .bootstrap_file
-                .as_ref()
-                .map(|path| {
-                    Config::secret(path).and_then(|s| {
-                        String::from_utf8(s.to_vec())
-                            .map(zeroize::Zeroizing::new)
-                            .map_err(Error::Invalid.redact())
+                let bootstrap = operator
+                    .bootstrap_file
+                    .as_ref()
+                    .map(|path| {
+                        Config::secret(path).and_then(|s| {
+                            String::from_utf8(s.to_vec())
+                                .map(zeroize::Zeroizing::new)
+                                .map_err(Error::Invalid.redact())
+                        })
                     })
-                })
-                .transpose()?;
-            hosts.insert(
-                host,
-                Arc::new(Mutex::new(Auth::new(
-                    passkeys,
-                    role,
-                    Some(uuid::Uuid::parse_str(&operator.user).map_err(Error::Invalid.redact())?),
-                    bootstrap,
-                    config.pending_capacity,
-                    config.session_seconds,
-                )?)),
-            );
+                    .transpose()?;
+                hosts.insert(
+                    host,
+                    Arc::new(Mutex::new(Auth::new(
+                        passkeys,
+                        role,
+                        Some(
+                            uuid::Uuid::parse_str(&operator.user)
+                                .map_err(Error::Invalid.redact())?,
+                        ),
+                        bootstrap,
+                        config.pending_capacity,
+                        config.session_seconds,
+                    )?)),
+                );
+            }
+            let limit = cthl::Limit::new(
+                config.throttle_burst,
+                Duration::from_millis(config.throttle_interval_ms),
+            )
+            .map_err(Error::Invalid.redact())?;
+            let throttle = cthl::Throttle::new(
+                "community",
+                ACTIONS.iter().map(|a| (a.name, limit)),
+                cthl::MemoryStore::new(NonZeroUsize::new(ACTIONS.len()).ok_or(Error::Invalid)?),
+            )
+            .map_err(Error::Invalid.redact())?;
+            Ok(Self {
+                inner: Arc::new(Inner {
+                    requests: Arc::new(Mutex::new(())),
+                    public_slots: Arc::new(Semaphore::new(32)),
+                    protected_slots: Arc::new(Semaphore::new(32)),
+                    watch_slots: Arc::new(Semaphore::new(16)),
+                    published,
+                    scope: Scope::Community,
+                    hosts,
+                    backend: Backend::Community(Box::new(Mutex::new(community))),
+                    member_host: Some(member_host),
+                    throttle,
+                    clock,
+                    account_body_limit,
+                    account_runtime,
+                    account_shutdown,
+                }),
+            })
         }
-        let limit = cthl::Limit::new(
-            config.throttle_burst,
-            Duration::from_millis(config.throttle_interval_ms),
-        )
-        .map_err(Error::Invalid.redact())?;
-        let throttle = cthl::Throttle::new(
-            "community",
-            ACTIONS.iter().map(|a| (a.name, limit)),
-            cthl::MemoryStore::new(NonZeroUsize::new(ACTIONS.len()).ok_or(Error::Invalid)?),
-        )
-        .map_err(Error::Invalid.redact())?;
-        Ok(Self {
-            inner: Arc::new(Inner {
-                requests: Arc::new(Mutex::new(())),
-                public_slots: Arc::new(Semaphore::new(32)),
-                protected_slots: Arc::new(Semaphore::new(32)),
-                watch_slots: Arc::new(Semaphore::new(16)),
-                published,
-                scope: Scope::Community,
-                hosts,
-                backend: Backend::Community(Box::new(Mutex::new(community))),
-                member_host: Some(member_host),
-                throttle,
-                clock,
-                account_body_limit,
-            }),
-        })
+        .await;
+        startup.finish(result).await
     }
     pub(crate) fn request_body_limit(&self, action: &Action) -> usize {
         if action.name == "account" {

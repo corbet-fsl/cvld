@@ -44,3 +44,16 @@ fn zero_out_of_range_and_restart_below_durable_floor_refuse() {
     source.0.store((1u64 << 53) - 1, Ordering::SeqCst);
     assert_eq!(Clock::now(&runtime), u64::MAX);
 }
+
+#[test]
+fn shutdown_fence_never_becomes_a_new_clock_lease() {
+    let source = Arc::new(Source(AtomicU64::new(10)));
+    let runtime = AccountRuntime::new(source.clone(), 10, 1024, "period".into()).unwrap();
+    runtime.fence();
+    runtime.fence();
+    source.0.store(20, Ordering::SeqCst);
+    assert!(matches!(runtime.observe(), Err(Error::Unavailable)));
+    assert_eq!(runtime.floor(), 10);
+    assert_eq!(runtime.native_time(), 0);
+    assert_eq!(Clock::now(&runtime), u64::MAX);
+}

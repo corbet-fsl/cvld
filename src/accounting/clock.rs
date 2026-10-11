@@ -35,6 +35,9 @@ impl AccountRuntime {
     pub(crate) fn floor(&self) -> u64 {
         self.observed.load(Ordering::Acquire)
     }
+    pub(crate) fn fence(&self) {
+        self.invalid.store(true, Ordering::Release);
+    }
     /// Use this SAME observer in the native service, Policy publication and
     /// final host check. No request can supply or reset an observation.
     pub(crate) fn observe(&self) -> Result<u64> {

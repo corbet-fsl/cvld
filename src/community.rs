@@ -322,75 +322,94 @@ impl CommunityService {
         .map_err(Error::Invalid.redact())?;
         let accounts = if let Some((service, observed)) = account_parts {
             facade = facade
-                .with_account_service(service)
-                .await
-                .map_err(Error::Unavailable.redact())?;
-            let publisher_clock = observed.clone();
-            facade
-                .publish_account_material(&observed.period_key, move || {
-                    publisher_clock.native_time()
-                })
+                .with_native_account_service(service)
                 .await
                 .map_err(Error::Unavailable.redact())?;
             Some(observed)
         } else {
             None
         };
-        let key: [u8; 32] = std::fs::read(&config.voucher_public_key_file)
-            .map_err(Error::Unavailable.redact())?
-            .try_into()
-            .map_err(Error::Invalid.redact())?;
-        let voucher = cgts::gates::VoucherGate::new(
-            config.voucher_provider.clone(),
-            ed25519_dalek::VerifyingKey::from_bytes(&key).map_err(Error::Invalid.redact())?,
-        )
-        .map_err(Error::Invalid.redact())?;
-        let public_now = accounts
-            .as_ref()
-            .map_or(Ok(now), |observed| observed.observe())?;
-        let public = publish(&facade, public_now).await?;
-        let payments = match config.payments.clone() {
-            Some(payment) => Some(Arc::new(tokio::sync::Mutex::new(
-                crate::payments::PaymentHost::open(
-                    db,
-                    payment,
-                    scope.clone(),
-                    cmty::ADMISSION_ACTION.into(),
-                    Arc::new(PaymentClock(clock.clone())),
-                    transport,
-                )
-                .await
-                .map_err(Error::Invalid.redact())?,
-            ))),
-            None if transport.is_some() => return Err(Error::Invalid),
-            None => None,
+        // Capture the actual join owner BEFORE bootstrap or any later fallible
+        // wait. Returned errors await completion; abandoned futures start it.
+        let shutdown = if accounts.is_some() {
+            Some(
+                facade
+                    .account_shutdown()
+                    .map_err(Error::Unavailable.redact())?,
+            )
+        } else {
+            None
         };
-        let (changes, _) = tokio::sync::watch::channel(Arc::new(public.clone()));
-        // A configured facade must not escape a startup wait below an interior
-        // native/host observation. Keep every already signed deadline unchanged.
-        if let Some(observed) = &accounts {
-            observed.observe()?;
+        let startup = crate::accounting::startup::Startup::new(accounts.clone(), shutdown);
+        let scope = config.community.clone();
+        let result = async {
+            if let Some(observed) = &accounts {
+                let publisher_clock = observed.clone();
+                facade
+                    .publish_account_material(&observed.period_key, move || {
+                        publisher_clock.native_time()
+                    })
+                    .await
+                    .map_err(Error::Unavailable.redact())?;
+            }
+            let key: [u8; 32] = std::fs::read(&config.voucher_public_key_file)
+                .map_err(Error::Unavailable.redact())?
+                .try_into()
+                .map_err(Error::Invalid.redact())?;
+            let voucher = cgts::gates::VoucherGate::new(
+                config.voucher_provider.clone(),
+                ed25519_dalek::VerifyingKey::from_bytes(&key).map_err(Error::Invalid.redact())?,
+            )
+            .map_err(Error::Invalid.redact())?;
+            let public_now = accounts
+                .as_ref()
+                .map_or(Ok(now), |observed| observed.observe())?;
+            let public = publish(&facade, public_now).await?;
+            let payments = match config.payments.clone() {
+                Some(payment) => Some(Arc::new(tokio::sync::Mutex::new(
+                    crate::payments::PaymentHost::open(
+                        db,
+                        payment,
+                        scope.clone(),
+                        cmty::ADMISSION_ACTION.into(),
+                        Arc::new(PaymentClock(clock.clone())),
+                        transport,
+                    )
+                    .await
+                    .map_err(Error::Invalid.redact())?,
+                ))),
+                None if transport.is_some() => return Err(Error::Invalid),
+                None => None,
+            };
+            let (changes, _) = tokio::sync::watch::channel(Arc::new(public.clone()));
+            // A configured facade must not escape a startup wait below an interior
+            // native/host observation. Keep every already signed deadline unchanged.
+            if let Some(observed) = &accounts {
+                observed.observe()?;
+            }
+            Ok(Self {
+                facade,
+                db: db.clone(),
+                issuer_public_key: status.issuer_public_key,
+                config,
+                public,
+                changes,
+                voucher,
+                payments,
+                accounts,
+                challenges: HashMap::new(),
+                registrations: HashMap::new(),
+                logins: HashMap::new(),
+                additions: HashMap::new(),
+                self_bans: HashMap::new(),
+                self_ban_statuses: HashMap::new(),
+                authority,
+                clock,
+                sessions: HashMap::new(),
+            })
         }
-        Ok(Self {
-            facade,
-            db: db.clone(),
-            issuer_public_key: status.issuer_public_key,
-            config,
-            public,
-            changes,
-            voucher,
-            payments,
-            accounts,
-            challenges: HashMap::new(),
-            registrations: HashMap::new(),
-            logins: HashMap::new(),
-            additions: HashMap::new(),
-            self_bans: HashMap::new(),
-            self_ban_statuses: HashMap::new(),
-            authority,
-            clock,
-            sessions: HashMap::new(),
-        })
+        .await;
+        startup.finish(result).await
     }
     async fn refresh_global(&self, now: u64) -> Result<()> {
         let global = crate::global_trust::load(&self.db, &self.config, now).await?;

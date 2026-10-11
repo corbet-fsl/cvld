@@ -85,6 +85,7 @@ async fn execute(matches: clap::ArgMatches, deadline: Arc<OnceLock<Instant>>) ->
                 }
                 _ => return Err(Error::Invalid),
             };
+            let lifecycle = door.clone();
             let maintenance = door.clone();
             let task = tokio::spawn(async move {
                 let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
@@ -94,43 +95,54 @@ async fn execute(matches: clap::ArgMatches, deadline: Arc<OnceLock<Instant>>) ->
                     let _ = maintenance.maintain().await;
                 }
             });
-            let listener = tokio::net::TcpListener::bind(listen)
-                .await
-                .map_err(Error::Unavailable.redact())?;
-            #[cfg(unix)]
-            let mut terminate =
-                tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            // Even listener/signal setup failures must join the installed
+            // native owner while its CRLT async runtime is still available.
+            let result = async {
+                let listener = tokio::net::TcpListener::bind(listen)
+                    .await
                     .map_err(Error::Unavailable.redact())?;
-            let (shutdown, stopped) = tokio::sync::oneshot::channel();
-            let server = axum::serve(listener, api::router(door))
-                .with_graceful_shutdown(async move {
-                    #[cfg(unix)]
-                    tokio::select! {
-                        _ = tokio::signal::ctrl_c() => {},
-                        _ = terminate.recv() => {},
-                    }
-                    #[cfg(not(unix))]
-                    let _ = tokio::signal::ctrl_c().await;
-                    let began = Instant::now();
-                    let until = began.checked_add(shutdown_budget).unwrap_or(began);
-                    let _ = deadline.set(until);
-                    let _ = shutdown.send(until);
-                })
-                .into_future();
-            tokio::pin!(server);
-            let result = tokio::select! {
-                result = &mut server => result.map_err(Error::Unavailable.redact()),
-                until = stopped => {
-                    task.abort();
-                    let until = until.map_err(Error::Unavailable.redact())?;
-                    // An unfinished mutation has an uncertain result after this bound.
-                    tokio::time::timeout_at(tokio::time::Instant::from_std(until), &mut server)
-                        .await
-                        .map_err(Error::Unavailable.redact())?
-                        .map_err(Error::Unavailable.redact())
-                },
-            };
+                #[cfg(unix)]
+                let mut terminate =
+                    tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                        .map_err(Error::Unavailable.redact())?;
+                let (shutdown, stopped) = tokio::sync::oneshot::channel();
+                let server = axum::serve(listener, api::router(door))
+                    .with_graceful_shutdown(async move {
+                        #[cfg(unix)]
+                        tokio::select! {
+                            _ = tokio::signal::ctrl_c() => {},
+                            _ = terminate.recv() => {},
+                        }
+                        #[cfg(not(unix))]
+                        let _ = tokio::signal::ctrl_c().await;
+                        let began = Instant::now();
+                        let until = began.checked_add(shutdown_budget).unwrap_or(began);
+                        let _ = deadline.set(until);
+                        let _ = shutdown.send(until);
+                    })
+                    .into_future();
+                tokio::pin!(server);
+                tokio::select! {
+                    result = &mut server => result.map_err(Error::Unavailable.redact()),
+                    until = stopped => {
+                        task.abort();
+                        let until = until.map_err(Error::Unavailable.redact())?;
+                        // Stop native intake immediately while HTTP drains. The
+                        // single native owner must be reaped before runtime teardown,
+                        // even if the HTTP deadline has already been exhausted.
+                        let (drained, joined) = tokio::join!(
+                            tokio::time::timeout_at(tokio::time::Instant::from_std(until), &mut server),
+                            lifecycle.shutdown_accounts(),
+                        );
+                        joined?;
+                        drained.map_err(Error::Unavailable.redact())?
+                            .map_err(Error::Unavailable.redact())
+                    },
+                }
+            }
+            .await;
             task.abort();
+            lifecycle.shutdown_accounts().await?;
             result?;
         }
         _ => {

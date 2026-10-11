@@ -2,6 +2,19 @@
 use super::*;
 
 impl CommunityService {
+    pub(crate) fn account_runtime(&self) -> Option<Arc<crate::accounting::clock::AccountRuntime>> {
+        self.accounts.clone()
+    }
+    pub(crate) fn account_shutdown(&self) -> Result<Option<cgts::AccountShutdown>> {
+        if self.accounts.is_some() {
+            self.facade
+                .account_shutdown()
+                .map(Some)
+                .map_err(Error::Unavailable.redact())
+        } else {
+            Ok(None)
+        }
+    }
     pub(crate) fn account_clock(&self) -> Option<Arc<dyn Clock>> {
         self.accounts.as_ref().map(|value| {
             let value: Arc<dyn Clock> = value.clone();
