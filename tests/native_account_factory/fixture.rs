@@ -127,7 +127,7 @@ impl Fixture {
                 .unwrap();
         assert_eq!(epoch["community"], "alpha");
         assert_eq!(epoch["epoch"], NOW / 86_400);
-        let context_deadline = epoch["validUntil"].as_u64().unwrap() / 1000;
+        let context_deadline = epoch["valid_until"].as_u64().unwrap() / 1000;
         assert_eq!(context_deadline, (NOW / 86_400 + 1) * 86_400);
         let global = support::global(200).await;
         let (_wallet, _passport, public) = support::wallet_passport(&global).await;
