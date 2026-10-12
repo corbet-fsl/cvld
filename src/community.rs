@@ -1053,12 +1053,16 @@ impl CommunityService {
                 .ok_or(Error::Unavailable)?
                 .into(),
             handle,
-            missing: serde_json::to_value(lobby.decision.missing)
-                .map_err(Error::Unavailable.redact())?,
-            steps: steps
-                .into_iter()
-                .map(|s| serde_json::to_value(s).expect("serializable step"))
-                .collect(),
+            // The owners' wire shapes, given concrete types for the contract.
+            missing: serde_json::from_value(
+                serde_json::to_value(lobby.decision.missing)
+                    .map_err(Error::Unavailable.redact())?,
+            )
+            .map_err(Error::Unavailable.redact())?,
+            steps: serde_json::from_value(
+                serde_json::to_value(steps).map_err(Error::Unavailable.redact())?,
+            )
+            .map_err(Error::Unavailable.redact())?,
             warnings: lobby
                 .warnings
                 .into_iter()

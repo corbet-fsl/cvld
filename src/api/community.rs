@@ -35,11 +35,75 @@ pub struct Lobby {
     pub member_id: String,
     pub state: String,
     pub handle: Option<String>,
-    pub missing: Value,
-    pub steps: Vec<Value>,
+    /// Unsatisfied admission conditions, strongest requirement first.
+    pub missing: Vec<LobbyMissing>,
+    /// Inputs the member can supply now; each names the route that takes it.
+    pub steps: Vec<LobbyStep>,
     pub warnings: Vec<LobbyWarning>,
     /// Passport proof is always fresh when requesting a community credential.
     pub passport_required: bool,
+}
+/// Headless description of one input the member can supply.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LobbyStep {
+    /// Stable client dispatch key, not a URL or executable instruction.
+    pub id: String,
+    /// Plain text suitable for any client.
+    pub description: String,
+    /// Protocol payload type the member submits to its route.
+    pub input: String,
+}
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum LobbyLevel {
+    Global,
+    Community,
+}
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum LobbyReason {
+    /// The gate is switched off.
+    Disabled,
+    /// A specifically required provider is switched off.
+    ProviderDisabled,
+    /// No current proof from an enabled provider passed.
+    ProofRequired,
+}
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum LobbyMembership {
+    Pending,
+    Admitted,
+    Lapsed,
+    Released,
+}
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LobbyRequirement {
+    pub gate: String,
+    pub level: LobbyLevel,
+    pub provider: Option<String>,
+}
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LobbyGate {
+    pub requirement: LobbyRequirement,
+    pub reason: LobbyReason,
+}
+/// One unsatisfied admission condition.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum LobbyMissing {
+    /// No admission policy is enabled.
+    ActionUnavailable,
+    /// The member is not in an allowed membership state.
+    Membership { allowed: Vec<LobbyMembership> },
+    /// Complete this many more of the listed alternatives.
+    Gates {
+        needed: usize,
+        alternatives: Vec<LobbyGate>,
+    },
 }
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
