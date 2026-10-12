@@ -185,7 +185,7 @@ async fn actual_joint_http_registration_voucher_and_renewal_remain_ordinary_memb
     // has no way into the board, before or after its founding.
     let (_, ordinary, _) = wallet_passport(&global).await;
     let board_challenge: PresentationChallenge = serde_json::from_value(
-        client(&board, MEMBER_HOST, None)
+        support::client(&board, MEMBER_HOST, None)
             .call("presentation_challenge", json!({}))
             .await
             .unwrap(),
