@@ -278,12 +278,7 @@ impl Door {
             .as_ref()
             .is_some_and(|grant| grant.credential == revoked);
         let result = auth
-            .revoke_passkey_wallet(
-                token,
-                revoked,
-                session.checked_at()?,
-                mutation,
-            )
+            .revoke_passkey_wallet(token, revoked, session.checked_at()?, mutation)
             .await;
         let finish = async {
             result?;
