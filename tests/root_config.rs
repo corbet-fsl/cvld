@@ -27,6 +27,7 @@ fn community() -> Value {
         "pending_capacity": 100,
         "throttle_burst": 100,
         "throttle_interval_ms": 60000,
+        "trusted_proxies": [],
         "publication_seconds": 172800,
         "signer_max_seconds": 8640000,
         "minimum_notice_seconds": 0,
