@@ -1,5 +1,6 @@
 //! Fresh-assertion step-up for account-authority actions.
 use super::*;
+use crate::step_up::Binding;
 
 impl Door {
     pub(crate) async fn step_up_begin(
@@ -42,12 +43,16 @@ impl Door {
             return Ok(());
         }
         let proof = proof.ok_or(Error::Forbidden)?;
+        let binding = Binding {
+            host: &ctx.host,
+            action: &action,
+        };
         if self.is_membership_host(&ctx.host) {
             return self
                 .community_backend()?
                 .lock()
                 .await
-                .step_up_consume(ctx.member()?, grant, &ctx.host, &action, proof, ctx.now)
+                .step_up_consume(ctx.member()?, grant, binding, proof, ctx.now)
                 .await;
         }
         let token = ctx.token.as_deref().ok_or(Error::Unauthorized)?;
@@ -56,7 +61,7 @@ impl Door {
         let mut auth = authentication.lock().await;
         if self.service_scope() != Scope::Global || grant.role != Role::Member {
             return auth
-                .step_up_consume(token, &ctx.host, &action, proof, ctx.now, clock, None)
+                .step_up_consume(token, binding, proof, ctx.now, clock, None)
                 .await;
         }
         // The wallet's passkey counters change only under its mutation owner.
@@ -71,8 +76,7 @@ impl Door {
         }
         auth.step_up_consume(
             token,
-            &ctx.host,
-            &action,
+            binding,
             proof,
             session.checked_at()?,
             clock,

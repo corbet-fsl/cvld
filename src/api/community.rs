@@ -268,7 +268,7 @@ pub enum AddPasskeyRequest {
     Begin {
         /// Required except for Root, whose portal sign-in is the step-up.
         #[serde(default)]
-        step_up: Option<StepUpProof>,
+        step_up: Option<Box<StepUpProof>>,
     },
     Finish {
         ceremony: String,

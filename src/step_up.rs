@@ -28,6 +28,13 @@ struct Pending<S> {
     deadline: Instant,
 }
 
+/// The host (community scope) and exact action a challenge is bound to.
+#[derive(Clone, Copy)]
+pub(crate) struct Binding<'a> {
+    pub(crate) host: &'a str,
+    pub(crate) action: &'a StepUpAction,
+}
+
 /// The deadlines of one challenge, fixed before its ceremony state exists.
 pub(crate) struct Plan {
     pub(crate) observed: u64,
@@ -83,8 +90,7 @@ impl<S> StepUps<S> {
         &mut self,
         plan: Plan,
         grant: &Grant,
-        host: &str,
-        action: StepUpAction,
+        binding: Binding<'_>,
         state: S,
         options: serde_json::Value,
         clock: &dyn Clock,
@@ -101,8 +107,8 @@ impl<S> StepUps<S> {
                 state,
                 session_id: grant.session_id,
                 credential: grant.credential.clone(),
-                host: host.to_owned(),
-                action,
+                host: binding.host.to_owned(),
+                action: binding.action.clone(),
                 until: plan.until,
                 deadline: plan.deadline,
             },
@@ -120,16 +126,15 @@ impl<S> StepUps<S> {
         &mut self,
         ceremony: &str,
         grant: &Grant,
-        host: &str,
-        action: &StepUpAction,
+        binding: Binding<'_>,
         now: u64,
         clock: &dyn Clock,
     ) -> Result<(S, Receipt)> {
         let pending = self.pending.remove(ceremony).ok_or(Error::Unauthorized)?;
         if pending.session_id != grant.session_id
             || pending.credential != grant.credential
-            || pending.host != host
-            || &pending.action != action
+            || pending.host != binding.host
+            || &pending.action != binding.action
             || Instant::now() >= pending.deadline
         {
             return Err(Error::Unauthorized);

@@ -1,6 +1,9 @@
 //! Step-up assertions for passkey, device and revocation actions on a community.
 use super::*;
-use crate::api::{StepUpAction, StepUpChallenge, StepUpProof};
+use crate::{
+    api::{StepUpAction, StepUpChallenge, StepUpProof},
+    step_up::Binding,
+};
 
 impl CommunityService {
     fn step_up_session(&self, authentication: &ckyh::Authentication, grant: &Grant) -> Result<()> {
@@ -34,36 +37,27 @@ impl CommunityService {
             .await
             .map_err(Error::Unauthorized.redact())?;
         let options = serde_json::to_value(options).map_err(Error::Unavailable.redact())?;
-        self.step_ups.insert(
-            plan,
-            grant,
+        let binding = Binding {
             host,
-            action,
-            state,
-            options,
-            self.clock.as_ref(),
-        )
+            action: &action,
+        };
+        self.step_ups
+            .insert(plan, grant, binding, state, options, self.clock.as_ref())
     }
 
     pub(crate) async fn step_up_consume(
         &mut self,
         authentication: &ckyh::Authentication,
         grant: &Grant,
-        host: &str,
-        action: &StepUpAction,
+        binding: Binding<'_>,
         proof: StepUpProof,
         now: u64,
     ) -> Result<()> {
         self.prune(now);
         self.step_up_session(authentication, grant)?;
-        let (state, receipt) = self.step_ups.take(
-            &proof.ceremony,
-            grant,
-            host,
-            action,
-            now,
-            self.clock.as_ref(),
-        )?;
+        let (state, receipt) =
+            self.step_ups
+                .take(&proof.ceremony, grant, binding, now, self.clock.as_ref())?;
         let login = self
             .facade
             .membership()

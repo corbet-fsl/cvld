@@ -3,6 +3,7 @@ use super::*;
 use crate::{
     api::{StepUpAction, StepUpChallenge, StepUpProof},
     service::Clock,
+    step_up::Binding,
 };
 
 impl Auth {
@@ -25,8 +26,12 @@ impl Auth {
                 .map_err(Error::Unavailable.redact())?
                 .map_err(Error::Unauthorized.redact())?;
         let options = serde_json::to_value(options).map_err(Error::Unavailable.redact())?;
+        let binding = Binding {
+            host,
+            action: &action,
+        };
         self.step_ups
-            .insert(plan, &grant, host, action, state, options, clock)
+            .insert(plan, &grant, binding, state, options, clock)
     }
 
     /// Consume the challenge and verify its user-verifying assertion against
@@ -34,8 +39,7 @@ impl Auth {
     pub(crate) async fn step_up_consume(
         &mut self,
         token: &str,
-        host: &str,
-        action: &StepUpAction,
+        binding: Binding<'_>,
         proof: StepUpProof,
         now: u64,
         clock: &dyn Clock,
@@ -48,9 +52,9 @@ impl Auth {
             return Err(Error::Unauthorized);
         }
         let grant = self.authenticate(token, now).await?;
-        let (state, receipt) =
-            self.step_ups
-                .take(&proof.ceremony, &grant, host, action, now, clock)?;
+        let (state, receipt) = self
+            .step_ups
+            .take(&proof.ceremony, &grant, binding, now, clock)?;
         let keys = self.passkeys.clone();
         let operation = move |keys: &Passkeys<LibsqlStore>| {
             keys.finish_authentication(state, &proof.credential)

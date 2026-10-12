@@ -397,7 +397,7 @@ impl Door {
     ) -> Result<AddedPasskey> {
         let request = match request {
             AddPasskeyRequest::Begin { step_up } => {
-                self.require_step_up(&ctx, StepUpAction::PasskeyAdd, step_up)
+                self.require_step_up(&ctx, StepUpAction::PasskeyAdd, step_up.map(|proof| *proof))
                     .await?;
                 AddPasskey::Begin
             }
