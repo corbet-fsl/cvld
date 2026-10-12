@@ -26,7 +26,7 @@ Surveyed crates.io, official documentation and upstream repositories on 2026-09-
 | [ed25519-dalek](https://github.com/dalek-cryptography/curve25519-dalek) 2.2 | Parse the configured public sponsor key for cgts; signing and verification stay in the facades and leaves. |
 | [ckyh](https://github.com/corbet-foss/ckyh) | UV-required wallet/operator WebAuthn; no new passkey implementation. |
 | [subtle](https://docs.rs/subtle/latest/subtle/trait.ConstantTimeEq.html) 2.6 | Compare bootstrap capability contents without ordinary string-comparison timing; already shared by cryptographic dependencies. |
-| [cthl](https://github.com/corbet-foss/cthl) | Maintained governor-backed throttling with bounded memory. |
+| [governor](https://crates.io/crates/governor) 0.10 | Token buckets per network source and action, RAM only, in a bounded key table with an overflow bucket. |
 
 Storage and cryptography remain in the existing crlt, cpsd and csgn leaves.
 No ORM, second authorization engine or direct cryptographic implementation is

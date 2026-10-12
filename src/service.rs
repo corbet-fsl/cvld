@@ -10,7 +10,6 @@ use crate::{
 use axum::http::HeaderMap;
 use std::{
     collections::BTreeMap,
-    num::NonZeroUsize,
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -72,6 +71,30 @@ impl Clock for SystemClock {
     }
 }
 #[derive(Clone)]
+/// Most distinct (source, action) pairs tracked at once.
+const SOURCE_KEYS: usize = 65_536;
+
+fn source_buckets(
+    burst: u32,
+    interval_ms: u64,
+) -> Result<crate::bucket::Keyed<(std::net::IpAddr, &'static str)>> {
+    crate::bucket::Keyed::new(crate::bucket::Bucket {
+        burst,
+        replenish: Duration::from_millis(interval_ms),
+        keys: SOURCE_KEYS,
+    })
+    .ok_or(Error::Invalid)
+}
+
+/// Anonymous ceremonies (registration, login, challenges) cost the most.
+fn is_ceremony(action: &Action) -> bool {
+    action.access == Access::Public
+        && (action.name.ends_with("_begin")
+            || action.name.ends_with("_finish")
+            || action.name.starts_with("login_")
+            || action.name == "presentation_challenge")
+}
+
 pub struct Door {
     inner: Arc<Inner>,
 }
@@ -80,6 +103,7 @@ struct Inner {
     creation_owner: Arc<()>,
     creation_targets: Mutex<BTreeMap<String, Door>>,
     requests: Arc<Mutex<()>>,
+    ceremony_slots: Arc<Semaphore>,
     public_slots: Arc<Semaphore>,
     protected_slots: Arc<Semaphore>,
     watch_slots: Arc<Semaphore>,
@@ -90,7 +114,8 @@ struct Inner {
     member_host: Option<String>,
     community_garden_host: Option<String>,
     root_board_admin_host: Option<String>,
-    throttle: cthl::Throttle<cthl::MemoryStore>,
+    /// Per network source and action, RAM only: no global refusal.
+    sources: crate::bucket::Keyed<(std::net::IpAddr, &'static str)>,
     clock: Arc<dyn Clock>,
     account_body_limit: usize,
     account_runtime: Option<Arc<crate::accounting::clock::AccountRuntime>>,
@@ -248,20 +273,11 @@ impl Door {
             .attach_wallet(&db, &config, wallet_keys, clock.now())
             .await?;
         let wallet_shutdown = global.wallet.as_ref().map(cgbl::Wallet::shutdown_handle);
-        let limit = cthl::Limit::new(
-            config.throttle_burst,
-            Duration::from_millis(config.throttle_interval_ms),
-        )
-        .map_err(Error::Invalid.redact())?;
-        let throttle = cthl::Throttle::new(
-            "global",
-            ACTIONS.iter().map(|a| (a.name, limit)),
-            cthl::MemoryStore::new(NonZeroUsize::new(ACTIONS.len()).ok_or(Error::Invalid)?),
-        )
-        .map_err(Error::Invalid.redact())?;
+        let sources = source_buckets(config.throttle_burst, config.throttle_interval_ms)?;
         Ok(Self {
             inner: Arc::new(Inner {
                 requests: Arc::new(Mutex::new(())),
+                ceremony_slots: Arc::new(Semaphore::new(16)),
                 public_slots: Arc::new(Semaphore::new(32)),
                 protected_slots: Arc::new(Semaphore::new(32)),
                 watch_slots: Arc::new(Semaphore::new(16)),
@@ -277,7 +293,7 @@ impl Door {
                 member_host: None,
                 community_garden_host: None,
                 root_board_admin_host: None,
-                throttle,
+                sources,
                 clock,
                 account_body_limit: 256 * 1024,
                 account_runtime: None,
@@ -307,6 +323,7 @@ impl Door {
         }
     }
     pub async fn maintain(&self) -> Result<()> {
+        self.inner.sources.prune();
         let _guard = self.inner.requests.lock().await;
         let now = self.inner.clock.now();
         if let Backend::Community(community) = &self.inner.backend {
@@ -488,23 +505,14 @@ impl Door {
                     )?)),
                 );
             }
-            let limit = cthl::Limit::new(
-                config.throttle_burst,
-                Duration::from_millis(config.throttle_interval_ms),
-            )
-            .map_err(Error::Invalid.redact())?;
-            let throttle = cthl::Throttle::new(
-                "community",
-                ACTIONS.iter().map(|a| (a.name, limit)),
-                cthl::MemoryStore::new(NonZeroUsize::new(ACTIONS.len()).ok_or(Error::Invalid)?),
-            )
-            .map_err(Error::Invalid.redact())?;
+            let sources = source_buckets(config.throttle_burst, config.throttle_interval_ms)?;
             Ok(Self {
                 inner: Arc::new(Inner {
                     root_creation_scope: None,
                     creation_owner: Arc::new(()),
                     creation_targets: Mutex::new(BTreeMap::new()),
                     requests: Arc::new(Mutex::new(())),
+                    ceremony_slots: Arc::new(Semaphore::new(16)),
                     public_slots: Arc::new(Semaphore::new(32)),
                     protected_slots: Arc::new(Semaphore::new(32)),
                     watch_slots: Arc::new(Semaphore::new(16)),
@@ -515,7 +523,7 @@ impl Door {
                     member_host: Some(member_host),
                     community_garden_host: Some(community_garden_host),
                     root_board_admin_host,
-                    throttle,
+                    sources,
                     clock,
                     account_body_limit,
                     account_runtime,
@@ -626,16 +634,28 @@ impl Door {
     pub(crate) fn publication(&self, action: &Action, ctx: &Context) -> publication::Publication {
         publication::Publication::new(self.inner.clock.clone(), ctx, action.effect)
     }
-    pub(crate) async fn admit_request(&self, action: &Action) -> Result<OwnedSemaphorePermit> {
-        // Service-wide quotas cannot be evaded with forged IPs, handles or fresh tokens.
-        if !matches!(
-            self.inner.throttle.check(b"aggregate", action.name).await,
-            Ok(cthl::Decision::Allowed)
-        ) {
+    /// Slow anonymous clients are cut off sooner than authenticated ones.
+    pub(crate) fn body_timeout(&self, action: &Action) -> Duration {
+        if action.access == Access::Public {
+            Duration::from_secs(5)
+        } else {
+            Duration::from_secs(10)
+        }
+    }
+    pub(crate) async fn admit_request(
+        &self,
+        action: &Action,
+        source: std::net::IpAddr,
+    ) -> Result<OwnedSemaphorePermit> {
+        // One source can exhaust only its own bucket for an action; a full key
+        // table degrades to a shared overflow bucket, never a global refusal.
+        if !self.inner.sources.admit(&(source, action.name)) {
             return Err(Error::Throttled);
         }
         let slots = if action.name == "trust_changes" {
             &self.inner.watch_slots
+        } else if is_ceremony(action) {
+            &self.inner.ceremony_slots
         } else if action.access == Access::Public {
             &self.inner.public_slots
         } else {

@@ -10,6 +10,8 @@ pub mod api;
 #[cfg(feature = "server")]
 mod auth;
 #[cfg(feature = "server")]
+mod bucket;
+#[cfg(feature = "server")]
 pub mod cli;
 #[cfg(feature = "client")]
 pub mod client;

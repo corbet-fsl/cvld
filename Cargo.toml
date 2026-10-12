@@ -9,7 +9,7 @@ publish = false
 
 [features]
 default = ["server"]
-server = ["client-http", "dep:cpmt", "dep:crpt", "dep:x402-types", "dep:cmty", "dep:cvch", "dep:clbs", "dep:cphn", "dep:cmbx", "dep:cfbk", "dep:ed25519-dalek", "dep:ed25519-dalek-v2", "dep:cblc", "dep:czkp", "dep:cssr", "dep:cpsd", "dep:crlt", "dep:csgn", "dep:cgbl", "dep:ckyh", "dep:cthl", "dep:axum", "dep:tower-http", "dep:utoipa", "dep:clap", "dep:rmcp", "dep:tokio", "dep:uuid", "dep:chrono", "dep:rand", "dep:subtle"]
+server = ["client-http", "dep:cpmt", "dep:crpt", "dep:x402-types", "dep:cmty", "dep:cvch", "dep:clbs", "dep:cphn", "dep:cmbx", "dep:cfbk", "dep:ed25519-dalek", "dep:ed25519-dalek-v2", "dep:cblc", "dep:czkp", "dep:cssr", "dep:cpsd", "dep:crlt", "dep:csgn", "dep:cgbl", "dep:ckyh", "dep:governor", "dep:axum", "dep:tower-http", "dep:utoipa", "dep:clap", "dep:rmcp", "dep:tokio", "dep:uuid", "dep:chrono", "dep:rand", "dep:subtle"]
 client = ["dep:jsonschema"]
 client-http = ["client", "dep:reqwest", "dep:url"]
 client-browser = ["client", "dep:url", "dep:gloo-timers", "dep:web-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys"]
@@ -37,7 +37,7 @@ crlt = { git = "https://git.corbet.ch/corbet-foss/crlt", branch = "main", option
 csgn = { git = "https://git.corbet.ch/corbet-foss/csgn", branch = "main", features = ["libsql"], optional = true }
 cgbl = { git = "https://git.corbet.ch/corbet-libs/cgbl.git", branch = "main", optional = true }
 ckyh = { git = "https://git.corbet.ch/corbet-foss/ckyh", branch = "main", optional = true }
-cthl = { git = "https://git.corbet.ch/corbet-foss/cthl", branch = "main", optional = true }
+governor = { version = "0.10.4", default-features = false, features = ["std"], optional = true }
 axum = { version = "0.8.9", optional = true }
 tower-http = { version = "0.6.11", features = ["cors"], optional = true }
 utoipa = { version = "6.0.0", optional = true }

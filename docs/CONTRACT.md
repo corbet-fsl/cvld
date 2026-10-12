@@ -64,8 +64,12 @@ schemas, routes, commands and tools omit it.
 ## Runtime privacy and configuration
 
 No logging/tracing subscriber, request logger, member metrics or identifier labels
-are installed. Every action passes cthl's bounded aggregate per-action throttle;
-changing an IP, handle or session cannot bypass that quota. Failed checks fail
+are installed. Every request passes a governor token bucket per network source (IPv4 address or
+IPv6 /64; behind a same-host tunnel the tunnel's client header names it) and
+action. The table is bounded and RAM only, holds no logs, and keys beyond it share
+one overflow bucket, so exhausting it throttles but never refuses everyone.
+Anonymous ceremonies, other anonymous requests, authenticated requests and watches
+draw on separate capacity pools, and anonymous bodies must arrive within 5 s. Failed checks fail
 closed. A proxy must preserve these privacy properties and provide TLS.
 
 Configuration and secret file paths are explicit. The service does not search for

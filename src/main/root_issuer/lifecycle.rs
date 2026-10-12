@@ -39,14 +39,17 @@ pub(crate) async fn serve(
         let door = service.door.clone();
         let mut stopping = stop.subscribe();
         servers.spawn(async move {
-            axum::serve(listener, api::router(door))
-                .with_graceful_shutdown(async move {
-                    if !*stopping.borrow_and_update() {
-                        let _ = stopping.changed().await;
-                    }
-                })
-                .await
-                .map_err(Error::Unavailable.redact())
+            axum::serve(
+                listener,
+                api::router(door).into_make_service_with_connect_info::<std::net::SocketAddr>(),
+            )
+            .with_graceful_shutdown(async move {
+                if !*stopping.borrow_and_update() {
+                    let _ = stopping.changed().await;
+                }
+            })
+            .await
+            .map_err(Error::Unavailable.redact())
         });
         let door = service.door.clone();
         maintenance.spawn(async move {

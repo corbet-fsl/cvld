@@ -166,7 +166,10 @@ async fn execute(matches: clap::ArgMatches, deadline: Arc<OnceLock<Instant>>) ->
                     .map_err(Error::Unavailable.redact())?;
                 let mut graceful_signal = signals.receiver();
                 let mut stopped = signals.receiver();
-                let server = axum::serve(listener, api::router(door))
+                let server = axum::serve(
+                    listener,
+                    api::router(door).into_make_service_with_connect_info::<std::net::SocketAddr>(),
+                )
                     .with_graceful_shutdown(async move {
                         let _ = signals::wait(&mut graceful_signal).await;
                     })
