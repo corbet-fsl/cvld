@@ -49,11 +49,19 @@ async fn real_garden_role_change_and_session_replacement_need_no_account_runtime
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn another_genuine_key_of_the_same_member_cannot_replace_retained_role_session() {
-    let world = world().await;
+    let mut world = world().await;
     let member = client(&world.source, SOURCE, Some(&world.member.session));
+    let proof = crate::test_support::step_up(
+        &world.source,
+        SOURCE,
+        &world.member.session,
+        &mut world.member.authenticator,
+        json!({"kind":"passkey_add"}),
+    )
+    .await;
     let addition: AddedPasskey = serde_json::from_value(
         member
-            .call("passkey_add", json!({"step":"begin"}))
+            .call("passkey_add", json!({"step":"begin","step_up":proof}))
             .await
             .unwrap(),
     )

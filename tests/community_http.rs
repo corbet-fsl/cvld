@@ -366,9 +366,16 @@ async fn two_communities_admission_policy_lapse_and_release_over_http() {
         .unwrap()
         .available
     );
-    ac.call("passkey_revoke", json!({"credential":a.credential}))
-        .await
-        .unwrap();
+    let body = proven(
+        &alpha,
+        ah,
+        &a.session,
+        &mut a.authenticator,
+        json!({"kind":"passkey_revoke","credential":a.credential}),
+        json!({"credential":a.credential}),
+    )
+    .await;
+    ac.call("passkey_revoke", body).await.unwrap();
     assert_eq!(
         call_status(&alpha, ah, Some(&a.session), "lobby", json!({})).await,
         401

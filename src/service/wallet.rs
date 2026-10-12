@@ -59,7 +59,10 @@ impl Door {
         ctx: Context,
         request: DeviceKey,
     ) -> Result<DeviceKeys> {
-        self.wallet_device_observation(ctx, Some(request.key)).await
+        let DeviceKey { key, step_up } = request;
+        self.require_step_up(&ctx, StepUpAction::DeviceAuthorize { key }, step_up)
+            .await?;
+        self.wallet_device_observation(ctx, Some(key)).await
     }
     async fn wallet_device_observation(
         &self,
@@ -247,7 +250,7 @@ impl Door {
     pub(crate) async fn wallet_revoke_passkey(
         &self,
         ctx: Context,
-        request: RevokePasskey,
+        credential: Vec<u8>,
     ) -> Result<Empty> {
         let token = ctx.token.as_deref().ok_or(Error::Unauthorized)?;
         let authentication = self.auth(&ctx.host)?;
@@ -270,7 +273,7 @@ impl Door {
                 .signal_wallet_mutation(&session, mutation, self.inner.clock.as_ref())
                 .await?;
         }
-        let revoked: ckyh::CredentialID = request.credential.into();
+        let revoked: ckyh::CredentialID = credential.into();
         // Revoking the credential that signed this request ends its own session,
         // as on every other host: the ended session still receives the success.
         let own = ctx

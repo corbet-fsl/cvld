@@ -659,7 +659,7 @@ async fn device_authorization_drains_pending_revocation_and_unknown_fields_refus
     let global = global(100).await;
     let (_, passport, public) = wallet_passport(&global).await;
     let service = community("alpha", &public).await;
-    let member = enrol_community(&service, HOST, &passport).await;
+    let mut member = enrol_community(&service, HOST, &passport).await;
     let c = client(&service, HOST, Some(&member.session));
     let lobby: Lobby = serde_json::from_value(c.call("lobby", json!({})).await.unwrap()).unwrap();
     let pin = cmbr::PinV2::seal(
@@ -700,8 +700,16 @@ async fn device_authorization_drains_pending_revocation_and_unknown_fields_refus
     );
     let before: TrustFeed =
         serde_json::from_value(c.call("trust_feed", json!({})).await.unwrap()).unwrap();
+    let proof = support::step_up(
+        &service,
+        HOST,
+        &member.session,
+        &mut member.authenticator,
+        json!({"kind":"passkey_add"}),
+    )
+    .await;
     let addition: AddedPasskey = serde_json::from_value(
-        c.call("passkey_add", json!({"step":"begin"}))
+        c.call("passkey_add", json!({"step":"begin","step_up":proof}))
             .await
             .unwrap(),
     )
@@ -732,8 +740,16 @@ async fn device_authorization_drains_pending_revocation_and_unknown_fields_refus
             .unwrap();
     }
     let key = member.signing_key;
+    let proof = support::step_up(
+        &service,
+        HOST,
+        &member.session,
+        &mut member.authenticator,
+        json!({"kind":"device_authorize","key":key}),
+    )
+    .await;
     let keys: DeviceKeys = serde_json::from_value(
-        c.call("device_authorize", json!({"key":key}))
+        c.call("device_authorize", json!({"key":key,"step_up":proof}))
             .await
             .unwrap(),
     )

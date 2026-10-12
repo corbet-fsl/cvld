@@ -6,7 +6,7 @@ async fn permanent_self_ban_immediately_publishes_the_epoch_that_refuses_an_actu
     let (wallet, passport, public) = wallet_passport(&global).await;
     let service = community("alpha", &public).await;
     let mut owner = member(&service, HOST, &passport).await;
-    let bundle = admitted_bundle(&service, &owner, &passport).await;
+    let bundle = admitted_bundle(&service, &mut owner, &passport).await;
     let before = feed(&service).await;
     assert!(
         guard(&bundle, &before).is_admitted(),
@@ -153,13 +153,22 @@ async fn removing_the_authorizing_passkey_publishes_its_exact_id_and_only_a_surv
     let (_, passport, public) = wallet_passport(&global).await;
     let service = community("alpha", &public).await;
     let mut owner = member(&service, HOST, &passport).await;
-    let bundle = admitted_bundle(&service, &owner, &passport).await;
+    let bundle = admitted_bundle(&service, &mut owner, &passport).await;
     assert!(guard(&bundle, &feed(&service).await).is_admitted());
     let pending = challenge(&service, &owner).await;
     let self_ban = answer(&mut owner, pending).await;
     let api = client(&service, HOST, Some(&owner.session.token));
+    let proof = owner
+        .device
+        .step_up(
+            &service,
+            HOST,
+            &owner.session.token,
+            json!({"kind":"passkey_add"}),
+        )
+        .await;
     let begin: AddedPasskey = serde_json::from_value(
-        api.call("passkey_add", json!({"step":"begin"}))
+        api.call("passkey_add", json!({"step":"begin","step_up":proof}))
             .await
             .unwrap(),
     )
@@ -182,8 +191,19 @@ async fn removing_the_authorizing_passkey_publishes_its_exact_id_and_only_a_surv
     .await
     .unwrap();
     let survivor_session = discover(&service, HOST, &mut survivor).await;
+    let proof = survivor
+        .step_up(
+            &service,
+            HOST,
+            &survivor_session.token,
+            json!({"kind":"passkey_revoke","credential":owner.credential}),
+        )
+        .await;
     client(&service, HOST, Some(&survivor_session.token))
-        .call("passkey_revoke", json!({"credential":owner.credential}))
+        .call(
+            "passkey_revoke",
+            json!({"credential":owner.credential,"step_up":proof}),
+        )
         .await
         .unwrap();
     let after = feed(&service).await;

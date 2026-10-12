@@ -2,7 +2,7 @@
 #![cfg(feature = "development-gate")]
 mod support;
 use cvld::api::*;
-use serde_json::json;
+use serde_json::{Value, json};
 use support::{
     resident::{Resident, strip_prf},
     *,
@@ -104,8 +104,16 @@ async fn manage(
             401
         );
     }
+    // Root's portal sign-in is its step-up; every other role proves a fresh assertion.
+    let proof = if role == Role::Root {
+        Value::Null
+    } else {
+        original
+            .step_up(service, host, &first.token, json!({"kind":"passkey_add"}))
+            .await
+    };
     let begin: AddedPasskey = serde_json::from_value(
-        api.call("passkey_add", json!({"step":"begin"}))
+        api.call("passkey_add", json!({"step":"begin","step_up":proof}))
             .await
             .unwrap(),
     )
@@ -154,8 +162,23 @@ async fn manage(
     assert_eq!(second.user, first.user);
     assert_eq!(second.role, role);
     let second_api = client(service, host, Some(&second.token));
+    let proof = if role == Role::Root {
+        Value::Null
+    } else {
+        added
+            .step_up(
+                service,
+                host,
+                &second.token,
+                json!({"kind":"passkey_revoke","credential":original_id}),
+            )
+            .await
+    };
     second_api
-        .call("passkey_revoke", json!({"credential":original_id}))
+        .call(
+            "passkey_revoke",
+            json!({"credential":original_id,"step_up":proof}),
+        )
         .await
         .unwrap();
     assert_eq!(
@@ -179,8 +202,23 @@ async fn manage(
         .unwrap();
     assert!(!current.revoked);
     assert!(current.current);
+    let proof = if role == Role::Root {
+        Value::Null
+    } else {
+        added
+            .step_up(
+                service,
+                host,
+                &second.token,
+                json!({"kind":"passkey_revoke","credential":added_id}),
+            )
+            .await
+    };
     let revoked = second_api
-        .call("passkey_revoke", json!({"credential":added_id}))
+        .call(
+            "passkey_revoke",
+            json!({"credential":added_id,"step_up":proof}),
+        )
         .await;
     // Revoking the session's own key ends that session and still answers it
     // with success, on the wallet host exactly as on every other host.
@@ -206,8 +244,16 @@ async fn configured_wallet_refuses_consumed_addition_before_publication_effects(
         register_account(&service, WALLET, json!({"bootstrap":null,"passport":null})).await;
     let first = discover(&service, WALLET, &mut original).await;
     let api = client(&service, WALLET, Some(&first.token));
+    let proof = original
+        .step_up(
+            &service,
+            WALLET,
+            &first.token,
+            json!({"kind":"passkey_add"}),
+        )
+        .await;
     let begin: AddedPasskey = serde_json::from_value(
-        api.call("passkey_add", json!({"step":"begin"}))
+        api.call("passkey_add", json!({"step":"begin","step_up":proof}))
             .await
             .unwrap(),
     )
@@ -298,7 +344,10 @@ async fn community_root_and_admin_manage_equal_passkeys_on_their_own_hosts() {
         .verifying_key()
         .to_bytes();
     member_api
-        .call("device_authorize", json!({"key":signing_key}))
+        .call(
+            "device_authorize",
+            json!({"key":signing_key,"step_up":device.step_up(&service, member_host, &member.token, json!({"kind":"device_authorize","key":signing_key})).await}),
+        )
         .await
         .unwrap();
     member_api

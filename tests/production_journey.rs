@@ -70,7 +70,7 @@ async fn real_production_contacts_passport_paid_membership_and_guard_share_one_j
     assert_eq!(contact_wire.calls(), 4);
     let payment_wire = payment_support::Wire::new(payment_support::Reply::Success);
     let service = payment::community(&public, payment_wire.clone()).await;
-    let member = enrol_community(&service, HOST, &passport).await;
+    let mut member = enrol_community(&service, HOST, &passport).await;
     let api = client(&service, HOST, Some(&member.session));
     api.call("handle_reserve", json!({"handle":"production_member"}))
         .await
@@ -145,9 +145,16 @@ async fn real_production_contacts_passport_paid_membership_and_guard_share_one_j
     assert_eq!(certified.credential_id(), member.credential.as_slice());
     // Last-key revocation must reach the same signed graph, even though the
     // independent original certificate signature retains its normal lifetime.
-    api.call("passkey_revoke", json!({"credential":member.credential}))
-        .await
-        .unwrap();
+    let body = proven(
+        &service,
+        HOST,
+        &member.session,
+        &mut member.authenticator,
+        json!({"kind":"passkey_revoke","credential":member.credential}),
+        json!({"credential":member.credential}),
+    )
+    .await;
+    api.call("passkey_revoke", body).await.unwrap();
     let revoked = feed(&service).await;
     assert!(!guard(&bundle, &revoked).is_admitted());
     assert!(ckyh::certificate::verify(&ring, &certificate.bytes, &claims.member, NOW).is_ok());

@@ -251,6 +251,44 @@ pub async fn login(
     .unwrap();
     session.token
 }
+/// A fresh user-verifying assertion for exactly one action: the `step_up` proof
+/// that `passkey_add` (begin), `passkey_revoke` and the device actions require.
+pub async fn step_up(
+    service: &Running,
+    host: &str,
+    session: &str,
+    authenticator: &mut SoftToken,
+    action: Value,
+) -> Value {
+    let begin: cvld::api::StepUpChallenge = serde_json::from_value(
+        client(service, host, Some(session))
+            .call("step_up_begin", json!({"action":action}))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let challenge: ckyh::RequestChallengeResponse = serde_json::from_value(begin.options).unwrap();
+    let credential = authenticator
+        .perform_auth(
+            ckyh::Url::parse(&format!("https://{host}")).unwrap(),
+            challenge.public_key,
+            300_000,
+        )
+        .unwrap();
+    json!({"ceremony":begin.ceremony,"credential":credential})
+}
+/// `body` with the proof for `action` added as its `step_up` field.
+pub async fn proven(
+    service: &Running,
+    host: &str,
+    session: &str,
+    authenticator: &mut SoftToken,
+    action: Value,
+    mut body: Value,
+) -> Value {
+    body["step_up"] = step_up(service, host, session, authenticator, action).await;
+    body
+}
 pub async fn call_status(
     service: &Running,
     host: &str,
@@ -628,8 +666,17 @@ pub async fn finish_enrol(service: &Running, host: &str, start: Ceremony) -> Mem
     )
     .await;
     let signing_key = SigningKey::from_bytes(&[13; 32]).verifying_key().to_bytes();
+    let body = proven(
+        service,
+        host,
+        &session,
+        &mut authenticator,
+        json!({"kind":"device_authorize","key":signing_key}),
+        json!({"key": signing_key}),
+    )
+    .await;
     client(service, host, Some(&session))
-        .call("device_authorize", json!({"key": signing_key}))
+        .call("device_authorize", body)
         .await
         .unwrap();
     Member {

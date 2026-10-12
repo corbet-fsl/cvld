@@ -297,8 +297,20 @@ async fn a_real_login_assertion_expired_intent_logout_and_revocation_never_suspe
                 let login = json!({"user":owner.session.user,"credential":owner.credential});
                 // Revoking the authorizing key commits, then ends its session;
                 // the session that ended itself is answered with success.
+                let proof = owner
+                    .device
+                    .step_up(
+                        &service,
+                        WALLET,
+                        &owner.session.token,
+                        json!({"kind":"passkey_revoke","credential":owner.credential}),
+                    )
+                    .await;
                 client(&service, WALLET, Some(&owner.session.token))
-                    .call("passkey_revoke", json!({"credential":owner.credential}))
+                    .call(
+                        "passkey_revoke",
+                        json!({"credential":owner.credential,"step_up":proof}),
+                    )
                     .await
                     .unwrap();
                 // Beginning a login is not an oracle for key status: the revoked

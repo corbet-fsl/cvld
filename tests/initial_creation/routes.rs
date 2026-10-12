@@ -72,8 +72,17 @@ pub(super) async fn fixture_with(seed: Option<[u8; 32]>) -> Fixture {
     )
     .await;
     let signing_key = SigningKey::from_bytes(&[13; 32]).verifying_key().to_bytes();
+    let body = proven(
+        &service,
+        HOST,
+        &session,
+        &mut authenticator,
+        json!({"kind":"device_authorize","key":signing_key}),
+        json!({"key":signing_key}),
+    )
+    .await;
     client(&service, HOST, Some(&session))
-        .call("device_authorize", json!({"key":signing_key}))
+        .call("device_authorize", body)
         .await
         .unwrap();
     assert_eq!(payment_wire.supported.load(Ordering::SeqCst), 0);

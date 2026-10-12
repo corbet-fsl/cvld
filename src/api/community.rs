@@ -1,4 +1,4 @@
-use super::PresentationInput;
+use super::{PresentationInput, StepUpProof};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use utoipa::ToSchema;
@@ -190,6 +190,9 @@ pub struct Announcement {
 #[serde(deny_unknown_fields)]
 pub struct RevokePasskey {
     pub credential: Vec<u8>,
+    /// Required except for Root, whose portal sign-in is the step-up.
+    #[serde(default)]
+    pub step_up: Option<StepUpProof>,
 }
 
 /// Account-owned management metadata, without keys, counters or last-use data.
@@ -234,6 +237,9 @@ impl PasskeyList {
 #[serde(deny_unknown_fields)]
 pub struct DeviceKey {
     pub key: [u8; 32],
+    /// Required except for Root, whose portal sign-in is the step-up.
+    #[serde(default)]
+    pub step_up: Option<StepUpProof>,
 }
 
 /// Current public signing keys; the authenticated passkey authorizes mutations.
@@ -248,6 +254,22 @@ pub struct DeviceKeys {
 #[serde(tag = "step", rename_all = "snake_case", deny_unknown_fields)]
 pub enum AddPasskey {
     Begin,
+    Finish {
+        ceremony: String,
+        #[schema(value_type = std::collections::BTreeMap<String, Value>, additional_properties = true)]
+        credential: Box<ckyh::RegisterPublicKeyCredential>,
+    },
+}
+/// Wire form of the additional-passkey request: starting it needs a fresh
+/// user-verifying assertion bound to this exact action.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(tag = "step", rename_all = "snake_case", deny_unknown_fields)]
+pub enum AddPasskeyRequest {
+    Begin {
+        /// Required except for Root, whose portal sign-in is the step-up.
+        #[serde(default)]
+        step_up: Option<StepUpProof>,
+    },
     Finish {
         ceremony: String,
         #[schema(value_type = std::collections::BTreeMap<String, Value>, additional_properties = true)]

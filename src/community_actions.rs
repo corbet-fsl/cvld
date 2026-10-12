@@ -390,11 +390,104 @@ impl Door {
         ))
     }
 
+    pub(crate) async fn step_up_begin(
+        &self,
+        ctx: Context,
+        request: StepUpStart,
+    ) -> Result<StepUpChallenge> {
+        let grant = ctx.grant.as_ref().ok_or(Error::Unauthorized)?;
+        if self.is_membership_host(&ctx.host) {
+            return self
+                .community_backend()?
+                .lock()
+                .await
+                .step_up_begin(ctx.member()?, grant, &ctx.host, request.action, ctx.now)
+                .await;
+        }
+        self.auth(&ctx.host)?
+            .lock()
+            .await
+            .step_up_begin(
+                ctx.token.as_deref().ok_or(Error::Unauthorized)?,
+                &ctx.host,
+                request.action,
+                ctx.now,
+                self.inner.clock.as_ref(),
+            )
+            .await
+    }
+
+    /// Consume one fresh user-verifying assertion for exactly this action. Root
+    /// sessions need none: the Root portal sign-in is their step-up.
+    pub(crate) async fn require_step_up(
+        &self,
+        ctx: &Context,
+        action: StepUpAction,
+        proof: Option<StepUpProof>,
+    ) -> Result<()> {
+        let grant = ctx.grant.as_ref().ok_or(Error::Unauthorized)?;
+        if grant.role == Role::Root {
+            return Ok(());
+        }
+        let proof = proof.ok_or(Error::Forbidden)?;
+        if self.is_membership_host(&ctx.host) {
+            return self
+                .community_backend()?
+                .lock()
+                .await
+                .step_up_consume(ctx.member()?, grant, &ctx.host, &action, proof, ctx.now)
+                .await;
+        }
+        let token = ctx.token.as_deref().ok_or(Error::Unauthorized)?;
+        let clock = self.inner.clock.as_ref();
+        let authentication = self.auth(&ctx.host)?;
+        let mut auth = authentication.lock().await;
+        if self.service_scope() != Scope::Global || grant.role != Role::Member {
+            return auth
+                .step_up_consume(token, &ctx.host, &action, proof, ctx.now, clock, None)
+                .await;
+        }
+        // The wallet's passkey counters change only under its mutation owner.
+        let mut session = auth.wallet_session(token, grant, ctx.now, clock).await?;
+        let mut global = self.global_backend()?.lock().await;
+        session.check(&mut auth, token, ctx.now, clock).await?;
+        let mutation = global.wallet_mutation().await?;
+        if let Some(mutation) = &mutation {
+            global
+                .signal_wallet_mutation(&session, mutation, clock)
+                .await?;
+        }
+        auth.step_up_consume(
+            token,
+            &ctx.host,
+            &action,
+            proof,
+            session.checked_at()?,
+            clock,
+            mutation,
+        )
+        .await
+    }
+
     pub(crate) async fn passkey_add(
         &self,
         ctx: Context,
-        request: AddPasskey,
+        request: AddPasskeyRequest,
     ) -> Result<AddedPasskey> {
+        let request = match request {
+            AddPasskeyRequest::Begin { step_up } => {
+                self.require_step_up(&ctx, StepUpAction::PasskeyAdd, step_up)
+                    .await?;
+                AddPasskey::Begin
+            }
+            AddPasskeyRequest::Finish {
+                ceremony,
+                credential,
+            } => AddPasskey::Finish {
+                ceremony,
+                credential,
+            },
+        };
         if !self.is_membership_host(&ctx.host) {
             if self.service_scope() == Scope::Global
                 && ctx
@@ -432,12 +525,15 @@ impl Door {
         ctx: Context,
         request: DeviceKey,
     ) -> Result<DeviceKeys> {
+        let DeviceKey { key, step_up } = request;
+        self.require_step_up(&ctx, StepUpAction::DeviceAuthorize { key }, step_up)
+            .await?;
         let mut community = self.community_backend()?.lock().await;
         let auth = ctx.member()?;
         community
             .facade
             .membership()
-            .authorize_device_key(auth, request.key)
+            .authorize_device_key(auth, key)
             .await
             .map_err(Error::Refused.redact())?;
         if community
@@ -474,6 +570,18 @@ impl Door {
         ctx: Context,
         request: RevokePasskey,
     ) -> Result<Empty> {
+        let RevokePasskey {
+            credential,
+            step_up,
+        } = request;
+        self.require_step_up(
+            &ctx,
+            StepUpAction::PasskeyRevoke {
+                credential: credential.clone(),
+            },
+            step_up,
+        )
+        .await?;
         if !self.is_membership_host(&ctx.host) {
             if self.service_scope() == Scope::Global
                 && ctx
@@ -481,21 +589,21 @@ impl Door {
                     .as_ref()
                     .is_some_and(|grant| grant.role == Role::Member)
             {
-                return self.wallet_revoke_passkey(ctx, request).await;
+                return self.wallet_revoke_passkey(ctx, credential).await;
             }
             self.auth(&ctx.host)?
                 .lock()
                 .await
                 .revoke_passkey(
                     ctx.token.as_deref().ok_or(Error::Unauthorized)?,
-                    request.credential.into(),
+                    credential.into(),
                     ctx.now,
                 )
                 .await?;
             return Ok(Empty {});
         }
         let mut community = self.community_backend()?.lock().await;
-        let credential: ckyh::CredentialID = request.credential.into();
+        let credential: ckyh::CredentialID = credential.into();
         community
             .facade
             .membership()

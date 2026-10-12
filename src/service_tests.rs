@@ -74,8 +74,16 @@ async fn slow_body_cannot_use_a_passkey_revoked_while_reading() {
     let (_, passport, public) = wallet_passport(&global).await;
     let service = community("revoke", &public).await;
     let host = "api.revoke.example.test";
-    let member = enrol_community(&service, host, &passport).await;
+    let mut member = enrol_community(&service, host, &passport).await;
     let pending = pending_body(&service, host, &member.session, "lobby").await;
+    let proof = support::step_up(
+        &service,
+        host,
+        &member.session,
+        &mut member.authenticator,
+        json!({"kind":"passkey_revoke","credential":member.credential}),
+    )
+    .await;
     assert_eq!(
         tokio::time::timeout(
             Duration::from_secs(3),
@@ -84,7 +92,7 @@ async fn slow_body_cannot_use_a_passkey_revoked_while_reading() {
                 host,
                 Some(&member.session),
                 "passkey_revoke",
-                json!({"credential": member.credential})
+                json!({"credential": member.credential,"step_up":proof})
             )
         )
         .await

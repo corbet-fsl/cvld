@@ -201,8 +201,19 @@ async fn community_restore_from_the_vault_origin_preserves_membership_and_revoca
     );
     let (ceremony, mut response) = discover(&service, host, &mut phone, origin).await;
     strip_prf(&mut response);
+    let proof = phone
+        .step_up(
+            &service,
+            host,
+            &restored.token,
+            json!({"kind":"passkey_revoke","credential":credential_id}),
+        )
+        .await;
     restored_client
-        .call("passkey_revoke", json!({"credential":credential_id}))
+        .call(
+            "passkey_revoke",
+            json!({"credential":credential_id,"step_up":proof}),
+        )
         .await
         .unwrap();
     assert_eq!(

@@ -27,7 +27,7 @@ async fn http_certificate_uses_current_registered_key_and_original_pseudonym_bef
     let global = global(100).await;
     let (_, passport, public) = wallet_passport(&global).await;
     let service = community("alpha", &public).await;
-    let member = enrol_community(&service, HOST, &passport).await;
+    let mut member = enrol_community(&service, HOST, &passport).await;
     // No credential_issue call or community admission credential is supplied.
     let lobby: Lobby = serde_json::from_value(
         client(&service, HOST, Some(&member.session))
@@ -97,8 +97,17 @@ async fn http_certificate_uses_current_registered_key_and_original_pseudonym_bef
         .await,
         400
     );
+    let body = proven(
+        &service,
+        HOST,
+        &member.session,
+        &mut member.authenticator,
+        json!({"kind":"passkey_revoke","credential":member.credential}),
+        json!({"credential":member.credential}),
+    )
+    .await;
     client(&service, HOST, Some(&member.session))
-        .call("passkey_revoke", json!({"credential":member.credential}))
+        .call("passkey_revoke", body)
         .await
         .unwrap();
     assert_eq!(

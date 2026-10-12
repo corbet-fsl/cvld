@@ -5,9 +5,22 @@ use serde_json::{Value, json};
 use support::*;
 use webauthn_authenticator_rs::{AuthenticatorBackend, softtoken::SoftToken};
 
-async fn begin(service: &Running, host: &str, session: &str) -> (String, Value) {
+async fn begin(
+    service: &Running,
+    host: &str,
+    session: &str,
+    authenticator: &mut SoftToken,
+) -> (String, Value) {
+    let proof = step_up(
+        service,
+        host,
+        session,
+        authenticator,
+        json!({"kind":"passkey_add"}),
+    )
+    .await;
     let response = client(service, host, Some(session))
-        .call("passkey_add", json!({"step":"begin"}))
+        .call("passkey_add", json!({"step":"begin","step_up":proof}))
         .await
         .unwrap();
     assert_eq!(response["step"], "challenge");
@@ -96,7 +109,8 @@ async fn additional_device_is_session_bound_and_survives_original_revocation() {
     );
 
     // UV-less creation cannot be turned into another key with a bearer alone.
-    let (ceremony, mut options) = begin(&service, host, &first.session).await;
+    let (ceremony, mut options) =
+        begin(&service, host, &first.session, &mut first.authenticator).await;
     options["publicKey"]["authenticatorSelection"]["userVerification"] = json!("discouraged");
     let response = register(&mut SoftToken::new(true).unwrap().0, host, options);
     let body = json!({"step":"finish","ceremony":ceremony,"credential":response});
@@ -124,8 +138,9 @@ async fn additional_device_is_session_bound_and_survives_original_revocation() {
         &first.credential,
     )
     .await;
-    let (old_ceremony, old_options) = begin(&service, host, &first.session).await;
-    let (ceremony, options) = begin(&service, host, &first.session).await;
+    let (old_ceremony, old_options) =
+        begin(&service, host, &first.session, &mut first.authenticator).await;
+    let (ceremony, options) = begin(&service, host, &first.session, &mut first.authenticator).await;
     let old_response = register(&mut SoftToken::new(true).unwrap().0, host, old_options);
     assert_eq!(
         call_status(
@@ -175,7 +190,7 @@ async fn additional_device_is_session_bound_and_survives_original_revocation() {
         401
     );
     let session = login(&service, host, &mut second, &user, &credential).await;
-    let second = Member {
+    let mut second = Member {
         authenticator: second,
         user,
         credential,
@@ -202,21 +217,33 @@ async fn additional_device_is_session_bound_and_survives_original_revocation() {
         .await,
         409
     );
-    second_client
-        .call("device_authorize", json!({"key":second.signing_key}))
-        .await
-        .unwrap();
+    let body = proven(
+        &service,
+        host,
+        &second.session,
+        &mut second.authenticator,
+        json!({"kind":"device_authorize","key":second.signing_key}),
+        json!({"key":second.signing_key}),
+    )
+    .await;
+    second_client.call("device_authorize", body).await.unwrap();
     assert_eq!(
         public_client.call("trust_feed", json!({})).await.unwrap(),
         initial_feed
     );
 
-    let (pending, options) = begin(&service, host, &first.session).await;
+    let (pending, options) = begin(&service, host, &first.session, &mut first.authenticator).await;
     let pending_response = register(&mut SoftToken::new(true).unwrap().0, host, options);
-    second_client
-        .call("passkey_revoke", json!({"credential":first.credential}))
-        .await
-        .unwrap();
+    let body = proven(
+        &service,
+        host,
+        &second.session,
+        &mut second.authenticator,
+        json!({"kind":"passkey_revoke","credential":first.credential}),
+        json!({"credential":first.credential}),
+    )
+    .await;
+    second_client.call("passkey_revoke", body).await.unwrap();
     let current: DeviceKeys =
         serde_json::from_value(second_client.call("device_keys", json!({})).await.unwrap())
             .unwrap();
@@ -248,10 +275,16 @@ async fn additional_device_is_session_bound_and_survives_original_revocation() {
             .credential
             .is_some()
     );
-    second_client
-        .call("passkey_revoke", json!({"credential":second.credential}))
-        .await
-        .unwrap();
+    let body = proven(
+        &service,
+        host,
+        &second.session,
+        &mut second.authenticator,
+        json!({"kind":"passkey_revoke","credential":second.credential}),
+        json!({"credential":second.credential}),
+    )
+    .await;
+    second_client.call("passkey_revoke", body).await.unwrap();
     assert_eq!(
         call_status(&service, host, Some(&second.session), "lobby", json!({})).await,
         401
@@ -277,7 +310,8 @@ async fn additional_registration_expires_and_logout_invalidates_pending_state() 
     let service = community("alpha", &public).await;
     let host = "api.alpha.example.test";
     let mut member = enrol_community(&service, host, &passport).await;
-    let (ceremony, options) = begin(&service, host, &member.session).await;
+    let (ceremony, options) =
+        begin(&service, host, &member.session, &mut member.authenticator).await;
     let response = register(&mut SoftToken::new(true).unwrap().0, host, options);
     service.clock.set(NOW + 301);
     assert_eq!(
@@ -291,7 +325,8 @@ async fn additional_registration_expires_and_logout_invalidates_pending_state() 
         .await,
         401
     );
-    let (ceremony, options) = begin(&service, host, &member.session).await;
+    let (ceremony, options) =
+        begin(&service, host, &member.session, &mut member.authenticator).await;
     let response = register(&mut SoftToken::new(true).unwrap().0, host, options);
     client(&service, host, Some(&member.session))
         .call("logout", json!({}))
@@ -316,7 +351,7 @@ async fn additional_registration_expires_and_logout_invalidates_pending_state() 
         .await,
         401
     );
-    let (ceremony, options) = begin(&service, host, &new_session).await;
+    let (ceremony, options) = begin(&service, host, &new_session, &mut member.authenticator).await;
     let response = register(&mut SoftToken::new(true).unwrap().0, host, options);
     service.clock.set(NOW + 902);
     assert_eq!(

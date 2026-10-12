@@ -96,3 +96,27 @@ pub fn strip_prf(response: &mut Value) -> Value {
         .remove("prf")
         .unwrap()
 }
+
+impl Resident {
+    /// A fresh assertion for exactly one action, as the `step_up` proof field.
+    pub async fn step_up(
+        &mut self,
+        service: &super::Running,
+        host: &str,
+        session: &str,
+        action: Value,
+    ) -> Value {
+        let begin: cvld::api::StepUpChallenge = serde_json::from_value(
+            super::client(service, host, Some(session))
+                .call("step_up_begin", json!({"action":action}))
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        let mut response = self
+            .ceremony(begin.options, false, &format!("https://{host}"))
+            .await;
+        strip_prf(&mut response);
+        json!({"ceremony":begin.ceremony,"credential":response})
+    }
+}

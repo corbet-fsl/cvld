@@ -30,6 +30,7 @@ pub(crate) mod root_issuance;
 mod self_ban;
 mod self_ban_status;
 mod session_authority;
+mod step_up;
 use legal::CommunityAuthority;
 use payments::PaymentClock;
 use root_board::root_descriptor;
@@ -62,6 +63,9 @@ mod negative;
 #[cfg(all(test, feature = "development-gate"))]
 #[path = "community/tests/publication.rs"]
 mod publication_tests;
+#[cfg(all(test, feature = "development-gate"))]
+#[path = "community/tests/step_up.rs"]
+mod step_up_tests;
 
 #[cfg(all(test, feature = "development-gate"))]
 #[path = "community/tests/garden.rs"]
@@ -116,6 +120,7 @@ pub struct CommunityService {
     logins: HashMap<String, PendingLogin>,
     additions: HashMap<String, devices::PendingAddition>,
     self_bans: HashMap<String, self_ban::PendingSelfBan>,
+    step_ups: crate::step_up::StepUps<cmbr::PendingLogin>,
     self_ban_statuses: HashMap<String, self_ban_status::PendingStatus>,
     authority: CommunityAuthority,
     clock: Arc<dyn Clock>,
@@ -581,6 +586,7 @@ impl CommunityService {
                 logins: HashMap::new(),
                 additions: HashMap::new(),
                 self_bans: HashMap::new(),
+                step_ups: Default::default(),
                 self_ban_statuses: HashMap::new(),
                 authority,
                 clock,

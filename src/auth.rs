@@ -11,6 +11,7 @@ pub(crate) mod creation;
 mod enrollment;
 pub(crate) mod global_self_ban;
 mod passkeys;
+mod step_up;
 pub(crate) mod wallet;
 
 pub struct Auth {
@@ -25,6 +26,7 @@ pub struct Auth {
     sessions: HashMap<String, SessionState>,
     additions: HashMap<String, passkeys::PendingAddition>,
     self_bans: HashMap<String, global_self_ban::PendingSelfBan>,
+    step_ups: crate::step_up::StepUps<PendingAuthentication>,
     capacity: usize,
     lifetime: u64,
 }
@@ -93,6 +95,7 @@ impl Auth {
             sessions: HashMap::new(),
             additions: HashMap::new(),
             self_bans: HashMap::new(),
+            step_ups: Default::default(),
             capacity,
             lifetime,
         })
@@ -104,6 +107,7 @@ impl Auth {
         self.sessions.retain(|_, p| p.grant.expires > now);
         self.additions.retain(|_, p| p.until > now);
         self.self_bans.retain(|_, p| p.until > now);
+        self.step_ups.prune(now);
     }
     pub async fn register_begin(&mut self, request: RegisterStart, now: u64) -> Result<Ceremony> {
         let deadline = std::time::Instant::now()
@@ -410,6 +414,8 @@ impl Auth {
             .retain(|_, pending| live.contains(&pending.session_id));
         self.self_bans
             .retain(|_, pending| live.contains(&pending.session_id));
+        self.step_ups
+            .retain_sessions(&self.sessions.values().map(|s| s.grant.session_id).collect());
     }
 }
 

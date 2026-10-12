@@ -76,16 +76,21 @@ async fn running() -> Running {
 #[tokio::test(flavor = "multi_thread")]
 async fn actual_wallet_http_certificate_and_feed_keep_passport_issuer_and_private_uuid_separate() {
     let f = running().await;
-    let member = support::enrol(&f, WALLET, None).await;
+    let mut member = support::enrol(&f, WALLET, None).await;
     let client = support::client(&f, WALLET, Some(&member.session));
     let device = [49; 32];
-    let observed: DeviceKeys = serde_json::from_value(
-        client
-            .call("wallet_device_authorize", json!({"key":device}))
-            .await
-            .unwrap(),
+    let body = support::proven(
+        &f,
+        WALLET,
+        &member.session,
+        &mut member.authenticator,
+        json!({"kind":"device_authorize","key":device}),
+        json!({"key":device}),
     )
-    .unwrap();
+    .await;
+    let observed: DeviceKeys =
+        serde_json::from_value(client.call("wallet_device_authorize", body).await.unwrap())
+            .unwrap();
     assert_eq!(observed.keys, vec![device]);
     let feed: TrustFeed =
         serde_json::from_value(client.call("wallet_trust_feed", json!({})).await.unwrap()).unwrap();
@@ -139,10 +144,16 @@ async fn original_uv_self_ban_publishes_wallet_key_and_device_revocations_withou
     let f = running().await;
     let mut member = support::enrol(&f, WALLET, None).await;
     let client = support::client(&f, WALLET, Some(&member.session));
-    client
-        .call("wallet_device_authorize", json!({"key":vec![49;32]}))
-        .await
-        .unwrap();
+    let body = support::proven(
+        &f,
+        WALLET,
+        &member.session,
+        &mut member.authenticator,
+        json!({"kind":"device_authorize","key":vec![49;32]}),
+        json!({"key":vec![49;32]}),
+    )
+    .await;
+    client.call("wallet_device_authorize", body).await.unwrap();
     let begin: SelfBanChallenge = serde_json::from_value(
         client
             .call("global_self_ban_begin", json!({}))
@@ -200,7 +211,15 @@ impl Drop for Release {
 async fn cancelled_real_http_sdk_worker_blocks_publication_and_original_total_shutdown_join() {
     for after in [false, true] {
         let f = running().await;
-        let member = support::enrol(&f, WALLET, None).await;
+        let mut member = support::enrol(&f, WALLET, None).await;
+        let proof = support::step_up(
+            &f,
+            WALLET,
+            &member.session,
+            &mut member.authenticator,
+            json!({"kind":"passkey_revoke","credential":member.credential}),
+        )
+        .await;
         let gate = crate::auth::wallet::WorkerGate::new(after);
         let _release_on_failure = Release(gate.clone());
         f.door.auth(WALLET).unwrap().lock().await.wallet_worker_gate = Some(gate.clone());
@@ -211,7 +230,8 @@ async fn cancelled_real_http_sdk_worker_blocks_publication_and_original_total_sh
             .header("authorization", format!("Bearer {}", member.session))
             .header("content-type", "application/json")
             .body(axum::body::Body::from(
-                serde_json::to_vec(&json!({"credential":member.credential})).unwrap(),
+                serde_json::to_vec(&json!({"credential":member.credential,"step_up":proof}))
+                    .unwrap(),
             ))
             .unwrap();
         let mut pending = Box::pin(crate::api::router(f.door.clone()).oneshot(request));

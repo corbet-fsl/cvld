@@ -26,10 +26,18 @@ const OTHER_PUBLICATION: [u8; 32] = [30; 32];
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn another_current_key_cannot_substitute_for_the_original_creation_key() {
-    let f = routes::fixture().await;
+    let mut f = routes::fixture().await;
     let api = client(&f.service, HOST, Some(&f.member.session));
+    let proof = step_up(
+        &f.service,
+        HOST,
+        &f.member.session,
+        &mut f.member.authenticator,
+        json!({"kind":"passkey_add"}),
+    )
+    .await;
     let begin: AddedPasskey = serde_json::from_value(
-        api.call("passkey_add", json!({"step":"begin"}))
+        api.call("passkey_add", json!({"step":"begin","step_up":proof}))
             .await
             .unwrap(),
     )
@@ -181,7 +189,7 @@ async fn original_creation_is_bound_once_and_receipt_retry_does_not_create_autho
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn initial_receipts_refuse_foreign_hosts_sessions_and_revoked_keys() {
-    let f = routes::fixture().await;
+    let mut f = routes::fixture().await;
     for action in ["initial_creation", "initial_publication_bind"] {
         let body = if action == "initial_creation" {
             json!({})
@@ -223,9 +231,16 @@ async fn initial_receipts_refuse_foreign_hosts_sessions_and_revoked_keys() {
         .await,
         400
     );
-    api.call("passkey_revoke", json!({"credential":f.member.credential}))
-        .await
-        .unwrap();
+    let body = proven(
+        &f.service,
+        HOST,
+        &f.member.session,
+        &mut f.member.authenticator,
+        json!({"kind":"passkey_revoke","credential":f.member.credential}),
+        json!({"credential":f.member.credential}),
+    )
+    .await;
+    api.call("passkey_revoke", body).await.unwrap();
     assert_eq!(
         call_status(
             &f.service,

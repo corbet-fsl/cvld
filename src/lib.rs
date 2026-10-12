@@ -34,6 +34,8 @@ pub mod mcp;
 pub mod payments;
 #[cfg(feature = "server")]
 pub mod service;
+#[cfg(feature = "server")]
+mod step_up;
 
 #[cfg(test)]
 extern crate self as cvld;

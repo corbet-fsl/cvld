@@ -126,7 +126,7 @@ fn revocations(feed: &TrustFeed) -> cplc::Revocations {
 
 async fn admitted_bundle(
     service: &Running,
-    owner: &Member,
+    owner: &mut Member,
     passport: &cpsd::Passport,
 ) -> cgrd::Bundle {
     let api = client(service, HOST, Some(&owner.session.token));
@@ -141,12 +141,19 @@ async fn admitted_bundle(
     .await
     .unwrap();
     let device_key = SigningKey::from_bytes(&[37; 32]);
-    api.call(
-        "device_authorize",
-        json!({"key":device_key.verifying_key().to_bytes()}),
-    )
-    .await
-    .unwrap();
+    let key = device_key.verifying_key().to_bytes();
+    let proof = owner
+        .device
+        .step_up(
+            service,
+            HOST,
+            &owner.session.token,
+            json!({"kind":"device_authorize","key":key}),
+        )
+        .await;
+    api.call("device_authorize", json!({"key":key,"step_up":proof}))
+        .await
+        .unwrap();
     let proof = presentation(service, HOST, Some(&owner.session.token), passport).await;
     let issued: CredentialResponse = serde_json::from_value(
         api.call(
@@ -224,8 +231,8 @@ async fn the_real_issuer_and_guard_share_an_action_verdict_without_exporting_glo
     let global = global(200).await;
     let (_, passport, public) = wallet_passport(&global).await;
     let service = community("alpha", &public).await;
-    let owner = member(&service, HOST, &passport).await;
-    let bundle = admitted_bundle(&service, &owner, &passport).await;
+    let mut owner = member(&service, HOST, &passport).await;
+    let bundle = admitted_bundle(&service, &mut owner, &passport).await;
     let feed = feed(&service).await;
     let ring = csgn::KeyRing::from_cbor(&feed.key_ring).unwrap();
     let body: cgrd::BundleContent = serde_json::from_slice(&bundle.payload).unwrap();
