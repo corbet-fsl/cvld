@@ -34,7 +34,7 @@ pub struct Config {
     #[serde(default)]
     pub trusted_proxies: Vec<String>,
     /// Oblivious HTTP gateway; absent means the door is reachable directly only.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ohttp: Option<OhttpConfig>,
     pub publication_seconds: u64,
     pub signer_max_seconds: u64,
@@ -135,7 +135,7 @@ pub struct CommunityConfig {
     #[serde(default)]
     pub trusted_proxies: Vec<String>,
     /// Oblivious HTTP gateway; absent means the door is reachable directly only.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ohttp: Option<OhttpConfig>,
     pub publication_seconds: u64,
     pub signer_max_seconds: u64,
