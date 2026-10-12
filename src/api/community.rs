@@ -37,11 +37,20 @@ pub struct Lobby {
     pub handle: Option<String>,
     /// Unsatisfied admission conditions, strongest requirement first.
     pub missing: Vec<LobbyMissing>,
-    /// Inputs the member can supply now; each names the route that takes it.
-    pub steps: Vec<LobbyStep>,
+    /// Enabled community gates the member can pass now, each with its ordered inputs.
+    pub steps: Vec<LobbyDescriptor>,
     pub warnings: Vec<LobbyWarning>,
     /// Passport proof is always fresh when requesting a community credential.
     pub passport_required: bool,
+}
+/// An enabled gate and provider with the ordered inputs the member can supply.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LobbyDescriptor {
+    pub gate: String,
+    pub provider: String,
+    pub level: LobbyLevel,
+    pub steps: Vec<LobbyStep>,
 }
 /// Headless description of one input the member can supply.
 #[derive(Serialize, Deserialize, ToSchema)]
