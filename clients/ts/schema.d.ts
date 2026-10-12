@@ -1828,6 +1828,68 @@ export interface components {
                         validUntil: number;
                     };
                 } | null;
+                /**
+                 * @description Issuer evidence of the same accepted extended request, so a returning holder
+                 *     can rebuild the full response. Not covered by `signature`: both parts carry
+                 *     their own issuer signature that the holder verifies against the acceptance.
+                 */
+                extended?: {
+                    /** @description Original ancestry, present only when issued in that acceptance's CAS. */
+                    ancestry?: {
+                        /** @description Hash of the issuer's community identifier. */
+                        community: number[];
+                        /**
+                         * Format: uint64
+                         * @description Published epoch number.
+                         */
+                        epoch: number;
+                        /** @description Commitment to the original blinded owner frontier leaf. */
+                        frozenLeaf: number[];
+                        /**
+                         * Format: uint64
+                         * @description Original acceptance time, unchanged by an exact retry.
+                         */
+                        issuedAt: number;
+                        /** @description Private community-scoped account owner. */
+                        owner: number[];
+                        /** @description Original circuit and verification-key digests. */
+                        proofScope: {
+                            circuitDigest: number[];
+                            verifyingKeyDigest: number[];
+                        };
+                        /** @description Same private signed-leaf packet used by frozen and descendant records. */
+                        record: {
+                            /** @description Private opening of the public blinded leaf. */
+                            leaf: {
+                                blinding: number[];
+                                owner: number[];
+                                requiredInbox: number[];
+                                state: number[];
+                                /** Format: uint64 */
+                                version: number;
+                            };
+                            /** @description Standard Ed25519 signature on community, epoch and the blinded leaf. */
+                            signature: number[];
+                        };
+                        /** @description Original published epoch root. */
+                        root: number[];
+                        /** @description Canonical low-S P-256 signature, exactly 64 bytes. */
+                        signature: number[];
+                        /** @description Newly accepted private state commitment. */
+                        state: number[];
+                        /**
+                         * Format: uint64
+                         * @description Newly accepted private version.
+                         */
+                        version: number;
+                    } | null;
+                    /** @description Accepted-state certificate of the exact acceptance in the same response. */
+                    certificate: {
+                        /** Format: uint64 */
+                        acceptedAt: number;
+                        signature: number[];
+                    };
+                } | null;
                 /** Format: uint64 */
                 observedAt: number;
                 signature: string;

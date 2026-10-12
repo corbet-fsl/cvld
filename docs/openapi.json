@@ -2302,6 +2302,272 @@
                       "null"
                     ]
                   },
+                  "extended": {
+                    "additionalProperties": false,
+                    "description": "Issuer evidence of the same accepted extended request, so a returning holder\ncan rebuild the full response. Not covered by `signature`: both parts carry\ntheir own issuer signature that the holder verifies against the acceptance.",
+                    "properties": {
+                      "ancestry": {
+                        "additionalProperties": false,
+                        "description": "Original ancestry, present only when issued in that acceptance's CAS.",
+                        "properties": {
+                          "community": {
+                            "description": "Hash of the issuer's community identifier.",
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          },
+                          "epoch": {
+                            "description": "Published epoch number.",
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "frozenLeaf": {
+                            "description": "Commitment to the original blinded owner frontier leaf.",
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          },
+                          "issuedAt": {
+                            "description": "Original acceptance time, unchanged by an exact retry.",
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "owner": {
+                            "description": "Private community-scoped account owner.",
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          },
+                          "proofScope": {
+                            "additionalProperties": false,
+                            "description": "Original circuit and verification-key digests.",
+                            "properties": {
+                              "circuitDigest": {
+                                "items": {
+                                  "format": "uint8",
+                                  "maximum": 255,
+                                  "minimum": 0,
+                                  "type": "integer"
+                                },
+                                "maxItems": 32,
+                                "minItems": 32,
+                                "type": "array"
+                              },
+                              "verifyingKeyDigest": {
+                                "items": {
+                                  "format": "uint8",
+                                  "maximum": 255,
+                                  "minimum": 0,
+                                  "type": "integer"
+                                },
+                                "maxItems": 32,
+                                "minItems": 32,
+                                "type": "array"
+                              }
+                            },
+                            "required": [
+                              "circuitDigest",
+                              "verifyingKeyDigest"
+                            ],
+                            "type": "object"
+                          },
+                          "record": {
+                            "additionalProperties": false,
+                            "description": "Same private signed-leaf packet used by frozen and descendant records.",
+                            "properties": {
+                              "leaf": {
+                                "additionalProperties": false,
+                                "description": "Private opening of the public blinded leaf.",
+                                "properties": {
+                                  "blinding": {
+                                    "items": {
+                                      "format": "uint8",
+                                      "maximum": 255,
+                                      "minimum": 0,
+                                      "type": "integer"
+                                    },
+                                    "maxItems": 32,
+                                    "minItems": 32,
+                                    "type": "array"
+                                  },
+                                  "owner": {
+                                    "items": {
+                                      "format": "uint8",
+                                      "maximum": 255,
+                                      "minimum": 0,
+                                      "type": "integer"
+                                    },
+                                    "maxItems": 32,
+                                    "minItems": 32,
+                                    "type": "array"
+                                  },
+                                  "requiredInbox": {
+                                    "items": {
+                                      "format": "uint8",
+                                      "maximum": 255,
+                                      "minimum": 0,
+                                      "type": "integer"
+                                    },
+                                    "maxItems": 32,
+                                    "minItems": 32,
+                                    "type": "array"
+                                  },
+                                  "state": {
+                                    "items": {
+                                      "format": "uint8",
+                                      "maximum": 255,
+                                      "minimum": 0,
+                                      "type": "integer"
+                                    },
+                                    "maxItems": 32,
+                                    "minItems": 32,
+                                    "type": "array"
+                                  },
+                                  "version": {
+                                    "format": "uint64",
+                                    "minimum": 0,
+                                    "type": "integer"
+                                  }
+                                },
+                                "required": [
+                                  "owner",
+                                  "version",
+                                  "state",
+                                  "requiredInbox",
+                                  "blinding"
+                                ],
+                                "type": "object"
+                              },
+                              "signature": {
+                                "description": "Standard Ed25519 signature on community, epoch and the blinded leaf.",
+                                "items": {
+                                  "format": "uint8",
+                                  "maximum": 255,
+                                  "minimum": 0,
+                                  "type": "integer"
+                                },
+                                "type": "array"
+                              }
+                            },
+                            "required": [
+                              "leaf",
+                              "signature"
+                            ],
+                            "type": "object"
+                          },
+                          "root": {
+                            "description": "Original published epoch root.",
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          },
+                          "signature": {
+                            "description": "Canonical low-S P-256 signature, exactly 64 bytes.",
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "type": "array"
+                          },
+                          "state": {
+                            "description": "Newly accepted private state commitment.",
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          },
+                          "version": {
+                            "description": "Newly accepted private version.",
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "community",
+                          "owner",
+                          "epoch",
+                          "root",
+                          "frozenLeaf",
+                          "state",
+                          "version",
+                          "proofScope",
+                          "issuedAt",
+                          "signature",
+                          "record"
+                        ],
+                        "type": [
+                          "object",
+                          "null"
+                        ]
+                      },
+                      "certificate": {
+                        "additionalProperties": false,
+                        "description": "Accepted-state certificate of the exact acceptance in the same response.",
+                        "properties": {
+                          "acceptedAt": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "signature": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "type": "array"
+                          }
+                        },
+                        "required": [
+                          "acceptedAt",
+                          "signature"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "certificate"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
                   "observedAt": {
                     "format": "uint64",
                     "minimum": 0,
