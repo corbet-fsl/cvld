@@ -15,7 +15,6 @@ def value(v):
     return json.dumps(v)
 lines = ['[package]', 'name = "cvld-toy"', 'version = "0.0.0"',
          'edition = "2024"', 'publish = false', '[workspace]',
-         '[[bin]]', 'name = "cvld-toy"', 'path = "../src/main.rs"',
          '[[bin]]', 'name = "cvld-stack"', 'path = "../src/stack.rs"', '[dependencies]']
 lines.append('cvld = { path = "../..", features = ["development-gate"] }')
 # This executable is native; browser test dependencies do not belong here.

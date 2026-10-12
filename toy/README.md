@@ -1,5 +1,8 @@
 # cvld toy model
 
+> The scenario client (cvld-toy) was retired. The remaining binary is cvld-stack, a real global service behind TLS for external end-to-end clients. Sections below describing scenarios are historical.
+
+
 A black-box client harness for the public `cvld` CLI. It starts `cvld serve
 global` and one `cvld serve community` process per community, with separate
 libSQL files, keys and configuration. Every domain operation invokes the public

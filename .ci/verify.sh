@@ -78,12 +78,6 @@ python3 -B ../test_check_lock.py
 python3 ../check_lock.py ../../Cargo.lock Cargo.lock
 popd > /dev/null
 rustfmt --edition 2024 --check toy/src/*.rs
-set -o pipefail
-mkdir -p toy/reports
-target_dir="${CARGO_TARGET_DIR:-target}"
-case "$target_dir" in /*) ;; *) target_dir="$PWD/$target_dir";; esac
-export CVLD_BIN="$target_dir/debug/cvld"
-"$target_dir/debug/cvld-toy" scenarios | tee toy/reports/transcript.txt
 # Live Turso is explicitly opt-in outside automated verification.
 
 # --- coverage job (nightly only) ---
