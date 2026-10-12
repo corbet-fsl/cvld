@@ -186,8 +186,8 @@ async fn run() -> Result<()> {
             "host": "127.0.0.1",
         }],
         "login": {
-            "page": format!("{origin}/login"),
-            "origin": origin,
+            "page": format!("https://vault.{}/login", fixtures::WALLET),
+            "origin": format!("https://vault.{}", fixtures::WALLET),
             "relying_party": fixtures::WALLET,
         },
     });
