@@ -3737,9 +3737,9 @@
             "type": "string"
           },
           "steps": {
-            "description": "Inputs the member can supply now; each names the route that takes it.",
+            "description": "Enabled community gates the member can pass now, each with its ordered inputs.",
             "items": {
-              "$ref": "#/components/schemas/LobbyStep"
+              "$ref": "#/components/schemas/LobbyDescriptor"
             },
             "type": "array"
           },
@@ -3757,6 +3757,34 @@
           "steps",
           "warnings",
           "passport_required"
+        ],
+        "type": "object"
+      },
+      "LobbyDescriptor": {
+        "additionalProperties": false,
+        "description": "An enabled gate and provider with the ordered inputs the member can supply.",
+        "properties": {
+          "gate": {
+            "type": "string"
+          },
+          "level": {
+            "$ref": "#/components/schemas/LobbyLevel"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/LobbyStep"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "gate",
+          "provider",
+          "level",
+          "steps"
         ],
         "type": "object"
       },
@@ -6333,9 +6361,9 @@
                       "type": "string"
                     },
                     "steps": {
-                      "description": "Inputs the member can supply now; each names the route that takes it.",
+                      "description": "Enabled community gates the member can pass now, each with its ordered inputs.",
                       "items": {
-                        "$ref": "#/components/schemas/LobbyStep"
+                        "$ref": "#/components/schemas/LobbyDescriptor"
                       },
                       "type": "array"
                     },
@@ -7017,9 +7045,9 @@
                       "type": "string"
                     },
                     "steps": {
-                      "description": "Inputs the member can supply now; each names the route that takes it.",
+                      "description": "Enabled community gates the member can pass now, each with its ordered inputs.",
                       "items": {
-                        "$ref": "#/components/schemas/LobbyStep"
+                        "$ref": "#/components/schemas/LobbyDescriptor"
                       },
                       "type": "array"
                     },
@@ -7424,9 +7452,9 @@
                       "type": "string"
                     },
                     "steps": {
-                      "description": "Inputs the member can supply now; each names the route that takes it.",
+                      "description": "Enabled community gates the member can pass now, each with its ordered inputs.",
                       "items": {
-                        "$ref": "#/components/schemas/LobbyStep"
+                        "$ref": "#/components/schemas/LobbyDescriptor"
                       },
                       "type": "array"
                     },

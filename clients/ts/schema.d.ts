@@ -2196,9 +2196,16 @@ export interface components {
             /** @description Passport proof is always fresh when requesting a community credential. */
             passport_required: boolean;
             state: string;
-            /** @description Inputs the member can supply now; each names the route that takes it. */
-            steps: components["schemas"]["LobbyStep"][];
+            /** @description Enabled community gates the member can pass now, each with its ordered inputs. */
+            steps: components["schemas"]["LobbyDescriptor"][];
             warnings: components["schemas"]["LobbyWarning"][];
+        };
+        /** @description An enabled gate and provider with the ordered inputs the member can supply. */
+        LobbyDescriptor: {
+            gate: string;
+            level: components["schemas"]["LobbyLevel"];
+            provider: string;
+            steps: components["schemas"]["LobbyStep"][];
         };
         LobbyGate: {
             reason: components["schemas"]["LobbyReason"];
@@ -3325,8 +3332,8 @@ export interface operations {
                         /** @description Passport proof is always fresh when requesting a community credential. */
                         passport_required: boolean;
                         state: string;
-                        /** @description Inputs the member can supply now; each names the route that takes it. */
-                        steps: components["schemas"]["LobbyStep"][];
+                        /** @description Enabled community gates the member can pass now, each with its ordered inputs. */
+                        steps: components["schemas"]["LobbyDescriptor"][];
                         warnings: components["schemas"]["LobbyWarning"][];
                     };
                 };
@@ -3664,8 +3671,8 @@ export interface operations {
                         /** @description Passport proof is always fresh when requesting a community credential. */
                         passport_required: boolean;
                         state: string;
-                        /** @description Inputs the member can supply now; each names the route that takes it. */
-                        steps: components["schemas"]["LobbyStep"][];
+                        /** @description Enabled community gates the member can pass now, each with its ordered inputs. */
+                        steps: components["schemas"]["LobbyDescriptor"][];
                         warnings: components["schemas"]["LobbyWarning"][];
                     };
                 };
@@ -3841,8 +3848,8 @@ export interface operations {
                         /** @description Passport proof is always fresh when requesting a community credential. */
                         passport_required: boolean;
                         state: string;
-                        /** @description Inputs the member can supply now; each names the route that takes it. */
-                        steps: components["schemas"]["LobbyStep"][];
+                        /** @description Enabled community gates the member can pass now, each with its ordered inputs. */
+                        steps: components["schemas"]["LobbyDescriptor"][];
                         warnings: components["schemas"]["LobbyWarning"][];
                     };
                 };
