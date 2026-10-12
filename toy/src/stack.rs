@@ -172,11 +172,13 @@ async fn run() -> Result<()> {
         .await
         .map_err(|_| "tls listener")?;
     let port = listener.local_addr().map_err(|_| "tls address")?.port();
+    eprintln!("stack listening on {port}");
     let proxy = tokio::spawn(async move {
         loop {
             let Ok((tcp, _)) = listener.accept().await else {
                 continue;
             };
+            eprintln!("stack tcp connection");
             let acceptor = acceptor.clone();
             let upstream = upstream.clone();
             tokio::spawn(async move {
