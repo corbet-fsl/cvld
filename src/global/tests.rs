@@ -1,5 +1,6 @@
 //! Trusted configuration, publication rollback and physical database boundaries.
 use super::*;
+use crlt::Migration;
 #[cfg(feature = "development-gate")]
 use crate::global_trust;
 use crate::test_support as support;

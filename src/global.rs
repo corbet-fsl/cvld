@@ -5,7 +5,7 @@ use crate::{
 };
 use cgbl::Global;
 mod wallet;
-use crlt::{Db, Migration};
+use crlt::Db;
 #[cfg(test)]
 mod tests;
 pub type Facade =
