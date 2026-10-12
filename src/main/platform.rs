@@ -105,8 +105,8 @@ async fn open_components(
         let purpose = services[communities].door.root_board_purpose(key).await?;
         // Every hosted community accepts the root board's purpose, as when the
         // root board runs as its own process.
-        for index in 1..communities {
-            services[index]
+        for service in services.iter().take(communities).skip(1) {
+            service
                 .door
                 .attach_root_board_purpose(purpose.clone())
                 .await?;
