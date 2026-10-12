@@ -8,7 +8,11 @@ use std::{collections::BTreeMap, future::Future, sync::LazyLock};
 #[path = "client_record.rs"]
 pub(crate) mod record;
 
-#[cfg(any(feature = "client-http", feature = "client-browser", feature = "client-ohttp"))]
+#[cfg(any(
+    feature = "client-http",
+    feature = "client-browser",
+    feature = "client-ohttp"
+))]
 #[path = "client_json.rs"]
 mod json;
 
@@ -30,7 +34,11 @@ mod browser;
 #[cfg(all(feature = "client-browser", target_arch = "wasm32"))]
 pub use browser::BrowserClient;
 
-#[cfg(any(feature = "client-http", feature = "client-browser", feature = "client-ohttp"))]
+#[cfg(any(
+    feature = "client-http",
+    feature = "client-browser",
+    feature = "client-ohttp"
+))]
 fn origin(base: &str, host: &str) -> Result<url::Url> {
     let url = url::Url::parse(base).map_err(Error::Invalid.redact())?;
     if !url.username().is_empty()
@@ -51,7 +59,11 @@ fn origin(base: &str, host: &str) -> Result<url::Url> {
     Ok(url)
 }
 
-#[cfg(any(feature = "client-http", feature = "client-browser", feature = "client-ohttp"))]
+#[cfg(any(
+    feature = "client-http",
+    feature = "client-browser",
+    feature = "client-ohttp"
+))]
 fn decode_response(name: &str, status: u16, body: &[u8]) -> Result<Value> {
     if status != 200 {
         let error: crate::error::ErrorBody = json::decode(body)?;
