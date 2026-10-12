@@ -1,0 +1,289 @@
+#!/usr/bin/env python3
+"""Assemble one G5 native accounting configuration from retained cblc artifacts.
+
+Nothing here is hand-made: every artifact is read from the write-once retained
+areas of the cblc job state, authenticated against a pin that is committed in
+this file (never taken from the downloaded manifest), and referenced by its
+retained path. Only per-run material is written to --out: ledger and extension
+policy, activation statement and proof (cut from the retained activation probe),
+fixture seeds (test mode only) and a fresh settlement epoch with its RSA key.
+
+Output: <out>/account-config.json (cvld `AccountConfig`) and
+<out>/activation-probe.json (the retained probe, byte-identical) plus its digest,
+printed as shell exports with --exports. Production deployments pass real seed
+files (--operator-seed-file/--certificate-seed-file, from sops) and a production
+settlement key; test mode derives the fixture seeds named in the cblc request.
+"""
+import argparse
+import base64
+import hashlib
+import json
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+CBLC_NAMESPACE = "08a9478e457e604aa31f9a54"  # sha256("https://git.corbet.ch/corbet-libs/cblc")[:24]
+
+# Reviewed pins. Adding an artifact generation means adding its pins here in a
+# reviewed commit; a different byte anywhere refuses.
+EXTENSION_GROUPS = {
+    # artifact-conformance group of cblc 4a933fc (bb 5.2.1): extension circuits,
+    # keys, setup and the alpha/omega activation probes.
+    "4a933fc30a8f8d9e1a5801ed2f826a82efd9b861": {
+        "manifestSha256": "81aec00155f28e7b1d064adeb893593e4bedae01bd8334f80bf0c65ce91c8efc",
+    },
+}
+ACCOUNT_CAPTURES = {
+    # native-startup-fixture-retained capture of cblc 6232481 (account circuit).
+    "f0731b7c62ff034c79965fa0c9016bf16b3fd5c2e38f32409cfa00682acb1407": {
+        "accountManifestSha256": "12b0248737cf6cc44892cd34a839878ef05689290fc0bd9d76a0bd785833df06",
+    },
+}
+WORKER_CAPTURES = {
+    # gather-record-fixture-retained capture of cblc 6232481 (czkp_bb_worker).
+    "23cf333ef4c1bb9acc401e3cf448528978d960fe793dbcc50da7a1ef54f6b212": {
+        "workerSha256": "5c5c69cca3ccc1d00e12d7d75bd431b79d68864b88e3c5ba18284c77f2ac46f9",
+        "workerBytes": 68078712,
+    },
+}
+DEFAULT_GROUP = "4a933fc30a8f8d9e1a5801ed2f826a82efd9b861"
+DEFAULT_ACCOUNT = "f0731b7c62ff034c79965fa0c9016bf16b3fd5c2e38f32409cfa00682acb1407"
+DEFAULT_WORKER = "23cf333ef4c1bb9acc401e3cf448528978d960fe793dbcc50da7a1ef54f6b212"
+
+
+def fail(message):
+    raise SystemExit("g5-account-config: " + message)
+
+
+def digest(path, maximum):
+    value = hashlib.sha256()
+    count = 0
+    with open(path, "rb") as stream:
+        while chunk := stream.read(1024 * 1024):
+            count += len(chunk)
+            if count > maximum:
+                fail(f"file bound exceeded: {path}")
+            value.update(chunk)
+    return value.hexdigest()
+
+
+def read_bounded(path, maximum):
+    with open(path, "rb") as stream:
+        data = stream.read(maximum + 1)
+    if len(data) > maximum:
+        fail(f"file bound exceeded: {path}")
+    return data
+
+
+def retained_root(argument):
+    if argument:
+        return Path(argument)
+    # A cached CI job's own ARTIFACT_ROOT is <cache>/ccid-cached/<namespace>/release-artifacts;
+    # cblc's retained area is its sibling namespace.
+    own = os.environ.get("ARTIFACT_ROOT")
+    if own and own.startswith("/"):
+        return Path(own).parent.parent / CBLC_NAMESPACE / "release-artifacts"
+    cache = os.environ.get("CI_CACHE_ROOT") or os.environ.get("CARGO_HOME")
+    if not cache or not cache.startswith("/"):
+        fail("pass --retained or set ARTIFACT_ROOT or an absolute CI_CACHE_ROOT/CARGO_HOME")
+    return Path(cache) / "ccid-cached" / CBLC_NAMESPACE / "release-artifacts"
+
+
+def artifact_files(directory, pin, circuit, keys, label):
+    """Return the ArtifactFiles object after checking the independent pin."""
+    manifest = directory / "manifest.json"
+    if digest(manifest, 65536) != pin:
+        fail(f"{label} manifest differs from its reviewed pin")
+    return {
+        "manifest_file": str(manifest),
+        "manifest_sha256": list(bytes.fromhex(pin)),
+        "circuit_file": str(directory / circuit),
+        "keys_file": str(directory / keys),
+        "srs_g1_file": str(directory / "setup" / "g1.dat"),
+        "srs_g2_file": str(directory / "setup" / "g2.dat"),
+    }
+
+
+def write_private(path, data):
+    path.write_bytes(data)
+    path.chmod(0o600)
+
+
+def settlement_files(out, community, day, key_file):
+    """A fresh outcome-deposit epoch for UTC day `day` and its RSA-3072 key."""
+    der = out / "outcome-key.der"
+    if key_file:
+        der_bytes = read_bounded(key_file, 16384)
+    else:
+        pem = subprocess.check_output(["openssl", "genrsa", "-traditional", "3072"], stderr=subprocess.DEVNULL)
+        der_bytes = subprocess.run(
+            ["openssl", "rsa", "-traditional", "-inform", "PEM", "-outform", "DER"],
+            input=pem, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=True,
+        ).stdout
+    write_private(der, der_bytes)
+    public = subprocess.run(
+        ["openssl", "rsa", "-inform", "DER", "-pubout", "-outform", "DER"],
+        input=der_bytes, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=True,
+    ).stdout
+    epoch = {
+        "purpose": "outcome-deposit-v1", "community": community, "epoch": day,
+        "valid_from": day * 86_400_000, "valid_until": (day + 1) * 86_400_000,
+        "public_key_der": list(public),
+    }
+    epoch_file = out / "epoch.json"
+    epoch_file.write_text(json.dumps(epoch))
+    rooms = out / "rooms.json"
+    rooms.write_text("[]")
+    return epoch_file, der, rooms
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--community", required=True, choices=["alpha", "omega"])
+    parser.add_argument("--out", required=True)
+    parser.add_argument("--retained")
+    parser.add_argument("--group", default=DEFAULT_GROUP)
+    parser.add_argument("--account-capture", default=DEFAULT_ACCOUNT)
+    parser.add_argument("--worker-capture", default=DEFAULT_WORKER)
+    parser.add_argument("--now", type=int, help="UTC seconds that pick the settlement day (default: wall clock)")
+    parser.add_argument("--operator-seed-file", help="production: 32-byte seed file (default: test seed [9;32])")
+    parser.add_argument("--certificate-seed-file", help="production: 32-byte seed file (default: test seed [3;32])")
+    parser.add_argument("--settlement-key-file", help="production: PKCS#1 DER RSA-3072 key")
+    parser.add_argument("--exports", action="store_true", help="print shell exports for the CVLD_* variables")
+    args = parser.parse_args()
+
+    root = retained_root(args.retained)
+    if args.group not in EXTENSION_GROUPS or args.account_capture not in ACCOUNT_CAPTURES \
+            or args.worker_capture not in WORKER_CAPTURES:
+        fail("artifact generation is not a reviewed pin")
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    out.chmod(0o700)
+
+    # Extension group (circuits, keys, setup) and its activation probe.
+    group = root / args.group / "artifact-conformance"
+    index = json.loads(read_bounded(group / "index.json", 65536))
+    group_pin = EXTENSION_GROUPS[args.group]["manifestSha256"]
+    if index.get("manifestSha256") != group_pin:
+        fail("retained index disagrees with the reviewed group pin")
+    extension = artifact_files(group, group_pin, "circuits.json", "keys.json", "extension")
+    entry = index["activations"].get(args.community)
+    if entry is None:
+        fail(f"no retained activation probe for {args.community}")
+    probe_path = group / entry["file"]
+    probe_bytes = read_bounded(probe_path, 4 * 1024 * 1024)
+    probe_sha = hashlib.sha256(probe_bytes).hexdigest()
+    if probe_sha != entry["sha256"]:
+        fail("retained activation probe differs from its index entry")
+    probe = json.loads(probe_bytes)
+    if probe["use"] != f"{args.community}-startup-activation-probe" or probe["authority"] != "none" \
+            or probe["communityId"] != args.community or probe["manifestSha256"] != group_pin:
+        fail("activation probe association differs")
+    request = probe["configuration"]
+    policy = probe["policy"]
+    if policy != request["accountPolicy"] or probe["extension"] != request["extensionPolicy"]:
+        fail("activation probe policy differs from its request")
+    now = args.now if args.now is not None else int(time.time())
+    if args.community == "omega" and not policy["policyValidFrom"] <= now < policy["policyValidUntil"]:
+        fail("the retained probe policy window does not cover the current time; regenerate the probe")
+
+    # Account (base) artifacts from the write-once startup capture.
+    capture = root / "native-startup-fixture-retained" / args.account_capture
+    account_pin = ACCOUNT_CAPTURES[args.account_capture]["accountManifestSha256"]
+    startup = json.loads(read_bounded(capture / "startup-artifacts.json", 65536))
+    if startup["accountManifestSha256"] != account_pin:
+        fail("startup capture disagrees with the reviewed account pin")
+    account = artifact_files(capture / "account", account_pin, "circuit.json", "vk.bin", "account")
+
+    # Native verifier worker from its immutable retained capture, never the live gather directory.
+    workers = root / "gather-record-fixture-retained" / args.worker_capture
+    expected = WORKER_CAPTURES[args.worker_capture]
+    receipt = workers / "worker.json"
+    if hashlib.sha256(read_bounded(receipt, 65536)).hexdigest() != args.worker_capture:
+        fail("worker receipt differs from its capture digest")
+    worker = workers / "worker"
+    if worker.stat().st_size != expected["workerBytes"] or digest(worker, 512 * 1024 * 1024) != expected["workerSha256"]:
+        fail("native verifier worker differs from its reviewed pin")
+    for item in json.loads(receipt.read_bytes())["runtime"]["files"]:
+        if not Path(item["path"]).is_file() or digest(item["path"], 512 * 1024 * 1024) != item["sha256"]:
+            fail("native verifier runtime closure differs")
+    execution = {
+        "executable": str(worker), "timeout_ms": 120_000, "maximum_parallel": 2,
+        "max_proof_bytes": 4 * 1024 * 1024, "threads": 2, "memory_megabytes": 4096,
+    }
+
+    # Per-run material.
+    ledger = {
+        "account": policy,
+        "max_authorization_seconds": request["nativeWrapper"]["maxAuthorizationSeconds"],
+        "max_proof_bytes": request["nativeWrapper"]["maxProofBytes"],
+        "checkpoint_period_seconds": request["nativeWrapper"]["checkpointPeriodSeconds"],
+    }
+    (out / "ledger-policy.json").write_text(json.dumps(ledger))
+    (out / "extension-policy.json").write_text(json.dumps(probe["extension"]))
+    (out / "activation-statement.json").write_text(json.dumps(probe["activation"]["account"]))
+    (out / "activation-proof").write_bytes(bytes.fromhex(probe["activation"]["proof"]))
+    (out / "activation-probe.json").write_bytes(probe_bytes)
+
+    def seed(argument, fixture, name):
+        path = out / name
+        if argument:
+            data = read_bounded(argument, 33)
+            if len(data) != 32:
+                fail(f"{name}: a seed file holds exactly 32 bytes")
+            write_private(path, data)
+        else:
+            write_private(path, bytes([fixture]) * 32)
+        return path
+
+    operator = seed(args.operator_seed_file, 9, "operator-seed")
+    certificate = seed(args.certificate_seed_file, 3, "certificate-seed")
+    day = now // 86_400
+    epoch_file, key_file, rooms_file = settlement_files(
+        out, args.community, day, args.settlement_key_file
+    )
+    admission = bytes(request["independentAdmissionDigest"])
+    if len(admission) != 32:
+        fail("admission digest width")
+    config = {
+        "period_key": request["rulebook"]["periodKey"],
+        "ledger_policy_file": str(out / "ledger-policy.json"),
+        "extension_policy_file": str(out / "extension-policy.json"),
+        "admission_policy_digest": base64.urlsafe_b64encode(admission).rstrip(b"=").decode(),
+        "operator_seed_file": str(operator),
+        "certificate_seed_file": str(certificate),
+        "account_artifacts": account,
+        "extension_artifacts": extension,
+        "activation_statement_file": str(out / "activation-statement.json"),
+        "activation_proof_file": str(out / "activation-proof"),
+        "account_execution": execution,
+        "update_execution": execution,
+        "anonymous_execution": execution,
+        "extension_limits": {"global_burst": 8, "subject_burst": 4, "replenish_ms": 1000, "maximum_keys": 1024},
+        "enrollment": {"max_members": 64, "max_retained_slots": 8, "max_publication_bytes": 1024 * 1024},
+        "settlement": {
+            "quota_key": request["rulebook"]["quotaKey"], "epoch_file": str(epoch_file),
+            "private_key_file": str(key_file), "room_epochs_file": str(rooms_file),
+            "incarnation": f"g5-{args.community}-fixture", "pending_capacity": 8,
+            "issuance_members_capacity": 8,
+        },
+        "max_request_bytes": 1024 * 1024,
+    }
+    (out / "account-config.json").write_text(json.dumps(config))
+    summary = {
+        "config": str(out / "account-config.json"), "probe": str(out / "activation-probe.json"),
+        "probeSha256": base64.urlsafe_b64encode(hashlib.sha256(probe_bytes).digest()).rstrip(b"=").decode(),
+        "community": args.community, "group": args.group,
+    }
+    if args.exports:
+        print(f"export CVLD_G5_ACCOUNT_CONFIG={summary['config']}")
+        print(f"export CVLD_ALPHA_ACTIVATION_PROBE={summary['probe']}")
+        print(f"export CVLD_ALPHA_ACTIVATION_SHA256={summary['probeSha256']}")
+    else:
+        print(json.dumps(summary))
+
+
+if __name__ == "__main__":
+    sys.exit(main())
