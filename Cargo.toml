@@ -14,6 +14,8 @@ client = ["dep:jsonschema"]
 client-http = ["client", "dep:reqwest", "dep:url"]
 client-browser = ["client", "dep:url", "dep:gloo-timers", "dep:web-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys"]
 development-gate = ["server", "cgbl/development-gate"]
+# Contract-only view of the development action for clients; links none of the server.
+development-gate-client = ["client"]
 
 [dependencies]
 url = { version = "2.5", optional = true }

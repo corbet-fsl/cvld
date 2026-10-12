@@ -67,10 +67,57 @@ static DOCUMENT: LazyLock<Value> = LazyLock::new(|| {
     }
     #[cfg(not(feature = "server"))]
     {
-        serde_json::from_str(include_str!("../docs/openapi.json"))
-            .expect("the checked generated door contract is JSON")
+        #[allow(unused_mut)]
+        let mut document: Value = serde_json::from_str(include_str!("../docs/openapi.json"))
+            .expect("the checked generated door contract is JSON");
+        #[cfg(feature = "development-gate-client")]
+        add_development_gate(&mut document);
+        document
     }
 });
+
+/// The checked contract never contains the development action. Client-only
+/// development builds derive it from `logout`, which has the identical empty
+/// request and response, and replace exactly the server's declared metadata.
+#[cfg(all(feature = "development-gate-client", not(feature = "server")))]
+fn add_development_gate(document: &mut Value) {
+    let paths = document
+        .get_mut("paths")
+        .and_then(Value::as_object_mut)
+        .expect("the checked generated door contract has an object of paths");
+    let mut path = paths
+        .get("/v1/logout")
+        .cloned()
+        .expect("the checked generated door contract declares logout");
+    let operation = path
+        .get_mut("post")
+        .and_then(Value::as_object_mut)
+        .expect("logout is a POST operation");
+    for (key, value) in [
+        ("operationId", "development_gate"),
+        (
+            "summary",
+            "Pass the development-only synthetic uniqueness gate",
+        ),
+        ("x-role", "member"),
+        ("x-scope", "global"),
+        ("x-effect", "record"),
+        ("x-client-access", "forward"),
+    ] {
+        operation.insert(key.into(), value.into());
+    }
+    paths.insert("/v1/development_gate".into(), path);
+}
+
+#[cfg(all(test, feature = "development-gate-client", not(feature = "server")))]
+mod development_gate_client_tests {
+    #[test]
+    fn exposes_the_development_action_without_the_server() {
+        let operation = super::action("development_gate").expect("declared");
+        assert_eq!(operation.path(), "/v1/development_gate");
+        assert!(super::action("logout").is_some());
+    }
+}
 
 // A malformed generated contract is a build defect, not an unknown caller action.
 static PATHS: LazyLock<&'static Map<String, Value>> = LazyLock::new(|| {
