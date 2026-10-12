@@ -67,11 +67,6 @@ async fn absent_legal_authority_and_unrepresentable_time_fail_closed() {
             reference: "opaque-reference".into(),
             entered_by: "opaque-member".into(),
             kind: clbs::OrderKind::SelfBan,
-            scope: clbs::Scope::All,
-            period: clbs::Period {
-                starts_at: NOW as i64,
-                ends_at: None,
-            },
         },
         proof: b"untrusted-private-authorization".to_vec(),
     };
@@ -845,11 +840,6 @@ async fn a_verified_legal_veto_after_authentication_prevents_credential_issuance
         kind: clbs::OrderKind::Legal {
             authority: "fixture-authority".into(),
         },
-        scope: clbs::Scope::Actions(BTreeSet::from([cmty::ADMISSION_ACTION.into()])),
-        period: clbs::Period {
-            starts_at: NOW as i64,
-            ends_at: Some((NOW + 3600) as i64),
-        },
     };
     let key = SigningKey::from_bytes(&[41; 32]);
     let proof = key
@@ -859,7 +849,6 @@ async fn a_verified_legal_veto_after_authentication_prevents_credential_issuance
     let authority = clbs::Gate::new(
         cgts::legal_storage::LibsqlStore::new(&community.db, "alpha").unwrap(),
         Authority(key.verifying_key()),
-        CommunityClock(service.clock.clone()),
     );
     let mut signed = clbs::SignedOrder { order, proof };
     signed.order.reference.push_str("-tampered");
@@ -876,17 +865,7 @@ async fn a_verified_legal_veto_after_authentication_prevents_credential_issuance
         clbs::Append::Inserted
     );
     assert!(matches!(
-        authority
-            .check_action(&lobby.member_id, "unrelated-action")
-            .await
-            .unwrap(),
-        clbs::State::Green
-    ));
-    assert!(matches!(
-        authority
-            .check_action(&lobby.member_id, cmty::ADMISSION_ACTION)
-            .await
-            .unwrap(),
+        authority.check(&lobby.member_id).await.unwrap(),
         clbs::State::Red(_)
     ));
 

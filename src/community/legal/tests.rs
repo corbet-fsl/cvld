@@ -31,11 +31,6 @@ fn order(id: &str) -> clbs::Order {
         reference: "member-confirmed-termination".into(),
         entered_by: SUBJECT.into(),
         kind: clbs::OrderKind::SelfBan,
-        scope: clbs::Scope::All,
-        period: clbs::Period {
-            starts_at: NOW as i64,
-            ends_at: None,
-        },
     }
 }
 impl Fixture {
@@ -126,12 +121,11 @@ impl Fixture {
     }
     fn gate(
         &self,
-    ) -> clbs::Gate<cmty::cgts::legal_storage::LibsqlStore, CommunityAuthority, CommunityClock>
+    ) -> clbs::Gate<cmty::cgts::legal_storage::LibsqlStore, CommunityAuthority>
     {
         clbs::Gate::new(
             cmty::cgts::legal_storage::LibsqlStore::new(&self.db, COMMUNITY).unwrap(),
             self.authority.clone(),
-            CommunityClock(self.clock.clone()),
         )
     }
 }
@@ -156,9 +150,7 @@ async fn real_confirmation_records_permanent_self_ban_once_and_releases_membersh
         &signed.order
     );
     assert!(matches!(
-        gate.check_action(SUBJECT, "unrelated-action")
-            .await
-            .unwrap(),
+        gate.check(SUBJECT).await.unwrap(),
         clbs::State::Red(_)
     ));
     assert_eq!(gate.self_ban(&replay).await, Err(clbs::Error::Denied));
@@ -169,7 +161,7 @@ async fn real_confirmation_records_permanent_self_ban_once_and_releases_membersh
 #[tokio::test(flavor = "multi_thread")]
 async fn every_immutable_order_field_is_bound_and_tampering_consumes_the_capability() {
     let mut f = Fixture::new(2).await;
-    for field in 0..9 {
+    for field in 0..6 {
         let confirmation = f.confirmation(&format!("bound-{field}"), NOW + 60).await;
         let signed = f.authority.authorize(confirmation).await.unwrap();
         let mut changed = copy(&signed);
@@ -184,9 +176,6 @@ async fn every_immutable_order_field_is_bound_and_tampering_consumes_the_capabil
                     authority: "court".into(),
                 }
             }
-            6 => changed.order.scope = clbs::Scope::Actions(["admission".into()].into()),
-            7 => changed.order.period.starts_at += 1,
-            8 => changed.order.period.ends_at = Some(NOW as i64 + 30),
             _ => unreachable!(),
         }
         assert_eq!(
