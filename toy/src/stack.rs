@@ -68,7 +68,11 @@ async fn run() -> Result<()> {
     let cert_der = cert.der().to_vec();
     fs::write(out.join("ca.der"), &cert_der).map_err(|_| "write trust root")?;
     let key = PrivateKeyDer::from(PrivatePkcs8KeyDer::from(signing_key.serialize_der()));
-    let config = ServerConfig::builder()
+    // Several rustls providers are linked; name the one this crate enables.
+    let provider = Arc::new(tokio_rustls::rustls::crypto::ring::default_provider());
+    let config = ServerConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()
+        .map_err(|_| "tls versions")?
         .with_no_client_auth()
         .with_single_cert(vec![CertificateDer::from(cert_der)], key)
         .map_err(|_| "tls configuration")?;
