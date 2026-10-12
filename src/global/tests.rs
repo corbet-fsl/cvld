@@ -1,10 +1,10 @@
 //! Trusted configuration, publication rollback and physical database boundaries.
 use super::*;
-use crlt::Migration;
 #[cfg(feature = "development-gate")]
 use crate::global_trust;
 use crate::test_support as support;
 use crate::{config::CommunityConfig, identity};
+use crlt::Migration;
 #[cfg(feature = "development-gate")]
 use support::community_config;
 use support::{NOW, global_config};
