@@ -3806,6 +3806,92 @@
         ],
         "type": "string"
       },
+      "StepUpAction": {
+        "description": "The one account-authority action a fresh passkey assertion authorizes. The\nassertion is bound to this exact value, the session and the host.",
+        "oneOf": [
+          {
+            "description": "Begin registering another passkey for this account.",
+            "properties": {
+              "kind": {
+                "enum": [
+                  "passkey_add"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "Revoke this exact passkey.",
+            "properties": {
+              "credential": {
+                "items": {
+                  "format": "int32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              "kind": {
+                "enum": [
+                  "passkey_revoke"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "credential",
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "Authorize this exact device signing key.",
+            "properties": {
+              "key": {
+                "items": {
+                  "format": "int32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              "kind": {
+                "enum": [
+                  "device_authorize"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "key",
+              "kind"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "StepUpProof": {
+        "additionalProperties": false,
+        "description": "The completed assertion that accompanies the authorized action.",
+        "properties": {
+          "ceremony": {
+            "type": "string"
+          },
+          "credential": {
+            "additionalProperties": true,
+            "type": "object"
+          }
+        },
+        "required": [
+          "ceremony",
+          "credential"
+        ],
+        "type": "object"
+      },
       "TrustKeyTransition": {
         "additionalProperties": false,
         "description": "Original publishing-key endorsement; routing metadata is not authority.",
@@ -5587,6 +5673,17 @@
                       "type": "integer"
                     },
                     "type": "array"
+                  },
+                  "step_up": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/StepUpProof",
+                        "description": "Required except for Root, whose portal sign-in is the step-up."
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -7374,7 +7471,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "description": "Both phases of one session-bound additional-passkey operation.",
+                "description": "Wire form of the additional-passkey request: starting it needs a fresh\nuser-verifying assertion bound to this exact action.",
                 "oneOf": [
                   {
                     "properties": {
@@ -7383,6 +7480,17 @@
                           "begin"
                         ],
                         "type": "string"
+                      },
+                      "step_up": {
+                        "oneOf": [
+                          {
+                            "$ref": "#/components/schemas/StepUpProof",
+                            "description": "Required except for Root, whose portal sign-in is the step-up."
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
                       }
                     },
                     "required": [
@@ -7677,6 +7785,17 @@
                       "type": "integer"
                     },
                     "type": "array"
+                  },
+                  "step_up": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/StepUpProof",
+                        "description": "Required except for Root, whose portal sign-in is the step-up."
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -9795,6 +9914,90 @@
         "x-scope": "community"
       }
     },
+    "/v1/step_up_begin": {
+      "post": {
+        "operationId": "step_up_begin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "$ref": "#/components/schemas/StepUpAction"
+                  }
+                },
+                "required": [
+                  "action"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "A user-verifying assertion challenge for exactly one action. Single use.",
+                  "properties": {
+                    "ceremony": {
+                      "type": "string"
+                    },
+                    "expires": {
+                      "description": "Exclusive deadline of this challenge.",
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "options": {}
+                  },
+                  "required": [
+                    "ceremony",
+                    "expires",
+                    "options"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Begin a fresh user-verifying passkey assertion bound to one passkey, device or revocation action",
+        "x-client-access": "forward",
+        "x-effect": "check",
+        "x-role": "authenticated",
+        "x-scope": "both"
+      }
+    },
     "/v1/trust_changes": {
       "post": {
         "operationId": "trust_changes",
@@ -10059,6 +10262,17 @@
                       "type": "integer"
                     },
                     "type": "array"
+                  },
+                  "step_up": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/StepUpProof",
+                        "description": "Required except for Root, whose portal sign-in is the step-up."
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [

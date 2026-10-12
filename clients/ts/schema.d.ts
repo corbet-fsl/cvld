@@ -1109,6 +1109,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/step_up_begin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Begin a fresh user-verifying passkey assertion bound to one passkey, device or revocation action */
+        post: operations["step_up_begin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/trust_changes": {
         parameters: {
             query?: never;
@@ -2202,6 +2219,29 @@ export interface components {
         };
         /** @enum {string} */
         SimulationOutcome: "success" | "safe_failure" | "refused" | "pending" | "uncertain";
+        /**
+         * @description The one account-authority action a fresh passkey assertion authorizes. The
+         *     assertion is bound to this exact value, the session and the host.
+         */
+        StepUpAction: {
+            /** @enum {string} */
+            kind: "passkey_add";
+        } | {
+            credential: number[];
+            /** @enum {string} */
+            kind: "passkey_revoke";
+        } | {
+            key: number[];
+            /** @enum {string} */
+            kind: "device_authorize";
+        };
+        /** @description The completed assertion that accompanies the authorized action. */
+        StepUpProof: {
+            ceremony: string;
+            credential: {
+                [key: string]: unknown;
+            };
+        };
         /** @description Original publishing-key endorsement; routing metadata is not authority. */
         TrustKeyTransition: {
             proof: number[];
@@ -3084,6 +3124,7 @@ export interface operations {
             content: {
                 "application/json": {
                     key: number[];
+                    step_up?: components["schemas"]["StepUpProof"] | null;
                 };
             };
         };
@@ -3961,6 +4002,7 @@ export interface operations {
                 "application/json": {
                     /** @enum {string} */
                     step: "begin";
+                    step_up?: components["schemas"]["StepUpProof"] | null;
                 } | {
                     ceremony: string;
                     credential: {
@@ -4092,6 +4134,7 @@ export interface operations {
             content: {
                 "application/json": {
                     credential: number[];
+                    step_up?: components["schemas"]["StepUpProof"] | null;
                 };
             };
         };
@@ -5000,6 +5043,51 @@ export interface operations {
             };
         };
     };
+    step_up_begin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    action: components["schemas"]["StepUpAction"];
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ceremony: string;
+                        /**
+                         * Format: int64
+                         * @description Exclusive deadline of this challenge.
+                         */
+                        expires: number;
+                        options: unknown;
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
     trust_changes: {
         parameters: {
             query?: never;
@@ -5107,6 +5195,7 @@ export interface operations {
             content: {
                 "application/json": {
                     key: number[];
+                    step_up?: components["schemas"]["StepUpProof"] | null;
                 };
             };
         };
