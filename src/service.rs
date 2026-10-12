@@ -70,7 +70,6 @@ impl Clock for SystemClock {
             .as_secs()
     }
 }
-#[derive(Clone)]
 /// Most distinct (source, action) pairs tracked at once.
 const SOURCE_KEYS: usize = 65_536;
 
@@ -95,6 +94,7 @@ fn is_ceremony(action: &Action) -> bool {
             || action.name == "presentation_challenge")
 }
 
+#[derive(Clone)]
 pub struct Door {
     inner: Arc<Inner>,
 }
