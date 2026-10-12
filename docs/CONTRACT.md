@@ -65,8 +65,11 @@ schemas, routes, commands and tools omit it.
 
 No logging/tracing subscriber, request logger, member metrics or identifier labels
 are installed. Every request passes a governor token bucket per network source (IPv4 address or
-IPv6 /64; behind a same-host tunnel the tunnel's client header names it) and
-action. The table is bounded and RAM only, holds no logs, and keys beyond it share
+IPv6 /64) and action. The tunnel's `cf-connecting-ip` header names the source only
+when the peer is loopback or inside `trusted_proxies` (addresses or CIDR ranges, for
+example the tunnel pod's network); from any other peer it is ignored, and an invalid
+entry refuses to start. cvld must never be exposed without the tunnel: header-read
+(slow client) limits are enforced at that edge. The table is bounded and RAM only, holds no logs, and keys beyond it share
 one overflow bucket, so exhausting it throttles but never refuses everyone.
 Anonymous ceremonies, other anonymous requests, authenticated requests and watches
 draw on separate capacity pools, and anonymous bodies must arrive within 5 s. Failed checks fail
