@@ -27,6 +27,77 @@ use tokio_rustls::{
     },
 };
 
+/// Forward HTTP/1.1 requests with a Content-Length body, replacing the Host
+/// header by the service's real virtual host: the client insists that its https
+/// host equals the host it sends, and a literal loopback address needs no DNS.
+async fn relay(
+    client: tokio_rustls::server::TlsStream<tokio::net::TcpStream>,
+    upstream: tokio::net::TcpStream,
+) {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let (mut from_client, mut to_client) = tokio::io::split(client);
+    let (mut from_upstream, mut to_upstream) = upstream.into_split();
+    let back = tokio::spawn(async move {
+        let _ = tokio::io::copy(&mut from_upstream, &mut to_client).await;
+        let _ = to_client.shutdown().await;
+    });
+    let mut buffer: Vec<u8> = Vec::new();
+    'requests: loop {
+        let head_end = loop {
+            if let Some(at) = buffer.windows(4).position(|window| window == b"\r\n\r\n") {
+                break at + 4;
+            }
+            let mut chunk = [0u8; 8192];
+            match from_client.read(&mut chunk).await {
+                Ok(read) if read > 0 && buffer.len() < 65536 => {
+                    buffer.extend_from_slice(&chunk[..read])
+                }
+                _ => break 'requests,
+            }
+        };
+        let Ok(head) = std::str::from_utf8(&buffer[..head_end]) else {
+            break;
+        };
+        let mut rewritten = String::new();
+        let mut length = 0usize;
+        for line in head.split("\r\n").filter(|line| !line.is_empty()) {
+            let lower = line.to_ascii_lowercase();
+            if lower.starts_with("host:") {
+                rewritten.push_str(&format!("Host: {}\r\n", fixtures::WALLET));
+                continue;
+            }
+            if let Some(value) = lower.strip_prefix("content-length:") {
+                length = value.trim().parse().unwrap_or(0);
+            }
+            rewritten.push_str(line);
+            rewritten.push_str("\r\n");
+        }
+        rewritten.push_str("\r\n");
+        if to_upstream.write_all(rewritten.as_bytes()).await.is_err() {
+            break;
+        }
+        buffer.drain(..head_end);
+        let mut remaining = length;
+        while remaining > 0 {
+            if buffer.is_empty() {
+                let mut chunk = [0u8; 8192];
+                match from_client.read(&mut chunk).await {
+                    Ok(read) if read > 0 => buffer.extend_from_slice(&chunk[..read]),
+                    _ => break 'requests,
+                }
+            }
+            let take = remaining.min(buffer.len());
+            if to_upstream.write_all(&buffer[..take]).await.is_err() {
+                break 'requests;
+            }
+            buffer.drain(..take);
+            remaining -= take;
+        }
+    }
+    let _ = to_upstream.shutdown().await;
+    let _ = back.await;
+}
+
 #[tokio::main]
 async fn main() {
     if let Err(error) = run().await {
@@ -62,9 +133,12 @@ async fn run() -> Result<()> {
     let upstream = global.cli.base.trim_start_matches("http://").to_owned();
 
     // One self-signed end-entity certificate is the only trust root handed out.
-    let rcgen::CertifiedKey { cert, signing_key } =
-        rcgen::generate_simple_self_signed(vec!["localhost".into(), fixtures::WALLET.into()])
-            .map_err(|_| "certificate generation")?;
+    let rcgen::CertifiedKey { cert, signing_key } = rcgen::generate_simple_self_signed(vec![
+        "localhost".into(),
+        fixtures::WALLET.into(),
+        "127.0.0.1".into(),
+    ])
+    .map_err(|_| "certificate generation")?;
     let cert_der = cert.der().to_vec();
     fs::write(out.join("ca.der"), &cert_der).map_err(|_| "write trust root")?;
     let key = PrivateKeyDer::from(PrivatePkcs8KeyDer::from(signing_key.serialize_der()));
@@ -89,13 +163,13 @@ async fn run() -> Result<()> {
             let acceptor = acceptor.clone();
             let upstream = upstream.clone();
             tokio::spawn(async move {
-                let Ok(mut tls) = acceptor.accept(tcp).await else {
+                let Ok(tls) = acceptor.accept(tcp).await else {
                     return;
                 };
-                let Ok(mut plain) = tokio::net::TcpStream::connect(&upstream).await else {
+                let Ok(plain) = tokio::net::TcpStream::connect(&upstream).await else {
                     return;
                 };
-                let _ = tokio::io::copy_bidirectional(&mut tls, &mut plain).await;
+                relay(tls, plain).await;
             });
         }
     });
@@ -108,8 +182,8 @@ async fn run() -> Result<()> {
         "primary": "global",
         "services": [{
             "scope": "global",
-            "base": format!("https://{}:{port}", fixtures::WALLET),
-            "host": fixtures::WALLET,
+            "base": format!("https://127.0.0.1:{port}"),
+            "host": "127.0.0.1",
         }],
         "login": {
             "page": format!("{origin}/login"),
@@ -128,9 +202,6 @@ async fn run() -> Result<()> {
         json!({
             "member_config": member_path,
             "ca_der": out.join("ca.der"),
-            // The client requires the https host to equal the service host, so the
-            // consumer must map this name to loopback (e.g. a private /etc/hosts).
-            "loopback_host": fixtures::WALLET,
         })
     );
     // Hold the services until the owner closes our stdin.
