@@ -15,14 +15,14 @@ def value(v):
     return json.dumps(v)
 lines = ['[package]', 'name = "cvld-toy"', 'version = "0.0.0"',
          'edition = "2024"', 'publish = false', '[workspace]',
-         '[[bin]]', 'name = "cvld-toy"', 'path = "../src/main.rs"', '[dependencies]']
+         '[[bin]]', 'name = "cvld-stack"', 'path = "../src/stack.rs"', '[dependencies]']
 lines.append('cvld = { path = "../..", features = ["development-gate"] }')
 # This executable is native; browser test dependencies do not belong here.
 native = manifest.get('target', {}).get('cfg(not(target_arch = "wasm32"))', {})
 deps = (manifest['dependencies'] | manifest.get('dev-dependencies', {})
         | native.get('dev-dependencies', {}))
 for name in ['cmty', 'cgbl', 'ckyh', 'cpsd', 'csgn', 'cvch', 'ed25519-dalek',
-             'serde', 'serde_json', 'tokio', 'tempfile', 'chrono', 'passkey', 'async-trait', 'webauthn-authenticator-rs']:
+             'serde', 'serde_json', 'tokio', 'tempfile', 'chrono', 'passkey', 'async-trait', 'webauthn-authenticator-rs', 'rcgen', 'tokio-rustls']:
     dependency = deps[name]
     if isinstance(dependency, dict):
         # The fixture explicitly uses these dependencies. The owner's optional
