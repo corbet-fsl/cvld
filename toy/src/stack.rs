@@ -108,7 +108,7 @@ async fn run() -> Result<()> {
         "primary": "global",
         "services": [{
             "scope": "global",
-            "base": format!("https://localhost:{port}"),
+            "base": format!("https://{}:{port}", fixtures::WALLET),
             "host": fixtures::WALLET,
         }],
         "login": {
@@ -125,7 +125,13 @@ async fn run() -> Result<()> {
     .map_err(|_| "write member configuration")?;
     println!(
         "{}",
-        json!({"member_config": member_path, "ca_der": out.join("ca.der")})
+        json!({
+            "member_config": member_path,
+            "ca_der": out.join("ca.der"),
+            // The client requires the https host to equal the service host, so the
+            // consumer must map this name to loopback (e.g. a private /etc/hosts).
+            "loopback_host": fixtures::WALLET,
+        })
     );
     // Hold the services until the owner closes our stdin.
     let _ = tokio::io::copy(&mut tokio::io::stdin(), &mut tokio::io::sink()).await;
