@@ -227,8 +227,12 @@ impl Door {
             let origins = if operator.is_some() {
                 garden::operator_origins(&host)?
             } else {
+                // The passkey ceremony runs in the vault frame on the vault origin,
+                // as for communities; the relying party stays the wallet host.
                 vec![
                     ckyh::Url::parse(&format!("https://{host}"))
+                        .map_err(Error::Invalid.redact())?,
+                    ckyh::Url::parse(&format!("https://vault.{host}"))
                         .map_err(Error::Invalid.redact())?,
                 ]
             };
