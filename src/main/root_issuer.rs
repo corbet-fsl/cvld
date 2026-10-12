@@ -3,7 +3,7 @@ use super::*;
 use cvld::service::NativeConstruction;
 
 #[path = "root_issuer/config.rs"]
-mod config;
+pub(super) mod config;
 #[path = "root_issuer/lifecycle.rs"]
 pub(super) mod lifecycle;
 

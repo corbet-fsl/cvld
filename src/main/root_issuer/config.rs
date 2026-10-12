@@ -78,7 +78,7 @@ fn bind(used: &mut BTreeSet<SocketAddr>, input: &str) -> Result<()> {
     Ok(())
 }
 
-fn host(scope: &str, domain: &str) -> Result<String> {
+pub(crate) fn host(scope: &str, domain: &str) -> Result<String> {
     let name = format!("api.{scope}.{domain}");
     let parsed = url::Url::parse(&format!("https://{name}")).map_err(Error::Invalid.redact())?;
     if parsed.host_str() != Some(name.as_str())
