@@ -119,10 +119,7 @@ impl Fixture {
             .await
             .unwrap()
     }
-    fn gate(
-        &self,
-    ) -> clbs::Gate<cmty::cgts::legal_storage::LibsqlStore, CommunityAuthority>
-    {
+    fn gate(&self) -> clbs::Gate<cmty::cgts::legal_storage::LibsqlStore, CommunityAuthority> {
         clbs::Gate::new(
             cmty::cgts::legal_storage::LibsqlStore::new(&self.db, COMMUNITY).unwrap(),
             self.authority.clone(),
