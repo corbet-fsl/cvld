@@ -38,7 +38,23 @@ async fn relay(
     let (mut from_client, mut to_client) = tokio::io::split(client);
     let (mut from_upstream, mut to_upstream) = upstream.into_split();
     let back = tokio::spawn(async move {
-        let _ = tokio::io::copy(&mut from_upstream, &mut to_client).await;
+        // Diagnostics: status line and error code only, never bodies of other kinds.
+        let mut first = [0u8; 4096];
+        while let Ok(read) = from_upstream.read(&mut first).await {
+            if read == 0 {
+                break;
+            }
+            let text = String::from_utf8_lossy(&first[..read]);
+            let status = text.lines().next().unwrap_or("");
+            let error = text.split("\r\n\r\n").nth(1).unwrap_or("");
+            eprintln!(
+                "stack response: {status} {}",
+                &error[..error.len().min(120)]
+            );
+            if to_client.write_all(&first[..read]).await.is_err() {
+                break;
+            }
+        }
         let _ = to_client.shutdown().await;
     });
     let mut buffer: Vec<u8> = Vec::new();
@@ -58,6 +74,7 @@ async fn relay(
         let Ok(head) = std::str::from_utf8(&buffer[..head_end]) else {
             break;
         };
+        eprintln!("stack request: {}", head.lines().next().unwrap_or(""));
         let mut rewritten = String::new();
         let mut length = 0usize;
         for line in head.split("\r\n").filter(|line| !line.is_empty()) {
@@ -148,23 +165,29 @@ async fn run() -> Result<()> {
         .with_safe_default_protocol_versions()
         .map_err(|_| "tls versions")?
         .with_no_client_auth()
-        .with_single_cert(vec![CertificateDer::from(cert_der)], key)
+        .with_single_cert(vec![CertificateDer::from(cert_der.clone())], key)
         .map_err(|_| "tls configuration")?;
     let acceptor = TlsAcceptor::from(Arc::new(config));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .map_err(|_| "tls listener")?;
     let port = listener.local_addr().map_err(|_| "tls address")?.port();
+    eprintln!("stack listening on {port}");
     let proxy = tokio::spawn(async move {
         loop {
             let Ok((tcp, _)) = listener.accept().await else {
                 continue;
             };
+            eprintln!("stack tcp connection");
             let acceptor = acceptor.clone();
             let upstream = upstream.clone();
             tokio::spawn(async move {
-                let Ok(tls) = acceptor.accept(tcp).await else {
-                    return;
+                let tls = match acceptor.accept(tcp).await {
+                    Ok(tls) => tls,
+                    Err(error) => {
+                        eprintln!("stack tls accept failed: {error}");
+                        return;
+                    }
                 };
                 let Ok(plain) = tokio::net::TcpStream::connect(&upstream).await else {
                     return;
@@ -173,6 +196,21 @@ async fn run() -> Result<()> {
             });
         }
     });
+
+    // Self-probe with the same client the devices use; reports only the outcome class.
+    let probe = cvld::client::HttpClient::with_roots(
+        format!("https://127.0.0.1:{port}"),
+        "127.0.0.1".into(),
+        None,
+        &[cert_der.clone()],
+    );
+    match probe {
+        Ok(client) => {
+            let outcome = client.call("global_public", json!({})).await;
+            eprintln!("stack probe: {:?}", outcome.map(|_| "ok"));
+        }
+        Err(error) => eprintln!("stack probe client: {error:?}"),
+    }
 
     let origin = format!("https://{}", fixtures::WALLET);
     let member = json!({
