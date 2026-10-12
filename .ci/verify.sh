@@ -49,10 +49,10 @@ git ls-files --error-unmatch docs/openapi.json clients/ts/schema.d.ts
 git diff --exit-code -- docs/openapi.json clients/ts/schema.d.ts
 npm run check --prefix clients/ts
 npm test --prefix clients/ts
-cargo test --locked --features development-gate --no-fail-fast
 # The client-only development feature must stay free of the server graph.
 cargo test --locked --lib --no-default-features --features client-http,development-gate-client client::
 if cargo tree --locked --no-default-features --features client-http,development-gate-client -e normal | grep -E 'libsql|cpsd|axum'; then exit 1; fi
+cargo test --locked --features development-gate --no-fail-fast
 cargo test --locked --release
 if cargo check --locked --release --no-default-features --features client,development-gate-client > release-client-gate.log 2>&1; then exit 1; fi
 grep -q 'development-gate is forbidden in release builds' release-client-gate.log
