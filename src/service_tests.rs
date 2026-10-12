@@ -183,30 +183,30 @@ async fn all_registry_actions_are_throttled_before_waiting_on_locks() {
 async fn in_flight_limits_are_nonwaiting_and_watch_capacity_is_separate() {
     let service = global(1000).await;
     for (name, count) in [
-        ("register_begin", 32),
+        ("register_begin", 16),
         ("passport_issue", 32),
         ("trust_changes", 16),
     ] {
         let action = action(name).unwrap();
         let mut permits = Vec::new();
         for _ in 0..count {
-            permits.push(service.door.admit_request(action).await.unwrap());
+            permits.push(service.door.admit_request(action, SOURCE).await.unwrap());
         }
         assert!(matches!(
-            service.door.admit_request(action).await,
+            service.door.admit_request(action, SOURCE).await,
             Err(Error::Throttled)
         ));
         if name == "trust_changes" {
             assert!(
                 service
                     .door
-                    .admit_request(crate::api::action("global_public").unwrap())
+                    .admit_request(crate::api::action("global_public").unwrap(), SOURCE)
                     .await
                     .is_ok()
             );
         }
         permits.pop();
-        assert!(service.door.admit_request(action).await.is_ok());
+        assert!(service.door.admit_request(action, SOURCE).await.is_ok());
     }
 }
 
@@ -323,3 +323,5 @@ async fn the_tunnel_header_names_the_source_only_for_a_loopback_peer() {
         429
     );
 }
+
+const SOURCE: std::net::IpAddr = std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED);

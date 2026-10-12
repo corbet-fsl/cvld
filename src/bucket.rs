@@ -107,14 +107,20 @@ impl<K: Hash + Eq + Clone> Keyed<K> {
 /// header names the source; from any other peer that header is ignored. Without
 /// connection information (in-process use) all requests share one source.
 pub(crate) fn source(request: &axum::extract::Request) -> std::net::IpAddr {
-    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     let peer = request
         .extensions()
-        .get::<axum::extract::ConnectInfo<SocketAddr>>()
+        .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
         .map(|info| info.0.ip());
+    source_of(peer, request.headers())
+}
+
+pub(crate) fn source_of(
+    peer: Option<std::net::IpAddr>,
+    headers: &axum::http::HeaderMap,
+) -> std::net::IpAddr {
+    use std::net::{IpAddr, Ipv4Addr};
     let named = match peer {
-        Some(ip) if ip.is_loopback() => request
-            .headers()
+        Some(ip) if ip.is_loopback() => headers
             .get("cf-connecting-ip")
             .and_then(|value| value.to_str().ok())
             .and_then(|value| value.parse::<IpAddr>().ok())
