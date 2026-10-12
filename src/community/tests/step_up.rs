@@ -84,6 +84,7 @@ async fn a_proof_is_single_use_and_expires() {
     );
     assert_eq!(status(&service, &member, "passkey_add", body).await, 401);
     let stale = proof(&service, &mut member, json!({"kind":"passkey_add"})).await;
+    unchanged(&service, &member).await;
     service.clock.set(NOW + 61);
     assert_eq!(
         status(
@@ -95,8 +96,6 @@ async fn a_proof_is_single_use_and_expires() {
         .await,
         401
     );
-    service.clock.set(NOW);
-    unchanged(&service, &member).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

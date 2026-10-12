@@ -57,7 +57,7 @@ fn register(
 #[tokio::test(flavor = "multi_thread")]
 async fn additional_device_is_session_bound_and_survives_original_revocation() {
     let global = global(100).await;
-    let (wallet, passport, public) = wallet_passport(&global).await;
+    let (mut wallet, passport, public) = wallet_passport(&global).await;
     let service = community("alpha", &public).await;
     let host = "api.alpha.example.test";
     let public_client = client(&service, host, None);
@@ -96,13 +96,21 @@ async fn additional_device_is_session_bound_and_survives_original_revocation() {
         call_status(&service, host, None, "passkey_add", json!({"step":"begin"})).await,
         401
     );
+    let proof = step_up(
+        &global,
+        WALLET,
+        &wallet.session,
+        &mut wallet.authenticator,
+        json!({"kind":"passkey_add"}),
+    )
+    .await;
     assert_eq!(
         call_status(
             &global,
             WALLET,
             Some(&wallet.session),
             "passkey_add",
-            json!({"step":"begin"})
+            json!({"step":"begin","step_up":proof})
         )
         .await,
         200
