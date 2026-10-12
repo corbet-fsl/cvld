@@ -103,7 +103,14 @@ fn required_configuration_and_operator_fields_cannot_be_omitted() {
         );
     }
     for field in community().as_object().unwrap().keys() {
-        if ["database_token_file", "payments", "accounting"].contains(&field.as_str()) {
+        if [
+            "database_token_file",
+            "payments",
+            "accounting",
+            "trusted_proxies",
+        ]
+        .contains(&field.as_str())
+        {
             continue;
         }
         let mut value = community();
