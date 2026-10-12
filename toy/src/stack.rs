@@ -165,7 +165,7 @@ async fn run() -> Result<()> {
         .with_safe_default_protocol_versions()
         .map_err(|_| "tls versions")?
         .with_no_client_auth()
-        .with_single_cert(vec![CertificateDer::from(cert_der)], key)
+        .with_single_cert(vec![CertificateDer::from(cert_der.clone())], key)
         .map_err(|_| "tls configuration")?;
     let acceptor = TlsAcceptor::from(Arc::new(config));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -196,6 +196,21 @@ async fn run() -> Result<()> {
             });
         }
     });
+
+    // Self-probe with the same client the devices use; reports only the outcome class.
+    let probe = cvld::client::HttpClient::with_roots(
+        format!("https://127.0.0.1:{port}"),
+        "127.0.0.1".into(),
+        None,
+        &[cert_der.clone()],
+    );
+    match probe {
+        Ok(client) => {
+            let outcome = client.call("global_public", json!({})).await;
+            eprintln!("stack probe: {:?}", outcome.map(|_| "ok"));
+        }
+        Err(error) => eprintln!("stack probe client: {error:?}"),
+    }
 
     let origin = format!("https://{}", fixtures::WALLET);
     let member = json!({
