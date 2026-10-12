@@ -107,18 +107,74 @@ impl<K: Hash + Eq + Clone> Keyed<K> {
 /// address. Behind a same-host tunnel (loopback peer) the tunnel's client
 /// header names the source; from any other peer that header is ignored. Without
 /// connection information (in-process use) all requests share one source.
-pub(crate) fn source(request: &axum::extract::Request) -> std::net::IpAddr {
+pub(crate) fn source(request: &axum::extract::Request, proxies: &Proxies) -> std::net::IpAddr {
     let peer = request
         .extensions()
         .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
         .map(|info| info.0.ip());
-    source_of(peer, request.headers())
+    source_of(peer, request.headers(), proxies)
 }
 
-fn source_of(peer: Option<std::net::IpAddr>, headers: &axum::http::HeaderMap) -> std::net::IpAddr {
+/// Peers whose `cf-connecting-ip` header is believed: loopback and the
+/// configured addresses or CIDR ranges (the tunnel pod). Everyone else is the
+/// source themselves, whatever header they send.
+pub(crate) struct Proxies(Vec<(std::net::IpAddr, u8)>);
+
+impl Proxies {
+    /// Entries are `address` or `address/prefix`; any invalid entry is refused.
+    pub(crate) fn new(entries: &[String]) -> Option<Self> {
+        use std::net::IpAddr;
+        let mut ranges = vec![
+            (IpAddr::from([127, 0, 0, 0]), 8),
+            (IpAddr::from([0u16, 0, 0, 0, 0, 0, 0, 1]), 128),
+        ];
+        for entry in entries {
+            let (address, prefix) = match entry.split_once('/') {
+                Some((address, prefix)) => (address, Some(prefix.parse::<u8>().ok()?)),
+                None => (entry.as_str(), None),
+            };
+            let address: IpAddr = address.parse().ok()?;
+            let width = if address.is_ipv4() { 32 } else { 128 };
+            let prefix = prefix.unwrap_or(width);
+            if prefix > width {
+                return None;
+            }
+            ranges.push((address, prefix));
+        }
+        Some(Self(ranges))
+    }
+
+    fn trusts(&self, peer: std::net::IpAddr) -> bool {
+        let peer = match peer {
+            std::net::IpAddr::V6(ip) => ip
+                .to_ipv4_mapped()
+                .map_or(std::net::IpAddr::V6(ip), std::net::IpAddr::V4),
+            ip => ip,
+        };
+        self.0
+            .iter()
+            .any(|(network, prefix)| match (network, peer) {
+                (std::net::IpAddr::V4(network), std::net::IpAddr::V4(peer)) => {
+                    let mask = u32::MAX.checked_shl(32 - u32::from(*prefix)).unwrap_or(0);
+                    u32::from(*network) & mask == u32::from(peer) & mask
+                }
+                (std::net::IpAddr::V6(network), std::net::IpAddr::V6(peer)) => {
+                    let mask = u128::MAX.checked_shl(128 - u32::from(*prefix)).unwrap_or(0);
+                    u128::from(*network) & mask == u128::from(peer) & mask
+                }
+                _ => false,
+            })
+    }
+}
+
+fn source_of(
+    peer: Option<std::net::IpAddr>,
+    headers: &axum::http::HeaderMap,
+    proxies: &Proxies,
+) -> std::net::IpAddr {
     use std::net::{IpAddr, Ipv4Addr};
     let named = match peer {
-        Some(ip) if ip.is_loopback() => headers
+        Some(ip) if proxies.trusts(ip) => headers
             .get("cf-connecting-ip")
             .and_then(|value| value.to_str().ok())
             .and_then(|value| value.parse::<IpAddr>().ok())
@@ -225,5 +281,48 @@ mod tests {
         assert!(keyed.table.is_poisoned());
         assert!(keyed.admit(&1u8));
         assert!(!keyed.admit(&1));
+    }
+
+    fn headers(client: &str) -> axum::http::HeaderMap {
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert("cf-connecting-ip", client.parse().unwrap());
+        headers
+    }
+
+    #[test]
+    fn invalid_proxy_entries_are_refused() {
+        for entry in ["bogus", "10.0.0.0/33", "::1/129", "10.0.0.0/x", "10.0.0.0/"] {
+            assert!(Proxies::new(&[entry.to_string()]).is_none(), "{entry}");
+        }
+        assert!(Proxies::new(&[]).is_some());
+    }
+
+    #[test]
+    fn the_header_is_believed_only_from_loopback_and_configured_proxies() {
+        let none = Proxies::new(&[]).unwrap();
+        let configured =
+            Proxies::new(&["10.42.0.0/16".to_string(), "fd00:1::/64".to_string()]).unwrap();
+        let client = headers("203.0.113.9");
+        let ip = |text: &str| Some(text.parse::<std::net::IpAddr>().unwrap());
+        let expected: std::net::IpAddr = "203.0.113.9".parse().unwrap();
+        // Loopback by default; the tunnel pod's range only when configured.
+        assert_eq!(source_of(ip("127.0.0.1"), &client, &none), expected);
+        assert_eq!(source_of(ip("::1"), &client, &none), expected);
+        let pod: std::net::IpAddr = "10.42.3.4".parse().unwrap();
+        assert_eq!(source_of(Some(pod), &client, &none), pod);
+        assert_eq!(source_of(Some(pod), &client, &configured), expected);
+        assert_eq!(source_of(ip("fd00:1::7"), &client, &configured), expected);
+        // Outside every configured range the header is ignored.
+        let other: std::net::IpAddr = "10.43.0.1".parse().unwrap();
+        assert_eq!(source_of(Some(other), &client, &configured), other);
+        let remote: std::net::IpAddr = "198.51.100.1".parse().unwrap();
+        assert_eq!(source_of(Some(remote), &client, &configured), remote);
+        // A trusted proxy's garbage header falls back to the proxy itself.
+        assert_eq!(source_of(Some(pod), &headers("junk"), &configured), pod);
+        // IPv4-mapped peers match IPv4 ranges.
+        assert_eq!(
+            source_of(ip("::ffff:10.42.3.4"), &client, &configured),
+            expected
+        );
     }
 }

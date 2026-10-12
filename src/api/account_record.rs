@@ -24,7 +24,7 @@ pub(super) fn router(router: Router<Door>) -> Router<Door> {
 
              request: axum::extract::Request| async move {
                 let action = action("account_record").expect("registered common resource metadata");
-                let source = crate::bucket::source(&request);
+                let source = door.source(&request);
                 let _permit = door.admit_request(action, source).await?;
                 let ctx = door.authorize(action, request.headers()).await?;
                 if uri.query().is_some() {

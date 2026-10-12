@@ -29,6 +29,10 @@ pub struct Config {
     pub pending_capacity: usize,
     pub throttle_burst: u32,
     pub throttle_interval_ms: u64,
+    /// Peers (addresses or CIDR ranges) whose `cf-connecting-ip` is believed, in
+    /// addition to loopback: the tunnel. Invalid entries refuse to start.
+    #[serde(default)]
+    pub trusted_proxies: Vec<String>,
     pub publication_seconds: u64,
     pub signer_max_seconds: u64,
     pub development: bool,
@@ -101,6 +105,10 @@ pub struct CommunityConfig {
     pub pending_capacity: usize,
     pub throttle_burst: u32,
     pub throttle_interval_ms: u64,
+    /// Peers (addresses or CIDR ranges) whose `cf-connecting-ip` is believed, in
+    /// addition to loopback: the tunnel. Invalid entries refuse to start.
+    #[serde(default)]
+    pub trusted_proxies: Vec<String>,
     pub publication_seconds: u64,
     pub signer_max_seconds: u64,
     pub minimum_notice_seconds: u64,

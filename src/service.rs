@@ -116,6 +116,7 @@ struct Inner {
     root_board_admin_host: Option<String>,
     /// Per network source and action, RAM only: no global refusal.
     sources: crate::bucket::Keyed<(std::net::IpAddr, &'static str)>,
+    proxies: crate::bucket::Proxies,
     clock: Arc<dyn Clock>,
     account_body_limit: usize,
     account_runtime: Option<Arc<crate::accounting::clock::AccountRuntime>>,
@@ -274,6 +275,7 @@ impl Door {
             .await?;
         let wallet_shutdown = global.wallet.as_ref().map(cgbl::Wallet::shutdown_handle);
         let sources = source_buckets(config.throttle_burst, config.throttle_interval_ms)?;
+        let proxies = crate::bucket::Proxies::new(&config.trusted_proxies).ok_or(Error::Invalid)?;
         Ok(Self {
             inner: Arc::new(Inner {
                 requests: Arc::new(Mutex::new(())),
@@ -294,6 +296,7 @@ impl Door {
                 community_garden_host: None,
                 root_board_admin_host: None,
                 sources,
+                proxies,
                 clock,
                 account_body_limit: 256 * 1024,
                 account_runtime: None,
@@ -506,6 +509,8 @@ impl Door {
                 );
             }
             let sources = source_buckets(config.throttle_burst, config.throttle_interval_ms)?;
+            let proxies =
+                crate::bucket::Proxies::new(&config.trusted_proxies).ok_or(Error::Invalid)?;
             Ok(Self {
                 inner: Arc::new(Inner {
                     root_creation_scope: None,
@@ -524,6 +529,7 @@ impl Door {
                     community_garden_host: Some(community_garden_host),
                     root_board_admin_host,
                     sources,
+                    proxies,
                     clock,
                     account_body_limit,
                     account_runtime,
@@ -641,6 +647,10 @@ impl Door {
         } else {
             Duration::from_secs(10)
         }
+    }
+    /// The network source of a request, honouring only configured proxies.
+    pub(crate) fn source(&self, request: &axum::extract::Request) -> std::net::IpAddr {
+        crate::bucket::source(request, &self.inner.proxies)
     }
     pub(crate) async fn admit_request(
         &self,
