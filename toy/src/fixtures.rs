@@ -79,6 +79,8 @@ pub async fn global(dir: &Path, listen: String, burst: u32, now: u64) {
         publication_seconds: 172800,
         signer_max_seconds: 86_400 * 100,
         development: true,
+        trusted_proxies: Vec::new(),
+        wallet: None,
     };
     write(dir, "config.json", &serde_json::to_vec(&config).unwrap());
 }
@@ -233,6 +235,8 @@ pub fn community(dir: &Path, listen: String, name: &str, public: &GlobalPublic, 
             "voucher-key",
             SigningKey::from_bytes(&[9; 32]).verifying_key().as_bytes(),
         ),
+        accounting: None,
+        trusted_proxies: Vec::new(),
     };
     write(dir, "config.json", &serde_json::to_vec(&config).unwrap());
 }
