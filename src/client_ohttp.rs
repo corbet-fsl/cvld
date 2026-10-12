@@ -19,15 +19,28 @@ impl<W: Wire> OhttpClient<W> {
     /// `host` is the door's exact HTTPS host (the inner authority).
     pub fn new(wire: W, host: String, token: Option<String>) -> Result<Self> {
         super::origin(&format!("https://{host}"), &host)?;
-        Ok(Self { wire, host, token: token.map(zeroize::Zeroizing::new) })
+        Ok(Self {
+            wire,
+            host,
+            token: token.map(zeroize::Zeroizing::new),
+        })
     }
 
-    fn request(&self, method: &str, path: &str, headers: Vec<(&str, Vec<u8>)>, body: Vec<u8>) -> codec::Request {
+    fn request(
+        &self,
+        method: &str,
+        path: &str,
+        headers: Vec<(&str, Vec<u8>)>,
+        body: Vec<u8>,
+    ) -> codec::Request {
         codec::Request {
             method: method.as_bytes().to_vec(),
             authority: self.host.clone().into_bytes(),
             path: path.as_bytes().to_vec(),
-            headers: headers.into_iter().map(|(name, value)| (name.as_bytes().to_vec(), value)).collect(),
+            headers: headers
+                .into_iter()
+                .map(|(name, value)| (name.as_bytes().to_vec(), value))
+                .collect(),
             body,
         }
     }
@@ -49,7 +62,10 @@ impl<W: Wire> OhttpClient<W> {
         let body = serde_json::to_vec(&request).map_err(Error::Invalid.redact())?;
         let mut headers = vec![("content-type", b"application/json".to_vec())];
         if let Some(token) = &self.token {
-            headers.push(("authorization", format!("Bearer {}", token.as_str()).into_bytes()));
+            headers.push((
+                "authorization",
+                format!("Bearer {}", token.as_str()).into_bytes(),
+            ));
         }
         let response = self
             .wire
@@ -94,7 +110,11 @@ impl<W: Wire> super::AuthenticatedTransport for OhttpClient<W> {
             vec![("accept", b"application/octet-stream".to_vec())],
             Vec::new(),
         );
-        let response = self.wire.exchange(request).await.map_err(Error::Reconcile.redact())?;
+        let response = self
+            .wire
+            .exchange(request)
+            .await
+            .map_err(Error::Reconcile.redact())?;
         if response.body.len() > LIMIT {
             return Err(Error::Reconcile);
         }
