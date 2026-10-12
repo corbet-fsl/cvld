@@ -33,6 +33,9 @@ pub struct Config {
     /// addition to loopback: the tunnel. Invalid entries refuse to start.
     #[serde(default)]
     pub trusted_proxies: Vec<String>,
+    /// Oblivious HTTP gateway; absent means the door is reachable directly only.
+    #[serde(default)]
+    pub ohttp: Option<OhttpConfig>,
     pub publication_seconds: u64,
     pub signer_max_seconds: u64,
     pub development: bool,
@@ -72,6 +75,28 @@ impl Config {
     }
 }
 
+/// Oblivious HTTP gateway settings. Key material is read from files and never
+/// appears in this document.
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OhttpConfig {
+    /// The exact door host whose requests arrive through the gateway.
+    pub authority: String,
+    pub keys: Vec<OhttpKeyFile>,
+    /// Optional file with the secret a front proxy sends in `x-relay-auth`.
+    #[serde(default)]
+    pub relay_secret_file: Option<String>,
+}
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OhttpKeyFile {
+    pub key_id: u8,
+    /// Raw secret input keying material (32 bytes or more).
+    pub ikm_file: String,
+    /// Unix seconds after which the key no longer decrypts.
+    pub not_after: u64,
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Operator {
@@ -109,6 +134,9 @@ pub struct CommunityConfig {
     /// addition to loopback: the tunnel. Invalid entries refuse to start.
     #[serde(default)]
     pub trusted_proxies: Vec<String>,
+    /// Oblivious HTTP gateway; absent means the door is reachable directly only.
+    #[serde(default)]
+    pub ohttp: Option<OhttpConfig>,
     pub publication_seconds: u64,
     pub signer_max_seconds: u64,
     pub minimum_notice_seconds: u64,
