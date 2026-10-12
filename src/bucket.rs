@@ -114,10 +114,7 @@ pub(crate) fn source(request: &axum::extract::Request) -> std::net::IpAddr {
     source_of(peer, request.headers())
 }
 
-fn source_of(
-    peer: Option<std::net::IpAddr>,
-    headers: &axum::http::HeaderMap,
-) -> std::net::IpAddr {
+fn source_of(peer: Option<std::net::IpAddr>, headers: &axum::http::HeaderMap) -> std::net::IpAddr {
     use std::net::{IpAddr, Ipv4Addr};
     let named = match peer {
         Some(ip) if ip.is_loopback() => headers
