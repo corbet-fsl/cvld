@@ -295,14 +295,12 @@ async fn a_real_login_assertion_expired_intent_logout_and_revocation_never_suspe
             }
             "revocation" => {
                 let login = json!({"user":owner.session.user,"credential":owner.credential});
-                // Revoking the authorizing key commits, then ends its session.
-                // The final authority check therefore reports reconciliation.
-                assert!(matches!(
-                    client(&service, WALLET, Some(&owner.session.token))
-                        .call("passkey_revoke", json!({"credential":owner.credential}))
-                        .await,
-                    Err(cvld::error::Error::Reconcile)
-                ));
+                // Revoking the authorizing key commits, then ends its session;
+                // the session that ended itself is answered with success.
+                client(&service, WALLET, Some(&owner.session.token))
+                    .call("passkey_revoke", json!({"credential":owner.credential}))
+                    .await
+                    .unwrap();
                 // Beginning a login is not an oracle for key status: the revoked
                 // key still receives a challenge and the refusal belongs at finish.
                 let begin: Ceremony = serde_json::from_value(

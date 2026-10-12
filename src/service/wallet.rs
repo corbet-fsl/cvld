@@ -270,10 +270,17 @@ impl Door {
                 .signal_wallet_mutation(&session, mutation, self.inner.clock.as_ref())
                 .await?;
         }
+        let revoked: ckyh::CredentialID = request.credential.into();
+        // Revoking the credential that signed this request ends its own session,
+        // as on every other host: the ended session still receives the success.
+        let own = ctx
+            .grant
+            .as_ref()
+            .is_some_and(|grant| grant.credential == revoked);
         let result = auth
             .revoke_passkey_wallet(
                 token,
-                request.credential.into(),
+                revoked,
                 session.checked_at()?,
                 mutation,
             )
@@ -287,6 +294,9 @@ impl Door {
                 return Err(Error::Unauthorized);
             }
             global.publish_wallet(now).await?;
+            if own {
+                return Ok(Empty {});
+            }
             let completed = session
                 .check(&mut auth, token, now, self.inner.clock.as_ref())
                 .await?;

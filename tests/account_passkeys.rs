@@ -182,13 +182,9 @@ async fn manage(
     let revoked = second_api
         .call("passkey_revoke", json!({"credential":added_id}))
         .await;
-    if host == WALLET {
-        // The wallet owner commits the revocation, then its final authority
-        // check sees the ended session and withholds the answer as a reconcile.
-        assert!(matches!(revoked, Err(cvld::error::Error::Reconcile)));
-    } else {
-        revoked.unwrap();
-    }
+    // Revoking the session's own key ends that session and still answers it
+    // with success, on the wallet host exactly as on every other host.
+    revoked.unwrap();
     assert_eq!(
         call_status(
             service,
