@@ -184,17 +184,27 @@ async fn actual_joint_http_registration_voucher_and_renewal_remain_ordinary_memb
     // An ordinary member (voucher/ordinary passport, no root-board credential)
     // has no way into the board, before or after its founding.
     let (_, ordinary, _) = wallet_passport(&global).await;
-    let ordinary_proof = presentation(&board, MEMBER_HOST, None, &ordinary).await;
-    assert_eq!(
-        call_status(
-            &board,
-            MEMBER_HOST,
-            None,
-            "register_begin",
-            json!({"passport": ordinary_proof})
-        )
-        .await,
-        409
+    let board_challenge: PresentationChallenge = serde_json::from_value(
+        client(&board, MEMBER_HOST, None)
+            .call("presentation_challenge", json!({}))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let board_feed = feed(&board, MEMBER_HOST).await;
+    let board_anchor = cpsd::AuthenticatedCommunity::from_authenticated_origin(
+        cpsd::CommunityId::new("root").unwrap(),
+        csgn::KeyRing::from_cbor(&board_feed.key_ring).unwrap(),
+    );
+    assert!(
+        ordinary
+            .present(
+                &mut cpsd::rand::rngs::OsRng,
+                &board_anchor,
+                &board_challenge.request,
+                NOW
+            )
+            .is_err()
     );
     // The first member of the board is its Root, founded by the one-use Global Root
     // creation entitlement; the second pass is an ordinary renewal.
