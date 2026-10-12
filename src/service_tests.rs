@@ -209,3 +209,117 @@ async fn in_flight_limits_are_nonwaiting_and_watch_capacity_is_separate() {
         assert!(service.door.admit_request(action).await.is_ok());
     }
 }
+
+async fn request_from(service: &Running, peer: &str, forwarded: Option<&str>, action: &str) -> u16 {
+    use tower::ServiceExt as _;
+    let mut builder = axum::http::Request::builder()
+        .method("POST")
+        .uri(format!("/v1/{action}"))
+        .header("host", WALLET)
+        .header("content-type", "application/json");
+    if let Some(client) = forwarded {
+        builder = builder.header("cf-connecting-ip", client);
+    }
+    let mut request = builder.body(axum::body::Body::from("{}")).unwrap();
+    request.extensions_mut().insert(axum::extract::ConnectInfo(
+        peer.parse::<std::net::SocketAddr>().unwrap(),
+    ));
+    crate::api::router(service.door.clone())
+        .oneshot(request)
+        .await
+        .unwrap()
+        .status()
+        .as_u16()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn one_source_exhausts_only_its_own_bucket() {
+    let service = global(2).await;
+    for _ in 0..2 {
+        assert_eq!(
+            request_from(&service, "198.51.100.7:4000", None, "global_public").await,
+            200
+        );
+    }
+    assert_eq!(
+        request_from(&service, "198.51.100.7:4001", None, "global_public").await,
+        429
+    );
+    // Another source, another IPv6 /64 and an authenticated-pool action are untouched.
+    assert_eq!(
+        request_from(&service, "198.51.100.8:4000", None, "global_public").await,
+        200
+    );
+    assert_eq!(
+        request_from(&service, "[2001:db8:1:1::1]:4000", None, "global_public").await,
+        200
+    );
+    assert_eq!(
+        request_from(&service, "[2001:db8:1:1::2]:4000", None, "global_public").await,
+        200
+    );
+    assert_eq!(
+        request_from(&service, "[2001:db8:1:1::3]:4000", None, "global_public").await,
+        429
+    );
+    assert_eq!(
+        request_from(&service, "[2001:db8:1:2::1]:4000", None, "global_public").await,
+        200
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_tunnel_header_names_the_source_only_for_a_loopback_peer() {
+    let service = global(1).await;
+    assert_eq!(
+        request_from(
+            &service,
+            "127.0.0.1:9",
+            Some("203.0.113.5"),
+            "global_public"
+        )
+        .await,
+        200
+    );
+    assert_eq!(
+        request_from(
+            &service,
+            "127.0.0.1:9",
+            Some("203.0.113.5"),
+            "global_public"
+        )
+        .await,
+        429
+    );
+    assert_eq!(
+        request_from(
+            &service,
+            "127.0.0.1:9",
+            Some("203.0.113.6"),
+            "global_public"
+        )
+        .await,
+        200
+    );
+    // A remote peer cannot choose its bucket with the header.
+    assert_eq!(
+        request_from(
+            &service,
+            "198.51.100.9:9",
+            Some("203.0.113.7"),
+            "global_public"
+        )
+        .await,
+        200
+    );
+    assert_eq!(
+        request_from(
+            &service,
+            "198.51.100.9:9",
+            Some("203.0.113.8"),
+            "global_public"
+        )
+        .await,
+        429
+    );
+}
