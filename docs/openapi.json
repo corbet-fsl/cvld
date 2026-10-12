@@ -3722,7 +3722,13 @@
           "member_id": {
             "type": "string"
           },
-          "missing": {},
+          "missing": {
+            "description": "Unsatisfied admission conditions, strongest requirement first.",
+            "items": {
+              "$ref": "#/components/schemas/LobbyMissing"
+            },
+            "type": "array"
+          },
           "passport_required": {
             "description": "Passport proof is always fresh when requesting a community credential.",
             "type": "boolean"
@@ -3731,7 +3737,10 @@
             "type": "string"
           },
           "steps": {
-            "items": {},
+            "description": "Inputs the member can supply now; each names the route that takes it.",
+            "items": {
+              "$ref": "#/components/schemas/LobbyStep"
+            },
             "type": "array"
           },
           "warnings": {
@@ -3748,6 +3757,161 @@
           "steps",
           "warnings",
           "passport_required"
+        ],
+        "type": "object"
+      },
+      "LobbyGate": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "$ref": "#/components/schemas/LobbyReason"
+          },
+          "requirement": {
+            "$ref": "#/components/schemas/LobbyRequirement"
+          }
+        },
+        "required": [
+          "requirement",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "LobbyLevel": {
+        "enum": [
+          "global",
+          "community"
+        ],
+        "type": "string"
+      },
+      "LobbyMembership": {
+        "enum": [
+          "pending",
+          "admitted",
+          "lapsed",
+          "released"
+        ],
+        "type": "string"
+      },
+      "LobbyMissing": {
+        "description": "One unsatisfied admission condition.",
+        "oneOf": [
+          {
+            "description": "No admission policy is enabled.",
+            "properties": {
+              "kind": {
+                "enum": [
+                  "action_unavailable"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "The member is not in an allowed membership state.",
+            "properties": {
+              "allowed": {
+                "items": {
+                  "$ref": "#/components/schemas/LobbyMembership"
+                },
+                "type": "array"
+              },
+              "kind": {
+                "enum": [
+                  "membership"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "allowed",
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "Complete this many more of the listed alternatives.",
+            "properties": {
+              "alternatives": {
+                "items": {
+                  "$ref": "#/components/schemas/LobbyGate"
+                },
+                "type": "array"
+              },
+              "kind": {
+                "enum": [
+                  "gates"
+                ],
+                "type": "string"
+              },
+              "needed": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "needed",
+              "alternatives",
+              "kind"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "LobbyReason": {
+        "enum": [
+          "disabled",
+          "provider_disabled",
+          "proof_required"
+        ],
+        "type": "string"
+      },
+      "LobbyRequirement": {
+        "additionalProperties": false,
+        "properties": {
+          "gate": {
+            "type": "string"
+          },
+          "level": {
+            "$ref": "#/components/schemas/LobbyLevel"
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "gate",
+          "level"
+        ],
+        "type": "object"
+      },
+      "LobbyStep": {
+        "additionalProperties": false,
+        "description": "Headless description of one input the member can supply.",
+        "properties": {
+          "description": {
+            "description": "Plain text suitable for any client.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Stable client dispatch key, not a URL or executable instruction.",
+            "type": "string"
+          },
+          "input": {
+            "description": "Protocol payload type the member submits to its route.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "description",
+          "input"
         ],
         "type": "object"
       },
@@ -6154,7 +6318,13 @@
                     "member_id": {
                       "type": "string"
                     },
-                    "missing": {},
+                    "missing": {
+                      "description": "Unsatisfied admission conditions, strongest requirement first.",
+                      "items": {
+                        "$ref": "#/components/schemas/LobbyMissing"
+                      },
+                      "type": "array"
+                    },
                     "passport_required": {
                       "description": "Passport proof is always fresh when requesting a community credential.",
                       "type": "boolean"
@@ -6163,7 +6333,10 @@
                       "type": "string"
                     },
                     "steps": {
-                      "items": {},
+                      "description": "Inputs the member can supply now; each names the route that takes it.",
+                      "items": {
+                        "$ref": "#/components/schemas/LobbyStep"
+                      },
                       "type": "array"
                     },
                     "warnings": {
@@ -6829,7 +7002,13 @@
                     "member_id": {
                       "type": "string"
                     },
-                    "missing": {},
+                    "missing": {
+                      "description": "Unsatisfied admission conditions, strongest requirement first.",
+                      "items": {
+                        "$ref": "#/components/schemas/LobbyMissing"
+                      },
+                      "type": "array"
+                    },
                     "passport_required": {
                       "description": "Passport proof is always fresh when requesting a community credential.",
                       "type": "boolean"
@@ -6838,7 +7017,10 @@
                       "type": "string"
                     },
                     "steps": {
-                      "items": {},
+                      "description": "Inputs the member can supply now; each names the route that takes it.",
+                      "items": {
+                        "$ref": "#/components/schemas/LobbyStep"
+                      },
                       "type": "array"
                     },
                     "warnings": {
@@ -7227,7 +7409,13 @@
                     "member_id": {
                       "type": "string"
                     },
-                    "missing": {},
+                    "missing": {
+                      "description": "Unsatisfied admission conditions, strongest requirement first.",
+                      "items": {
+                        "$ref": "#/components/schemas/LobbyMissing"
+                      },
+                      "type": "array"
+                    },
                     "passport_required": {
                       "description": "Passport proof is always fresh when requesting a community credential.",
                       "type": "boolean"
@@ -7236,7 +7424,10 @@
                       "type": "string"
                     },
                     "steps": {
-                      "items": {},
+                      "description": "Inputs the member can supply now; each names the route that takes it.",
+                      "items": {
+                        "$ref": "#/components/schemas/LobbyStep"
+                      },
                       "type": "array"
                     },
                     "warnings": {

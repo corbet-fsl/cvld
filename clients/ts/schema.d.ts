@@ -2191,12 +2191,52 @@ export interface components {
         Lobby: {
             handle?: string | null;
             member_id: string;
-            missing: unknown;
+            /** @description Unsatisfied admission conditions, strongest requirement first. */
+            missing: components["schemas"]["LobbyMissing"][];
             /** @description Passport proof is always fresh when requesting a community credential. */
             passport_required: boolean;
             state: string;
-            steps: unknown[];
+            /** @description Inputs the member can supply now; each names the route that takes it. */
+            steps: components["schemas"]["LobbyStep"][];
             warnings: components["schemas"]["LobbyWarning"][];
+        };
+        LobbyGate: {
+            reason: components["schemas"]["LobbyReason"];
+            requirement: components["schemas"]["LobbyRequirement"];
+        };
+        /** @enum {string} */
+        LobbyLevel: "global" | "community";
+        /** @enum {string} */
+        LobbyMembership: "pending" | "admitted" | "lapsed" | "released";
+        /** @description One unsatisfied admission condition. */
+        LobbyMissing: {
+            /** @enum {string} */
+            kind: "action_unavailable";
+        } | {
+            allowed: components["schemas"]["LobbyMembership"][];
+            /** @enum {string} */
+            kind: "membership";
+        } | {
+            alternatives: components["schemas"]["LobbyGate"][];
+            /** @enum {string} */
+            kind: "gates";
+            needed: number;
+        };
+        /** @enum {string} */
+        LobbyReason: "disabled" | "provider_disabled" | "proof_required";
+        LobbyRequirement: {
+            gate: string;
+            level: components["schemas"]["LobbyLevel"];
+            provider?: string | null;
+        };
+        /** @description Headless description of one input the member can supply. */
+        LobbyStep: {
+            /** @description Plain text suitable for any client. */
+            description: string;
+            /** @description Stable client dispatch key, not a URL or executable instruction. */
+            id: string;
+            /** @description Protocol payload type the member submits to its route. */
+            input: string;
         };
         LobbyWarning: {
             /** Format: int64 */
@@ -3280,11 +3320,13 @@ export interface operations {
                     "application/json": {
                         handle?: string | null;
                         member_id: string;
-                        missing: unknown;
+                        /** @description Unsatisfied admission conditions, strongest requirement first. */
+                        missing: components["schemas"]["LobbyMissing"][];
                         /** @description Passport proof is always fresh when requesting a community credential. */
                         passport_required: boolean;
                         state: string;
-                        steps: unknown[];
+                        /** @description Inputs the member can supply now; each names the route that takes it. */
+                        steps: components["schemas"]["LobbyStep"][];
                         warnings: components["schemas"]["LobbyWarning"][];
                     };
                 };
@@ -3617,11 +3659,13 @@ export interface operations {
                     "application/json": {
                         handle?: string | null;
                         member_id: string;
-                        missing: unknown;
+                        /** @description Unsatisfied admission conditions, strongest requirement first. */
+                        missing: components["schemas"]["LobbyMissing"][];
                         /** @description Passport proof is always fresh when requesting a community credential. */
                         passport_required: boolean;
                         state: string;
-                        steps: unknown[];
+                        /** @description Inputs the member can supply now; each names the route that takes it. */
+                        steps: components["schemas"]["LobbyStep"][];
                         warnings: components["schemas"]["LobbyWarning"][];
                     };
                 };
@@ -3792,11 +3836,13 @@ export interface operations {
                     "application/json": {
                         handle?: string | null;
                         member_id: string;
-                        missing: unknown;
+                        /** @description Unsatisfied admission conditions, strongest requirement first. */
+                        missing: components["schemas"]["LobbyMissing"][];
                         /** @description Passport proof is always fresh when requesting a community credential. */
                         passport_required: boolean;
                         state: string;
-                        steps: unknown[];
+                        /** @description Inputs the member can supply now; each names the route that takes it. */
+                        steps: components["schemas"]["LobbyStep"][];
                         warnings: components["schemas"]["LobbyWarning"][];
                     };
                 };
