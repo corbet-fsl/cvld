@@ -61,7 +61,13 @@ async fn each_action_is_refused_without_a_proof() {
         403
     );
     assert_eq!(
-        status(&service, &member, "device_authorize", json!({"key":[7;32]})).await,
+        status(
+            &service,
+            &member,
+            "device_authorize",
+            json!({"key":vec![7;32]})
+        )
+        .await,
         403
     );
     unchanged(&service, &member).await;
@@ -99,7 +105,7 @@ async fn a_proof_for_one_action_or_target_is_refused_for_any_other() {
     let device = proof(
         &service,
         &mut member,
-        json!({"kind":"device_authorize","key":[7;32]}),
+        json!({"kind":"device_authorize","key":vec![7;32]}),
     )
     .await;
     assert_eq!(
@@ -107,7 +113,7 @@ async fn a_proof_for_one_action_or_target_is_refused_for_any_other() {
             &service,
             &member,
             "device_authorize",
-            json!({"key":[8;32],"step_up":device})
+            json!({"key":vec![8;32],"step_up":device})
         )
         .await,
         401
@@ -118,7 +124,7 @@ async fn a_proof_for_one_action_or_target_is_refused_for_any_other() {
             &service,
             &member,
             "device_authorize",
-            json!({"key":[7;32],"step_up":device})
+            json!({"key":vec![7;32],"step_up":device})
         )
         .await,
         401
@@ -126,7 +132,7 @@ async fn a_proof_for_one_action_or_target_is_refused_for_any_other() {
     let revoke = proof(
         &service,
         &mut member,
-        json!({"kind":"passkey_revoke","credential":[9;16]}),
+        json!({"kind":"passkey_revoke","credential":vec![9;16]}),
     )
     .await;
     assert_eq!(

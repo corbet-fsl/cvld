@@ -34,6 +34,7 @@ mod root_issuance;
 mod wallet;
 pub use root_issuance::RootBoardPurpose;
 mod shutdown;
+mod step_up;
 pub use crate::accounting::NativeConstruction;
 pub use migrations::{community_migrations, global_migrations};
 
