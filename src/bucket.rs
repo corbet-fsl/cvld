@@ -72,6 +72,7 @@ impl<K: Hash + Eq + Clone> Keyed<K> {
     }
 
     /// Number of keys currently tracked.
+    #[cfg(test)]
     pub(crate) fn tracked(&self) -> usize {
         self.table().len()
     }
