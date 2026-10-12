@@ -114,7 +114,7 @@ pub(crate) fn source(request: &axum::extract::Request) -> std::net::IpAddr {
     source_of(peer, request.headers())
 }
 
-pub(crate) fn source_of(
+fn source_of(
     peer: Option<std::net::IpAddr>,
     headers: &axum::http::HeaderMap,
 ) -> std::net::IpAddr {

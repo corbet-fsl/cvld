@@ -2,7 +2,7 @@
 use super::*;
 use axum::{
     extract::{OriginalUri, State},
-    http::{HeaderMap, header},
+    http::header,
     response::IntoResponse,
     routing::get,
 };
@@ -21,12 +21,12 @@ pub(super) fn router(router: Router<Door>) -> Router<Door> {
         get(
             |State(door): State<Door>,
              OriginalUri(uri): OriginalUri,
-             peer: Option<axum::extract::ConnectInfo<std::net::SocketAddr>>,
-             headers: HeaderMap| async move {
+
+             request: axum::extract::Request| async move {
                 let action = action("account_record").expect("registered common resource metadata");
-                let source = crate::bucket::source_of(peer.map(|info| info.0.ip()), &headers);
+                let source = crate::bucket::source(&request);
                 let _permit = door.admit_request(action, source).await?;
-                let ctx = door.authorize(action, &headers).await?;
+                let ctx = door.authorize(action, request.headers()).await?;
                 if uri.query().is_some() {
                     return Err(Error::Invalid);
                 }
