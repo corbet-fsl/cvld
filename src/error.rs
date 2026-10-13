@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "server")]
 use utoipa::ToSchema;
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, thiserror::Error)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, thiserror::Error)]
 #[cfg_attr(feature = "server", derive(ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum Error {

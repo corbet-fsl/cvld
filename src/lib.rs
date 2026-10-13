@@ -8,6 +8,7 @@ compile_error!("development-gate is forbidden in release builds");
 
 #[cfg(feature = "server")]
 pub mod accounting;
+pub mod address;
 #[cfg(feature = "server")]
 pub mod api;
 #[cfg(feature = "server")]
@@ -26,7 +27,6 @@ mod community_actions;
 pub mod config;
 #[cfg(feature = "server")]
 pub mod contact_gates;
-pub mod address;
 pub mod error;
 #[cfg(feature = "server")]
 mod global;
@@ -40,6 +40,8 @@ pub mod mcp;
 mod ohttp;
 #[cfg(feature = "server")]
 pub mod payments;
+#[cfg(feature = "server")]
+pub mod registry;
 #[cfg(feature = "server")]
 pub mod service;
 #[cfg(feature = "server")]

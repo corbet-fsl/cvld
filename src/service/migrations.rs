@@ -56,5 +56,6 @@ pub fn global_migrations() -> Vec<crlt::Migration<'static>> {
             crate::contact_gates::state::BINDING_SCHEMA,
         ),
         crlt::Migration::new(10, "ohttp-replay", crate::ohttp::SCHEMA),
+        crlt::Migration::new(11, "registry", crate::registry::SCHEMA),
     ]
 }

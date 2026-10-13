@@ -167,7 +167,13 @@ mod tests {
         assert_eq!(check_syntax("abcdefgh"), Ok(()));
         assert_eq!(check_syntax(&"a".repeat(30)), Ok(()));
         assert_eq!(check_syntax(&"a".repeat(31)), Err(Refusal::TooLong));
-        for bad in ["abcd-efgh", "ABCDEFGH", "abcdefgh!", "abcdefgé", "abcd efgh"] {
+        for bad in [
+            "abcd-efgh",
+            "ABCDEFGH",
+            "abcdefgh!",
+            "abcdefgé",
+            "abcd efgh",
+        ] {
             assert_eq!(check_syntax(bad), Err(Refusal::Charset), "{bad}");
         }
     }
