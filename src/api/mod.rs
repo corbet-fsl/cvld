@@ -286,6 +286,8 @@ actions! {
     member_role(Empty) -> MemberRole, Member, Community, Check, Forward, "Read the current local membership role";
     member_role_set(SetMemberRole) -> Empty, Member, Community, Record, Forward, "Change a member role under current membership authority";
     setting_set(Setting) -> TrustFeed, Admin, Community, Record, Forward, "Edit a community setting";
+    setting_list(Empty) -> SettingList, Admin, Community, Check, Forward, "List the settings catalogue with community values";
+    platform_list(Empty) -> SettingList, Root, Community, Check, Forward, "List the settings catalogue with platform values and force switches";
     platform_set(PlatformSetting) -> TrustFeed, Root, Community, Record, Forward, "Edit a platform setting or force switch";
     schema_check(SchemaRequest) -> SchemaChanges, Admin, Community, Check, Forward, "Classify profile schema changes";
     schema_set(SchemaRequest) -> TrustFeed, Admin, Community, Record, Forward, "Publish a profile schema";

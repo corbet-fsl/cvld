@@ -5,6 +5,7 @@ use crate::{
     service::{Context, Door},
 };
 use cmty::{cplc, cplc::crbk};
+use serde_json::Value;
 
 impl Door {
     pub(crate) async fn presentation_challenge(
@@ -154,6 +155,69 @@ impl Door {
                 revision: p.revision,
             }),
         })
+    }
+    pub(crate) async fn setting_list(&self, ctx: Context, _: Empty) -> Result<SettingList> {
+        self.list_settings(ctx, false).await
+    }
+    pub(crate) async fn platform_list(&self, ctx: Context, _: Empty) -> Result<SettingList> {
+        self.list_settings(ctx, true).await
+    }
+    /// Read-only; the role was already checked by the registry. Admins can edit
+    /// only what the catalogue lets the community layer override and Root has not forced.
+    async fn list_settings(&self, ctx: Context, root: bool) -> Result<SettingList> {
+        let community = self.community_backend()?.lock().await;
+        let book = community
+            .facade
+            .policy()
+            .lock()
+            .await
+            .rulebook(ctx.now)
+            .await
+            .map_err(|_| Error::Unavailable)?;
+        let views = book.describe().map_err(|_| Error::Unavailable)?;
+        let layer = |layer: crbk::Layer| match layer {
+            crbk::Layer::Platform => "platform",
+            crbk::Layer::Template => "template",
+            crbk::Layer::Community => "community",
+            crbk::Layer::Member => "member",
+        };
+        let kind = |t: crbk::SettingType| {
+            serde_json::to_value(t)
+                .ok()
+                .and_then(|v| v.as_str().map(str::to_owned))
+                .unwrap_or_default()
+        };
+        let settings = views
+            .into_iter()
+            .map(|v| {
+                let forced = v.platform.as_ref().is_some_and(|p| p.force);
+                SettingItem {
+                    editable: root || (v.lowest_layer >= crbk::Layer::Community && !forced),
+                    key: v.key,
+                    group: v.meta.group,
+                    label: v.meta.label,
+                    help: v.meta.help,
+                    unit: v.meta.unit,
+                    one_way: v.meta.one_way,
+                    value_type: kind(v.value_type),
+                    nullable: v.nullable,
+                    min: v.min.map(Value::Number),
+                    max: v.max.map(Value::Number),
+                    lowest_layer: layer(v.lowest_layer).into(),
+                    default: v.default,
+                    platform: v.platform.map(|p| SettingLayer {
+                        value: p.value,
+                        force: p.force,
+                    }),
+                    community: v.community.map(|value| SettingLayer {
+                        value,
+                        force: false,
+                    }),
+                    effective: v.effective,
+                }
+            })
+            .collect();
+        Ok(SettingList { settings })
     }
     pub(crate) async fn setting_set(&self, ctx: Context, request: Setting) -> Result<TrustFeed> {
         self.edit_setting(ctx, request, None).await

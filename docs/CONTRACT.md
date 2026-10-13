@@ -220,6 +220,8 @@ service host; `Authenticated` means the session's exact host-selected role.
 | passkey_add | Member | Community | Record |
 | passkey_revoke | Member | Community | Record |
 | setting_set | Admin | Community | Record |
+| setting_list | Admin | Community | Check |
+| platform_list | Root | Community | Check |
 | platform_set | Root | Community | Record |
 | schema_check | Admin | Community | Check |
 | schema_set | Admin | Community | Record |

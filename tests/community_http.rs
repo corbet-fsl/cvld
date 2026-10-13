@@ -296,6 +296,36 @@ async fn two_communities_admission_policy_lapse_and_release_over_http() {
     )
     .unwrap();
     assert_eq!(verified_feed(&forced, "alpha", NOW + 3).content["quota"], 3);
+    // The settings catalogue is listed for each role with metadata and layer rows.
+    let listed: SettingList =
+        serde_json::from_value(admin_client.call("setting_list", json!({})).await.unwrap())
+            .unwrap();
+    let find = |list: &SettingList, key: &str| {
+        list.settings
+            .iter()
+            .position(|s| s.key == key)
+            .unwrap_or(usize::MAX)
+    };
+    let visible = &listed.settings[find(&listed, "voucher.sponsor_visible")];
+    assert!(visible.one_way && visible.editable);
+    assert_eq!(visible.value_type, "boolean");
+    assert_eq!(visible.lowest_layer, "community");
+    let slope = &listed.settings[find(&listed, "voucher.slope.admin")];
+    assert!(!slope.editable);
+    assert_eq!(slope.lowest_layer, "platform");
+    let days = &listed.settings[find(&listed, "waves.waiting_period_days")];
+    assert_eq!(
+        (days.min.clone(), days.max.clone()),
+        (Some(json!(1)), Some(json!(30)))
+    );
+    assert!(admin_client.call("platform_list", json!({})).await.is_err());
+    let root_listed: SettingList =
+        serde_json::from_value(root_client.call("platform_list", json!({})).await.unwrap())
+            .unwrap();
+    assert!(root_listed.settings[find(&root_listed, "voucher.slope.admin")].editable);
+    let quota = &root_listed.settings[find(&root_listed, "quota")];
+    assert!(quota.platform.as_ref().is_some_and(|p| p.force));
+    assert!(!listed.settings[find(&listed, "quota")].editable);
     let schema = community_schema("alpha", 2);
     admin_client
         .call("schema_check", json!({"schema":schema}))
