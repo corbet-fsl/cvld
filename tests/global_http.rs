@@ -270,7 +270,8 @@ async fn cors_never_authorizes_a_foreign_origin_or_host() {
     let service = global(30).await;
     let http = reqwest::Client::new();
     for (host, origin, allowed) in [
-        (WALLET, "https://wallet.example.test", true),
+        (WALLET, "https://vault.wallet.example.test", true),
+        (WALLET, "https://wallet.example.test", false),
         (WALLET, "https://evil.example.test", false),
         (
             "wallet.example.test.evil.test",

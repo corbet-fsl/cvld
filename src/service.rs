@@ -552,8 +552,15 @@ impl Door {
         }
     }
     pub(crate) fn allows_origin(&self, host: &str, origin: &str) -> bool {
+        // Calls to the global wallet host come from the vault frame, so its only
+        // allowed page origin is `https://vault.<wallet host>`.
+        let direct = if host.starts_with("wallet.") && self.inner.hosts.contains_key(host) {
+            format!("https://vault.{host}")
+        } else {
+            format!("https://{host}")
+        };
         (self.inner.hosts.contains_key(host) || self.is_membership_host(host))
-            && (origin == format!("https://{host}")
+            && (origin == direct
                 || ((self.inner.hosts.contains_key(host) || self.is_garden(host))
                     && host.strip_prefix("api.admin.").is_some_and(|canonical| {
                         origin == format!("https://admin.{canonical}")
