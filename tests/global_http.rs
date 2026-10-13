@@ -83,8 +83,8 @@ async fn wallet_passkey_blind_passport_and_host_role_boundaries() {
             &service,
             ROOT,
             Some(&member.session),
-            "community_creation_initialize",
-            json!({"community":"alpha","recipient":"none"})
+            "community_terminate",
+            json!({"address":"alpha12345","reason":"legal"})
         )
         .await,
         401
@@ -94,8 +94,8 @@ async fn wallet_passkey_blind_passport_and_host_role_boundaries() {
             &service,
             WALLET,
             Some(&member.session),
-            "community_creation_initialize",
-            json!({"community":"alpha","recipient":"none"})
+            "community_terminate",
+            json!({"address":"alpha12345","reason":"legal"})
         )
         .await,
         403
@@ -128,8 +128,8 @@ async fn wallet_passkey_blind_passport_and_host_role_boundaries() {
             &service,
             ROOT,
             Some(&root.session),
-            "community_creation_initialize",
-            json!({"community":"alpha","recipient":"none"})
+            "community_terminate",
+            json!({"address":"alpha12345","reason":"legal"})
         )
         .await,
         401

@@ -10,6 +10,20 @@ pub(super) mod lifecycle;
 pub(super) struct Service {
     pub(super) address: String,
     pub(super) door: Door,
+    /// Replaces the door's own router (the multi-tenant front).
+    pub(super) router: Option<axum::Router>,
+    /// Hosting hub whose dynamic doors this service fences, joins and maintains.
+    pub(super) hub: Option<Arc<cvld::hub::Hub>>,
+}
+impl Service {
+    pub(super) fn new(address: String, door: Door) -> Self {
+        Self {
+            address,
+            door,
+            router: None,
+            hub: None,
+        }
+    }
 }
 
 pub(super) async fn run(path: &str, deadline: Arc<OnceLock<Instant>>) -> Result<()> {
@@ -69,13 +83,13 @@ async fn open_components(
         Door::root_board_with_construction(root, clock.clone(), construction.clone()).await?;
     // Retain each completed Door before the next await. Abandoned later
     // startup still fences and joins every earlier native owner.
-    services.push(Service { address, door });
+    services.push(Service::new(address, door));
     let purpose = services[0].door.root_board_purpose(key).await?;
     for source in sources {
         let address = source.listen.clone();
         let door =
             Door::community_with_construction(source, clock.clone(), construction.clone()).await?;
-        services.push(Service { address, door });
+        services.push(Service::new(address, door));
         services
             .last()
             .ok_or(Error::Unavailable)?

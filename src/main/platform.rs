@@ -2,6 +2,8 @@
 use super::root_issuer::{Service, config::host, lifecycle};
 use super::*;
 use cvld::service::NativeConstruction;
+#[path = "platform/hub.rs"]
+mod hub;
 use serde::Deserialize;
 use std::{collections::BTreeSet, net::SocketAddr};
 
@@ -13,6 +15,9 @@ struct Files {
     /// Hosts the root board in this same process; absent means no root board.
     #[serde(default)]
     root_board: Option<RootFiles>,
+    /// Multi-tenant hosting: communities are created at runtime and registered.
+    #[serde(default)]
+    hub: Option<hub::HubFiles>,
 }
 
 #[derive(Deserialize)]
@@ -26,6 +31,7 @@ struct Prepared {
     global: Config,
     communities: Vec<CommunityConfig>,
     root: Option<(RootCommunityConfig, cpsd::IssuerKey)>,
+    hub: Option<hub::Prepared>,
     budget: Duration,
 }
 
@@ -35,6 +41,7 @@ pub(super) async fn run(path: &str, deadline: Arc<OnceLock<Instant>>) -> Result<
         global,
         communities,
         root,
+        hub,
         budget,
     } = read(path)?;
     let signals = signals::Signals::install(budget, deadline.clone()).await?;
@@ -46,6 +53,7 @@ pub(super) async fn run(path: &str, deadline: Arc<OnceLock<Instant>>) -> Result<
         global,
         communities,
         root,
+        hub,
         Arc::new(SystemClock),
         &construction,
         &mut services,
@@ -74,35 +82,44 @@ async fn open_components(
     global: Config,
     communities: Vec<CommunityConfig>,
     root: Option<(RootCommunityConfig, cpsd::IssuerKey)>,
+    hub: Option<hub::Prepared>,
     clock: Arc<dyn cvld::service::Clock>,
     construction: &NativeConstruction,
     services: &mut Vec<Service>,
     listeners: &mut Vec<tokio::net::TcpListener>,
 ) -> Result<()> {
     let address = global.listen.clone();
+    let (database_url, database_token) = (
+        global.database_url.clone(),
+        match &global.database_token_file {
+            Some(path) => Some(
+                String::from_utf8(Config::secret(path)?.to_vec())
+                    .map_err(Error::Invalid.redact())?,
+            ),
+            None => None,
+        },
+    );
+    let base = global.domain.clone();
     let door = Door::global(global, clock.clone()).await?;
     // Retain each completed Door before the next await so abandoned startup
     // still fences and joins every earlier owner.
-    services.push(Service { address, door });
+    services.push(Service::new(address, door));
     for community in communities {
         let address = community.listen.clone();
         let door =
             Door::community_with_construction(community, clock.clone(), construction.clone())
                 .await?;
-        services.push(Service { address, door });
-        let (global, target) = match services.as_slice() {
-            [global, .., target] => (&global.door, &target.door),
-            _ => return Err(Error::Unavailable),
-        };
-        global.link_community_creation(target).await?;
+        services.push(Service::new(address, door));
     }
+    let mut root_purpose = None;
     if let Some((config, key)) = root {
         let address = config.listen().to_owned();
         let door =
             Door::root_board_with_construction(config, clock.clone(), construction.clone()).await?;
         let communities = services.len();
-        services.push(Service { address, door });
+        services.push(Service::new(address, door));
         let purpose = services[communities].door.root_board_purpose(key).await?;
+        root_purpose = Some(purpose.clone());
         // Every hosted community accepts the root board's purpose, as when the
         // root board runs as its own process.
         for service in services.iter().take(communities).skip(1) {
@@ -111,6 +128,18 @@ async fn open_components(
                 .attach_root_board_purpose(purpose.clone())
                 .await?;
         }
+    }
+    if let Some(hub) = hub {
+        hub::open(
+            hub,
+            (&database_url, database_token),
+            &base,
+            root_purpose,
+            clock.clone(),
+            construction,
+            services,
+        )
+        .await?;
     }
     // No server is exposed until ALL links validate and ALL binds succeed.
     for service in services.iter() {
@@ -173,10 +202,15 @@ fn read(path: &str) -> Result<Prepared> {
             Some((root, key))
         }
     };
+    let hub = match &files.hub {
+        Some(hub) => Some(hub::read(hub)?),
+        None => None,
+    };
     Ok(Prepared {
         global,
         communities,
         root,
+        hub,
         budget,
     })
 }

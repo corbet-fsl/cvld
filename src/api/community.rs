@@ -140,12 +140,10 @@ pub struct Withdraw {
 pub struct CredentialRequest {
     pub presentation: PresentationInput,
     pub devices: Vec<[u8; 32]>,
-    /// Original target-Policy first-Root entitlement, redeemed with full gates.
+    /// Creation id of a community being created, redeemed by its claimed
+    /// creator together with every configured gate; the creator becomes first admin.
     #[serde(default)]
-    pub creation: Option<Vec<u8>>,
-    /// Original target-Policy FounderAdmin entitlement, redeemed with full gates.
-    #[serde(default)]
-    pub founder: Option<Vec<u8>>,
+    pub creation: Option<String>,
 }
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]

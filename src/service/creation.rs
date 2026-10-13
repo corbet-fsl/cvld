@@ -1,183 +1,165 @@
-//! Explicit caller links existing owners; no deployment or database control plane.
+//! Self-service community creation: token issuance and creation at the global
+//! door (through the hosting hub) and the creator's claim at the community door.
 use super::*;
+use crate::{
+    api::{
+        CommunityCreate, CommunityCreated, CommunityTerminate, CreationClaim, CreationClaimed,
+        CreationTokenKey, CreationTokenRequest, CreationTokenResponse, Empty,
+    },
+    hosts::Boxed,
+};
+
+/// What the global door needs from the process that hosts communities. The hub
+/// owns the registry, the token issuer, host provisioning and the community
+/// doors; the door itself keeps no state about them.
+pub trait CommunityHub: Send + Sync {
+    /// Verify the token, register the shell, open and provision the community,
+    /// and return the creator's claim. Rolls everything back on any failure.
+    fn create<'a>(
+        &'a self,
+        request: CommunityCreate,
+        now: u64,
+    ) -> Boxed<'a, Result<CommunityCreated>>;
+    /// Count one issuance for this person and blind-sign the request.
+    fn issue_token<'a>(
+        &'a self,
+        subject: &'a str,
+        blinded: &'a [u8],
+        now: u64,
+    ) -> Boxed<'a, Result<Vec<u8>>>;
+    /// Root ends a community; see `Hub::end`.
+    fn terminate<'a>(&'a self, request: CommunityTerminate, now: u64) -> Boxed<'a, Result<()>>;
+    /// The public key that verifies creation tokens (DER).
+    fn token_key(&self) -> Result<Vec<u8>>;
+}
 
 impl Door {
-    /// Link an already constructed target before serving creation requests.
-    /// Every target remains its own authenticated community/database owner.
-    /// The launcher must explicitly supply this composition; it is not inferred.
-    pub async fn link_community_creation(&self, target: &Door) -> Result<()> {
-        if self.inner.scope != Scope::Global || target.inner.scope != Scope::Community {
+    /// Attach the hosting hub to a global door. Done once, by the launcher.
+    pub fn attach_hub(&self, hub: Arc<dyn CommunityHub>) -> Result<()> {
+        if self.inner.scope != Scope::Global {
             return Err(Error::WrongHost);
         }
-        self.inner
-            .root_creation_scope
-            .as_ref()
-            .ok_or(Error::Unavailable)?;
-        let mut targets = self.inner.creation_targets.lock().await;
-        let mut community = target.community_backend()?.lock().await;
-        let name = community.config.community.clone();
-        if targets
-            .get(&name)
-            .is_some_and(|old| !Arc::ptr_eq(&old.inner, &target.inner))
-        {
-            return Err(Error::Forbidden);
-        }
-        community.link_creation_owner(self.inner.creation_owner.clone())?;
-        targets.insert(name, target.clone());
-        Ok(())
+        self.inner.hub.set(hub).map_err(|_| Error::Forbidden)
     }
-    pub(crate) async fn community_creation_recipient(
+    fn hub(&self) -> Result<&Arc<dyn CommunityHub>> {
+        if self.inner.scope != Scope::Global {
+            return Err(Error::WrongHost);
+        }
+        self.inner.hub.get().ok_or(Error::Unavailable)
+    }
+    pub(crate) async fn creation_token_key(
+        &self,
+        _ctx: Context,
+        _request: Empty,
+    ) -> Result<CreationTokenKey> {
+        Ok(CreationTokenKey {
+            public_key: self.hub()?.token_key()?,
+        })
+    }
+    pub(crate) async fn creation_token_issue(
         &self,
         ctx: Context,
-        request: CreationRecipientRequest,
-    ) -> Result<CreationRecipient> {
+        request: CreationTokenRequest,
+    ) -> Result<CreationTokenResponse> {
+        let subject = ctx.subject()?;
+        let blind_signature = self
+            .hub()?
+            .issue_token(subject.as_str(), &request.blinded, ctx.now)
+            .await?;
+        Ok(CreationTokenResponse { blind_signature })
+    }
+    pub(crate) async fn community_create(
+        &self,
+        ctx: Context,
+        request: CommunityCreate,
+    ) -> Result<CommunityCreated> {
+        self.hub()?.create(request, ctx.now).await
+    }
+    pub(crate) async fn community_terminate(
+        &self,
+        ctx: Context,
+        request: CommunityTerminate,
+    ) -> Result<Empty> {
+        self.hub()?.terminate(request, ctx.now).await?;
+        Ok(Empty {})
+    }
+    pub(crate) async fn community_dissolve(&self, ctx: Context, _request: Empty) -> Result<Empty> {
+        let lifecycle = self.community_backend()?.lock().await.lifecycle()?;
+        lifecycle.dissolve(ctx.now).await?;
+        Ok(Empty {})
+    }
+    pub(crate) async fn community_creation_claim(
+        &self,
+        ctx: Context,
+        request: CreationClaim,
+    ) -> Result<CreationClaimed> {
         with_live_clock(
             self.community_backend()?
                 .lock()
                 .await
-                .creation_recipient(&ctx, request),
+                .creation_claim(&ctx, request),
         )
         .await
     }
-    pub(crate) async fn community_creation_initialize(
+}
+
+impl Door {
+    /// Hub only: arm a community that is being created with its claim gate.
+    pub(crate) async fn attach_creation_gate(
         &self,
-        ctx: Context,
-        request: CommunityCreationRequest,
-    ) -> Result<CommunityCreationInvitation> {
-        let target = self
-            .inner
-            .creation_targets
+        gate: Arc<dyn crate::community::creation::CreationGate>,
+    ) -> Result<()> {
+        self.community_backend()?
             .lock()
             .await
-            .get(&request.community)
-            .cloned()
-            .ok_or(Error::Unavailable)?;
-        let token = ctx.token.as_deref().ok_or(Error::Unauthorized)?;
-        let authentication = self.auth(&ctx.host)?;
-        let mut auth = authentication.lock().await;
-        let mut session = auth
-            .root_creation_session(
-                token,
-                ctx.grant.as_ref().ok_or(Error::Unauthorized)?,
-                ctx.now,
-                self.inner.clock.as_ref(),
-            )
-            .await?;
-        // Root Auth -> SAME original Root credential writer -> target service
-        // -> target Policy -> target writer. A shared physical database cannot
-        // acquire its second writer; original bounded acquisition refuses safely.
-        let root_writer = self
-            .inner
-            .root_creation_scope
-            .as_ref()
-            .ok_or(Error::Unavailable)?
-            .tx()
-            .await
-            .map_err(Error::Unavailable.redact())?;
-        session
-            .check(&mut auth, token, self.inner.clock.as_ref())
-            .await?;
-        let mut community = target.community_backend()?.lock().await;
-        let result = with_live_clock(community.initialize_creation(
-            &request.recipient,
-            &self.inner.creation_owner,
-            &mut session,
-            &mut auth,
-            token,
-            self.inner.clock.as_ref(),
-        ))
-        .await;
-        root_writer.rollback().await.map_err(|_| Error::Reconcile)?;
-        let created = result?;
-        let root_floor = session
-            .check(&mut auth, token, self.inner.clock.as_ref())
-            .await
-            .map_err(|_| Error::Reconcile)?;
-        let created = with_live_clock(community.release_creation(created, root_floor)).await?;
-        let final_root = session
-            .check(&mut auth, token, self.inner.clock.as_ref())
-            .await
-            .map_err(|_| Error::Reconcile)?;
-        let value = community.project_creation(created, final_root)?;
-        if session
-            .release(&auth, token, self.inner.clock.as_ref())
-            .map_err(|_| Error::Reconcile)?
-            != value.checked_at
-        {
-            return Err(Error::Reconcile);
-        }
-        Ok(value)
+            .set_creation_gate(gate);
+        Ok(())
     }
-    pub(crate) async fn community_founder_issue(
-        &self,
-        ctx: Context,
-        request: CommunityCreationRequest,
-    ) -> Result<CommunityCreationInvitation> {
-        let target = self
-            .inner
-            .creation_targets
+    /// Hub only: whether the creator has been admitted as first admin.
+    pub(crate) async fn community_active(&self) -> Result<bool> {
+        self.community_backend()?
             .lock()
             .await
-            .get(&request.community)
-            .cloned()
-            .ok_or(Error::Unavailable)?;
-        let token = ctx.token.as_deref().ok_or(Error::Unauthorized)?;
-        let authentication = self.auth(&ctx.host)?;
-        let mut auth = authentication.lock().await;
-        let mut session = auth
-            .root_creation_session(
-                token,
-                ctx.grant.as_ref().ok_or(Error::Unauthorized)?,
-                ctx.now,
-                self.inner.clock.as_ref(),
-            )
-            .await?;
-        // Root Auth -> SAME original Root credential writer -> target service
-        // -> target Policy -> target writer. A shared physical database cannot
-        // acquire its second writer; original bounded acquisition refuses safely.
-        let root_writer = self
-            .inner
-            .root_creation_scope
-            .as_ref()
-            .ok_or(Error::Unavailable)?
-            .tx()
+            .creation_active()
             .await
-            .map_err(Error::Unavailable.redact())?;
-        session
-            .check(&mut auth, token, self.inner.clock.as_ref())
-            .await?;
-        let mut community = target.community_backend()?.lock().await;
-        let result = with_live_clock(community.issue_founder(
-            &request.recipient,
-            &self.inner.creation_owner,
-            &mut session,
-            &mut auth,
-            token,
-            self.inner.clock.as_ref(),
-        ))
-        .await;
-        root_writer.rollback().await.map_err(|_| Error::Reconcile)?;
-        let created = result?;
-        let root_floor = session
-            .check(&mut auth, token, self.inner.clock.as_ref())
+    }
+    /// The founding (genesis) document of a community created after genesis existed.
+    pub async fn community_genesis(&self) -> Result<Vec<u8>> {
+        self.community_backend()?
+            .lock()
             .await
-            .map_err(|_| Error::Reconcile)?;
-        let created = with_live_clock(community.release_creation(created, root_floor)).await?;
-        let final_root = session
-            .check(&mut auth, token, self.inner.clock.as_ref())
-            .await
-            .map_err(|_| Error::Reconcile)?;
-        let value = community.project_creation(created, final_root)?;
-        if session
-            .release(&auth, token, self.inner.clock.as_ref())
-            .map_err(|_| Error::Reconcile)?
-            != value.checked_at
-        {
-            return Err(Error::Reconcile);
-        }
-        Ok(value)
+            .genesis()
+            .await?
+            .ok_or(Error::Unavailable)
     }
 }
 
-#[cfg(all(test, feature = "development-gate"))]
-mod tests;
+impl Door {
+    /// Launcher only: arm a one-time creator claim for a statically configured
+    /// community that is created without the hub. The secret is kept only as a
+    /// hash; the claim expires at `valid_until`.
+    pub async fn arm_creation(&self, secret: &[u8], valid_until: u64) -> Result<()> {
+        if secret.len() < 16 {
+            return Err(Error::Invalid);
+        }
+        self.attach_creation_gate(Arc::new(crate::community::creation::StaticGate {
+            hash: crate::community::creation::StaticGate::hash(secret),
+            valid_until,
+        }))
+        .await
+    }
+}
+
+impl Door {
+    /// Hub only: let this community's admins dissolve it.
+    pub(crate) async fn attach_lifecycle(
+        &self,
+        lifecycle: Arc<dyn crate::community::creation::Lifecycle>,
+    ) -> Result<()> {
+        self.community_backend()?
+            .lock()
+            .await
+            .set_lifecycle(lifecycle);
+        Ok(())
+    }
+}

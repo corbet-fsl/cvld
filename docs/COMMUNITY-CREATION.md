@@ -1,74 +1,73 @@
-# Explicit community creation composition
+# Community creation, hosting and ending
 
-`cvld serve platform --config FILE` is the configured launcher. FILE names the
-global configuration and the community configurations (`global_config`,
-`community_configs`); every community must share the global domain, a unique
-name and a distinct bind address. The launcher constructs the original Global
-Door and each target Community Door in one process and calls
-`global.link_community_creation(&target).await` for each; no server is exposed
-until every link validates and every bind succeeds. A library caller may do the
-same composition itself. It does not provision a database, deploy a service, or
-infer an administrative control plane. A target that is not listed refuses
-creation. Separate `serve global` and `serve community` processes cannot create.
-The Global platform Root uses its original `api.admin.root.<domain>` passkey
-session. A target recipient uses its own member host and a genuine first
-registration bound to its verified passport presentation.
+A platform process hosts many communities. The **registry** (global scope of
+the global database) records every incarnation: id, address, founding
+fingerprint, state (`being_created`, `live`, `ending`, `ended`), expiry, hold and
+end reason. Each community's own data is a separate scope of the shared
+community database, keyed by its address while it lives. A **hub** opens a door
+per registered community and one **Host-routing front** serves the global door
+and all community doors on a single listener. Hostnames are
+`<address>.<base>` (static community app), `vault.<address>.<base>` (static
+vault) and `api.<address>.<base>` / `api.admin.<address>.<base>` (this door).
 
-The target member calls `community_creation_recipient` with an explicit
-`expires_at`. Omit `id` for the first preparation, then retain the returned
-original UUID and expiry for recovery. The host bounds these terms by the
-actual target session and authenticated Policy deadline. Its returned opaque
-`recipient` references only that exact target session and those immutable
-terms. It never contains a bearer token, target user UUID, or Global identity.
+`cvld serve platform --config FILE` enables hosting with a `hub` section:
+`template_config` (a complete community configuration used as template),
+`master_secret_file` (platform charter master secret, at least 32 bytes),
+`token_issuer_file` (RSA private key, DER, for creation tokens only),
+`reserved_file` (Root-maintained reserved addresses, JSON array), `shell_seconds`,
+optional `per_week` / `per_year` token limits (defaults 1 and 12) and a
+`provisioner` (`noop` or `cloudflare`). Statically listed communities keep
+working beside the hub; they are not registry entries.
 
-The authorized Global Root calls `community_creation_initialize` with the
-explicitly linked community name and that recipient reference. Root Auth and
-the original Root credential database writer remain held while the actual
-target Policy signs and verifies the original CVCH BootstrapRoot invitation
-and Membership initializes its exact Creating tuple under its own writer.
-Current target key, legal state, session, Policy and original deadlines are
-checked. Public factories refuse incompatible same-file migration histories;
-the original bounded writer acquisition also refuses physical database
-contention without guessing database identity from URLs or handles.
+## Addresses
 
-The response contains the original signed invitation, ID, expiry and actual
-checked time. It grants no membership or Root role. The recipient includes
-these exact invitation bytes as `creation` in the existing `credential_issue`
-request, with a fresh genuine passport presentation and every configured
-admission gate. The original domain transaction joins the one-use receipt,
-Register Root, enrolment, probation and Active phase. No ordinary role setter
-substitutes for that redemption. FounderAdmin has its own purpose below; this route never issues it.
+`^[a-z0-9]{8,30}$`, not on the reserved list, not offensive (`rustrict`), unique
+among communities that are not ended and not held or blocked. Shorter names are
+reserved by length. The same module (`cvld::address`) validates and suggests
+names (`any_ascii` transliteration) for the server and for the browser.
 
-References are bounded RAM state and single use. Cancellation or restart drops
-them; no session, raw COSE or producer payload is journaled. A lost/late commit
-returns `reconcile` and never implies that Creating rolled back. With new
-genuine current target and Root authorization, prepare again using the SAME
-original ID and expiry, then request a newly signed invitation. The original
-receipt, recipient binding and exclusive expiry must match the retained tuple;
-different terms refuse. Expiry is never renewed and Creating is never reset.
-Callers must retain their original public terms before requesting initialization.
+## Creation
 
-Source-reviewed lower storage and target-owner tests are distinct from actual
-GlobalRoot HTTP qualification. New host tests require the current composed
-dependency graph and execution before a functioning-production claim.
+1. **Token.** A signed-in wallet member asks `creation_token_issue` for a blind
+   token (RFC 9474). The service counts per person: at most one per rolling
+   7 days and 12 per rolling 365 days. `creation_token_key` publishes the key.
+2. **Create.** `community_create` takes no session, only the finished token and
+   the address, so the platform cannot link person and community. Order:
+   validate address, verify token, reserve its nullifier, insert the shell
+   (`being_created`), open the community door (its founding key derives from the
+   master secret and the fresh random id; the signer writes its genesis document
+   before anything else), record the fingerprint, provision hostnames. Any
+   failure rolls back: door closed, hostnames removed, data purged, shell
+   removed, nullifier released. The response carries a bearer **claim** secret.
+3. **Claim.** The creator registers in the new community like any person, then
+   calls `community_creation_claim` with the secret. Membership records the
+   creator's commitment (first claim wins).
+4. **Admission.** `credential_issue` with `creation: <id>` passes every
+   configured gate of the community. The creator becomes the first **admin**
+   (the Root board community's first seat is Root). The hub then marks the
+   community `live` and spends the token. An abandoned shell expires after
+   `shell_seconds`: it is removed and the token is released.
 
-## FounderAdmin
+Roots join the new community like any member through the root-board path; no
+Root action, bootstrap voucher or special label exists.
 
-A distinct founder prepares with `purpose: "founder"` in
-`community_creation_recipient`. The purpose is fixed in the single-use
-reference; a Root reference cannot be initialized as a founder and the reverse
-refuses. Only a member still joining (`PasskeyRegistered`, `HandleReserved` or
-`GatesInProgress`) may prepare; an admitted or lapsed member is never promoted.
+## Ending
 
-The Global Root calls `community_founder_issue`, with the same Root Auth and
-original Root writer discipline as creation. The target must already be
-`Active` (or explicitly `LegacyActive`): it admits nobody while Creating. Nothing
-is committed by issuance; the target Policy signs the original CVCH
-`FounderAdmin` invitation for that exact member binding and the current Root
-session is rechecked afterwards.
+* `community_dissolve` (admins) and `community_terminate` (Root:
+  `address`, `reason` legal|terms|name, optional `hold_until` for legal orders,
+  optional `block_name`) set the registry state `ending`. From that moment
+  nothing is served, the door is closed and hostnames are removed. The community
+  scope is then deleted in one transaction and the state becomes `ended`; under a
+  hold the deletion happens when the hold passes (the address stays unavailable
+  until then). `GET /registry/finished?since=N` lists ending and ended ids and
+  returns the newest counter in `x-registry-cursor`.
+* `GET /registry/by-host?host=H` returns `{id, state, origins, trust_origin,
+  fingerprint}` for a serving community and 404 otherwise. Keys are not served
+  by the registry; they come from each community's signed feed, verified against
+  the fingerprint.
 
-The founder redeems it in `credential_issue` as `founder`, never together with
-`creation` or a root-board challenge. The original admission verifies the same
-passport and every configured gate, then the lower owner writes the one-use
-receipt, RegisterAdmin and the exact effect under one writer. An exact retry is
-read-only and never regrants; it cannot extend the original lease.
+## Security notes
+
+The creation id presented in `credential_issue` only works for the member whose
+commitment `community_creation_claim` recorded. The claim secret is stored only
+as a hash. The token key signs creation tokens and nothing else.

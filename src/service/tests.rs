@@ -239,8 +239,8 @@ async fn internal_context_and_backend_access_remain_scoped() {
     assert!(matches!(
         client(&global, WALLET, Some(&member.session))
             .call(
-                "community_creation_initialize",
-                serde_json::json!({"community":"alpha","recipient":"none"})
+                "community_terminate",
+                serde_json::json!({"address":"alpha12345","reason":"legal"})
             )
             .await,
         Err(Error::Forbidden)

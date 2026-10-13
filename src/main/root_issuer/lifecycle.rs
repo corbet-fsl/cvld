@@ -15,6 +15,9 @@ pub(crate) async fn close(services: &[Service], construction: &NativeConstructio
     let mut failed = fence(services, construction);
     for service in services {
         failed |= service.door.shutdown_accounts().await.is_err();
+        if let Some(hub) = &service.hub {
+            failed |= hub.close().await.is_err();
+        }
     }
     failed |= construction.shutdown().await.is_err();
     if failed {
@@ -37,11 +40,15 @@ pub(crate) async fn serve(
     let mut maintenance = JoinSet::new();
     for (service, listener) in services.iter().zip(listeners) {
         let door = service.door.clone();
+        let router = service
+            .router
+            .clone()
+            .unwrap_or_else(|| api::router(door.clone()));
         let mut stopping = stop.subscribe();
         servers.spawn(async move {
             axum::serve(
                 listener,
-                api::router(door).into_make_service_with_connect_info::<std::net::SocketAddr>(),
+                router.into_make_service_with_connect_info::<std::net::SocketAddr>(),
             )
             .with_graceful_shutdown(async move {
                 if !*stopping.borrow_and_update() {
@@ -52,6 +59,7 @@ pub(crate) async fn serve(
             .map_err(Error::Unavailable.redact())
         });
         let door = service.door.clone();
+        let hub = service.hub.clone();
         maintenance.spawn(async move {
             // Same existing Door upkeep cadence; each original owner enforces
             // its own authenticated publication and accounting deadlines.
@@ -59,6 +67,9 @@ pub(crate) async fn serve(
             loop {
                 interval.tick().await;
                 let _ = door.maintain().await;
+                if let Some(hub) = &hub {
+                    let _ = hub.maintain().await;
+                }
             }
         });
     }

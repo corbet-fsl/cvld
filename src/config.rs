@@ -112,6 +112,10 @@ pub struct CommunityConfig {
     pub database_url: String,
     pub database_token_file: Option<String>,
     pub signing_seed_file: String,
+    /// Derived founding seed of a community created at runtime. Never read from
+    /// or written to a document; when set it replaces `signing_seed_file`.
+    #[serde(skip)]
+    pub founding_seed: Option<zeroize::Zeroizing<[u8; 32]>>,
     pub rulebook_file: String,
     pub schema_file: String,
     pub global_key_ring_file: String,

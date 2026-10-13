@@ -69,8 +69,8 @@ async fn generated_browser_client_reaches_the_real_keyhole_and_door() {
     assert!(matches!(
         member
             .call(
-                "community_creation_initialize",
-                json!({"community":"wrong","recipient":"wrong"})
+                "community_terminate",
+                json!({"address":"alpha12345","reason":"legal"})
             )
             .await,
         Err(Error::Forbidden)

@@ -1,298 +1,76 @@
-//! Opaque registered recipient and actual target-Policy creation entitlement.
+//! The creator's claim of the first admin seat of a community being created.
 use super::*;
-use crate::auth::{Auth, creation::RootCreationSession};
-use crate::service::Context;
+use crate::{
+    api::{CreationClaim, CreationClaimed},
+    hosts::Boxed,
+    service::Context,
+};
 
-pub(super) struct Recipient {
-    purpose: CreationPurpose,
-    session: admission::AdmissionSession,
-    id: String,
-    pub(super) until: u64,
-    deadline: std::time::Instant,
+/// Terms of a community shell, verified against the registry by the hosting hub.
+pub struct Terms {
+    /// Creation id presented later as `creation` in `credential_issue`.
+    pub id: String,
+    /// Exclusive deadline of the claim.
+    pub valid_until: u64,
 }
-pub(crate) struct Created {
-    value: CommunityCreationInvitation,
-    session: admission::AdmissionSession,
-    snapshot: cplc::VerifiedSnapshot,
-    deadline: std::time::Instant,
+
+/// Registry-backed check of a claim secret, supplied by the hosting hub only for
+/// a community that is still being created.
+pub trait CreationGate: Send + Sync {
+    /// Verify the secret for this community's shell and return its terms.
+    fn check<'a>(&'a self, secret: &'a [u8], now: u64) -> Boxed<'a, Result<Terms>>;
+    /// The creator's first-admin admission committed: the community goes live.
+    /// Best effort; the hub's sweep reconciles a failure.
+    fn completed<'a>(&'a self) -> Boxed<'a, Result<()>>;
 }
+
 impl CommunityService {
-    pub(crate) fn link_creation_owner(&mut self, owner: Arc<()>) -> Result<()> {
-        if self
-            .creation_owner
-            .as_ref()
-            .is_some_and(|old| !Arc::ptr_eq(old, &owner))
-        {
-            return Err(Error::Forbidden);
-        }
-        self.creation_owner = Some(owner);
-        Ok(())
+    /// Whether the creator's first-admin admission has committed.
+    pub(crate) async fn creation_active(&self) -> Result<bool> {
+        Ok(self
+            .facade
+            .membership()
+            .community_phase()
+            .await
+            .map_err(Error::Unavailable.redact())?
+            == cmbr::CommunityPhase::Active)
     }
-    pub(crate) async fn creation_recipient(
+
+    /// The community's founding (genesis) document, if it has one.
+    pub(crate) async fn genesis(&self) -> Result<Option<Vec<u8>>> {
+        crate::genesis_store::load(&self.db, &self.config.community).await
+    }
+
+    /// Called after a successful admission that redeemed a creation id.
+    pub(crate) async fn creation_completed(&self) {
+        if let Some(gate) = &self.creation_gate {
+            let _ = gate.completed().await;
+        }
+    }
+
+    pub(crate) fn set_creation_gate(&mut self, gate: Arc<dyn CreationGate>) {
+        self.creation_gate = Some(gate);
+    }
+
+    /// Bind the first seat to the member who is still joining and holds the
+    /// shell's claim secret. First claim wins; Membership refuses any other
+    /// creator for the same shell.
+    pub(crate) async fn creation_claim(
         &mut self,
         ctx: &Context,
-        request: CreationRecipientRequest,
-    ) -> Result<CreationRecipient> {
-        self.creation_owner.as_ref().ok_or(Error::Unavailable)?;
+        request: CreationClaim,
+    ) -> Result<CreationClaimed> {
+        let gate = self.creation_gate.clone().ok_or(Error::Refused)?;
         let session = self.admission_session(ctx)?;
-        let started = std::time::Instant::now();
         let now = self.clock.now();
         session.release(now)?;
-        self.prune(now);
-        if self.creation_recipients.len() >= self.config.pending_capacity {
-            return Err(Error::Throttled);
-        }
-        let mut policy = self.facade.policy().lock().await;
-        let snapshot = policy
-            .verified_settings(now)
-            .await
-            .map_err(Error::Refused.redact())?;
-        let cap = cmbr::RoleSession::valid_until(&session).min(snapshot.valid_until());
-        if request.expires_at <= now || request.expires_at > cap {
-            return Err(Error::Invalid);
-        }
-        crate::service::publication::expires_at(request.expires_at)?;
-        let deadline = started
-            .checked_add(std::time::Duration::from_secs(request.expires_at - now))
-            .ok_or(Error::Invalid)?;
-        let id = match request.id {
-            Some(id) => ckyh::Uuid::parse_str(&id).map_err(Error::Invalid.redact())?,
-            None => ckyh::Uuid::new_v4(),
-        }
-        .to_string();
         let row = self
             .facade
             .membership()
             .resume(&session.authentication)
             .await
             .map_err(Error::Refused.redact())?;
-        // A founder must still be joining: promotion of an admitted or lapsed
-        // member is never an entitlement.
-        let eligible = match request.purpose {
-            CreationPurpose::Root => {
-                !row.state().is_terminal() && row.state() != cmbr::State::Started
-            }
-            CreationPurpose::Founder => matches!(
-                row.state(),
-                cmbr::State::PasskeyRegistered
-                    | cmbr::State::HandleReserved
-                    | cmbr::State::GatesInProgress
-            ),
-        };
-        if !eligible {
-            return Err(Error::Refused);
-        }
-        let completed = self.clock.now();
-        session.release(completed)?;
-        policy
-            .validate_snapshot(&snapshot, completed)
-            .await
-            .map_err(Error::Refused.redact())?;
-        session.release(self.clock.now())?;
-        if std::time::Instant::now() >= deadline {
-            return Err(Error::Unauthorized);
-        }
-        let recipient = token();
-        self.creation_recipients.insert(
-            recipient.clone(),
-            Recipient {
-                purpose: request.purpose,
-                session,
-                id: id.clone(),
-                until: request.expires_at,
-                deadline,
-            },
-        );
-        Ok(CreationRecipient {
-            recipient,
-            id,
-            expires_at: request.expires_at,
-        })
-    }
-
-    pub(crate) async fn initialize_creation(
-        &mut self,
-        recipient: &str,
-        owner: &Arc<()>,
-        root: &mut RootCreationSession,
-        auth: &mut Auth,
-        token: &str,
-        root_clock: &dyn Clock,
-    ) -> Result<Created> {
-        if !self
-            .creation_owner
-            .as_ref()
-            .is_some_and(|actual| Arc::ptr_eq(actual, owner))
-        {
-            return Err(Error::Forbidden);
-        }
-        // Move this one-use capability into the future. Cancellation cannot
-        // restore or swap it; fresh authorization may retry the original terms.
-        let pending = self
-            .creation_recipients
-            .remove(recipient)
-            .ok_or(Error::Refused)?;
-        if pending.purpose != CreationPurpose::Root {
-            return Err(Error::Refused);
-        }
-        let observed = self.clock.now();
-        pending.session.release(observed)?;
-        if observed >= pending.until || std::time::Instant::now() >= pending.deadline {
-            return Err(Error::Refused);
-        }
-        let mut policy = self.facade.policy().lock().await;
-        let snapshot = policy
-            .verified_settings(observed)
-            .await
-            .map_err(Error::Refused.redact())?;
-        if pending.until > snapshot.valid_until() {
-            return Err(Error::Refused);
-        }
-        let row = self
-            .facade
-            .membership()
-            .resume(&pending.session.authentication)
-            .await
-            .map_err(Error::Refused.redact())?;
-        let member = row.subject();
-        let receipt = cvch::receipt_id(&pending.id);
-        let binding = cvch::member_binding(&receipt, member.as_bytes());
-        root.check(auth, token, root_clock).await?;
-        let issued = self.clock.now();
-        pending.session.release(issued)?;
-        if issued >= pending.until {
-            return Err(Error::Refused);
-        }
-        let invitation = policy
-            .issue_role_invitation(&cvch::role::Invitation {
-                id: &pending.id,
-                community: &self.config.community,
-                member_binding: &binding,
-                purpose: cvch::role::Purpose::BootstrapRoot,
-                issued_at: cplc::day(issued),
-                valid_until: pending.until,
-            })
-            .await
-            .map_err(Error::Refused.redact())?;
-        let verified = cvch::role::verify(
-            &invitation,
-            policy.key_ring().map_err(Error::Refused.redact())?,
-            &cvch::role::Context {
-                community: &self.config.community,
-                member: member.as_bytes(),
-                purpose: cvch::role::Purpose::BootstrapRoot,
-                now: issued,
-            },
-        )
-        .map_err(Error::Refused.redact())?;
-        let mut guard = Producer {
-            root,
-            auth,
-            token,
-            root_clock,
-            policy: &policy,
-            snapshot: &snapshot,
-            invitation: &invitation,
-            deadline: pending.deadline,
-        };
-        self.facade
-            .membership()
-            .initialize_community_creation_checked(
-                cmbr::CreationRequest {
-                    invitation: &verified,
-                    authentication: &pending.session.authentication,
-                    session: &pending.session,
-                },
-                &mut guard,
-            )
-            .await
-            .map_err(|error| {
-                if error == cmbr::Error::Unavailable {
-                    Error::Reconcile
-                } else {
-                    Error::Refused
-                }
-            })?;
-        let completed = self.clock.now();
-        pending.session.release(completed)?;
-        let root_floor = guard
-            .root
-            .check(guard.auth, token, root_clock)
-            .await
-            .map_err(|_| Error::Reconcile)?;
-        let checked_at = self.clock.now();
-        pending.session.release(checked_at)?;
-        if checked_at < completed.max(root_floor) || checked_at >= pending.until {
-            return Err(Error::Reconcile);
-        }
-        Ok(Created {
-            value: CommunityCreationInvitation {
-                invitation,
-                id: pending.id,
-                expires_at: pending.until,
-                checked_at,
-            },
-            session: pending.session,
-            snapshot,
-            deadline: pending.deadline,
-        })
-    }
-
-    /// Issue the original FounderAdmin entitlement for a recipient that joins
-    /// an already Active (or explicitly legacy) community. Nothing is committed
-    /// here; redemption is the original atomic admission with every gate.
-    pub(crate) async fn issue_founder(
-        &mut self,
-        recipient: &str,
-        owner: &Arc<()>,
-        root: &mut RootCreationSession,
-        auth: &mut Auth,
-        token: &str,
-        root_clock: &dyn Clock,
-    ) -> Result<Created> {
-        if !self
-            .creation_owner
-            .as_ref()
-            .is_some_and(|actual| Arc::ptr_eq(actual, owner))
-        {
-            return Err(Error::Forbidden);
-        }
-        let pending = self
-            .creation_recipients
-            .remove(recipient)
-            .ok_or(Error::Refused)?;
-        if pending.purpose != CreationPurpose::Founder {
-            return Err(Error::Refused);
-        }
-        let observed = self.clock.now();
-        pending.session.release(observed)?;
-        if observed >= pending.until || std::time::Instant::now() >= pending.deadline {
-            return Err(Error::Refused);
-        }
-        let mut policy = self.facade.policy().lock().await;
-        let snapshot = policy
-            .verified_settings(observed)
-            .await
-            .map_err(Error::Refused.redact())?;
-        if pending.until > snapshot.valid_until() {
-            return Err(Error::Refused);
-        }
-        if !matches!(
-            self.facade
-                .membership()
-                .community_phase()
-                .await
-                .map_err(Error::Refused.redact())?,
-            cmbr::CommunityPhase::Active | cmbr::CommunityPhase::LegacyActive
-        ) {
-            return Err(Error::Refused);
-        }
-        let row = self
-            .facade
-            .membership()
-            .resume(&pending.session.authentication)
-            .await
-            .map_err(Error::Refused.redact())?;
+        // Promotion of an admitted or lapsed member is never an entitlement.
         if !matches!(
             row.state(),
             cmbr::State::PasskeyRegistered
@@ -301,176 +79,72 @@ impl CommunityService {
         ) {
             return Err(Error::Refused);
         }
-        let member = row.subject();
-        let receipt = cvch::receipt_id(&pending.id);
-        let binding = cvch::member_binding(&receipt, member.as_bytes());
-        root.check(auth, token, root_clock).await?;
-        let issued = self.clock.now();
-        pending.session.release(issued)?;
-        if issued >= pending.until {
-            return Err(Error::Refused);
-        }
-        let invitation = policy
-            .issue_role_invitation(&cvch::role::Invitation {
-                id: &pending.id,
-                community: &self.config.community,
-                member_binding: &binding,
-                purpose: cvch::role::Purpose::FounderAdmin,
-                issued_at: cplc::day(issued),
-                valid_until: pending.until,
-            })
+        let terms = gate.check(&request.claim, now).await?;
+        self.facade
+            .membership()
+            .initialize_community_creation(&terms.id, row.subject().as_bytes(), terms.valid_until)
             .await
-            .map_err(Error::Refused.redact())?;
-        let verified = cvch::role::verify(
-            &invitation,
-            policy.key_ring().map_err(Error::Refused.redact())?,
-            &cvch::role::Context {
-                community: &self.config.community,
-                member: member.as_bytes(),
-                purpose: cvch::role::Purpose::FounderAdmin,
-                now: issued,
-            },
-        )
-        .map_err(Error::Refused.redact())?;
-        if verified.valid_until() != pending.until {
-            return Err(Error::Refused);
-        }
-        let root_floor = root
-            .check(auth, token, root_clock)
-            .await
-            .map_err(|_| Error::Reconcile)?;
-        let checked_at = self.clock.now();
-        pending.session.release(checked_at)?;
-        if checked_at < issued.max(root_floor) || checked_at >= pending.until {
-            return Err(Error::Reconcile);
-        }
-        Ok(Created {
-            value: CommunityCreationInvitation {
-                invitation,
-                id: pending.id,
-                expires_at: pending.until,
-                checked_at,
-            },
-            session: pending.session,
-            snapshot,
-            deadline: pending.deadline,
+            .map_err(|error| {
+                if error == cmbr::Error::Unavailable {
+                    Error::Reconcile
+                } else {
+                    Error::Refused
+                }
+            })?;
+        session.release(self.clock.now())?;
+        Ok(CreationClaimed {
+            id: terms.id,
+            expires_at: terms.valid_until,
         })
     }
+}
 
-    pub(crate) async fn release_creation(
-        &self,
-        mut created: Created,
-        floor: u64,
-    ) -> Result<Created> {
-        let now = self.clock.now();
-        if now < floor.max(created.value.checked_at)
-            || now >= created.value.expires_at
-            || std::time::Instant::now() >= created.deadline
-        {
-            return Err(Error::Reconcile);
-        }
-        created.session.release(now)?;
-        let policy = self.facade.policy().lock().await;
-        policy
-            .validate_snapshot(&created.snapshot, now)
-            .await
-            .map_err(|_| Error::Reconcile)?;
-        if !self
-            .facade
-            .membership()
-            .session_is_active(
-                &created.session.authentication,
-                created.session.authentication.credential_id(),
-            )
-            .await
-            .map_err(|_| Error::Reconcile)?
-        {
-            return Err(Error::Reconcile);
-        }
-        let completed = self.clock.now();
-        created.session.release(completed)?;
-        if completed < now || completed >= created.value.expires_at {
-            return Err(Error::Reconcile);
-        }
-        created.value.checked_at = completed;
-        Ok(created)
-    }
-    pub(crate) fn project_creation(
-        &self,
-        mut created: Created,
-        floor: u64,
-    ) -> Result<CommunityCreationInvitation> {
-        let now = self.clock.now();
-        if now < floor.max(created.value.checked_at)
-            || now >= created.value.expires_at
-            || std::time::Instant::now() >= created.deadline
-        {
-            return Err(Error::Reconcile);
-        }
-        created.session.release(now)?;
-        created.value.checked_at = now;
-        Ok(created.value)
+/// One-time claim armed by the launcher for a statically configured community
+/// that is created without the registry hub (for example the Root board).
+pub(crate) struct StaticGate {
+    pub(crate) hash: [u8; 32],
+    pub(crate) valid_until: u64,
+}
+
+impl StaticGate {
+    pub(crate) fn hash(secret: &[u8]) -> [u8; 32] {
+        use sha2::Digest;
+        sha2::Sha256::digest([b"cvld.claim.v1\0".as_slice(), secret].concat()).into()
     }
 }
 
-struct Producer<'a> {
-    root: &'a mut RootCreationSession,
-    auth: &'a mut Auth,
-    token: &'a str,
-    root_clock: &'a dyn Clock,
-    policy: &'a cplc::Policy<Rules, cplc::LibsqlStore, csgn::LibsqlStore>,
-    snapshot: &'a cplc::VerifiedSnapshot,
-    invitation: &'a [u8],
-    deadline: std::time::Instant,
-}
-impl cmbr::CreationGuard for Producer<'_> {
-    async fn check(
-        &mut self,
-        context: &cmbr::CreationContext<'_>,
-        observed: u64,
-    ) -> cmbr::Result<()> {
-        if std::time::Instant::now() >= self.deadline {
-            return Err(cmbr::Error::Transition);
-        }
-        self.root
-            .check(self.auth, self.token, self.root_clock)
-            .await
-            .map_err(|_| cmbr::Error::Identity)?;
-        self.policy
-            .validate_snapshot(self.snapshot, observed)
-            .await
-            .map_err(|_| cmbr::Error::Policy)?;
-        let verified = cvch::role::verify(
-            self.invitation,
-            self.policy.key_ring().map_err(|_| cmbr::Error::Policy)?,
-            &cvch::role::Context {
-                community: context.community(),
-                member: context.member(),
-                purpose: cvch::role::Purpose::BootstrapRoot,
-                now: observed,
-            },
-        )
-        .map_err(|_| cmbr::Error::Policy)?;
-        if verified.receipt() != context.receipt()
-            || verified.binding() != context.binding()
-            || verified.valid_until() != context.expires_at()
-        {
-            return Err(cmbr::Error::Identity);
-        }
-        Ok(())
+impl CreationGate for StaticGate {
+    fn check<'a>(&'a self, secret: &'a [u8], now: u64) -> Boxed<'a, Result<Terms>> {
+        use subtle::ConstantTimeEq;
+        Box::pin(async move {
+            let matches: bool = Self::hash(secret).ct_eq(&self.hash).into();
+            if !matches || now >= self.valid_until {
+                return Err(Error::Refused);
+            }
+            Ok(Terms {
+                id: crate::hub::hex(&self.hash[..16]),
+                valid_until: self.valid_until,
+            })
+        })
     }
-    fn release(&mut self, _: &cmbr::CreationContext<'_>, observed: u64) -> cmbr::Result<()> {
-        if std::time::Instant::now() >= self.deadline {
-            return Err(cmbr::Error::Transition);
-        }
-        if self
-            .root
-            .release(self.auth, self.token, self.root_clock)
-            .map_err(|_| cmbr::Error::Identity)?
-            != observed
-        {
-            return Err(cmbr::Error::Transition);
-        }
-        Ok(())
+    fn completed<'a>(&'a self) -> Boxed<'a, Result<()>> {
+        Box::pin(async { Ok(()) })
+    }
+}
+
+/// Ends this community on behalf of its admins; supplied by the hosting hub.
+pub trait Lifecycle: Send + Sync {
+    fn dissolve<'a>(&'a self, now: u64) -> Boxed<'a, Result<()>>;
+}
+
+impl CommunityService {
+    pub(crate) fn set_lifecycle(&mut self, lifecycle: Arc<dyn Lifecycle>) {
+        self.lifecycle = Some(lifecycle);
+    }
+
+    /// The hub's lifecycle handle; the caller drops this service's lock before
+    /// using it, because ending shuts the very door that holds the lock.
+    pub(crate) fn lifecycle(&self) -> Result<Arc<dyn Lifecycle>> {
+        self.lifecycle.clone().ok_or(Error::Refused)
     }
 }

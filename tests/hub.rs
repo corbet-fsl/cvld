@@ -1,0 +1,239 @@
+#![cfg(feature = "development-gate")]
+//! Self-service creation end to end over HTTP: blind token, creation, claim of
+//! the first seat, first-admin admission, registry endpoints and termination.
+mod support;
+use blind_rsa_signatures::{DefaultRng, KeyPairSha384PSSRandomized as KeyPair};
+use cvld::{
+    address::Reserved,
+    api::*,
+    creation_token::{self, Issuer, Limits},
+    hosts::{Boxed, NoopProvisioner},
+    hub::{Factory, Hub, HubParts},
+    service::{Clock, Door},
+};
+use serde_json::{Value, json};
+use std::{path::PathBuf, sync::Arc};
+use support::*;
+
+struct TestFactory {
+    dir: PathBuf,
+    public: GlobalPublic,
+    clock: Arc<TestClock>,
+}
+
+impl Factory for TestFactory {
+    fn open<'a>(
+        &'a self,
+        address: &'a str,
+        seed: [u8; 32],
+    ) -> Boxed<'a, cvld::error::Result<Door>> {
+        Box::pin(async move {
+            let mut config = community_config(&self.dir, address, &self.public, 100);
+            config.founding_seed = Some(zeroize::Zeroizing::new(seed));
+            Door::community(config, self.clock.clone()).await
+        })
+    }
+}
+
+struct Fixture {
+    global: Running,
+    front: Running,
+    hub: Arc<Hub>,
+    provisioner: Arc<NoopProvisioner>,
+    member: Member,
+    passport: cpsd::Passport,
+    key: creation_token::PublicKey,
+    _dir: tempfile::TempDir,
+}
+
+async fn open(db: &std::path::Path) -> crlt::Db {
+    crlt::Db::open(crlt::Config::new(format!("file://{}", db.display()), ""))
+        .await
+        .unwrap()
+}
+
+async fn fixture() -> Fixture {
+    let global = global(100).await;
+    let (member, passport, public) = wallet_passport(&global).await;
+    let dir = tempfile::tempdir().unwrap();
+    let pair = KeyPair::generate(&mut DefaultRng, 2048).unwrap();
+    let issuer = Issuer::from_der(&pair.sk.to_der().unwrap()).unwrap();
+    let key = creation_token::public_key(&issuer.public_der().unwrap()).unwrap();
+    let provisioner = Arc::new(NoopProvisioner::default());
+    let hub = Hub::new(HubParts {
+        global_db: open(&global.dir.path().join("global.db")).await,
+        community_db: open(&dir.path().join("community.db")).await,
+        issuer,
+        limits: Limits {
+            per_week: 5,
+            per_year: 12,
+        },
+        provisioner: provisioner.clone(),
+        factory: Arc::new(TestFactory {
+            dir: dir.path().to_path_buf(),
+            public,
+            clock: global.clock.clone(),
+        }),
+        base: DOMAIN.into(),
+        reserved: Reserved::new(["reservedname"]),
+        clock: global.clock.clone(),
+        shell_seconds: 3600,
+        master: zeroize::Zeroizing::new(vec![5; 32]),
+    })
+    .await
+    .unwrap();
+    global.door.attach_hub(Arc::new(hub.clone())).unwrap();
+    let router = hub.front(&global.door);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let task = tokio::spawn(async move {
+        axum::serve(listener, router).await.unwrap();
+    });
+    let front = Running {
+        base,
+        door: global.door.clone(),
+        clock: global.clock.clone(),
+        task,
+        dir: tempfile::tempdir().unwrap(),
+    };
+    Fixture {
+        global,
+        front,
+        hub,
+        provisioner,
+        member,
+        passport,
+        key,
+        _dir: dir,
+    }
+}
+
+impl Fixture {
+    /// A finished token obtained through the HTTP door with the wallet session.
+    async fn token(&self) -> Value {
+        let wallet = client(&self.front, WALLET, Some(&self.member.session));
+        let (pending, blinded) = creation_token::request(&self.key, [3; 32]).unwrap();
+        let response: CreationTokenResponse = serde_json::from_value(
+            wallet
+                .call("creation_token_issue", json!({ "blinded": blinded }))
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        let token = creation_token::finish(&self.key, pending, &response.blind_signature).unwrap();
+        json!({"message":token.message,"randomizer":token.randomizer,"signature":token.signature})
+    }
+    async fn create(&self, address: &str, token: Value) -> cvld::error::Result<CommunityCreated> {
+        let anonymous = client(&self.front, WALLET, None);
+        anonymous
+            .call("community_create", json!({"address":address,"token":token}))
+            .await
+            .map(|value| serde_json::from_value(value).unwrap())
+    }
+    async fn record(&self, host: &str) -> Option<Value> {
+        let response = reqwest::get(format!("{}/registry/by-host?host={host}", self.front.base))
+            .await
+            .unwrap();
+        (response.status() == 200).then(|| ())?;
+        Some(response.json().await.unwrap())
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn token_creation_claim_admission_registry_and_termination() {
+    let f = fixture().await;
+    let token = f.token().await;
+    // Invalid and reserved addresses are refused before the token is touched.
+    for bad in ["short", "with-hyphen", "reservedname"] {
+        assert!(f.create(bad, token.clone()).await.is_err(), "{bad}");
+    }
+    let created = f.create("gardenclub", token.clone()).await.unwrap();
+    assert_eq!(created.community_host, format!("gardenclub.{DOMAIN}"));
+    assert_eq!(created.vault_host, format!("vault.gardenclub.{DOMAIN}"));
+    assert_eq!(created.fingerprint.len(), 64);
+    assert_eq!(f.provisioner.calls().len(), 1);
+    // The token is reserved by the shell and cannot create a second community.
+    assert!(f.create("otherclub1", token).await.is_err());
+    let record = f.record(&created.community_host).await.unwrap();
+    assert_eq!(record["state"], "being_created");
+    assert_eq!(record["fingerprint"], created.fingerprint);
+    assert_eq!(record["id"], created.id);
+    assert_eq!(
+        f.record(&created.vault_host).await.unwrap()["id"],
+        created.id
+    );
+    // The creator registers in the new community, claims the seat and is admitted.
+    let host = format!("api.gardenclub.{DOMAIN}");
+    let creator = enrol_community(&f.front, &host, &f.passport).await;
+    let api = client(&f.front, &host, Some(&creator.session));
+    let wrong = api
+        .call("community_creation_claim", json!({"claim": vec![1u8; 32]}))
+        .await;
+    assert!(wrong.is_err());
+    let claimed: CreationClaimed = serde_json::from_value(
+        api.call("community_creation_claim", json!({"claim": created.claim}))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(claimed.id, created.id);
+    api.call("handle_reserve", json!({"handle":"gardener_one"}))
+        .await
+        .unwrap();
+    let subject = f
+        .passport
+        .pseudonym(&cpsd::CommunityId::new("gardenclub").unwrap())
+        .to_hex();
+    api.call(
+        "gate_voucher",
+        voucher(
+            "gardenclub",
+            &subject,
+            "creator-gate",
+            f.front.clock.now() + 172_800,
+        ),
+    )
+    .await
+    .unwrap();
+    let proof = presentation(&f.front, &host, Some(&creator.session), &f.passport).await;
+    api.call(
+        "credential_issue",
+        json!({"presentation":proof,"devices":[creator.signing_key],"creation":claimed.id}),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        f.record(&created.community_host).await.unwrap()["state"],
+        "live"
+    );
+    // The address is taken while live.
+    let again = f.token().await;
+    assert!(f.create("gardenclub", again).await.is_err());
+    // Root ends it: nothing resolves, the id is listed, the name is blocked.
+    let root = enrol(
+        &f.global,
+        ROOT,
+        Some("synthetic-operator-enrolment-capability"),
+    )
+    .await;
+    let root_api = client(&f.front, ROOT, Some(&root.session));
+    root_api
+        .call(
+            "community_terminate",
+            json!({"address":"gardenclub","reason":"terms","block_name":true}),
+        )
+        .await
+        .unwrap();
+    assert!(f.record(&created.community_host).await.is_none());
+    let finished: Vec<String> = reqwest::get(format!("{}/registry/finished", f.front.base))
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(finished, vec![created.id.clone()]);
+    assert_eq!(f.provisioner.calls().last().map(|c| c.0), Some(false));
+    let blocked = f.token().await;
+    assert!(f.create("gardenclub", blocked).await.is_err());
+    let _ = &f.hub;
+}

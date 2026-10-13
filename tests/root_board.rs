@@ -121,7 +121,7 @@ async fn admit_opaque(
     holder: &cpsd::OpaqueHolder,
     handle: &str,
     root: bool,
-    creation: Option<&[u8]>,
+    creation: Option<&str>,
 ) {
     let scope = if root { "root" } else { "alpha" };
     let subject = holder
@@ -351,7 +351,7 @@ async fn root_operator_admin_authority_is_local_to_the_explicit_root_board() {
         &holder,
         "root_admin",
         true,
-        Some(creation.as_slice()),
+        Some(creation.as_str()),
     )
     .await;
     root.session = login(

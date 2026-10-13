@@ -362,7 +362,6 @@ async fn admission_challenges_are_bounded_owned_and_consumed_on_rejection() {
                     },
                     devices: vec![member.signing_key],
                     creation: None,
-                    founder: None,
                 },
                 None,
             )
@@ -878,7 +877,6 @@ async fn a_verified_legal_veto_after_authentication_prevents_credential_issuance
                 presentation,
                 devices: vec![member.signing_key],
                 creation: None,
-                founder: None,
             },
             None,
         )

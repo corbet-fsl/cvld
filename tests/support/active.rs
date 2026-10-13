@@ -111,46 +111,29 @@ pub async fn relogin_root(service: &Running) -> String {
     root_member(service, None).await.session
 }
 
-/// Link `running` as the community `name` of the Global behind `public`, let the
-/// registered `member` prepare as recipient and let the Global Root issue the
-/// one-use first-Root entitlement. The member redeems it with its own full-gate
-/// admission flow (`creation` in `credential_issue`). None when unregistered.
+/// Arm a one-time creator claim on `running` and let the registered `member`
+/// claim the first seat. The member redeems the returned creation id with its
+/// own full-gate admission flow (`creation` in `credential_issue`). None when
+/// the Global is unregistered.
 pub async fn creation_invitation(
     running: &Running,
     name: &str,
     public: &GlobalPublic,
     member: &Member,
-) -> Option<Vec<u8>> {
-    let global = BY_ISSUER.lock().unwrap().get(&public.issuer).cloned()?;
-    let platform = global.running();
-    platform
+) -> Option<String> {
+    BY_ISSUER.lock().unwrap().get(&public.issuer).cloned()?;
+    let secret = b"fixture-creation-claim-secret!!".to_vec();
+    running
         .door
-        .link_community_creation(&running.door)
+        .arm_creation(&secret, running.clock.now() + 300)
         .await
         .unwrap();
-    let (root, _, _) = global.root_session(&platform).await;
     let host = format!("api.{name}.{DOMAIN}");
-    let api = client(running, &host, Some(&member.session));
-    let prepared: CreationRecipient = serde_json::from_value(
-        api.call(
-            "community_creation_recipient",
-            json!({"id":null,"expires_at":running.clock.now() + 300,"purpose":"root"}),
-        )
+    let claimed = client(running, &host, Some(&member.session))
+        .call("community_creation_claim", json!({ "claim": secret }))
         .await
-        .unwrap(),
-    )
-    .unwrap();
-    let created: CommunityCreationInvitation = serde_json::from_value(
-        client(&platform, ROOT, Some(&root))
-            .call(
-                "community_creation_initialize",
-                json!({"community":name,"recipient":prepared.recipient}),
-            )
-            .await
-            .unwrap(),
-    )
-    .unwrap();
-    Some(created.invitation)
+        .unwrap();
+    Some(claimed["id"].as_str().unwrap().to_owned())
 }
 
 /// Found `running` as the community `name` of the Global behind `public`.

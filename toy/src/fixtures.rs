@@ -259,6 +259,7 @@ pub fn community(dir: &Path, listen: String, name: &str, public: &GlobalPublic, 
         None => (None, community_rules()),
     };
     let config = CommunityConfig {
+        founding_seed: None,
         listen,
         domain: DOMAIN.into(),
         community: name.into(),

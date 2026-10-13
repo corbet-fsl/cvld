@@ -30,11 +30,15 @@ pub mod contact_gates;
 pub mod creation_token;
 pub mod error;
 #[cfg(feature = "server")]
+mod genesis_store;
+#[cfg(feature = "server")]
 mod global;
 #[cfg(feature = "server")]
 mod global_trust;
 #[cfg(feature = "server")]
 pub mod hosts;
+#[cfg(feature = "server")]
+pub mod hub;
 #[cfg(feature = "server")]
 mod identity;
 #[cfg(feature = "server")]
@@ -43,6 +47,8 @@ pub mod mcp;
 mod ohttp;
 #[cfg(feature = "server")]
 pub mod payments;
+#[cfg(feature = "server")]
+pub mod purge;
 #[cfg(feature = "server")]
 pub mod registry;
 #[cfg(feature = "server")]

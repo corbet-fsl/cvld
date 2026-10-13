@@ -2,6 +2,21 @@
 use cmty::cplc::crbk;
 use cmty::{cgts, cmbr, cplc};
 
+/// Retired table of the removed FounderAdmin entitlement. Migration history is
+/// immutable, so existing databases keep this entry; nothing reads or writes it.
+const RETIRED_ROLE_REDEMPTION_SCHEMA: &str = "CREATE TABLE cmbr_role_redemption (
+    community_id TEXT NOT NULL,
+    receipt TEXT NOT NULL CHECK (length(receipt) = 64 AND NOT (receipt GLOB '*[^0-9a-f]*')),
+    binding TEXT NOT NULL CHECK (length(binding) = 64 AND NOT (binding GLOB '*[^0-9a-f]*')),
+    expires_at INTEGER NOT NULL CHECK (expires_at > 0),
+    member TEXT NOT NULL CHECK (length(member) BETWEEN 1 AND 1024),
+    lease_year INTEGER NOT NULL CHECK (lease_year BETWEEN 1 AND 9999),
+    lease_month INTEGER NOT NULL CHECK (lease_month BETWEEN 1 AND 12),
+    admitted_revision INTEGER NOT NULL CHECK (admitted_revision > 0),
+    PRIMARY KEY (community_id, receipt),
+    UNIQUE (community_id, member)
+) WITHOUT ROWID;";
+
 /// Original contiguous community migration history, including host-owned tables.
 /// Apply it to every newly opened database handle, including an existing file,
 /// before using scoped application stores. Reapplication validates the durable
@@ -20,8 +35,9 @@ pub fn community_migrations() -> Vec<crlt::Migration<'static>> {
         ("payment-operations", crate::payments::state::SCHEMA),
         ("account-current", crate::accounting::storage::SCHEMA),
         ("cmbr-creation", cmbr::CREATION_SCHEMA),
-        ("cmbr-role-redemption", cmbr::ROLE_REDEMPTION_SCHEMA),
+        ("cmbr-role-redemption", RETIRED_ROLE_REDEMPTION_SCHEMA),
         ("ohttp-replay", crate::ohttp::SCHEMA),
+        ("genesis", crate::genesis_store::SCHEMA),
     ]);
     schemas
         .iter()

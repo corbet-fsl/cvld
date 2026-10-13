@@ -337,7 +337,7 @@ async fn two_communities_admission_policy_lapse_and_release_over_http() {
         serde_json::from_value(ac.call("trust_feed", json!({})).await.unwrap()).unwrap();
     let proof = presentation(&alpha, ah, Some(&a.session), &passport).await;
     let lapsed: CredentialResponse = serde_json::from_value(ac.call("gate_withdraw", json!({
-        "gate":"cvch", "provider":"sponsor", "credential":{"presentation":proof,"devices":vec![[42u8;32]]}
+        "gate":"cvch", "provider":"sponsor", "credential":{"presentation":proof,"devices":vec![a.signing_key]}
     })).await.unwrap()).unwrap();
     assert!(lapsed.credential.is_none());
     assert_eq!(lapsed.lobby.state, "lapsed");

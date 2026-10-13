@@ -167,8 +167,8 @@ async fn generated_client_forwards_real_public_member_and_root_calls() {
     assert!(matches!(
         member
             .call(
-                "community_creation_initialize",
-                json!({"community":"wrong","recipient":"wrong"}),
+                "community_terminate",
+                json!({"address":"alpha12345","reason":"legal"}),
             )
             .await,
         Err(Error::Forbidden)

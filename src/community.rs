@@ -19,7 +19,7 @@ mod account_tuning;
 mod accounting;
 mod admission;
 mod certificate;
-mod creation;
+pub(crate) mod creation;
 mod enrollment;
 pub(crate) mod garden;
 mod legal;
@@ -99,8 +99,10 @@ struct SessionState {
     started: u64,
 }
 pub struct CommunityService {
-    creation_owner: Option<Arc<()>>,
-    creation_recipients: HashMap<String, creation::Recipient>,
+    /// Set by the hosting hub for a community that is still being created.
+    creation_gate: Option<Arc<dyn creation::CreationGate>>,
+    /// Set by the hosting hub; lets the admins dissolve the community.
+    lifecycle: Option<Arc<dyn creation::Lifecycle>>,
     pub facade: Facade,
     db: crlt::Db,
     issuer_public_key: Vec<u8>,
@@ -187,7 +189,11 @@ impl CommunityService {
             .load(scope)
             .await
             .map_err(Error::Unavailable.redact())?;
-        let secret = csgn::SecretKey::from_seed(&mut Config::seed(&config.signing_seed_file)?);
+        let mut seed = match &config.founding_seed {
+            Some(seed) => **seed,
+            None => Config::seed(&config.signing_seed_file)?,
+        };
+        let secret = csgn::SecretKey::from_seed(&mut seed);
         if global.signing_keys.contains(&secret.public_key())
             || saved.as_ref().is_some_and(|saved| {
                 saved
@@ -202,9 +208,13 @@ impl CommunityService {
         }
         let signer = if saved.is_some() {
             // cplc signs at UTC-day precision; recovery must use the same clock domain.
-            csgn::PersistentSigner::open(signer_store, scope, secret, cplc::day(now)).await
+            csgn::PersistentSigner::open(signer_store, scope, secret, cplc::day(now))
+                .await
+                .map_err(Error::Unavailable.redact())?
         } else {
-            csgn::PersistentSigner::create(
+            // A new incarnation: the founding key signs its own genesis document
+            // before anything else is signed, and the document is kept for the feed.
+            let mut created = csgn::PersistentSigner::create(
                 signer_store,
                 scope,
                 secret,
@@ -212,8 +222,14 @@ impl CommunityService {
                 config.signer_max_seconds,
             )
             .await
-        }
-        .map_err(Error::Unavailable.redact())?;
+            .map_err(Error::Unavailable.redact())?;
+            let document = created
+                .genesis()
+                .await
+                .map_err(Error::Unavailable.redact())?;
+            crate::genesis_store::store(db, scope, &document).await?;
+            created
+        };
         let rules = Rules::new(crbk::LibsqlStore::new(db.clone()));
         let policy_store =
             cplc::LibsqlStore::new(db, scope).map_err(Error::Unavailable.redact())?;
@@ -570,8 +586,8 @@ impl CommunityService {
                 issuer_public_key: status.issuer_public_key,
                 root_board_issuer: root_board.map(|descriptor| descriptor.issuer().clone()),
                 root_purpose: None,
-                creation_owner: None,
-                creation_recipients: HashMap::new(),
+                creation_gate: None,
+                lifecycle: None,
                 root_issuances: HashMap::new(),
                 config,
                 public,
@@ -635,7 +651,6 @@ impl CommunityService {
     fn prune(&mut self, now: u64) {
         self.challenges.retain(|_, p| p.until > now);
         self.root_issuances.retain(|_, p| p.until > now);
-        self.creation_recipients.retain(|_, p| p.until > now);
         self.registrations.retain(|_, p| p.until > now);
         self.logins.retain(|_, p| p.until > now);
         self.additions.retain(|_, p| p.until > now);
@@ -1138,6 +1153,7 @@ impl CommunityService {
     ) -> Result<(CredentialResponse, Option<cblc::admission::AdmissionGrant>)> {
         use chrono::Datelike;
         let auth = session.authentication.as_ref();
+        let creating = request.creation.is_some();
         self.refresh_global(now).await?;
         self.prune(now);
         let challenge = self
@@ -1167,11 +1183,6 @@ impl CommunityService {
             }
             Ok(Vec::new())
         };
-        if request.founder.is_some()
-            && (request.creation.is_some() || challenge.value.root_board_request().is_some())
-        {
-            return Err(Error::Invalid);
-        }
         let result = if challenge.value.root_board_request().is_some() {
             let proof = cpsd::RootBoardPresentation::from_bytes(&request.presentation.proof)
                 .map_err(Error::Invalid.redact())?;
@@ -1199,37 +1210,8 @@ impl CommunityService {
         } else {
             let proof = cpsd::Presentation::from_bytes(&request.presentation.proof)
                 .map_err(Error::Invalid.redact())?;
-            match (account_device, request.founder.as_deref()) {
-                (Some(device), Some(invitation)) => {
-                    self.facade
-                        .finish_founder_admin_account_with(
-                            &mut cpsd::rand::rngs::OsRng,
-                            &challenge.value,
-                            &proof,
-                            cmty::AccountAdmission {
-                                membership: admission,
-                                device,
-                            },
-                            invitation,
-                            now,
-                            checks,
-                        )
-                        .await
-                }
-                (None, Some(invitation)) => {
-                    self.facade
-                        .finish_founder_admin_with(
-                            &mut cpsd::rand::rngs::OsRng,
-                            &challenge.value,
-                            &proof,
-                            admission,
-                            invitation,
-                            now,
-                            checks,
-                        )
-                        .await
-                }
-                (Some(device), None) => {
+            match account_device {
+                Some(device) => {
                     self.facade
                         .finish_account_with(
                             &mut cpsd::rand::rngs::OsRng,
@@ -1244,7 +1226,7 @@ impl CommunityService {
                         )
                         .await
                 }
-                (None, None) => {
+                None => {
                     self.facade
                         .finish_with(
                             &mut cpsd::rand::rngs::OsRng,
@@ -1266,7 +1248,12 @@ impl CommunityService {
             }
         })?;
         let (credential, account) = match result {
-            cmty::Outcome::Issued(value) => (Some(value.cose), value.account),
+            cmty::Outcome::Issued(value) => {
+                if creating {
+                    self.creation_completed().await;
+                }
+                (Some(value.cose), value.account)
+            }
             cmty::Outcome::Missing(_) => (None, None),
             cmty::Outcome::Vetoed => return Err(Error::Forbidden),
         };

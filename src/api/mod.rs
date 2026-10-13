@@ -282,9 +282,12 @@ actions! {
     register_finish(RegisterFinish) -> User, Public, Both, Record, Forward, "Verify and store the first passkey";
     global_initial_registration_continue(GlobalInitialRegistrationContinue) -> InitialCeremony, Public, Global, Record, Forward, "Bind creation provenance to the retained first wallet registration";
     initial_registration_begin(InitialRegistrationBegin) -> InitialCeremony, Public, Community, Record, Forward, "Begin first community registration with original creation provenance";
-    community_creation_recipient(CreationRecipientRequest) -> CreationRecipient, Member, Community, Record, Forward, "Prepare original community creation for this registered recipient";
-    community_creation_initialize(CommunityCreationRequest) -> CommunityCreationInvitation, Root, Global, Record, Forward, "Initialize an explicitly linked community with its original first Root entitlement";
-    community_founder_issue(CommunityCreationRequest) -> CommunityCreationInvitation, Root, Global, Record, Forward, "Issue the original FounderAdmin entitlement for a distinct registered founder of an explicitly linked community";
+    creation_token_key(Empty) -> CreationTokenKey, Public, Global, Check, Forward, "Read the public key that verifies creation tokens";
+    creation_token_issue(CreationTokenRequest) -> CreationTokenResponse, Member, Global, Record, Forward, "Blind-sign one creation token within the per-person weekly and yearly limits";
+    community_create(CommunityCreate) -> CommunityCreated, Public, Global, Record, Forward, "Create a community by redeeming a creation token; the platform learns no creator";
+    community_terminate(CommunityTerminate) -> Empty, Root, Global, Record, Forward, "End a community at once; Root only, always recorded";
+    community_dissolve(Empty) -> Empty, Admin, Community, Record, Forward, "Dissolve this community; its admins only";
+    community_creation_claim(CreationClaim) -> CreationClaimed, Member, Community, Record, Forward, "Claim the first admin seat of a community being created";
     initial_creation(Empty) -> InitialCreationResponse, Member, Both, Check, Forward, "Read this current passkey's original enrollment provenance";
     initial_publication_bind(InitialPublicationBind) -> InitialCreationResponse, Member, Both, Record, Forward, "Bind one original publication to this current passkey's initial enrollment";
     login_begin(LoginStart) -> Ceremony, Public, Both, Check, Forward, "Begin credential-first passkey authentication";

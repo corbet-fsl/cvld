@@ -458,6 +458,7 @@ pub fn community_config(
     burst: u32,
 ) -> CommunityConfig {
     let config = CommunityConfig {
+        founding_seed: None,
         listen: "127.0.0.1:0".into(),
         domain: DOMAIN.into(),
         community: name.into(),

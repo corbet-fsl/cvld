@@ -13,12 +13,14 @@ pub const SCHEMA: &str = "CREATE TABLE cvld_communities (
     community_id TEXT NOT NULL,
     id BLOB NOT NULL CHECK (length(id) = 16),
     address TEXT NOT NULL CHECK (length(address) BETWEEN 8 AND 30 AND NOT address GLOB '*[^a-z0-9]*'),
-    fingerprint BLOB NOT NULL CHECK (length(fingerprint) = 32),
+    fingerprint BLOB CHECK (fingerprint IS NULL OR length(fingerprint) = 32),
+    claim_hash BLOB NOT NULL CHECK (length(claim_hash) = 32),
     state TEXT NOT NULL CHECK (state IN ('being_created', 'live', 'ending', 'ended')),
     created_at INTEGER NOT NULL,
     expires_at INTEGER,
     ended_at INTEGER,
     hold_until INTEGER,
+    end_reason TEXT CHECK (end_reason IS NULL OR end_reason IN ('legal', 'terms', 'name', 'dissolved')),
     seq INTEGER NOT NULL,
     PRIMARY KEY (community_id, id)
 ) WITHOUT ROWID;
@@ -42,7 +44,7 @@ pub enum State {
 }
 
 impl State {
-    fn code(self) -> &'static str {
+    pub fn code(self) -> &'static str {
         match self {
             Self::BeingCreated => "being_created",
             Self::Live => "live",
@@ -70,14 +72,18 @@ impl State {
 pub struct Entry {
     pub id: [u8; 16],
     pub address: String,
-    pub fingerprint: [u8; 32],
+    /// Set once the community's genesis document exists.
+    pub fingerprint: Option<[u8; 32]>,
     pub state: State,
     pub created_at: u64,
     pub expires_at: Option<u64>,
     pub ended_at: Option<u64>,
     pub hold_until: Option<u64>,
+    /// Why the community ended: legal, terms, name or dissolved (by its admins).
+    pub end_reason: Option<String>,
     /// Change counter used as the cursor of the finished-communities listing.
     pub seq: u64,
+    pub claim_hash: [u8; 32],
 }
 
 /// Which of a community's two hostnames was matched.
@@ -110,20 +116,27 @@ fn optional(row: &crlt::Row, index: usize) -> Result<Option<u64>> {
     }
 }
 
-const COLUMNS: &str =
-    "id, address, fingerprint, state, created_at, expires_at, ended_at, hold_until, seq";
+const COLUMNS: &str = "id, address, fingerprint, state, created_at, expires_at, ended_at, hold_until, seq, claim_hash, end_reason";
 
 fn entry(row: &crlt::Row) -> Result<Entry> {
     Ok(Entry {
         id: blob(row, 0)?,
         address: row.get_str(1).map_err(db)?.to_owned(),
-        fingerprint: blob(row, 2)?,
+        fingerprint: match row.get_value(2).map_err(db)? {
+            Value::Null => None,
+            _ => Some(blob(row, 2)?),
+        },
         state: State::parse(row.get_str(3).map_err(db)?)?,
         created_at: u64::try_from(row.get_i64(4).map_err(db)?).map_err(db)?,
         expires_at: optional(row, 5)?,
         ended_at: optional(row, 6)?,
         hold_until: optional(row, 7)?,
         seq: u64::try_from(row.get_i64(8).map_err(db)?).map_err(db)?,
+        claim_hash: blob(row, 9)?,
+        end_reason: match row.get_value(10).map_err(db)? {
+            Value::Text(reason) => Some(reason.clone()),
+            _ => None,
+        },
     })
 }
 
@@ -143,7 +156,7 @@ impl Registry {
         &self,
         id: [u8; 16],
         address: &str,
-        fingerprint: [u8; 32],
+        claim_hash: [u8; 32],
         now: u64,
         shell_seconds: u64,
         reserved: &Reserved,
@@ -176,8 +189,8 @@ impl Registry {
         let seq = next_seq(&mut tx).await?;
         let expires_at = now.checked_add(shell_seconds).ok_or(Error::Invalid)?;
         tx.execute(
-            "INSERT INTO cvld_communities (id, address, fingerprint, state, created_at, expires_at, seq) VALUES (?1, ?2, ?3, 'being_created', ?4, ?5, ?6)",
-            params![id.to_vec(), address, fingerprint.to_vec(), int(now)?, int(expires_at)?, int(seq)?],
+            "INSERT INTO cvld_communities (id, address, claim_hash, state, created_at, expires_at, seq) VALUES (?1, ?2, ?3, 'being_created', ?4, ?5, ?6)",
+            params![id.to_vec(), address, claim_hash.to_vec(), int(now)?, int(expires_at)?, int(seq)?],
         )
         .await
         .map_err(db)?;
@@ -185,14 +198,34 @@ impl Registry {
         Ok(Entry {
             id,
             address: address.to_owned(),
-            fingerprint,
+            fingerprint: None,
+            claim_hash,
             state: State::BeingCreated,
             created_at: now,
             expires_at: Some(expires_at),
             ended_at: None,
             hold_until: None,
+            end_reason: None,
             seq,
         })
+    }
+
+    /// Record the founding fingerprint of a shell once its genesis exists.
+    pub async fn set_fingerprint(&self, id: [u8; 16], fingerprint: [u8; 32]) -> Result<()> {
+        let mut tx = self.scope.tx().await.map_err(db)?;
+        let changed = tx
+            .execute(
+                "UPDATE cvld_communities SET fingerprint = ?2 WHERE id = ?1 AND state = 'being_created' AND fingerprint IS NULL",
+                params![id.to_vec(), fingerprint.to_vec()],
+            )
+            .await
+            .map_err(db)?;
+        tx.commit().await.map_err(db)?;
+        if changed == 1 {
+            Ok(())
+        } else {
+            Err(Error::Refused)
+        }
     }
 
     /// Shell to live: the creator is admitted and the token is spent.
@@ -226,6 +259,7 @@ impl Registry {
         &self,
         id: [u8; 16],
         now: u64,
+        reason: &str,
         hold_until: Option<u64>,
         block_name: bool,
     ) -> Result<Entry> {
@@ -244,12 +278,13 @@ impl Registry {
         }
         let seq = next_seq(&mut tx).await?;
         tx.execute(
-            "UPDATE cvld_communities SET state = 'ending', ended_at = ?2, hold_until = ?3, seq = ?4 WHERE id = ?1",
+            "UPDATE cvld_communities SET state = 'ending', ended_at = ?2, hold_until = ?3, end_reason = ?5, seq = ?4 WHERE id = ?1",
             params![
                 id.to_vec(),
                 int(now)?,
                 hold_until.map(int).transpose()?,
-                int(seq)?
+                int(seq)?,
+                reason
             ],
         )
         .await
@@ -276,6 +311,7 @@ impl Registry {
             state: State::Ending,
             ended_at: Some(now),
             hold_until,
+            end_reason: Some(reason.to_owned()),
             seq,
             ..current
         })
@@ -384,6 +420,36 @@ impl Registry {
         Ok(out)
     }
 
+    /// Communities in `ending` whose hold (if any) has passed.
+    pub async fn due_for_deletion(&self, now: u64) -> Result<Vec<Entry>> {
+        let rows = self
+            .scope
+            .query(
+                &format!(
+                    "SELECT {COLUMNS} FROM cvld_communities WHERE state = 'ending' AND (hold_until IS NULL OR hold_until <= ?1)"
+                ),
+                [int(now)?],
+            )
+            .await
+            .map_err(db)?;
+        rows.iter().map(entry).collect()
+    }
+
+    /// Every community whose hostnames resolve (shells and live ones).
+    pub async fn serving(&self) -> Result<Vec<Entry>> {
+        let rows = self
+            .scope
+            .query(
+                &format!(
+                    "SELECT {COLUMNS} FROM cvld_communities WHERE state = 'live' OR state = 'being_created'"
+                ),
+                (),
+            )
+            .await
+            .map_err(db)?;
+        rows.iter().map(entry).collect()
+    }
+
     /// Abandoned shells whose expiry passed.
     pub async fn expired_shells(&self, now: u64) -> Result<Vec<Entry>> {
         let rows = self
@@ -428,7 +494,7 @@ mod tests {
     }
 
     const BASE: &str = "cmtymeet.corbet.ch";
-    const FP: [u8; 32] = [7; 32];
+    const FP: [u8; 32] = [7; 32]; // claim hash in these tests
 
     #[tokio::test]
     async fn shell_live_end_and_reuse() {
@@ -460,7 +526,10 @@ mod tests {
         assert_eq!(vault, Origin::Vault);
         registry.mark_live(one).await.unwrap();
         assert_eq!(registry.mark_live(one).await, Err(Error::Refused));
-        let ending = registry.begin_end(one, 200, None, false).await.unwrap();
+        let ending = registry
+            .begin_end(one, 200, "dissolved", None, false)
+            .await
+            .unwrap();
         assert_eq!(ending.state, State::Ending);
         assert!(
             registry
@@ -494,7 +563,7 @@ mod tests {
             .unwrap();
         registry.mark_live([1; 16]).await.unwrap();
         registry
-            .begin_end([1; 16], 200, Some(1000), false)
+            .begin_end([1; 16], 200, "legal", Some(1000), false)
             .await
             .unwrap();
         registry.finish_end([1; 16]).await.unwrap();
@@ -513,7 +582,10 @@ mod tests {
             .await
             .unwrap();
         registry.mark_live([3; 16]).await.unwrap();
-        registry.begin_end([3; 16], 200, None, true).await.unwrap();
+        registry
+            .begin_end([3; 16], 200, "name", None, true)
+            .await
+            .unwrap();
         registry.finish_end([3; 16]).await.unwrap();
         assert_eq!(
             registry

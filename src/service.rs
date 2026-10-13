@@ -22,6 +22,7 @@ mod accounting;
 mod bootstrap;
 mod contacts;
 mod creation;
+pub use creation::CommunityHub;
 mod enrollment;
 mod garden;
 mod global_self_ban;
@@ -99,9 +100,8 @@ pub struct Door {
     inner: Arc<Inner>,
 }
 struct Inner {
-    root_creation_scope: Option<crlt::Community>,
-    creation_owner: Arc<()>,
-    creation_targets: Mutex<BTreeMap<String, Door>>,
+    /// Hosting hub of a multi-tenant global door; set once by the launcher.
+    hub: std::sync::OnceLock<Arc<dyn CommunityHub>>,
     requests: Arc<Mutex<()>>,
     ceremony_slots: Arc<Semaphore>,
     public_slots: Arc<Semaphore>,
@@ -290,11 +290,7 @@ impl Door {
                 watch_slots: Arc::new(Semaphore::new(16)),
                 published,
                 scope: Scope::Global,
-                root_creation_scope: Some(
-                    db.community("root").map_err(Error::Unavailable.redact())?,
-                ),
-                creation_owner: Arc::new(()),
-                creation_targets: Mutex::new(BTreeMap::new()),
+                hub: std::sync::OnceLock::new(),
                 hosts,
                 backend: Backend::Global(Box::new(Mutex::new(global))),
                 member_host: None,
@@ -522,9 +518,7 @@ impl Door {
                 crate::ohttp::build(config.ohttp.as_ref(), &names, &db, &config.community).await?;
             Ok(Self {
                 inner: Arc::new(Inner {
-                    root_creation_scope: None,
-                    creation_owner: Arc::new(()),
-                    creation_targets: Mutex::new(BTreeMap::new()),
+                    hub: std::sync::OnceLock::new(),
                     requests: Arc::new(Mutex::new(())),
                     ceremony_slots: Arc::new(Semaphore::new(16)),
                     public_slots: Arc::new(Semaphore::new(32)),

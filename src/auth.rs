@@ -7,7 +7,6 @@ use ckyh::{LibsqlStore, Passkeys, PendingAuthentication, PendingRegistration, Uu
 use std::{collections::HashMap, sync::Arc};
 use subtle::ConstantTimeEq;
 
-pub(crate) mod creation;
 mod enrollment;
 pub(crate) mod global_self_ban;
 mod passkeys;
