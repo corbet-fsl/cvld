@@ -173,15 +173,12 @@ pub async fn found(running: &Running, name: &str, public: &GlobalPublic) {
     let subject = passport
         .pseudonym(&cpsd::CommunityId::new(name).unwrap())
         .to_hex();
-    api.call(
-        "gate_voucher",
-        voucher(
-            name,
-            &subject,
-            "founding-full-gate",
-            running.clock.now() + 172_800,
-        ),
-    )
+    api.voucher_redeem(voucher(
+        name,
+        &subject,
+        "founding-full-gate",
+        running.clock.now() + 172_800,
+    ))
     .await
     .unwrap();
     let proof = presentation(running, &host, Some(&founder.session), &passport).await;

@@ -134,10 +134,12 @@ async fn admitted_bundle(
         .await
         .unwrap();
     let lobby: Lobby = serde_json::from_value(api.call("lobby", json!({})).await.unwrap()).unwrap();
-    api.call(
-        "gate_voucher",
-        voucher("alpha", &lobby.member_id, "self-ban-voucher", NOW + 86400),
-    )
+    api.voucher_redeem(voucher(
+        "alpha",
+        &lobby.member_id,
+        "self-ban-voucher",
+        NOW + 86400,
+    ))
     .await
     .unwrap();
     let device_key = SigningKey::from_bytes(&[37; 32]);

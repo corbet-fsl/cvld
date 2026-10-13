@@ -4373,6 +4373,23 @@
           "proof"
         ],
         "type": "object"
+      },
+      "VoucherEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "member": {
+            "type": "string"
+          },
+          "notice": {
+            "description": "Sealed to the issuer's device, lowercase hex.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "member",
+          "notice"
+        ],
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -6285,137 +6302,6 @@
         "summary": "Read current passkey-authorized signing keys",
         "x-client-access": "forward",
         "x-effect": "check",
-        "x-role": "member",
-        "x-scope": "community"
-      }
-    },
-    "/v1/gate_voucher": {
-      "post": {
-        "operationId": "gate_voucher",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "additionalProperties": false,
-                "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "member_binding": {
-                    "type": "string"
-                  },
-                  "signature": {
-                    "items": {
-                      "format": "int32",
-                      "minimum": 0,
-                      "type": "integer"
-                    },
-                    "type": "array"
-                  },
-                  "valid_until": {
-                    "format": "int64",
-                    "minimum": 0,
-                    "type": "integer"
-                  }
-                },
-                "required": [
-                  "id",
-                  "member_binding",
-                  "valid_until",
-                  "signature"
-                ],
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "handle": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "member_id": {
-                      "type": "string"
-                    },
-                    "missing": {
-                      "description": "Unsatisfied admission conditions, strongest requirement first.",
-                      "items": {
-                        "$ref": "#/components/schemas/LobbyMissing"
-                      },
-                      "type": "array"
-                    },
-                    "passport_required": {
-                      "description": "Passport proof is always fresh when requesting a community credential.",
-                      "type": "boolean"
-                    },
-                    "state": {
-                      "type": "string"
-                    },
-                    "steps": {
-                      "description": "Enabled community gates the member can pass now, each with its ordered inputs.",
-                      "items": {
-                        "$ref": "#/components/schemas/LobbyDescriptor"
-                      },
-                      "type": "array"
-                    },
-                    "warnings": {
-                      "items": {
-                        "$ref": "#/components/schemas/LobbyWarning"
-                      },
-                      "type": "array"
-                    }
-                  },
-                  "required": [
-                    "member_id",
-                    "state",
-                    "missing",
-                    "steps",
-                    "warnings",
-                    "passport_required"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Success"
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/Error"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Fixed redacted error category"
-          }
-        },
-        "security": [
-          {
-            "session": []
-          }
-        ],
-        "summary": "Verify a member-bound voucher",
-        "x-client-access": "forward",
-        "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -10724,6 +10610,584 @@
         },
         "security": [],
         "summary": "Read signed public trust snapshots",
+        "x-client-access": "forward",
+        "x-effect": "check",
+        "x-role": "public",
+        "x-scope": "community"
+      }
+    },
+    "/v1/voucher_link_create": {
+      "post": {
+        "operationId": "voucher_link_create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "The issuer's device registers a link by lookup id and secret hashes only.",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "manage_verifier": {
+                    "type": "string"
+                  },
+                  "signoff": {
+                    "description": "Honoured only for admins and roots; ordinary members get the fixed default.",
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "uses": {
+                    "format": "int32",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "valid_for": {
+                    "description": "Lifetime in seconds.",
+                    "format": "int64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "verifier": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "verifier",
+                  "manage_verifier",
+                  "uses",
+                  "valid_for"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "expires_at": {
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "signoff": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "expires_at",
+                    "signoff"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Register a voucher link by hashes; the issuer is not stored",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "member",
+        "x-scope": "community"
+      }
+    },
+    "/v1/voucher_link_revoke": {
+      "post": {
+        "operationId": "voucher_link_revoke",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "The issuer's device proves it manages a link with the management secret.",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "secret": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "secret"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "released": {
+                      "description": "Applicants released from the lobby; completed admissions stay.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "released"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [],
+        "summary": "Revoke a voucher link; completed admissions stay",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "public",
+        "x-scope": "community"
+      }
+    },
+    "/v1/voucher_link_view": {
+      "post": {
+        "operationId": "voucher_link_view",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "The issuer's device proves it manages a link with the management secret.",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "secret": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "secret"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "admitted": {
+                      "items": {
+                        "$ref": "#/components/schemas/VoucherEntry"
+                      },
+                      "type": "array"
+                    },
+                    "expires_at": {
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "revoked": {
+                      "type": "boolean"
+                    },
+                    "signoff": {
+                      "type": "boolean"
+                    },
+                    "uses": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "waiting": {
+                      "items": {
+                        "$ref": "#/components/schemas/VoucherEntry"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "waiting",
+                    "admitted",
+                    "revoked",
+                    "expires_at",
+                    "uses",
+                    "signoff"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [],
+        "summary": "Read a voucher link with its management secret",
+        "x-client-access": "forward",
+        "x-effect": "check",
+        "x-role": "public",
+        "x-scope": "community"
+      }
+    },
+    "/v1/voucher_redeem": {
+      "post": {
+        "operationId": "voucher_redeem",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "A newcomer presents a voucher link. The secret is the redemption secret\nderived on the device; the notice is sealed to the issuer's device and is\nrelayed opaque.",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "notice": {
+                    "type": "string"
+                  },
+                  "secret": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "secret",
+                  "notice"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "handle": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "member_id": {
+                      "type": "string"
+                    },
+                    "missing": {
+                      "description": "Unsatisfied admission conditions, strongest requirement first.",
+                      "items": {
+                        "$ref": "#/components/schemas/LobbyMissing"
+                      },
+                      "type": "array"
+                    },
+                    "passport_required": {
+                      "description": "Passport proof is always fresh when requesting a community credential.",
+                      "type": "boolean"
+                    },
+                    "state": {
+                      "type": "string"
+                    },
+                    "steps": {
+                      "description": "Enabled community gates the member can pass now, each with its ordered inputs.",
+                      "items": {
+                        "$ref": "#/components/schemas/LobbyDescriptor"
+                      },
+                      "type": "array"
+                    },
+                    "warnings": {
+                      "items": {
+                        "$ref": "#/components/schemas/LobbyWarning"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "member_id",
+                    "state",
+                    "missing",
+                    "steps",
+                    "warnings",
+                    "passport_required"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Present a voucher link; with sign-off the applicant waits in the lobby",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "member",
+        "x-scope": "community"
+      }
+    },
+    "/v1/voucher_signoff_decide": {
+      "post": {
+        "operationId": "voucher_signoff_decide",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "confirm": {
+                    "type": "boolean"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "member": {
+                    "type": "string"
+                  },
+                  "secret": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "secret",
+                  "member",
+                  "confirm"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "admitted": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "admitted"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [],
+        "summary": "Confirm or decline a waiting applicant",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "public",
+        "x-scope": "community"
+      }
+    },
+    "/v1/voucher_signoff_list": {
+      "post": {
+        "operationId": "voucher_signoff_list",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "The issuer's device proves it manages a link with the management secret.",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "secret": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "secret"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "waiting": {
+                      "items": {
+                        "$ref": "#/components/schemas/VoucherEntry"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "waiting"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [],
+        "summary": "List applicants waiting for sign-off",
         "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "public",

@@ -32,8 +32,7 @@ fn community() -> Value {
         "signer_max_seconds": 8640000,
         "minimum_notice_seconds": 0,
         "voucher_provider": "sponsor",
-        "voucher_public_key_file": "fixture/voucher-public",
-        "payments": null,
+                "payments": null,
         "accounting": null
     })
 }
