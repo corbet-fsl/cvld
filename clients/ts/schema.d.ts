@@ -378,23 +378,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/gate_voucher": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Verify a member-bound voucher */
-        post: operations["gate_voucher"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/gate_withdraw": {
         parameters: {
             query?: never;
@@ -1154,6 +1137,108 @@ export interface paths {
         put?: never;
         /** Read signed public trust snapshots */
         post: operations["trust_feed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/voucher_link_create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Register a voucher link by hashes; the issuer is not stored */
+        post: operations["voucher_link_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/voucher_link_revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke a voucher link; completed admissions stay */
+        post: operations["voucher_link_revoke"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/voucher_link_view": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read a voucher link with its management secret */
+        post: operations["voucher_link_view"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/voucher_redeem": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Present a voucher link; with sign-off the applicant waits in the lobby */
+        post: operations["voucher_redeem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/voucher_signoff_decide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm or decline a waiting applicant */
+        post: operations["voucher_signoff_decide"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/voucher_signoff_list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** List applicants waiting for sign-off */
+        post: operations["voucher_signoff_list"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2357,6 +2442,11 @@ export interface components {
             /** Format: int64 */
             revision: number;
         };
+        VoucherEntry: {
+            member: string;
+            /** @description Sealed to the issuer's device, lowercase hex. */
+            notice: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -3283,58 +3373,6 @@ export interface operations {
                 content: {
                     "application/json": {
                         keys: number[][];
-                    };
-                };
-            };
-            /** @description Fixed redacted error category */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        error: components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
-    };
-    gate_voucher: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    id: string;
-                    member_binding: string;
-                    signature: number[];
-                    /** Format: int64 */
-                    valid_until: number;
-                };
-            };
-        };
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        handle?: string | null;
-                        member_id: string;
-                        /** @description Unsatisfied admission conditions, strongest requirement first. */
-                        missing: components["schemas"]["LobbyMissing"][];
-                        /** @description Passport proof is always fresh when requesting a community credential. */
-                        passport_required: boolean;
-                        state: string;
-                        /** @description Enabled community gates the member can pass now, each with its ordered inputs. */
-                        steps: components["schemas"]["LobbyDescriptor"][];
-                        warnings: components["schemas"]["LobbyWarning"][];
                     };
                 };
             };
@@ -5283,6 +5321,279 @@ export interface operations {
                         schema: number[];
                         schema_versions: number[];
                         settings: number[];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    voucher_link_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    id: string;
+                    manage_verifier: string;
+                    /** @description Honoured only for admins and roots; ordinary members get the fixed default. */
+                    signoff?: boolean | null;
+                    /** Format: int32 */
+                    uses: number;
+                    /**
+                     * Format: int64
+                     * @description Lifetime in seconds.
+                     */
+                    valid_for: number;
+                    verifier: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: int64 */
+                        expires_at: number;
+                        id: string;
+                        signoff: boolean;
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    voucher_link_revoke: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    id: string;
+                    secret: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Applicants released from the lobby; completed admissions stay. */
+                        released: string[];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    voucher_link_view: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    id: string;
+                    secret: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        admitted: components["schemas"]["VoucherEntry"][];
+                        /** Format: int64 */
+                        expires_at: number;
+                        revoked: boolean;
+                        signoff: boolean;
+                        /** Format: int32 */
+                        uses: number;
+                        waiting: components["schemas"]["VoucherEntry"][];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    voucher_redeem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    id: string;
+                    notice: string;
+                    secret: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        handle?: string | null;
+                        member_id: string;
+                        /** @description Unsatisfied admission conditions, strongest requirement first. */
+                        missing: components["schemas"]["LobbyMissing"][];
+                        /** @description Passport proof is always fresh when requesting a community credential. */
+                        passport_required: boolean;
+                        state: string;
+                        /** @description Enabled community gates the member can pass now, each with its ordered inputs. */
+                        steps: components["schemas"]["LobbyDescriptor"][];
+                        warnings: components["schemas"]["LobbyWarning"][];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    voucher_signoff_decide: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    confirm: boolean;
+                    id: string;
+                    member: string;
+                    secret: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        admitted: boolean;
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    voucher_signoff_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    id: string;
+                    secret: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        waiting: components["schemas"]["VoucherEntry"][];
                     };
                 };
             };

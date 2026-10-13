@@ -67,10 +67,12 @@ impl World {
         api.call("handle_reserve", json!({"handle":"creator_one"}))
             .await
             .unwrap();
-        api.call(
-            "gate_voucher",
-            voucher("alpha", &subject, "ordinary-full-gate", NOW + 172800),
-        )
+        api.voucher_redeem(voucher(
+            "alpha",
+            &subject,
+            "ordinary-full-gate",
+            NOW + 172800,
+        ))
         .await
         .unwrap();
         let proof = presentation(
@@ -134,10 +136,12 @@ async fn actual_root_two_database_creation_requires_original_full_gates_for_root
     // Without the configured gate nothing is issued and the member stays outside.
     let denied: CredentialResponse = serde_json::from_value(denied.unwrap()).unwrap();
     assert!(denied.credential.is_none());
-    api.call(
-        "gate_voucher",
-        voucher("alpha", &subject, "ordinary-full-gate", NOW + 172800),
-    )
+    api.voucher_redeem(voucher(
+        "alpha",
+        &subject,
+        "ordinary-full-gate",
+        NOW + 172800,
+    ))
     .await
     .unwrap();
     let proof = presentation(
@@ -346,10 +350,12 @@ async fn founder_admin_needs_an_active_community_a_joining_distinct_member_and_e
     // Without every configured gate nothing is issued and the founder stays outside.
     let denied: CredentialResponse = serde_json::from_value(denied.unwrap()).unwrap();
     assert!(denied.credential.is_none());
-    api.call(
-        "gate_voucher",
-        voucher("alpha", &subject, "founder-full-gate", NOW + 172800),
-    )
+    api.voucher_redeem(voucher(
+        "alpha",
+        &subject,
+        "founder-full-gate",
+        NOW + 172800,
+    ))
     .await
     .unwrap();
     let proof = presentation(

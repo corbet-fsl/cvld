@@ -141,7 +141,6 @@ pub struct CommunityConfig {
     pub signer_max_seconds: u64,
     pub minimum_notice_seconds: u64,
     pub voucher_provider: String,
-    pub voucher_public_key_file: String,
     /// Paid access is off unless an exact account/offer is supplied explicitly.
     #[serde(default)]
     pub payments: Option<crate::payments::PaymentConfig>,

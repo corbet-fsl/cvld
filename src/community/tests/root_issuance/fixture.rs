@@ -193,10 +193,7 @@ pub(crate) async fn world() -> World {
         .await
         .unwrap();
     member_client
-        .call(
-            "gate_voucher",
-            voucher("alpha", &member_id, "linked-source", NOW + 172_800),
-        )
+        .voucher_redeem(voucher("alpha", &member_id, "linked-source", NOW + 172_800))
         .await
         .unwrap();
     let proof = presentation(&source, &holder, Some(&member.session)).await;

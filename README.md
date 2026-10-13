@@ -114,8 +114,8 @@ reports current enrolment, missing requirements, gate steps and no-return
 warnings. It does not persist a visit or change membership merely because it
 was read.
 
-Sponsors create member-bound cvch vouchers off band. The voucher endpoint
-passes their wire format to cgts. Pin values and salts remain on the device;
+Members create cvch voucher links on their own devices and register only hashes;
+the host stores no issuer. The redeem endpoint passes the link request to cgts. Pin values and salts remain on the device;
 only the versioned, context-bound cpns digest enters cmbr. Policy, enrolment,
 leases, lapse and credential lifetimes remain owned by the facades.
 

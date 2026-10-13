@@ -75,15 +75,12 @@ async fn additional_device_is_session_bound_and_survives_original_revocation() {
     let before: Lobby =
         serde_json::from_value(first_client.call("lobby", json!({})).await.unwrap()).unwrap();
     first_client
-        .call(
-            "gate_voucher",
-            voucher(
-                "alpha",
-                &before.member_id,
-                "additional-key-voucher",
-                NOW + 86400,
-            ),
-        )
+        .voucher_redeem(voucher(
+            "alpha",
+            &before.member_id,
+            "additional-key-voucher",
+            NOW + 86400,
+        ))
         .await
         .unwrap();
     assert!(

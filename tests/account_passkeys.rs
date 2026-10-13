@@ -355,10 +355,7 @@ async fn community_root_and_admin_manage_equal_passkeys_on_their_own_hosts() {
         .await
         .unwrap();
     member_api
-        .call(
-            "gate_voucher",
-            voucher("alpha", &subject, "passkey-admin", NOW + 172_800),
-        )
+        .voucher_redeem(voucher("alpha", &subject, "passkey-admin", NOW + 172_800))
         .await
         .unwrap();
     let proof = presentation(&service, member_host, Some(&member.token), &passport).await;
