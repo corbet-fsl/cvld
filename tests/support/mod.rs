@@ -726,6 +726,7 @@ pub fn voucher(_community: &str, member: &str, id: &str, valid_until: u64) -> Va
             "signoff": null,
         },
         "redeem": {"id": request.id, "secret": request.secret, "notice": request.notice},
+        "manage": {"id": registration.id().as_str(), "secret": token.manage().secret_hex().to_string()},
         "link": token.fragment().to_string(),
     })
 }
