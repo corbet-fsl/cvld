@@ -12,16 +12,12 @@ default = ["server"]
 server = ["client-http", "dep:cpmt", "dep:crpt", "dep:x402-types", "dep:cmty", "dep:cvch", "dep:clbs", "dep:cphn", "dep:cmbx", "dep:cfbk", "dep:ed25519-dalek", "dep:ed25519-dalek-v2", "dep:cblc", "dep:czkp", "dep:cssr", "dep:cpsd", "dep:crlt", "dep:csgn", "dep:cgbl", "dep:ckyh", "dep:governor", "dep:axum", "dep:tower-http", "dep:utoipa", "dep:clap", "dep:rmcp", "dep:tokio", "dep:uuid", "dep:chrono", "dep:rand", "dep:subtle"]
 client = ["dep:jsonschema"]
 client-http = ["client", "dep:reqwest", "dep:url"]
-client-ohttp = ["client", "dep:url", "dep:cblv", "cblv/client"]
 client-browser = ["client", "dep:url", "dep:gloo-timers", "dep:web-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys"]
 development-gate = ["server", "cgbl/development-gate"]
 # Contract-only view of the development action for clients; links none of the server.
 development-gate-client = ["client"]
-# Oblivious HTTP gateway in front of the door handlers (off by default).
-ohttp = ["server", "dep:cblv", "cblv/gateway"]
 
 [dependencies]
-cblv = { git = "https://git.corbet.ch/corbet-foss/cblv.git", branch = "main", optional = true }
 url = { version = "2.5", optional = true }
 jsonschema = { version = "0.58", default-features = false, optional = true }
 cmty = { git = "https://git.corbet.ch/corbet-libs/cmty", branch = "main", optional = true }

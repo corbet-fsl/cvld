@@ -244,8 +244,8 @@ macro_rules! actions {
                 router = router.route(concat!("/v1/", stringify!($name)), post(
                     |State(door): State<Door>, request: Request| async move {
                         let action = action(stringify!($name)).expect("registered action");
-                        let source = door.source_of_request(&request);
-                        let _permit = door.admit_source(action, source).await?;
+                        let source = door.source(&request);
+                        let _permit = door.admit_request(action, source).await?;
                         let ctx = door.authorize(action, request.headers()).await?;
                         let Json(request) = tokio::time::timeout(door.body_timeout(action), Json::<$request>::from_request(request, &())).await.map_err(Error::Invalid.redact())?.map_err(Error::Invalid.redact())?;
                         let _guard = door.request_guard(action).await;
@@ -256,23 +256,12 @@ macro_rules! actions {
                     }
                 ).layer(DefaultBodyLimit::max(body_limit)));
             } )*
-            let ohttp = door.ohttp().cloned();
-            let router = account_record::router(router).layer(door.cors())
+            account_record::router(router).layer(door.cors())
                 .layer(axum::middleware::map_response(|mut response: axum::response::Response| async move {
                     response.headers_mut().insert(axum::http::header::CACHE_CONTROL,
                         axum::http::HeaderValue::from_static("no-store"));
                     response
-                })).with_state(door);
-            // The gateway sits outermost: it decrypts first, and everything
-            // inside sees an ordinary request marked as arriving through it.
-            #[cfg(feature = "ohttp")]
-            let router = match ohttp {
-                Some(gateway) => cblv::gateway::mount(router, gateway),
-                None => router,
-            };
-            #[cfg(not(feature = "ohttp"))]
-            let _ = ohttp;
-            router
+                })).with_state(door)
         }
     }
 }

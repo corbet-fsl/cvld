@@ -37,7 +37,6 @@ cargo metadata --locked --format-version 1 > dependency-metadata.json
 node .github/check-pins.mjs dependency-metadata.json
 cargo fmt --all --check
 cargo clippy --locked --all-targets --features development-gate -- -D warnings
-cargo clippy --locked --all-targets --features development-gate,ohttp -- -D warnings
 cargo clippy --locked --no-default-features --features client --lib --target wasm32-unknown-unknown -- -D warnings
 python3 -B .ci/test-time-controls.py
 python3 -B .ci/time-controls.py
@@ -53,7 +52,6 @@ npm test --prefix clients/ts
 # The client-only development feature must stay free of the server graph.
 cargo test --locked --lib --no-default-features --features client-http,development-gate-client client::
 if cargo tree --locked --no-default-features --features client-http,development-gate-client -e normal | grep -E 'libsql|cpsd|axum'; then exit 1; fi
-cargo test --locked --lib --features development-gate,ohttp ohttp::
 # Native accounting operator configuration for community alpha at the suite's fixed NOW, assembled
 # from the write-once retained cblc artifacts by the reviewed assembler. Never hand-made.
 g5_config=$(mktemp -d)

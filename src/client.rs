@@ -8,11 +8,7 @@ use std::{collections::BTreeMap, future::Future, sync::LazyLock};
 #[path = "client_record.rs"]
 pub(crate) mod record;
 
-#[cfg(any(
-    feature = "client-http",
-    feature = "client-browser",
-    feature = "client-ohttp"
-))]
+#[cfg(any(feature = "client-http", feature = "client-browser"))]
 #[path = "client_json.rs"]
 mod json;
 
@@ -22,23 +18,13 @@ mod http;
 #[cfg(all(feature = "client-http", not(target_arch = "wasm32")))]
 pub use http::HttpClient;
 
-#[cfg(feature = "client-ohttp")]
-#[path = "client_ohttp.rs"]
-mod ohttp;
-#[cfg(feature = "client-ohttp")]
-pub use ohttp::OhttpClient;
-
 #[cfg(all(feature = "client-browser", target_arch = "wasm32"))]
 #[path = "client_browser.rs"]
 mod browser;
 #[cfg(all(feature = "client-browser", target_arch = "wasm32"))]
 pub use browser::BrowserClient;
 
-#[cfg(any(
-    feature = "client-http",
-    feature = "client-browser",
-    feature = "client-ohttp"
-))]
+#[cfg(any(feature = "client-http", feature = "client-browser"))]
 fn origin(base: &str, host: &str) -> Result<url::Url> {
     let url = url::Url::parse(base).map_err(Error::Invalid.redact())?;
     if !url.username().is_empty()
@@ -59,11 +45,7 @@ fn origin(base: &str, host: &str) -> Result<url::Url> {
     Ok(url)
 }
 
-#[cfg(any(
-    feature = "client-http",
-    feature = "client-browser",
-    feature = "client-ohttp"
-))]
+#[cfg(any(feature = "client-http", feature = "client-browser"))]
 fn decode_response(name: &str, status: u16, body: &[u8]) -> Result<Value> {
     if status != 200 {
         let error: crate::error::ErrorBody = json::decode(body)?;

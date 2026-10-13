@@ -123,7 +123,6 @@ struct Inner {
     account_shutdown: Option<cmty::cgts::AccountShutdown>,
     wallet_shutdown: Option<cgbl::WalletShutdown>,
     construction: Option<NativeConstruction>,
-    ohttp: Option<crate::ohttp::Mounted>,
 }
 enum Published {
     Global(watch::Receiver<Arc<GlobalPublic>>),
@@ -277,8 +276,6 @@ impl Door {
         let wallet_shutdown = global.wallet.as_ref().map(cgbl::Wallet::shutdown_handle);
         let sources = source_buckets(config.throttle_burst, config.throttle_interval_ms)?;
         let proxies = crate::bucket::Proxies::new(&config.trusted_proxies).ok_or(Error::Invalid)?;
-        let names: Vec<String> = hosts.keys().cloned().collect();
-        let ohttp = crate::ohttp::build(config.ohttp.as_ref(), &names, &db, "ohttp").await?;
         Ok(Self {
             inner: Arc::new(Inner {
                 requests: Arc::new(Mutex::new(())),
@@ -306,7 +303,6 @@ impl Door {
                 construction: None,
                 account_shutdown: None,
                 wallet_shutdown,
-                ohttp,
             }),
         })
     }
@@ -515,9 +511,6 @@ impl Door {
             let sources = source_buckets(config.throttle_burst, config.throttle_interval_ms)?;
             let proxies =
                 crate::bucket::Proxies::new(&config.trusted_proxies).ok_or(Error::Invalid)?;
-            let names: Vec<String> = hosts.keys().cloned().collect();
-            let ohttp =
-                crate::ohttp::build(config.ohttp.as_ref(), &names, &db, &config.community).await?;
             Ok(Self {
                 inner: Arc::new(Inner {
                     root_creation_scope: None,
@@ -543,7 +536,6 @@ impl Door {
                     construction: Some(construction),
                     account_shutdown,
                     wallet_shutdown: None,
-                    ohttp,
                 }),
             })
         }
@@ -660,35 +652,14 @@ impl Door {
     pub(crate) fn source(&self, request: &axum::extract::Request) -> std::net::IpAddr {
         crate::bucket::source(request, &self.inner.proxies)
     }
-    /// The network source of a request, or none when an Oblivious HTTP gateway
-    /// unwrapped it: the peer is then the relay and carries no per-source limit.
-    pub(crate) fn source_of_request(
-        &self,
-        request: &axum::extract::Request,
-    ) -> Option<std::net::IpAddr> {
-        (!crate::ohttp::via(request)).then(|| self.source(request))
-    }
-    pub(crate) fn ohttp(&self) -> Option<&crate::ohttp::Mounted> {
-        self.inner.ohttp.as_ref()
-    }
-    #[cfg(test)]
     pub(crate) async fn admit_request(
         &self,
         action: &Action,
         source: std::net::IpAddr,
     ) -> Result<OwnedSemaphorePermit> {
-        self.admit_source(action, Some(source)).await
-    }
-    pub(crate) async fn admit_source(
-        &self,
-        action: &Action,
-        source: Option<std::net::IpAddr>,
-    ) -> Result<OwnedSemaphorePermit> {
         // One source can exhaust only its own bucket for an action; a full key
         // table degrades to a shared overflow bucket, never a global refusal.
-        if let Some(source) = source
-            && !self.inner.sources.admit(&(source, action.name))
-        {
+        if !self.inner.sources.admit(&(source, action.name)) {
             return Err(Error::Throttled);
         }
         let slots = if action.name == "trust_changes" {
