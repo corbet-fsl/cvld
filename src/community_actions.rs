@@ -194,6 +194,29 @@ impl Door {
             .voucher_signoff_decide(request)
             .await
     }
+    pub(crate) async fn voucher_reply_post(
+        &self,
+        _: Context,
+        request: VoucherReplyPost,
+    ) -> Result<Empty> {
+        self.community_backend()?
+            .lock()
+            .await
+            .voucher_reply_post(request)
+            .await?;
+        Ok(Empty {})
+    }
+    pub(crate) async fn voucher_reply_get(
+        &self,
+        ctx: Context,
+        request: VoucherReplyGet,
+    ) -> Result<VoucherReply> {
+        self.community_backend()?
+            .lock()
+            .await
+            .voucher_reply_get(ctx.member()?, request)
+            .await
+    }
     pub(crate) async fn voucher_link_revoke(
         &self,
         _: Context,

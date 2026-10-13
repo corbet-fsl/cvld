@@ -192,6 +192,30 @@ pub struct VoucherSignoffDecide {
 pub struct VoucherDecision {
     pub admitted: bool,
 }
+/// The issuer's device leaves a sealed reply for an admitted person. The reply
+/// is sealed with the bond; the host relays it opaque.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct VoucherReplyPost {
+    pub id: String,
+    pub secret: String,
+    pub member: String,
+    /// Sealed reply, lowercase hex.
+    pub reply: String,
+}
+/// A newcomer reads the reply left for them with the redemption secret.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct VoucherReplyGet {
+    pub id: String,
+    pub secret: String,
+}
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct VoucherReply {
+    /// Sealed reply, lowercase hex, once the issuer's device left one.
+    pub reply: Option<String>,
+}
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct VoucherRevoked {

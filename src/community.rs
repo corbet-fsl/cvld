@@ -1282,6 +1282,37 @@ impl CommunityService {
             .map_err(Error::Refused.redact())?;
         Ok(VoucherDecision { admitted })
     }
+    /// The issuer's device leaves a sealed reply for an admitted person.
+    pub async fn voucher_reply_post(&self, request: VoucherReplyPost) -> Result<()> {
+        let manage = cvch::link::Manage::from_wire(&request.id, &request.secret)
+            .map_err(Error::Refused.redact())?;
+        self.vouching()
+            .post_reply(&manage, &request.member, &request.reply)
+            .await
+            .map_err(Error::Refused.redact())
+    }
+    /// A newcomer reads the reply left for them; the redemption secret proves
+    /// they hold the link.
+    pub async fn voucher_reply_get(
+        &self,
+        auth: &ckyh::Authentication,
+        request: VoucherReplyGet,
+    ) -> Result<VoucherReply> {
+        let row = self
+            .facade
+            .membership()
+            .resume(auth)
+            .await
+            .map_err(Error::Refused.redact())?;
+        let presentation = cvch::link::Presentation::from_wire(&request.id, &request.secret)
+            .map_err(Error::Refused.redact())?;
+        let reply = self
+            .vouching()
+            .reply(&presentation, row.subject())
+            .await
+            .map_err(Error::Refused.redact())?;
+        Ok(VoucherReply { reply })
+    }
     pub async fn voucher_link_revoke(&self, request: VoucherManage) -> Result<VoucherRevoked> {
         let released = self
             .vouching()
