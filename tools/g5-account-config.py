@@ -39,11 +39,20 @@ EXTENSION_GROUPS = {
     "b412abcbd3d59e899bf27b86c1bae854d128b860": {
         "manifestSha256": "519b5669bd21c3b41e83d7cdbdd1c78e3960bc0d290a222c70efa6a2d56e73b5",
     },
+    # artifact-conformance group of cblc eeb879e (voucher accounting, bb 5.2.1): update width 410,
+    # voucher_epoch circuit, standingPolicyDigest in the policy, ten-year omega probe.
+    "eeb879eb8d5278924de5f665c8c43a5fa6d5bd71": {
+        "manifestSha256": "68c5c8b4940800ef4c31df259545812215df665c055a48ff004eb05ea41aaf07",
+    },
 }
 ACCOUNT_CAPTURES = {
     # native-startup-fixture-retained capture of cblc 6232481 (account circuit).
     "f0731b7c62ff034c79965fa0c9016bf16b3fd5c2e38f32409cfa00682acb1407": {
         "accountManifestSha256": "12b0248737cf6cc44892cd34a839878ef05689290fc0bd9d76a0bd785833df06",
+    },
+    # native-startup-fixture-retained capture of the voucher-accounting record-epoch run (cblc 829489a).
+    "1e1262a03a6a56caba2ba76e92047799e2323bf986312ccd3ac5b1827b7929a5": {
+        "accountManifestSha256": "2b0125c187850a3dbb94b06e16f105d2759cc81413dc844981659c99343f9144",
     },
 }
 WORKER_CAPTURES = {
@@ -52,10 +61,15 @@ WORKER_CAPTURES = {
         "workerSha256": "5c5c69cca3ccc1d00e12d7d75bd431b79d68864b88e3c5ba18284c77f2ac46f9",
         "workerBytes": 68078712,
     },
+    # gather-record-fixture-retained capture of cblc 829489a (czkp_bb_worker).
+    "44452b71ef1d79c60a3f61f128aebefaeb43babee55b0ce701f2f7219d8a22d6": {
+        "workerSha256": "20136479f31369532345b1e56e0b95a2e4c82803e03b352b1d19b1cc18eab87a",
+        "workerBytes": 68155080,
+    },
 }
-DEFAULT_GROUP = "b412abcbd3d59e899bf27b86c1bae854d128b860"
-DEFAULT_ACCOUNT = "f0731b7c62ff034c79965fa0c9016bf16b3fd5c2e38f32409cfa00682acb1407"
-DEFAULT_WORKER = "23cf333ef4c1bb9acc401e3cf448528978d960fe793dbcc50da7a1ef54f6b212"
+DEFAULT_GROUP = "eeb879eb8d5278924de5f665c8c43a5fa6d5bd71"
+DEFAULT_ACCOUNT = "1e1262a03a6a56caba2ba76e92047799e2323bf986312ccd3ac5b1827b7929a5"
+DEFAULT_WORKER = "44452b71ef1d79c60a3f61f128aebefaeb43babee55b0ce701f2f7219d8a22d6"
 
 
 def fail(message):
