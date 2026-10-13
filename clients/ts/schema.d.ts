@@ -361,6 +361,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/device_approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve a pending device key from another existing passkey with a fresh step-up */
+        post: operations["device_approve"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/device_authorize": {
         parameters: {
             query?: never;
@@ -2414,6 +2431,10 @@ export interface components {
         } | {
             key: number[];
             /** @enum {string} */
+            kind: "device_approve";
+        } | {
+            key: number[];
+            /** @enum {string} */
             kind: "device_revoke";
         };
         /** @description The completed assertion that accompanies the authorized action. */
@@ -3314,6 +3335,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": Record<string, never>;
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    device_approve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    key: number[];
+                    step_up?: components["schemas"]["StepUpProof"] | null;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        keys: number[][];
+                    };
                 };
             };
             /** @description Fixed redacted error category */

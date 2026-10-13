@@ -322,6 +322,17 @@ pub struct DeviceConfirm {
     pub key: [u8; 32],
 }
 
+/// The existing device's approval of a pending device key, after publishing the lineage
+/// revision that contains it.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DeviceApprove {
+    pub key: [u8; 32],
+    /// Required except for Root, whose portal sign-in is the step-up.
+    #[serde(default)]
+    pub step_up: Option<StepUpProof>,
+}
+
 /// Remove one device signing key of this account, live or pending (a lost device).
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]

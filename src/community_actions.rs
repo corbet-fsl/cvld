@@ -499,6 +499,30 @@ impl Door {
         Ok(DeviceKeys { keys })
     }
 
+    /// Pairing: the existing device approves a pending key, with a fresh step-up for that
+    /// exact key, after publishing the lineage revision that contains it.
+    pub(crate) async fn device_approve(
+        &self,
+        ctx: Context,
+        request: DeviceApprove,
+    ) -> Result<DeviceKeys> {
+        let DeviceApprove { key, step_up } = request;
+        self.require_step_up(&ctx, StepUpAction::DeviceApprove { key }, step_up)
+            .await?;
+        let community = self.community_backend()?.lock().await;
+        let auth = ctx.member()?;
+        let membership = community.facade.membership();
+        membership
+            .approve_pending_device_key(auth, key)
+            .await
+            .map_err(Error::Refused.redact())?;
+        let keys = membership
+            .current_device_keys(auth)
+            .await
+            .map_err(Error::Refused.redact())?;
+        Ok(DeviceKeys { keys })
+    }
+
     /// Pairing: make this passkey's pending key live once its lineage revision is published.
     pub(crate) async fn device_confirm(
         &self,
