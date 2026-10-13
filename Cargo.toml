@@ -9,8 +9,8 @@ publish = false
 
 [features]
 default = ["server"]
-server = ["client-http", "dep:cpmt", "dep:crpt", "dep:x402-types", "dep:cmty", "dep:cvch", "dep:clbs", "dep:cphn", "dep:cmbx", "dep:cfbk", "dep:ed25519-dalek", "dep:ed25519-dalek-v2", "dep:cblc", "dep:czkp", "dep:cssr", "dep:cpsd", "dep:crlt", "dep:csgn", "dep:cgbl", "dep:ckyh", "dep:governor", "dep:axum", "dep:tower-http", "dep:utoipa", "dep:clap", "dep:rmcp", "dep:tokio", "dep:uuid", "dep:chrono", "dep:rand", "dep:subtle", "dep:hkdf", "dep:sha2", "dep:tower", "dep:blind-rsa-signatures"]
-client = ["dep:jsonschema"]
+server = ["client-http", "dep:cpmt", "dep:crpt", "dep:x402-types", "dep:cmty", "dep:cvch", "dep:clbs", "dep:cphn", "dep:cmbx", "dep:cfbk", "dep:ed25519-dalek", "dep:ed25519-dalek-v2", "dep:cblc", "dep:czkp", "dep:cssr", "dep:cpsd", "dep:crlt", "dep:csgn", "dep:cgbl", "dep:ckyh", "dep:governor", "dep:axum", "dep:tower-http", "dep:utoipa", "dep:clap", "dep:rmcp", "dep:tokio", "dep:uuid", "dep:chrono", "dep:rand", "dep:subtle", "dep:hkdf", "dep:sha2", "dep:tower"]
+client = ["dep:jsonschema", "dep:blind-rsa-signatures"]
 client-http = ["client", "dep:reqwest", "dep:url"]
 client-ohttp = ["client", "dep:url", "dep:cblv", "cblv/client"]
 client-browser = ["client", "dep:url", "dep:gloo-timers", "dep:web-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys"]
@@ -72,6 +72,8 @@ path = "src/main.rs"
 required-features = ["server"]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+# The blind-signature client draws its blinding factor from the browser.
+getrandom = { version = "0.4", features = ["wasm_js"] }
 gloo-timers = { version = "0.3", optional = true }
 web-sys = { version = "0.3", features = ["AbortController", "AbortSignal", "Headers", "Request", "RequestInit", "RequestMode", "Response", "Window", "ReadableStream", "ReadableStreamDefaultReader", "RequestRedirect", "RequestCredentials", "RequestCache", "ReferrerPolicy"], optional = true }
 wasm-bindgen = { version = "0.2", optional = true }

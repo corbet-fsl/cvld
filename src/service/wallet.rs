@@ -141,6 +141,7 @@ impl Door {
             revision: feed.revision,
             policy_epoch: feed.policy_epoch,
             key_ring: feed.key_ring.clone(),
+            genesis: None,
             key_transitions: feed
                 .key_transitions
                 .iter()

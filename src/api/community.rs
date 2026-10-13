@@ -293,6 +293,10 @@ pub struct TrustFeed {
     pub revision: u64,
     pub policy_epoch: u64,
     pub key_ring: Vec<u8>,
+    /// The signed founding document; with the complete `key_transitions` from
+    /// revision 1 it lets a device that pins only the fingerprint verify the chain.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub genesis: Option<Vec<u8>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub key_transitions: Vec<TrustKeyTransition>,
     pub manifest: Vec<u8>,

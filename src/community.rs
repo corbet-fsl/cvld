@@ -126,6 +126,9 @@ pub struct CommunityService {
     pub(crate) root_purpose: Option<Arc<crate::service::RootBoardPurpose>>,
     root_issuances: HashMap<String, root_issuance::PendingRootIssuance>,
     pub config: CommunityConfig,
+    /// The founding document, published with every feed so a device that pins only
+    /// the fingerprint can walk the key chain from revision 1.
+    genesis: Option<Vec<u8>>,
     pub public: TrustFeed,
     pub changes: tokio::sync::watch::Sender<Arc<TrustFeed>>,
     links: cgts::LibsqlLinks,
@@ -529,7 +532,8 @@ impl CommunityService {
             let public_now = accounts
                 .as_ref()
                 .map_or(Ok(now), |observed| observed.observe())?;
-            let public = publish(&facade, public_now).await?;
+            let genesis = crate::genesis_store::load(db, &scope).await?;
+            let public = publish(&facade, genesis.clone(), public_now).await?;
             let payments = match config.payments.clone() {
                 Some(payment) => Some(Arc::new(tokio::sync::Mutex::new(
                     crate::payments::PaymentHost::open(
@@ -605,6 +609,7 @@ impl CommunityService {
                 lifecycle: None,
                 root_issuances: HashMap::new(),
                 config,
+                genesis,
                 public,
                 changes,
                 links,
@@ -1427,7 +1432,7 @@ impl CommunityService {
     }
     pub async fn refresh(&mut self, now: u64) -> Result<()> {
         self.refresh_root_board(now).await?;
-        self.public = publish(&self.facade, now).await?;
+        self.public = publish(&self.facade, self.genesis.clone(), now).await?;
         self.changes.send_replace(Arc::new(self.public.clone()));
         Ok(())
     }
@@ -1470,7 +1475,7 @@ impl CommunityService {
         Ok(())
     }
 }
-async fn publish(facade: &Facade, now: u64) -> Result<TrustFeed> {
+async fn publish(facade: &Facade, genesis: Option<Vec<u8>>, now: u64) -> Result<TrustFeed> {
     let feed = facade
         .policy()
         .lock()
@@ -1482,6 +1487,7 @@ async fn publish(facade: &Facade, now: u64) -> Result<TrustFeed> {
         revision: feed.revision,
         policy_epoch: feed.policy_epoch,
         key_ring: feed.key_ring.clone(),
+        genesis,
         key_transitions: feed
             .key_transitions
             .iter()

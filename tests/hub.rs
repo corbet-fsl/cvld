@@ -166,6 +166,24 @@ async fn token_creation_claim_admission_registry_and_termination() {
     );
     // The creator registers in the new community, claims the seat and is admitted.
     let host = format!("api.gardenclub.{DOMAIN}");
+    // The feed carries the founding document from the first revision, so a device
+    // that pinned only the fingerprint can verify the key chain.
+    let feed: TrustFeed = serde_json::from_value(
+        client(&f.front, &host, None)
+            .call("trust_feed", json!({}))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let genesis = feed.genesis.expect("the feed publishes the genesis document");
+    let verified = csgn::verify_genesis(&genesis).unwrap();
+    let digest: String = verified
+        .fingerprint()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    assert_eq!(digest, created.fingerprint);
+    assert_eq!(verified.community(), "gardenclub");
     let creator = enrol_community(&f.front, &host, &f.passport).await;
     let api = client(&f.front, &host, Some(&creator.session));
     let wrong = api

@@ -4985,6 +4985,11 @@ export interface operations {
                         /** @description Original optional Balance publication, authenticated with the manifest. */
                         balance?: number[] | null;
                         communities: number[];
+                        /**
+                         * @description The signed founding document; with the complete `key_transitions` from
+                         *     revision 1 it lets a device that pins only the fingerprint verify the chain.
+                         */
+                        genesis?: number[] | null;
                         key_ring: number[];
                         key_transitions?: components["schemas"]["TrustKeyTransition"][];
                         manifest: number[];
@@ -5286,6 +5291,11 @@ export interface operations {
                         /** @description Original optional Balance publication, authenticated with the manifest. */
                         balance?: number[] | null;
                         communities: number[];
+                        /**
+                         * @description The signed founding document; with the complete `key_transitions` from
+                         *     revision 1 it lets a device that pins only the fingerprint verify the chain.
+                         */
+                        genesis?: number[] | null;
                         key_ring: number[];
                         key_transitions?: components["schemas"]["TrustKeyTransition"][];
                         manifest: number[];
@@ -5345,6 +5355,11 @@ export interface operations {
                         /** @description Original optional Balance publication, authenticated with the manifest. */
                         balance?: number[] | null;
                         communities: number[];
+                        /**
+                         * @description The signed founding document; with the complete `key_transitions` from
+                         *     revision 1 it lets a device that pins only the fingerprint verify the chain.
+                         */
+                        genesis?: number[] | null;
                         key_ring: number[];
                         key_transitions?: components["schemas"]["TrustKeyTransition"][];
                         manifest: number[];
@@ -5486,6 +5501,11 @@ export interface operations {
                         /** @description Original optional Balance publication, authenticated with the manifest. */
                         balance?: number[] | null;
                         communities: number[];
+                        /**
+                         * @description The signed founding document; with the complete `key_transitions` from
+                         *     revision 1 it lets a device that pins only the fingerprint verify the chain.
+                         */
+                        genesis?: number[] | null;
                         key_ring: number[];
                         key_transitions?: components["schemas"]["TrustKeyTransition"][];
                         manifest: number[];
@@ -5932,6 +5952,11 @@ export interface operations {
                         /** @description Original optional Balance publication, authenticated with the manifest. */
                         balance?: number[] | null;
                         communities: number[];
+                        /**
+                         * @description The signed founding document; with the complete `key_transitions` from
+                         *     revision 1 it lets a device that pins only the fingerprint verify the chain.
+                         */
+                        genesis?: number[] | null;
                         key_ring: number[];
                         key_transitions?: components["schemas"]["TrustKeyTransition"][];
                         manifest: number[];

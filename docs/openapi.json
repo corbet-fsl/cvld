@@ -9518,6 +9518,18 @@
                       },
                       "type": "array"
                     },
+                    "genesis": {
+                      "description": "The signed founding document; with the complete `key_transitions` from\nrevision 1 it lets a device that pins only the fingerprint verify the chain.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
                     "key_ring": {
                       "items": {
                         "format": "int32",
@@ -10179,6 +10191,18 @@
                       },
                       "type": "array"
                     },
+                    "genesis": {
+                      "description": "The signed founding document; with the complete `key_transitions` from\nrevision 1 it lets a device that pins only the fingerprint verify the chain.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
                     "key_ring": {
                       "items": {
                         "format": "int32",
@@ -10367,6 +10391,18 @@
                         "type": "integer"
                       },
                       "type": "array"
+                    },
+                    "genesis": {
+                      "description": "The signed founding document; with the complete `key_transitions` from\nrevision 1 it lets a device that pins only the fingerprint verify the chain.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     },
                     "key_ring": {
                       "items": {
@@ -10702,6 +10738,18 @@
                         "type": "integer"
                       },
                       "type": "array"
+                    },
+                    "genesis": {
+                      "description": "The signed founding document; with the complete `key_transitions` from\nrevision 1 it lets a device that pins only the fingerprint verify the chain.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     },
                     "key_ring": {
                       "items": {
@@ -11702,6 +11750,18 @@
                         "type": "integer"
                       },
                       "type": "array"
+                    },
+                    "genesis": {
+                      "description": "The signed founding document; with the complete `key_transitions` from\nrevision 1 it lets a device that pins only the fingerprint verify the chain.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     },
                     "key_ring": {
                       "items": {
