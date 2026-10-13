@@ -581,6 +581,7 @@ impl CommunityHub for Arc<Hub> {
                     .factory
                     .terms(now)?
                     .map(|terms| api::AccountingTermsWire {
+                        standing: terms.standing,
                         observed_at: terms.observed_at,
                         ledger_policy: terms.ledger_policy,
                         extension_policy: terms.extension_policy,

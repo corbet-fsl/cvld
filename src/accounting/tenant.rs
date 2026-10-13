@@ -7,6 +7,7 @@
 use super::config::{AccountConfig, bounded};
 use crate::error::{Error, Result};
 use cblc::accounting::AccountStatement;
+use cmty::cplc::crbk;
 use hkdf::Hkdf;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -28,6 +29,10 @@ const MAX_PROOF: usize = 4 * 1024 * 1024;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AccountingTerms {
+    /// The standing and voucher values of the community's rulebook (every key
+    /// `czkp::standing::RULEBOOK_KEYS` names). A device derives the parameters from
+    /// them with the same function the hub used for the extension policy's digest.
+    pub standing: serde_json::Map<String, serde_json::Value>,
     /// The hub's clock when it named these terms; the proof is dated by it, so a
     /// device with a skewed clock still proves for the right window.
     pub observed_at: u64,
@@ -102,11 +107,11 @@ impl AccountConfig {
     }
 
     /// The terms for a community created today (a device proves against them).
-    pub fn terms(&self, now: u64) -> Result<AccountingTerms> {
-        self.terms_for(day_start(now), now)
+    pub fn terms(&self, now: u64, rulebook: &crbk::Rulebook) -> Result<AccountingTerms> {
+        self.terms_for(day_start(now), now, rulebook)
     }
 
-    fn terms_for(&self, from: u64, now: u64) -> Result<AccountingTerms> {
+    fn terms_for(&self, from: u64, now: u64, rulebook: &crbk::Rulebook) -> Result<AccountingTerms> {
         let mut ledger = read_json(&self.ledger_policy_file)?;
         let account = ledger.get_mut("account").ok_or(Error::Invalid)?;
         let span = number(account, "policyValidUntil")?
@@ -115,10 +120,29 @@ impl AccountConfig {
             .ok_or(Error::Invalid)?;
         account["policyValidFrom"] = from.into();
         account["policyValidUntil"] = from.checked_add(span).ok_or(Error::Invalid)?.into();
+        // The standing policy digest is never taken from a file: it is the digest of
+        // the parameters the community's own rulebook resolves to.
+        let values = rulebook
+            .resolve(&Default::default())
+            .map_err(Error::Invalid.redact())?;
+        let params = crbk::standing_params(&values).map_err(Error::Invalid.redact())?;
+        let digest = params.policy_digest().map_err(Error::Invalid.redact())?;
+        let mut extension = read_json(&self.extension_policy_file)?;
+        extension["standingPolicyDigest"] = digest.to_vec().into();
+        let standing = czkp::standing::RULEBOOK_KEYS
+            .iter()
+            .map(|key| {
+                values
+                    .get(*key)
+                    .map(|value| ((*key).to_owned(), value.clone()))
+                    .ok_or(Error::Invalid)
+            })
+            .collect::<Result<_>>()?;
         Ok(AccountingTerms {
+            standing,
             observed_at: now,
             ledger_policy: ledger,
-            extension_policy: read_json(&self.extension_policy_file)?,
+            extension_policy: extension,
         })
     }
 
@@ -126,7 +150,12 @@ impl AccountConfig {
     /// window is today's or yesterday's UTC day (a device that proved across
     /// midnight is still accepted) and the policy equals the terms for that day.
     /// The ledger itself verifies the proof and that it names this community.
-    pub fn check_activation(&self, activation: &Activation, now: u64) -> Result<u64> {
+    pub fn check_activation(
+        &self,
+        activation: &Activation,
+        now: u64,
+        rulebook: &crbk::Rulebook,
+    ) -> Result<u64> {
         if activation.proof.is_empty()
             || activation.proof.len() > MAX_PROOF
             || serde_json::to_vec(&activation.statement)
@@ -143,7 +172,7 @@ impl AccountConfig {
         if !from.is_multiple_of(DAY) || (from != today && from + DAY != today) {
             return Err(Error::Invalid);
         }
-        let terms = self.terms_for(from, now)?;
+        let terms = self.terms_for(from, now, rulebook)?;
         let expected: cblc::accounting_ledger::AccountLedgerPolicy =
             serde_json::from_value(terms.ledger_policy).map_err(Error::Invalid.redact())?;
         if statement.policy != expected.account {
@@ -169,6 +198,7 @@ impl AccountConfig {
         community: &str,
         seed: &[u8; 32],
         now: u64,
+        rulebook: &crbk::Rulebook,
         activation: Option<(&Activation, u64)>,
     ) -> Result<AccountConfig> {
         let base = PathBuf::from(self.tenants_dir.as_deref().ok_or(Error::Invalid)?);
@@ -187,7 +217,7 @@ impl AccountConfig {
         let statement = file("activation-statement.json");
         let proof = file("activation-proof");
         if let Some((activation, from)) = activation {
-            let terms = self.terms_for(from, now)?;
+            let terms = self.terms_for(from, now, rulebook)?;
             keep(
                 &file("ledger-policy.json"),
                 &serde_json::to_vec(&terms.ledger_policy).map_err(Error::Invalid.redact())?,

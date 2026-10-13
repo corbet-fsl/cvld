@@ -2307,6 +2307,8 @@ export interface components {
              * @description The hub's clock when it named these terms (unix seconds).
              */
             observed_at: number;
+            /** @description The standing and voucher values of the community's rulebook, by catalogue key. */
+            standing: Record<string, never>;
         };
         AdmissionGrant: {
             chatPublicKey: string;

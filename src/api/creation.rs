@@ -74,6 +74,9 @@ pub struct CommunityTerms {
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AccountingTermsWire {
+    /// The standing and voucher values of the community's rulebook, by catalogue key.
+    #[schema(value_type = Object)]
+    pub standing: serde_json::Map<String, serde_json::Value>,
     /// The hub's clock when it named these terms (unix seconds).
     pub observed_at: u64,
     #[schema(value_type = Object)]

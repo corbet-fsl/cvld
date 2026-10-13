@@ -285,6 +285,9 @@ impl CommunityService {
             if let Some(plan) = &config.creation {
                 plan.apply(&mut rulebook)?;
             }
+            // Every platform tunable is defined in a new community's rulebook, so the
+            // feed it publishes carries the standing and voucher parameters devices read.
+            crbk::define_platform_settings(&mut rulebook).map_err(Error::Invalid.redact())?;
             policy
                 .schedule_rules(
                     None,

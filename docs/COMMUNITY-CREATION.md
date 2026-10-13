@@ -105,7 +105,9 @@ shared with another community or an earlier incarnation of the same address.
   window of the creation day, and the extension policy. The admission key ring
   is the community's own Policy ring.
 - **Proved by the creator's device**: `community_terms {address}` names the
-  policies (and the hub's clock); the device proves one throwaway genesis of the
+  policies, the standing and voucher values of the community's rulebook (the
+  extension policy's standing digest is derived from exactly these, never read
+  from a file) and the hub's clock; the device proves one throwaway genesis of the
   extension relation for exactly that community and sends it as `activation` in
   `community_create`. The hub only verifies: the policy must equal the terms of
   today's or yesterday's UTC day, and the ledger refuses a statement for another

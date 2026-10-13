@@ -3463,9 +3463,14 @@
             "format": "int64",
             "minimum": 0,
             "type": "integer"
+          },
+          "standing": {
+            "description": "The standing and voucher values of the community's rulebook, by catalogue key.",
+            "type": "object"
           }
         },
         "required": [
+          "standing",
           "observed_at",
           "ledger_policy",
           "extension_policy"

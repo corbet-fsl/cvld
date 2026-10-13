@@ -1,7 +1,14 @@
 use super::*;
+use cmty::cplc::crbk;
 
 const NOW: u64 = 1_800_000_000 + 12_345;
 const FROM: u64 = 1_800_000_000 - 1_800_000_000 % 86_400;
+
+fn rulebook() -> crbk::Rulebook {
+    let mut rulebook = crbk::Rulebook::default();
+    crbk::define_platform_settings(&mut rulebook).unwrap();
+    rulebook
+}
 
 fn ledger(from: u64) -> serde_json::Value {
     serde_json::json!({
@@ -79,7 +86,7 @@ fn activation(from: u64) -> Activation {
 #[test]
 fn terms_carry_todays_window_and_the_hubs_clock() {
     let dir = tempfile::tempdir().unwrap();
-    let terms = template(dir.path()).terms(NOW).unwrap();
+    let terms = template(dir.path()).terms(NOW, &rulebook()).unwrap();
     assert_eq!(terms.observed_at, NOW);
     assert_eq!(terms.ledger_policy["account"]["policyValidFrom"], FROM);
     assert_eq!(
@@ -87,6 +94,24 @@ fn terms_carry_todays_window_and_the_hubs_clock() {
         FROM + 10 * 365 * 86_400
     );
     assert_eq!(terms.extension_policy["revision"], 1);
+    // The standing digest is the rulebook's, not the file's (the file said 7).
+    let digest: Vec<u8> = terms.extension_policy["standingPolicyDigest"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|byte| byte.as_u64().unwrap() as u8)
+        .collect();
+    assert_eq!(
+        digest
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>(),
+        "13869f92e82373e15e5b9bbaf09bb0d2f4a71e7af912d20c68ae8ceb98710231"
+    );
+    // A device reads the same values the hub did.
+    assert_eq!(terms.standing.len(), czkp::standing::RULEBOOK_KEYS.len());
+    assert_eq!(terms.standing["voucher.slope.member"], 0.1);
+    assert_eq!(terms.standing["standing.c0"], 3);
 }
 
 #[test]
@@ -94,48 +119,67 @@ fn an_activation_must_carry_exactly_todays_or_yesterdays_terms() {
     let dir = tempfile::tempdir().unwrap();
     let template = template(dir.path());
     assert_eq!(
-        template.check_activation(&activation(FROM), NOW).unwrap(),
+        template
+            .check_activation(&activation(FROM), NOW, &rulebook())
+            .unwrap(),
         FROM
     );
     // A device that proved before midnight is still accepted.
     assert_eq!(
         template
-            .check_activation(&activation(FROM - 86_400), NOW)
+            .check_activation(&activation(FROM - 86_400), NOW, &rulebook())
             .unwrap(),
         FROM - 86_400
     );
     for refused in [FROM - 2 * 86_400, FROM + 86_400, FROM + 5] {
         assert!(
             template
-                .check_activation(&activation(refused), NOW)
+                .check_activation(&activation(refused), NOW, &rulebook())
                 .is_err()
         );
     }
     // Another policy than the terms name.
     let mut other = activation(FROM);
     other.statement["policy"]["initialCredit"] = 21.into();
-    assert!(template.check_activation(&other, NOW).is_err());
+    assert!(template.check_activation(&other, NOW, &rulebook()).is_err());
     // No proof, or a proof beyond the bound.
     let mut empty = activation(FROM);
     empty.proof.clear();
-    assert!(template.check_activation(&empty, NOW).is_err());
+    assert!(template.check_activation(&empty, NOW, &rulebook()).is_err());
     let mut huge = activation(FROM);
     huge.proof = vec![0; MAX_PROOF + 1];
-    assert!(template.check_activation(&huge, NOW).is_err());
+    assert!(template.check_activation(&huge, NOW, &rulebook()).is_err());
 }
 
 #[test]
 fn every_incarnation_has_its_own_keys_and_a_reopen_reuses_them() {
     let dir = tempfile::tempdir().unwrap();
     let template = template(dir.path());
+    let rulebook = rulebook();
     let (first, second) = ([1u8; 32], [2u8; 32]);
     // A community cannot be opened without its stored activation.
-    assert!(template.for_tenant("alpha", &first, NOW, None).is_err());
+    assert!(
+        template
+            .for_tenant("alpha", &first, NOW, &rulebook, None)
+            .is_err()
+    );
     let one = template
-        .for_tenant("alpha", &first, NOW, Some((&activation(FROM), FROM)))
+        .for_tenant(
+            "alpha",
+            &first,
+            NOW,
+            &rulebook,
+            Some((&activation(FROM), FROM)),
+        )
         .unwrap();
     let two = template
-        .for_tenant("alpha", &second, NOW, Some((&activation(FROM), FROM)))
+        .for_tenant(
+            "alpha",
+            &second,
+            NOW,
+            &rulebook,
+            Some((&activation(FROM), FROM)),
+        )
         .unwrap();
     let read = |path: &str| fs::read(path).unwrap();
     assert_ne!(read(&one.operator_seed_file), read(&two.operator_seed_file));
@@ -152,7 +196,7 @@ fn every_incarnation_has_its_own_keys_and_a_reopen_reuses_them() {
     assert!(one.tenants_dir.is_none());
     // Restart: nothing new is given, nothing changes, the key is not remade.
     let again = template
-        .for_tenant("alpha", &first, NOW + 60, None)
+        .for_tenant("alpha", &first, NOW + 60, &rulebook, None)
         .unwrap();
     assert_eq!(
         read(&again.settlement.private_key_file),
@@ -173,7 +217,7 @@ fn every_incarnation_has_its_own_keys_and_a_reopen_reuses_them() {
     assert_eq!(epoch["epoch"], NOW / 86_400);
     // A later day makes a new daily key beside the stored policy and activation.
     let next = template
-        .for_tenant("alpha", &first, NOW + 86_400, None)
+        .for_tenant("alpha", &first, NOW + 86_400, &rulebook, None)
         .unwrap();
     assert_ne!(
         next.settlement.private_key_file,
@@ -186,12 +230,25 @@ fn every_incarnation_has_its_own_keys_and_a_reopen_reuses_them() {
 fn forgetting_removes_one_incarnation_only() {
     let dir = tempfile::tempdir().unwrap();
     let template = template(dir.path());
+    let rulebook = rulebook();
     let (first, second) = ([1u8; 32], [2u8; 32]);
     let one = template
-        .for_tenant("alpha", &first, NOW, Some((&activation(FROM), FROM)))
+        .for_tenant(
+            "alpha",
+            &first,
+            NOW,
+            &rulebook,
+            Some((&activation(FROM), FROM)),
+        )
         .unwrap();
     let two = template
-        .for_tenant("beta", &second, NOW, Some((&activation(FROM), FROM)))
+        .for_tenant(
+            "beta",
+            &second,
+            NOW,
+            &rulebook,
+            Some((&activation(FROM), FROM)),
+        )
         .unwrap();
     template.forget_tenant(&first);
     template.forget_tenant(&first);

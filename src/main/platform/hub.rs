@@ -1,6 +1,7 @@
 //! Multi-tenant hosting inside the platform process: the registry-backed hub
 //! replaces explicit community links. Nothing here is reachable from a request.
 use super::*;
+use cmty::cplc::crbk;
 use cvld::{
     address::Reserved,
     creation_token::{Issuer, Limits},
@@ -110,6 +111,21 @@ struct TemplateFactory {
     purpose: OnceLock<Arc<RootBoardPurpose>>,
 }
 
+impl TemplateFactory {
+    /// The template's rulebook with every platform setting defined: the values a
+    /// created community starts from, hence the parameters it publishes.
+    fn rulebook(&self) -> Result<crbk::Rulebook> {
+        let config: CommunityConfig =
+            serde_json::from_slice(&self.template).map_err(Error::Invalid.redact())?;
+        let mut rulebook: crbk::Rulebook = serde_json::from_slice(
+            &std::fs::read(&config.rulebook_file).map_err(Error::Unavailable.redact())?,
+        )
+        .map_err(Error::Invalid.redact())?;
+        crbk::define_platform_settings(&mut rulebook).map_err(Error::Invalid.redact())?;
+        Ok(rulebook)
+    }
+}
+
 impl Factory for TemplateFactory {
     fn open<'a>(
         &'a self,
@@ -126,13 +142,14 @@ impl Factory for TemplateFactory {
                 if template.is_template() {
                     let now = self.clock.now();
                     let community = address.to_owned();
+                    let rulebook = self.rulebook()?;
                     // Derivation includes RSA key generation: off the async executor.
                     config.accounting = Some(
                         tokio::task::spawn_blocking(move || {
                             let checked = activation
                                 .map(|activation| {
                                     template
-                                        .check_activation(&activation, now)
+                                        .check_activation(&activation, now, &rulebook)
                                         .map(|from| (activation, from))
                                 })
                                 .transpose()?;
@@ -140,6 +157,7 @@ impl Factory for TemplateFactory {
                                 &community,
                                 &seed,
                                 now,
+                                &rulebook,
                                 checked
                                     .as_ref()
                                     .map(|(activation, from)| (activation, *from)),
@@ -172,7 +190,9 @@ impl Factory for TemplateFactory {
         let config: CommunityConfig =
             serde_json::from_slice(&self.template).map_err(Error::Invalid.redact())?;
         match config.accounting {
-            Some(template) if template.is_template() => template.terms(now).map(Some),
+            Some(template) if template.is_template() => {
+                template.terms(now, &self.rulebook()?).map(Some)
+            }
             _ => Ok(None),
         }
     }
