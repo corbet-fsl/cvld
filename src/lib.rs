@@ -36,6 +36,8 @@ mod identity;
 #[cfg(feature = "server")]
 pub mod mcp;
 #[cfg(feature = "server")]
+mod ohttp;
+#[cfg(feature = "server")]
 pub mod payments;
 #[cfg(feature = "server")]
 pub mod service;
