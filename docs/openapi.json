@@ -2432,6 +2432,14 @@
                                     "minItems": 32,
                                     "type": "array"
                                   },
+                                  "role": {
+                                    "default": 0,
+                                    "description": "Role class (member, admin, root) attested by the issuer for this epoch.",
+                                    "format": "uint8",
+                                    "maximum": 255,
+                                    "minimum": 0,
+                                    "type": "integer"
+                                  },
                                   "state": {
                                     "items": {
                                       "format": "uint8",
@@ -3039,6 +3047,14 @@
                                 "maxItems": 32,
                                 "minItems": 32,
                                 "type": "array"
+                              },
+                              "role": {
+                                "default": 0,
+                                "description": "Role class (member, admin, root) attested by the issuer for this epoch.",
+                                "format": "uint8",
+                                "maximum": 255,
+                                "minimum": 0,
+                                "type": "integer"
                               },
                               "state": {
                                 "items": {

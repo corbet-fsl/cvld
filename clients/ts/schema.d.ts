@@ -1949,6 +1949,12 @@ export interface components {
                                 blinding: number[];
                                 owner: number[];
                                 requiredInbox: number[];
+                                /**
+                                 * Format: uint8
+                                 * @description Role class (member, admin, root) attested by the issuer for this epoch.
+                                 * @default 0
+                                 */
+                                role: number;
                                 state: number[];
                                 /** Format: uint64 */
                                 version: number;
@@ -2090,6 +2096,12 @@ export interface components {
                             blinding: number[];
                             owner: number[];
                             requiredInbox: number[];
+                            /**
+                             * Format: uint8
+                             * @description Role class (member, admin, root) attested by the issuer for this epoch.
+                             * @default 0
+                             */
+                            role: number;
                             state: number[];
                             /** Format: uint64 */
                             version: number;
