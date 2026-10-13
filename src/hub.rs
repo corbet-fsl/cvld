@@ -472,9 +472,11 @@ impl CommunityHub for Arc<Hub> {
             };
             // With accounting every community needs its creator's genesis proof;
             // the factory verifies it against this community, never the hub's say-so.
+            let owner = czkp::activation_owner(&request.address, &request.token.message);
             let activation = request.activation.map(|upload| Activation {
                 statement: upload.statement,
                 proof: upload.proof,
+                owner,
             });
             if hub.factory.terms(now)?.is_some() && activation.is_none() {
                 return Err(Error::Invalid);

@@ -1149,7 +1149,6 @@ dependencies = [
 [[package]]
 name = "cblc"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cblc?branch=main#b992660de98fd3e8f7d3bb1f1569321439c796b0"
 dependencies = [
  "cbcn",
  "cmbl",
@@ -1843,9 +1842,9 @@ dependencies = [
 [[package]]
 name = "crbk"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-foss/crbk?branch=main#c3701ed4f9976ef13ea4039f8d298cfd1d294965"
 dependencies = [
  "crlt",
+ "czkp",
  "semver 1.0.28",
  "serde",
  "serde_json",
@@ -2189,7 +2188,6 @@ dependencies = [
 [[package]]
 name = "czkp"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-foss/czkp?branch=main#23d8b4a17a20d69f9d538eb5841e109bc1498af3"
 dependencies = [
  "ark-bn254",
  "ark-ff 0.6.0",
@@ -7858,3 +7856,11 @@ name = "zmij"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
+
+[[patch.unused]]
+name = "cwlt"
+version = "0.0.0"
+
+[[patch.unused]]
+name = "cwlt-engine"
+version = "0.0.0"

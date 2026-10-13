@@ -67,9 +67,13 @@ fn template(dir: &Path) -> AccountConfig {
     .unwrap()
 }
 
+fn owner() -> [u8; 32] {
+    czkp::activation_owner("alpha", &[9; 48])
+}
+
 fn statement(from: u64) -> serde_json::Value {
     serde_json::json!({
-        "protocolVersion": 2, "community": vec![1u8; 32], "owner": vec![2u8; 32], "policyDigest": vec![3u8; 32],
+        "protocolVersion": 2, "community": vec![1u8; 32], "owner": owner().to_vec(), "policyDigest": vec![3u8; 32],
         "enrollmentRoot": vec![4u8; 32], "now": NOW, "validUntil": NOW + 100, "genesis": true,
         "previousVersion": 0, "nextVersion": 0, "previousState": vec![0u8; 32], "nextState": vec![5u8; 32],
         "settlementMarker": vec![0u8; 32], "policy": ledger(from)["account"]
@@ -80,6 +84,7 @@ fn activation(from: u64) -> Activation {
     Activation {
         statement: statement(from),
         proof: vec![1, 2, 3],
+        owner: owner(),
     }
 }
 
@@ -254,4 +259,42 @@ fn forgetting_removes_one_incarnation_only() {
     template.forget_tenant(&first);
     assert!(!Path::new(&one.operator_seed_file).exists());
     assert!(Path::new(&two.operator_seed_file).exists());
+}
+
+#[test]
+fn a_proof_made_for_another_creation_of_the_same_name_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let template = template(dir.path());
+    let rulebook = rulebook();
+    // The proof binds the first creation's token message.
+    let proof = activation(FROM);
+    assert!(template.check_activation(&proof, NOW, &rulebook).is_ok());
+    // A later incarnation of "alpha" has another token message, hence another one-time
+    // owner: the old proof does not carry it.
+    let later = Activation {
+        owner: czkp::activation_owner("alpha", &[10; 48]),
+        ..proof.clone()
+    };
+    assert!(template.check_activation(&later, NOW, &rulebook).is_err());
+    // Neither does a proof for the same message under another name.
+    let other_name = Activation {
+        owner: czkp::activation_owner("beta", &[9; 48]),
+        ..proof.clone()
+    };
+    assert!(
+        template
+            .check_activation(&other_name, NOW, &rulebook)
+            .is_err()
+    );
+    // The hub never trusts an unset one-time value.
+    let unset = Activation {
+        owner: [0; 32],
+        statement: {
+            let mut statement = proof.statement.clone();
+            statement["owner"] = vec![0u8; 32].into();
+            statement
+        },
+        ..proof
+    };
+    assert!(template.check_activation(&unset, NOW, &rulebook).is_err());
 }

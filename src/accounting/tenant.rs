@@ -48,6 +48,11 @@ pub struct AccountingTerms {
 pub struct Activation {
     pub statement: serde_json::Value,
     pub proof: Vec<u8>,
+    /// The one-time owner this creation's proof must bind: the hub derives it from
+    /// the address and the creation token's message (`czkp::activation_owner`), never
+    /// from anything the uploader says.
+    #[serde(default)]
+    pub owner: [u8; 32],
 }
 
 fn day_start(now: u64) -> u64 {
@@ -167,6 +172,12 @@ impl AccountConfig {
         }
         let statement: AccountStatement = serde_json::from_value(activation.statement.clone())
             .map_err(Error::Invalid.redact())?;
+        // The proof must bind this creation's one-time value: a proof made for an
+        // earlier incarnation of the name (another token) is refused here, and the
+        // ledger refuses a statement for another community id.
+        if activation.owner == [0; 32] || statement.owner != activation.owner {
+            return Err(Error::Invalid);
+        }
         let from = statement.policy.policy_valid_from;
         let today = day_start(now);
         if !from.is_multiple_of(DAY) || (from != today && from + DAY != today) {
