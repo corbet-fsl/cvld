@@ -228,6 +228,76 @@ mod tests {
         db
     }
 
+    /// A hub that reports exactly one live community host; everything else is unknown or ended.
+    struct OneLive(&'static str);
+    impl crate::service::CommunityHub for OneLive {
+        fn create<'a>(
+            &'a self,
+            _: crate::api::CommunityCreate,
+            _: u64,
+        ) -> crate::hosts::Boxed<'a, crate::error::Result<crate::api::CommunityCreated>> {
+            Box::pin(async { Err(crate::error::Error::Unavailable) })
+        }
+        fn issue_token<'a>(
+            &'a self,
+            _: &'a str,
+            _: &'a [u8],
+            _: u64,
+        ) -> crate::hosts::Boxed<'a, crate::error::Result<Vec<u8>>> {
+            Box::pin(async { Err(crate::error::Error::Unavailable) })
+        }
+        fn terminate<'a>(
+            &'a self,
+            _: crate::api::CommunityTerminate,
+            _: u64,
+        ) -> crate::hosts::Boxed<'a, crate::error::Result<()>> {
+            Box::pin(async { Err(crate::error::Error::Unavailable) })
+        }
+        fn token_key(&self) -> crate::error::Result<Vec<u8>> {
+            Err(crate::error::Error::Unavailable)
+        }
+        fn serves_host<'a>(&'a self, host: &'a str) -> crate::hosts::Boxed<'a, bool> {
+            Box::pin(async move { host == self.0 })
+        }
+    }
+
+    #[tokio::test]
+    async fn authorities_accept_only_the_own_host_and_live_communities() {
+        use cblv::gateway::Authorities;
+        let slot: HubSlot = Default::default();
+        let live = Live {
+            own: "api.example.test".into(),
+            hub: Some(slot.clone()),
+        };
+        // The hub is not attached yet: only the door's own host is served.
+        assert!(live.accepts(b"api.example.test").await);
+        assert!(!live.accepts(b"alpha.example.test").await);
+        let hub: std::sync::Arc<dyn crate::service::CommunityHub> =
+            std::sync::Arc::new(OneLive("alpha.example.test"));
+        assert!(slot.set(hub).is_ok());
+        assert!(live.accepts(b"api.example.test").await);
+        assert!(live.accepts(b"alpha.example.test").await);
+        // Unknown, ended, differently cased or malformed authorities are all refused alike.
+        for bad in [
+            &b"ended.example.test"[..],
+            b"unknown.example.test",
+            b"ALPHA.example.test",
+            b"alpha.example.test:443",
+            b"",
+            b"\xff\xfe",
+        ] {
+            assert!(!live.accepts(bad).await, "{bad:?}");
+        }
+        // A door without any hub (community door) serves only its own host.
+        let own_only = Live {
+            own: "alpha.example.test".into(),
+            hub: None,
+        };
+        assert!(own_only.accepts(b"alpha.example.test").await);
+        assert!(!own_only.accepts(b"api.example.test").await);
+    }
+
+
     const FAR: u64 = 4_000_000_000;
 
     #[tokio::test]

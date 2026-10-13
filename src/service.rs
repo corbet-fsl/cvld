@@ -675,7 +675,7 @@ impl Door {
     pub(crate) fn ohttp(&self) -> Option<&crate::ohttp::Mounted> {
         self.inner.ohttp.as_ref()
     }
-    #[cfg(test)]
+    #[cfg(all(test, feature = "development-gate"))]
     pub(crate) async fn admit_request(
         &self,
         action: &Action,

@@ -9,7 +9,7 @@ use cvld::{
     creation_token::{self, Issuer, Limits},
     hosts::{Boxed, NoopProvisioner},
     hub::{Factory, Hub, HubParts},
-    service::{Clock, Door},
+    service::{Clock, CommunityHub, Door},
 };
 use serde_json::{Value, json};
 use std::{path::PathBuf, sync::Arc};
@@ -210,6 +210,11 @@ async fn token_creation_claim_admission_registry_and_termination() {
         f.record(&created.vault_host).await.unwrap()["id"],
         created.id
     );
+    // The OHTTP gateway serves LIVE communities only: a shell being created and an
+    // unknown host are refused alike.
+    let unknown = format!("nobody.{DOMAIN}");
+    assert!(!f.hub.serves_host(&created.community_host).await);
+    assert!(!f.hub.serves_host(&unknown).await);
     // The creator registers in the new community, claims the seat and is admitted.
     let host = format!("api.gardenclub.{DOMAIN}");
     // The feed carries the founding document from the first revision, so a device
@@ -277,6 +282,8 @@ async fn token_creation_claim_admission_registry_and_termination() {
         f.record(&created.community_host).await.unwrap()["state"],
         "live"
     );
+    assert!(f.hub.serves_host(&created.community_host).await);
+    assert!(!f.hub.serves_host(&unknown).await);
     // The address is taken while live.
     let again = f.token().await;
     assert!(f.create("gardenclub", again).await.is_err());
@@ -296,6 +303,9 @@ async fn token_creation_claim_admission_registry_and_termination() {
         .await
         .unwrap();
     assert!(f.record(&created.community_host).await.is_none());
+    // An ended community is refused exactly like a host that never existed.
+    assert!(!f.hub.serves_host(&created.community_host).await);
+    assert!(!f.hub.serves_host(&unknown).await);
     let finished: Vec<String> = reqwest::get(format!("{}/registry/finished", f.front.base))
         .await
         .unwrap()

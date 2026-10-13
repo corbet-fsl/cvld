@@ -131,6 +131,7 @@ pub(crate) struct WorkerGate {
 }
 #[cfg(test)]
 impl WorkerGate {
+    #[cfg(feature = "development-gate")]
     pub(crate) fn new(after: bool) -> Arc<Self> {
         Arc::new(Self {
             after,
@@ -146,6 +147,7 @@ impl WorkerGate {
             released = self.wake.wait(released).unwrap();
         }
     }
+    #[cfg(feature = "development-gate")]
     pub(crate) fn release(&self) {
         *self.released.lock().unwrap() = true;
         self.wake.notify_all();
