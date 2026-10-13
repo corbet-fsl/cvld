@@ -16,11 +16,8 @@ client-browser = ["client", "dep:url", "dep:gloo-timers", "dep:web-sys", "dep:wa
 development-gate = ["server", "cgbl/development-gate"]
 # Contract-only view of the development action for clients; links none of the server.
 development-gate-client = ["client"]
-# Oblivious HTTP gateway in front of the door handlers (off by default).
-ohttp = ["server", "dep:cblv", "cblv/gateway"]
 
 [dependencies]
-cblv = { git = "https://git.corbet.ch/corbet-foss/cblv.git", branch = "main", optional = true }
 url = { version = "2.5", optional = true }
 jsonschema = { version = "0.58", default-features = false, optional = true }
 cmty = { git = "https://git.corbet.ch/corbet-libs/cmty", branch = "main", optional = true }

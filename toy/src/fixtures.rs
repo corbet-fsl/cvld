@@ -80,7 +80,6 @@ pub async fn global(dir: &Path, listen: String, burst: u32, now: u64) {
         signer_max_seconds: 86_400 * 100,
         development: true,
         trusted_proxies: Vec::new(),
-        ohttp: None,
         wallet: None,
     };
     write(dir, "config.json", &serde_json::to_vec(&config).unwrap());
@@ -238,7 +237,6 @@ pub fn community(dir: &Path, listen: String, name: &str, public: &GlobalPublic, 
         ),
         accounting: None,
         trusted_proxies: Vec::new(),
-        ohttp: None,
     };
     write(dir, "config.json", &serde_json::to_vec(&config).unwrap());
 }

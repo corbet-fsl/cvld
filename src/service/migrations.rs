@@ -21,7 +21,6 @@ pub fn community_migrations() -> Vec<crlt::Migration<'static>> {
         ("account-current", crate::accounting::storage::SCHEMA),
         ("cmbr-creation", cmbr::CREATION_SCHEMA),
         ("cmbr-role-redemption", cmbr::ROLE_REDEMPTION_SCHEMA),
-        ("ohttp-replay", crate::ohttp::SCHEMA),
     ]);
     schemas
         .iter()
@@ -55,6 +54,5 @@ pub fn global_migrations() -> Vec<crlt::Migration<'static>> {
             "contact-comparison-keys",
             crate::contact_gates::state::BINDING_SCHEMA,
         ),
-        crlt::Migration::new(10, "ohttp-replay", crate::ohttp::SCHEMA),
     ]
 }
