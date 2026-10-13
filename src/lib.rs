@@ -26,6 +26,7 @@ mod community_actions;
 pub mod config;
 #[cfg(feature = "server")]
 pub mod contact_gates;
+pub mod address;
 pub mod error;
 #[cfg(feature = "server")]
 mod global;
