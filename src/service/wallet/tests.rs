@@ -33,7 +33,7 @@ async fn running() -> Running {
             "required":true,"filterable":false,"change_preset":"stable","no_contact_details":false}],"private":[]})).unwrap();
     let publication = cgbl::WalletPublicationConfig::new(
         WALLET,
-        &format!("https://{WALLET}"),
+        &format!("https://vault.{WALLET}"),
         rules,
         cmty::cplc::SchemaVersions {
             purpose: cmty::cplc::SchemaVersionsPurpose::SchemaVersionsV1,

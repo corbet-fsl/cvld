@@ -828,7 +828,7 @@ pub async fn wallet_config_at(dir: &Path, burst: u32, now: u64) -> Config {
             "required":true,"filterable":false,"change_preset":"stable","no_contact_details":false}],"private":[]})).unwrap();
     let publication = cgbl::WalletPublicationConfig::new(
         WALLET,
-        &format!("https://{WALLET}"),
+        &format!("https://vault.{WALLET}"),
         rules,
         cmty::cplc::SchemaVersions {
             purpose: cmty::cplc::SchemaVersionsPurpose::SchemaVersionsV1,
