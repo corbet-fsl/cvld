@@ -680,10 +680,12 @@ async fn device_authorization_drains_pending_revocation_and_unknown_fields_refus
     c.call("handle_reserve", json!({"handle":"member_one"}))
         .await
         .unwrap();
-    c.call(
-        "gate_voucher",
-        voucher("alpha", &lobby.member_id, "replace-device", NOW + 86_400),
-    )
+    c.voucher_redeem(voucher(
+        "alpha",
+        &lobby.member_id,
+        "replace-device",
+        NOW + 86_400,
+    ))
     .await
     .unwrap();
     assert!(
@@ -807,10 +809,12 @@ async fn a_verified_legal_veto_after_authentication_prevents_credential_issuance
     c.call("handle_reserve", json!({"handle":"member_one"}))
         .await
         .unwrap();
-    c.call(
-        "gate_voucher",
-        voucher("alpha", &lobby.member_id, "pre-veto-voucher", NOW + 86_400),
-    )
+    c.voucher_redeem(voucher(
+        "alpha",
+        &lobby.member_id,
+        "pre-veto-voucher",
+        NOW + 86_400,
+    ))
     .await
     .unwrap();
     assert!(

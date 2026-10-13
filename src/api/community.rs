@@ -120,13 +120,83 @@ pub enum LobbyWarning {
     RegistrationExpires { deadline: i64 },
     AddSecondDeviceOrSyncedPasskey,
 }
+/// A newcomer presents a voucher link. The secret is the redemption secret
+/// derived on the device; the notice is sealed to the issuer's device and is
+/// relayed opaque.
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
-pub struct Voucher {
+pub struct VoucherRedeem {
     pub id: String,
-    pub member_binding: String,
-    pub valid_until: u64,
-    pub signature: Vec<u8>,
+    pub secret: String,
+    pub notice: String,
+}
+/// The issuer's device registers a link by lookup id and secret hashes only.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct VoucherLinkCreate {
+    pub id: String,
+    pub verifier: String,
+    pub manage_verifier: String,
+    pub uses: u32,
+    /// Lifetime in seconds.
+    pub valid_for: u64,
+    /// Honoured only for admins and roots; ordinary members get the fixed default.
+    pub signoff: Option<bool>,
+}
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct VoucherLinkCreated {
+    pub id: String,
+    pub expires_at: u64,
+    pub signoff: bool,
+}
+/// The issuer's device proves it manages a link with the management secret.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct VoucherManage {
+    pub id: String,
+    pub secret: String,
+}
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct VoucherEntry {
+    pub member: String,
+    /// Sealed to the issuer's device, lowercase hex.
+    pub notice: String,
+}
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct VoucherLinkView {
+    pub waiting: Vec<VoucherEntry>,
+    pub admitted: Vec<VoucherEntry>,
+    pub revoked: bool,
+    pub expires_at: u64,
+    pub uses: u32,
+    pub signoff: bool,
+}
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct VoucherSignoffList {
+    pub waiting: Vec<VoucherEntry>,
+}
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct VoucherSignoffDecide {
+    pub id: String,
+    pub secret: String,
+    pub member: String,
+    pub confirm: bool,
+}
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct VoucherDecision {
+    pub admitted: bool,
+}
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct VoucherRevoked {
+    /// Applicants released from the lobby; completed admissions stay.
+    pub released: Vec<String>,
 }
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]

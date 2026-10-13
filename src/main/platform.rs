@@ -52,8 +52,7 @@ pub(super) async fn run(path: &str, deadline: Arc<OnceLock<Instant>>) -> Result<
     let opening = open_components(
         global,
         communities,
-        root,
-        hub,
+        (root, hub),
         Arc::new(SystemClock),
         &construction,
         &mut services,
@@ -81,8 +80,10 @@ pub(super) async fn run(path: &str, deadline: Arc<OnceLock<Instant>>) -> Result<
 async fn open_components(
     global: Config,
     communities: Vec<CommunityConfig>,
-    root: Option<(RootCommunityConfig, cpsd::IssuerKey)>,
-    hub: Option<hub::Prepared>,
+    (root, hub): (
+        Option<(RootCommunityConfig, cpsd::IssuerKey)>,
+        Option<hub::Prepared>,
+    ),
     clock: Arc<dyn cvld::service::Clock>,
     construction: &NativeConstruction,
     services: &mut Vec<Service>,

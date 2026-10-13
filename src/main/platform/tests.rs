@@ -25,7 +25,7 @@ fn community(name: &str, listen: &str, domain: &str, shutdown: u64) -> Value {
         "session_seconds": 600, "pending_capacity": 10, "throttle_burst": 10,
         "throttle_interval_ms": 1000, "publication_seconds": 172800,
         "signer_max_seconds": 86400, "minimum_notice_seconds": 0,
-        "voucher_provider": "sponsor", "voucher_public_key_file": "unused"
+        "voucher_provider": "sponsor"
     })
 }
 fn write(dir: &std::path::Path, name: &str, value: &Value) -> String {

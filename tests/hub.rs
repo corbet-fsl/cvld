@@ -134,7 +134,9 @@ impl Fixture {
         let response = reqwest::get(format!("{}/registry/by-host?host={host}", self.front.base))
             .await
             .unwrap();
-        (response.status() == 200).then(|| ())?;
+        if response.status() != 200 {
+            return None;
+        }
         Some(response.json().await.unwrap())
     }
 }
@@ -184,15 +186,12 @@ async fn token_creation_claim_admission_registry_and_termination() {
         .passport
         .pseudonym(&cpsd::CommunityId::new("gardenclub").unwrap())
         .to_hex();
-    api.call(
-        "gate_voucher",
-        voucher(
-            "gardenclub",
-            &subject,
-            "creator-gate",
-            f.front.clock.now() + 172_800,
-        ),
-    )
+    api.voucher_redeem(voucher(
+        "gardenclub",
+        &subject,
+        "creator-gate",
+        f.front.clock.now() + 172_800,
+    ))
     .await
     .unwrap();
     let proof = presentation(&f.front, &host, Some(&creator.session), &f.passport).await;

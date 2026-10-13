@@ -32,6 +32,5 @@
   "publication_seconds": 172800,
   "signer_max_seconds": 31622400,
   "minimum_notice_seconds": 86400,
-  "voucher_provider": "sponsor",
-  "voucher_public_key_file": "configuration/voucher-public.key"
+  "voucher_provider": "sponsor"
 }

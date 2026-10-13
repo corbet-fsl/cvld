@@ -178,8 +178,8 @@ async fn two_communities_admission_policy_lapse_and_release_over_http() {
         assert_eq!(unchanged_pin.revision, original_pin.revision);
         assert_eq!(unchanged_pin.fingerprint, original_pin.fingerprint);
         let body = voucher(name, &expected, "synthetic-voucher", NOW + 172800);
-        client.call("gate_voucher", body.clone()).await.unwrap();
-        assert!(client.call("gate_voucher", body).await.is_err());
+        client.voucher_redeem(body.clone()).await.unwrap();
+        assert!(client.voucher_redeem(body).await.is_err());
         let issued = issue_community(service, host, member, &passport).await;
         assert_eq!(issued.lobby.state, "admitted");
         let feed: TrustFeed =
@@ -345,10 +345,12 @@ async fn two_communities_admission_policy_lapse_and_release_over_http() {
         serde_json::from_value(ac.call("trust_feed", json!({})).await.unwrap()).unwrap();
     assert!(lapsed_feed.policy_epoch > before_withdraw.policy_epoch);
     // A failed gate is recoverable; an epoch invalidation must not become a permanent ban.
-    ac.call(
-        "gate_voucher",
-        voucher("alpha", &ids[0], "replacement-voucher", NOW + 172800),
-    )
+    ac.voucher_redeem(voucher(
+        "alpha",
+        &ids[0],
+        "replacement-voucher",
+        NOW + 172800,
+    ))
     .await
     .unwrap();
     assert!(
@@ -580,12 +582,9 @@ async fn free_fields_refuse_pins_without_changing_public_member_metadata() {
     c.call("handle_reserve", json!({"handle":"member_seals"}))
         .await
         .unwrap();
-    c.call(
-        "gate_voucher",
-        voucher("seals", &pseudonym, "seal-voucher", NOW + 172800),
-    )
-    .await
-    .unwrap();
+    c.voucher_redeem(voucher("seals", &pseudonym, "seal-voucher", NOW + 172800))
+        .await
+        .unwrap();
     assert!(
         issue_community(&community, host, &member, &passport)
             .await

@@ -351,7 +351,7 @@ pub async fn trusted_presentation(
 
 use cmty::{cplc, cplc::crbk};
 use cvld::config::{CommunityConfig, Operator};
-use ed25519_dalek::{Signer, SigningKey};
+use ed25519_dalek::SigningKey;
 
 pub fn community_rules() -> crbk::Rulebook {
     let mut rules = crbk::Rulebook::default();
@@ -511,11 +511,6 @@ pub fn community_config(
         voucher_provider: "sponsor".into(),
         payments: None,
         accounting: None,
-        voucher_public_key_file: write(
-            dir,
-            "voucher-key",
-            SigningKey::from_bytes(&[9; 32]).verifying_key().as_bytes(),
-        ),
     };
     write(dir, "config.json", &serde_json::to_vec(&config).unwrap());
     config
@@ -700,13 +695,50 @@ pub async fn finish_enrol(service: &Running, host: &str, start: Ceremony) -> Mem
         signing_key: SigningKey::from_bytes(&[13; 32]).verifying_key().to_bytes(),
     }
 }
-pub fn voucher(community: &str, member: &str, id: &str, valid_until: u64) -> Value {
-    let binding = cvch::member_binding(&cvch::receipt_id(id), member.as_bytes());
-    let signature = SigningKey::from_bytes(&[9; 32])
-        .sign(&cvch::issuance_bytes(id, valid_until, community, &binding))
-        .to_bytes()
-        .to_vec();
-    json!({"id":id,"valid_until":valid_until,"member_binding":binding,"signature":signature})
+/// A single-use voucher link for `member`: the development registration body
+/// (the first members have no earlier member to issue a link) and the redeem
+/// request and the link text, all derived from `id`. Present it with [`VoucherCall::voucher_redeem`].
+pub fn voucher(_community: &str, member: &str, id: &str, valid_until: u64) -> Value {
+    use cvch::link::{Notice, Options, Request, Token};
+    let mut entropy = [1u8; 32];
+    for (at, byte) in id.bytes().enumerate() {
+        entropy[at % 32] ^= byte;
+    }
+    let (token, _) = Token::issue(entropy, [7; 32]).unwrap();
+    let registration = token.registration();
+    let valid_for = valid_until.saturating_sub(NOW).max(1);
+    Options::new(1, valid_for, None, false).unwrap();
+    let notice = Notice {
+        member: member.into(),
+        nonce: [3; 16],
+        handle: None,
+    };
+    let request = Request::new(&token, &notice).unwrap();
+    json!({
+        "seed": {
+            "id": registration.id().as_str(),
+            "verifier": registration.verifier(),
+            "manage_verifier": registration.manage_verifier(),
+            "uses": 1,
+            "valid_for": valid_for,
+            "signoff": null,
+        },
+        "redeem": {"id": request.id, "secret": request.secret, "notice": request.notice},
+        "link": token.fragment().to_string(),
+    })
+}
+/// Present a [`voucher`]: register its link (a repeat is harmless) and redeem it.
+#[allow(async_fn_in_trait)]
+pub trait VoucherCall {
+    async fn voucher_redeem(&self, voucher: Value) -> cvld::error::Result<Value>;
+}
+impl VoucherCall for Client {
+    async fn voucher_redeem(&self, voucher: Value) -> cvld::error::Result<Value> {
+        let _ = self
+            .call("development_voucher_link", voucher["seed"].clone())
+            .await;
+        self.call("voucher_redeem", voucher["redeem"].clone()).await
+    }
 }
 pub async fn issue_community(
     service: &Running,
@@ -743,10 +775,12 @@ pub async fn admitted_community_member(
     api.call("handle_reserve", json!({"handle":handle}))
         .await
         .unwrap();
-    api.call(
-        "gate_voucher",
-        voucher(scope, &subject, handle, service.clock.now() + 172_800),
-    )
+    api.voucher_redeem(voucher(
+        scope,
+        &subject,
+        handle,
+        service.clock.now() + 172_800,
+    ))
     .await
     .unwrap();
     let issued = issue_community(service, &host, &member, passport).await;

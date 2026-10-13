@@ -9,7 +9,7 @@ publish = false
 
 [features]
 default = ["server"]
-server = ["client-http", "dep:cpmt", "dep:crpt", "dep:x402-types", "dep:cmty", "dep:cvch", "dep:clbs", "dep:cphn", "dep:cmbx", "dep:cfbk", "dep:ed25519-dalek", "dep:ed25519-dalek-v2", "dep:cblc", "dep:czkp", "dep:cssr", "dep:cpsd", "dep:crlt", "dep:csgn", "dep:cgbl", "dep:ckyh", "dep:governor", "dep:axum", "dep:tower-http", "dep:utoipa", "dep:clap", "dep:rmcp", "dep:tokio", "dep:uuid", "dep:chrono", "dep:rand", "dep:subtle", "dep:hkdf", "dep:sha2", "dep:tower"]
+server = ["client-http", "dep:cpmt", "dep:crpt", "dep:x402-types", "dep:cmty", "dep:cvch", "dep:clbs", "dep:cphn", "dep:cmbx", "dep:cfbk", "dep:ed25519-dalek", "dep:ed25519-dalek-v2", "dep:cblc", "dep:czkp", "dep:cssr", "dep:cpsd", "dep:crlt", "dep:csgn", "dep:cgbl", "dep:ckyh", "dep:governor", "dep:axum", "dep:tower-http", "dep:utoipa", "dep:clap", "dep:rmcp", "dep:tokio", "dep:uuid", "dep:chrono", "dep:rand", "dep:subtle", "dep:hkdf", "dep:sha2", "dep:tower", "dep:blind-rsa-signatures"]
 client = ["dep:jsonschema"]
 client-http = ["client", "dep:reqwest", "dep:url"]
 client-ohttp = ["client", "dep:url", "dep:cblv", "cblv/client"]
@@ -52,7 +52,7 @@ rmcp = { version = "3.5.0", features = ["server", "client", "transport-io", "tra
 reqwest = { version = "0.12.28", default-features = false, features = ["json", "rustls-tls"], optional = true }
 serde = { version = "1", features = ["derive"] }
 any_ascii = "0.3"
-blind-rsa-signatures = { version = "0.18", default-features = false }
+blind-rsa-signatures = { version = "0.18", default-features = false, optional = true }
 rustrict = { version = "0.7", default-features = false, features = ["censor"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"], optional = true }

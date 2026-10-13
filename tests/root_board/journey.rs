@@ -179,8 +179,8 @@ async fn actual_joint_http_registration_voucher_and_renewal_remain_ordinary_memb
         .await
         .unwrap();
     let receipt = voucher("root", &member_id, "root-door-voucher", NOW + 172_800);
-    client.call("gate_voucher", receipt.clone()).await.unwrap();
-    assert!(client.call("gate_voucher", receipt).await.is_err());
+    client.voucher_redeem(receipt.clone()).await.unwrap();
+    assert!(client.voucher_redeem(receipt).await.is_err());
     // An ordinary member (voucher/ordinary passport, no root-board credential)
     // has no way into the board, before or after its founding.
     let (_, ordinary, _) = wallet_passport(&global).await;

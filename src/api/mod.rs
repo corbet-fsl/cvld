@@ -328,7 +328,14 @@ actions! {
     payment_simulate(PaymentSimulationRequest) -> PaymentSimulationResponse, Member, Community, Check, Forward, "Simulate dummy payment planning locally without provider I/O";
     handle_available(Handle) -> Available, Public, Community, Check, Forward, "Check a community handle";
     handle_reserve(Handle) -> Lobby, Member, Community, Record, Forward, "Reserve a community handle";
-    gate_voucher(Voucher) -> Lobby, Member, Community, Record, Forward, "Verify a member-bound voucher";
+    voucher_redeem(VoucherRedeem) -> Lobby, Member, Community, Record, Forward, "Present a voucher link; with sign-off the applicant waits in the lobby";
+    voucher_link_create(VoucherLinkCreate) -> VoucherLinkCreated, Member, Community, Record, Forward, "Register a voucher link by hashes; the issuer is not stored";
+    voucher_link_view(VoucherManage) -> VoucherLinkView, Public, Community, Check, Forward, "Read a voucher link with its management secret";
+    voucher_signoff_list(VoucherManage) -> VoucherSignoffList, Public, Community, Check, Forward, "List applicants waiting for sign-off";
+    voucher_signoff_decide(VoucherSignoffDecide) -> VoucherDecision, Public, Community, Record, Forward, "Confirm or decline a waiting applicant";
+    voucher_link_revoke(VoucherManage) -> VoucherRevoked, Public, Community, Record, Forward, "Revoke a voucher link; completed admissions stay";
+    #[cfg(feature = "development-gate")]
+    development_voucher_link(VoucherLinkCreate) -> VoucherLinkCreated, Member, Community, Record, Forward, "Development only: register a voucher link for a member who is not yet admitted";
     gate_withdraw(Withdraw) -> CredentialResponse, Member, Community, Record, Forward, "Withdraw a retained community gate";
     credential_issue(CredentialRequest) -> CredentialResponse, Member, Community, Record, Forward, "Present a passport and request admission or renewal";
     account_credential_issue(AccountCredentialRequest) -> AccountCredentialResponse, Member, Community, Record, Forward, "Request the original account grant from the same full admission decision";

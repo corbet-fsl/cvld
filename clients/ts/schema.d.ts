@@ -106,7 +106,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/community_creation_initialize": {
+    "/v1/community_create": {
         parameters: {
             query?: never;
             header?: never;
@@ -115,15 +115,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Initialize an explicitly linked community with its original first Root entitlement */
-        post: operations["community_creation_initialize"];
+        /** Create a community by redeeming a creation token; the platform learns no creator */
+        post: operations["community_create"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/v1/community_creation_recipient": {
+    "/v1/community_creation_claim": {
         parameters: {
             query?: never;
             header?: never;
@@ -132,15 +132,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Prepare original community creation for this registered recipient */
-        post: operations["community_creation_recipient"];
+        /** Claim the first admin seat of a community being created */
+        post: operations["community_creation_claim"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/v1/community_founder_issue": {
+    "/v1/community_dissolve": {
         parameters: {
             query?: never;
             header?: never;
@@ -149,8 +149,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Issue the original FounderAdmin entitlement for a distinct registered founder of an explicitly linked community */
-        post: operations["community_founder_issue"];
+        /** Dissolve this community; its admins only */
+        post: operations["community_dissolve"];
         delete?: never;
         options?: never;
         head?: never;
@@ -219,6 +219,23 @@ export interface paths {
         put?: never;
         /** Inspect your own permanent self-ban with fresh UV; never restore access */
         post: operations["community_self_ban_status_finish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/community_terminate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** End a community at once; Root only, always recorded */
+        post: operations["community_terminate"];
         delete?: never;
         options?: never;
         head?: never;
@@ -327,6 +344,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/creation_token_issue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Blind-sign one creation token within the per-person weekly and yearly limits */
+        post: operations["creation_token_issue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/creation_token_key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read the public key that verifies creation tokens */
+        post: operations["creation_token_key"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/credential_issue": {
         parameters: {
             query?: never;
@@ -372,23 +423,6 @@ export interface paths {
         put?: never;
         /** Read current passkey-authorized signing keys */
         post: operations["device_keys"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/gate_voucher": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Verify a member-bound voucher */
-        post: operations["gate_voucher"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1160,6 +1194,108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/voucher_link_create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Register a voucher link by hashes; the issuer is not stored */
+        post: operations["voucher_link_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/voucher_link_revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke a voucher link; completed admissions stay */
+        post: operations["voucher_link_revoke"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/voucher_link_view": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read a voucher link with its management secret */
+        post: operations["voucher_link_view"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/voucher_redeem": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Present a voucher link; with sign-off the applicant waits in the lobby */
+        post: operations["voucher_redeem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/voucher_signoff_decide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm or decline a waiting applicant */
+        post: operations["voucher_signoff_decide"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/voucher_signoff_list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** List applicants waiting for sign-off */
+        post: operations["voucher_signoff_list"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/wallet_device_authorize": {
         parameters: {
             query?: never;
@@ -1864,6 +2000,12 @@ export interface components {
                                 blinding: number[];
                                 owner: number[];
                                 requiredInbox: number[];
+                                /**
+                                 * Format: uint8
+                                 * @description Role class (member, admin, root) attested by the issuer for this epoch.
+                                 * @default 0
+                                 */
+                                role: number;
                                 state: number[];
                                 /** Format: uint64 */
                                 version: number;
@@ -2005,6 +2147,12 @@ export interface components {
                             blinding: number[];
                             owner: number[];
                             requiredInbox: number[];
+                            /**
+                             * Format: uint8
+                             * @description Role class (member, admin, root) attested by the issuer for this epoch.
+                             * @default 0
+                             */
+                            role: number;
                             state: number[];
                             /** Format: uint64 */
                             version: number;
@@ -2120,18 +2268,19 @@ export interface components {
         Channel: "sms" | "whatsapp" | "call" | "email";
         /** @enum {string} */
         Coverage: "all_accepted_requests";
-        /**
-         * @description What the prepared recipient may later receive; fixed at preparation and
-         *     never reinterpreted by the Global Root.
-         * @enum {string}
-         */
-        CreationPurpose: "root" | "founder";
+        /** @description A finished creation token as the wire shape of `creation_token::Token`. */
+        CreationTokenWire: {
+            message: number[];
+            randomizer: number[];
+            signature: number[];
+        };
         CredentialRequest: {
-            /** @description Original target-Policy first-Root entitlement, redeemed with full gates. */
-            creation?: number[] | null;
+            /**
+             * @description Creation id of a community being created, redeemed by its claimed
+             *     creator together with every configured gate; the creator becomes first admin.
+             */
+            creation?: string | null;
             devices: number[][];
-            /** @description Original target-Policy FounderAdmin entitlement, redeemed with full gates. */
-            founder?: number[] | null;
             presentation: components["schemas"]["PresentationInput"];
         };
         /** @description Member-owned root authorization. Eligibility issuers cannot create this proof. */
@@ -2351,11 +2500,21 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /**
+         * @description Why Root ends a community.
+         * @enum {string}
+         */
+        TerminationReason: "legal" | "terms" | "name";
         /** @description Original publishing-key endorsement; routing metadata is not authority. */
         TrustKeyTransition: {
             proof: number[];
             /** Format: int64 */
             revision: number;
+        };
+        VoucherEntry: {
+            member: string;
+            /** @description Sealed to the issuer's device, lowercase hex. */
+            notice: string;
         };
     };
     responses: never;
@@ -2587,7 +2746,7 @@ export interface operations {
             };
         };
     };
-    community_creation_initialize: {
+    community_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -2597,10 +2756,9 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    /** @description A target explicitly linked by the trusted hosting caller. */
-                    community: string;
-                    /** @description Opaque target-owned reference; no target bearer or member UUID crosses. */
-                    recipient: string;
+                    /** @description Permanent address, `^[a-z0-9]{8,30}$`, not reserved or taken. */
+                    address: string;
+                    token: components["schemas"]["CreationTokenWire"];
                 };
             };
         };
@@ -2612,12 +2770,19 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        /** Format: int64 */
-                        checked_at: number;
-                        /** Format: int64 */
+                        /** @description Bearer secret that lets the creator claim the first admin seat. */
+                        claim: number[];
+                        community_host: string;
+                        /**
+                         * Format: int64
+                         * @description The shell is discarded unclaimed after this time (unix seconds).
+                         */
                         expires_at: number;
+                        /** @description SHA-256 of the community's founding key document (64 hex characters). */
+                        fingerprint: string;
+                        /** @description Opaque community id (32 hex characters). */
                         id: string;
-                        invitation: number[];
+                        vault_host: string;
                     };
                 };
             };
@@ -2634,7 +2799,7 @@ export interface operations {
             };
         };
     };
-    community_creation_recipient: {
+    community_creation_claim: {
         parameters: {
             query?: never;
             header?: never;
@@ -2644,14 +2809,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    /**
-                     * Format: int64
-                     * @description Explicit original exclusive entitlement deadline, never extended on retry.
-                     */
-                    expires_at: number;
-                    /** @description Retain the original opaque ID for a retry; omitted only on first prepare. */
-                    id?: string | null;
-                    purpose: components["schemas"]["CreationPurpose"];
+                    claim: number[];
                 };
             };
         };
@@ -2665,8 +2823,8 @@ export interface operations {
                     "application/json": {
                         /** Format: int64 */
                         expires_at: number;
+                        /** @description Creation id to present as `creation` in `credential_issue`. */
                         id: string;
-                        recipient: string;
                     };
                 };
             };
@@ -2683,7 +2841,7 @@ export interface operations {
             };
         };
     };
-    community_founder_issue: {
+    community_dissolve: {
         parameters: {
             query?: never;
             header?: never;
@@ -2692,12 +2850,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    /** @description A target explicitly linked by the trusted hosting caller. */
-                    community: string;
-                    /** @description Opaque target-owned reference; no target bearer or member UUID crosses. */
-                    recipient: string;
-                };
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -2707,14 +2860,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        /** Format: int64 */
-                        checked_at: number;
-                        /** Format: int64 */
-                        expires_at: number;
-                        id: string;
-                        invitation: number[];
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Fixed redacted error category */
@@ -2883,6 +3029,51 @@ export interface operations {
                     "application/json": {
                         self_banned: boolean;
                     };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    community_terminate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    address: string;
+                    /** @description Also block the address from ever being created again. */
+                    block_name?: boolean;
+                    /**
+                     * Format: int64
+                     * @description Legal orders only: keep the data, root-only, until this unix time.
+                     */
+                    hold_until?: number | null;
+                    reason: components["schemas"]["TerminationReason"];
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Fixed redacted error category */
@@ -3177,6 +3368,82 @@ export interface operations {
             };
         };
     };
+    creation_token_issue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    blinded: number[];
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        blind_signature: number[];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    creation_token_key: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        public_key: number[];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
     credential_issue: {
         parameters: {
             query?: never;
@@ -3187,11 +3454,12 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    /** @description Original target-Policy first-Root entitlement, redeemed with full gates. */
-                    creation?: number[] | null;
+                    /**
+                     * @description Creation id of a community being created, redeemed by its claimed
+                     *     creator together with every configured gate; the creator becomes first admin.
+                     */
+                    creation?: string | null;
                     devices: number[][];
-                    /** @description Original target-Policy FounderAdmin entitlement, redeemed with full gates. */
-                    founder?: number[] | null;
                     presentation: components["schemas"]["PresentationInput"];
                 };
             };
@@ -3283,58 +3551,6 @@ export interface operations {
                 content: {
                     "application/json": {
                         keys: number[][];
-                    };
-                };
-            };
-            /** @description Fixed redacted error category */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        error: components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
-    };
-    gate_voucher: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    id: string;
-                    member_binding: string;
-                    signature: number[];
-                    /** Format: int64 */
-                    valid_until: number;
-                };
-            };
-        };
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        handle?: string | null;
-                        member_id: string;
-                        /** @description Unsatisfied admission conditions, strongest requirement first. */
-                        missing: components["schemas"]["LobbyMissing"][];
-                        /** @description Passport proof is always fresh when requesting a community credential. */
-                        passport_required: boolean;
-                        state: string;
-                        /** @description Enabled community gates the member can pass now, each with its ordered inputs. */
-                        steps: components["schemas"]["LobbyDescriptor"][];
-                        warnings: components["schemas"]["LobbyWarning"][];
                     };
                 };
             };
@@ -5283,6 +5499,279 @@ export interface operations {
                         schema: number[];
                         schema_versions: number[];
                         settings: number[];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    voucher_link_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    id: string;
+                    manage_verifier: string;
+                    /** @description Honoured only for admins and roots; ordinary members get the fixed default. */
+                    signoff?: boolean | null;
+                    /** Format: int32 */
+                    uses: number;
+                    /**
+                     * Format: int64
+                     * @description Lifetime in seconds.
+                     */
+                    valid_for: number;
+                    verifier: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: int64 */
+                        expires_at: number;
+                        id: string;
+                        signoff: boolean;
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    voucher_link_revoke: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    id: string;
+                    secret: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Applicants released from the lobby; completed admissions stay. */
+                        released: string[];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    voucher_link_view: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    id: string;
+                    secret: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        admitted: components["schemas"]["VoucherEntry"][];
+                        /** Format: int64 */
+                        expires_at: number;
+                        revoked: boolean;
+                        signoff: boolean;
+                        /** Format: int32 */
+                        uses: number;
+                        waiting: components["schemas"]["VoucherEntry"][];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    voucher_redeem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    id: string;
+                    notice: string;
+                    secret: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        handle?: string | null;
+                        member_id: string;
+                        /** @description Unsatisfied admission conditions, strongest requirement first. */
+                        missing: components["schemas"]["LobbyMissing"][];
+                        /** @description Passport proof is always fresh when requesting a community credential. */
+                        passport_required: boolean;
+                        state: string;
+                        /** @description Enabled community gates the member can pass now, each with its ordered inputs. */
+                        steps: components["schemas"]["LobbyDescriptor"][];
+                        warnings: components["schemas"]["LobbyWarning"][];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    voucher_signoff_decide: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    confirm: boolean;
+                    id: string;
+                    member: string;
+                    secret: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        admitted: boolean;
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    voucher_signoff_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    id: string;
+                    secret: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        waiting: components["schemas"]["VoucherEntry"][];
                     };
                 };
             };

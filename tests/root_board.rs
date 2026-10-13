@@ -131,12 +131,9 @@ async fn admit_opaque(
     api.call("handle_reserve", json!({"handle":handle}))
         .await
         .unwrap();
-    api.call(
-        "gate_voucher",
-        voucher(scope, &subject, handle, NOW + 172_800),
-    )
-    .await
-    .unwrap();
+    api.voucher_redeem(voucher(scope, &subject, handle, NOW + 172_800))
+        .await
+        .unwrap();
     let proof = if root {
         journey::root_presentation(service, holder, Some(&member.session)).await
     } else {

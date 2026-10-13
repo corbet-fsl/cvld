@@ -129,10 +129,81 @@ impl Door {
             .map_err(Error::Refused.redact())?;
         community.lobby(ctx.member()?, ctx.now).await
     }
-    pub(crate) async fn gate_voucher(&self, ctx: Context, request: Voucher) -> Result<Lobby> {
+    pub(crate) async fn voucher_redeem(
+        &self,
+        ctx: Context,
+        request: VoucherRedeem,
+    ) -> Result<Lobby> {
         let community = self.community_backend()?.lock().await;
-        community.voucher(ctx.member()?, request, ctx.now).await?;
+        community
+            .voucher_redeem(ctx.member()?, request, ctx.now)
+            .await?;
         community.lobby(ctx.member()?, ctx.now).await
+    }
+    pub(crate) async fn voucher_link_create(
+        &self,
+        ctx: Context,
+        request: VoucherLinkCreate,
+    ) -> Result<VoucherLinkCreated> {
+        let community = self.community_backend()?.lock().await;
+        community
+            .voucher_link_create(ctx.member()?, request, ctx.now)
+            .await
+    }
+    #[cfg(feature = "development-gate")]
+    pub(crate) async fn development_voucher_link(
+        &self,
+        ctx: Context,
+        request: VoucherLinkCreate,
+    ) -> Result<VoucherLinkCreated> {
+        let community = self.community_backend()?.lock().await;
+        community
+            .development_voucher_link(ctx.member()?, request, ctx.now)
+            .await
+    }
+    pub(crate) async fn voucher_link_view(
+        &self,
+        _: Context,
+        request: VoucherManage,
+    ) -> Result<VoucherLinkView> {
+        self.community_backend()?
+            .lock()
+            .await
+            .voucher_link_view(request)
+            .await
+    }
+    pub(crate) async fn voucher_signoff_list(
+        &self,
+        _: Context,
+        request: VoucherManage,
+    ) -> Result<VoucherSignoffList> {
+        self.community_backend()?
+            .lock()
+            .await
+            .voucher_signoff_list(request)
+            .await
+    }
+    pub(crate) async fn voucher_signoff_decide(
+        &self,
+        _: Context,
+        request: VoucherSignoffDecide,
+    ) -> Result<VoucherDecision> {
+        self.community_backend()?
+            .lock()
+            .await
+            .voucher_signoff_decide(request)
+            .await
+    }
+    pub(crate) async fn voucher_link_revoke(
+        &self,
+        _: Context,
+        request: VoucherManage,
+    ) -> Result<VoucherRevoked> {
+        self.community_backend()?
+            .lock()
+            .await
+            .voucher_link_revoke(request)
+            .await
     }
     pub(crate) async fn gate_withdraw(
         &self,

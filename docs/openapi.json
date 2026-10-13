@@ -2432,6 +2432,14 @@
                                     "minItems": 32,
                                     "type": "array"
                                   },
+                                  "role": {
+                                    "default": 0,
+                                    "description": "Role class (member, admin, root) attested by the issuer for this epoch.",
+                                    "format": "uint8",
+                                    "maximum": 255,
+                                    "minimum": 0,
+                                    "type": "integer"
+                                  },
                                   "state": {
                                     "items": {
                                       "format": "uint8",
@@ -3040,6 +3048,14 @@
                                 "minItems": 32,
                                 "type": "array"
                               },
+                              "role": {
+                                "default": 0,
+                                "description": "Role class (member, admin, root) attested by the issuer for this epoch.",
+                                "format": "uint8",
+                                "maximum": 255,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
                               "state": {
                                 "items": {
                                   "format": "uint8",
@@ -3466,26 +3482,49 @@
         ],
         "type": "string"
       },
-      "CreationPurpose": {
-        "description": "What the prepared recipient may later receive; fixed at preparation and\nnever reinterpreted by the Global Root.",
-        "enum": [
-          "root",
-          "founder"
-        ],
-        "type": "string"
-      },
-      "CredentialRequest": {
+      "CreationTokenWire": {
         "additionalProperties": false,
+        "description": "A finished creation token as the wire shape of `creation_token::Token`.",
         "properties": {
-          "creation": {
-            "description": "Original target-Policy first-Root entitlement, redeemed with full gates.",
+          "message": {
             "items": {
               "format": "int32",
               "minimum": 0,
               "type": "integer"
             },
+            "type": "array"
+          },
+          "randomizer": {
+            "items": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "signature": {
+            "items": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "message",
+          "randomizer",
+          "signature"
+        ],
+        "type": "object"
+      },
+      "CredentialRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "creation": {
+            "description": "Creation id of a community being created, redeemed by its claimed\ncreator together with every configured gate; the creator becomes first admin.",
             "type": [
-              "array",
+              "string",
               "null"
             ]
           },
@@ -3499,18 +3538,6 @@
               "type": "array"
             },
             "type": "array"
-          },
-          "founder": {
-            "description": "Original target-Policy FounderAdmin entitlement, redeemed with full gates.",
-            "items": {
-              "format": "int32",
-              "minimum": 0,
-              "type": "integer"
-            },
-            "type": [
-              "array",
-              "null"
-            ]
           },
           "presentation": {
             "$ref": "#/components/schemas/PresentationInput"
@@ -4350,6 +4377,15 @@
         ],
         "type": "object"
       },
+      "TerminationReason": {
+        "description": "Why Root ends a community.",
+        "enum": [
+          "legal",
+          "terms",
+          "name"
+        ],
+        "type": "string"
+      },
       "TrustKeyTransition": {
         "additionalProperties": false,
         "description": "Original publishing-key endorsement; routing metadata is not authority.",
@@ -4371,6 +4407,23 @@
         "required": [
           "revision",
           "proof"
+        ],
+        "type": "object"
+      },
+      "VoucherEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "member": {
+            "type": "string"
+          },
+          "notice": {
+            "description": "Sealed to the issuer's device, lowercase hex.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "member",
+          "notice"
         ],
         "type": "object"
       }
@@ -4793,27 +4846,27 @@
         "x-scope": "community"
       }
     },
-    "/v1/community_creation_initialize": {
+    "/v1/community_create": {
       "post": {
-        "operationId": "community_creation_initialize",
+        "operationId": "community_create",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
                 "additionalProperties": false,
+                "description": "Start a new community. No session: the token alone proves capacity, so the\nplatform cannot link the creator to the community.",
                 "properties": {
-                  "community": {
-                    "description": "A target explicitly linked by the trusted hosting caller.",
+                  "address": {
+                    "description": "Permanent address, `^[a-z0-9]{8,30}$`, not reserved or taken.",
                     "type": "string"
                   },
-                  "recipient": {
-                    "description": "Opaque target-owned reference; no target bearer or member UUID crosses.",
-                    "type": "string"
+                  "token": {
+                    "$ref": "#/components/schemas/CreationTokenWire"
                   }
                 },
                 "required": [
-                  "community",
-                  "recipient"
+                  "address",
+                  "token"
                 ],
                 "type": "object"
               }
@@ -4828,33 +4881,43 @@
                 "schema": {
                   "additionalProperties": false,
                   "properties": {
-                    "checked_at": {
-                      "format": "int64",
-                      "minimum": 0,
-                      "type": "integer"
-                    },
-                    "expires_at": {
-                      "format": "int64",
-                      "minimum": 0,
-                      "type": "integer"
-                    },
-                    "id": {
-                      "type": "string"
-                    },
-                    "invitation": {
+                    "claim": {
+                      "description": "Bearer secret that lets the creator claim the first admin seat.",
                       "items": {
                         "format": "int32",
                         "minimum": 0,
                         "type": "integer"
                       },
                       "type": "array"
+                    },
+                    "community_host": {
+                      "type": "string"
+                    },
+                    "expires_at": {
+                      "description": "The shell is discarded unclaimed after this time (unix seconds).",
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "fingerprint": {
+                      "description": "SHA-256 of the community's founding key document (64 hex characters).",
+                      "type": "string"
+                    },
+                    "id": {
+                      "description": "Opaque community id (32 hex characters).",
+                      "type": "string"
+                    },
+                    "vault_host": {
+                      "type": "string"
                     }
                   },
                   "required": [
-                    "invitation",
                     "id",
-                    "expires_at",
-                    "checked_at"
+                    "fingerprint",
+                    "community_host",
+                    "vault_host",
+                    "claim",
+                    "expires_at"
                   ],
                   "type": "object"
                 }
@@ -4882,47 +4945,35 @@
             "description": "Fixed redacted error category"
           }
         },
-        "security": [
-          {
-            "session": []
-          }
-        ],
-        "summary": "Initialize an explicitly linked community with its original first Root entitlement",
+        "security": [],
+        "summary": "Create a community by redeeming a creation token; the platform learns no creator",
         "x-client-access": "forward",
         "x-effect": "record",
-        "x-role": "root",
+        "x-role": "public",
         "x-scope": "global"
       }
     },
-    "/v1/community_creation_recipient": {
+    "/v1/community_creation_claim": {
       "post": {
-        "operationId": "community_creation_recipient",
+        "operationId": "community_creation_claim",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
                 "additionalProperties": false,
+                "description": "The creator, after registering in the new community, claims the first seat.",
                 "properties": {
-                  "expires_at": {
-                    "description": "Explicit original exclusive entitlement deadline, never extended on retry.",
-                    "format": "int64",
-                    "minimum": 0,
-                    "type": "integer"
-                  },
-                  "id": {
-                    "description": "Retain the original opaque ID for a retry; omitted only on first prepare.",
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "purpose": {
-                    "$ref": "#/components/schemas/CreationPurpose"
+                  "claim": {
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
                   }
                 },
                 "required": [
-                  "purpose",
-                  "expires_at"
+                  "claim"
                 ],
                 "type": "object"
               }
@@ -4943,14 +4994,11 @@
                       "type": "integer"
                     },
                     "id": {
-                      "type": "string"
-                    },
-                    "recipient": {
+                      "description": "Creation id to present as `creation` in `credential_issue`.",
                       "type": "string"
                     }
                   },
                   "required": [
-                    "recipient",
                     "id",
                     "expires_at"
                   ],
@@ -4985,35 +5033,21 @@
             "session": []
           }
         ],
-        "summary": "Prepare original community creation for this registered recipient",
+        "summary": "Claim the first admin seat of a community being created",
         "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
       }
     },
-    "/v1/community_founder_issue": {
+    "/v1/community_dissolve": {
       "post": {
-        "operationId": "community_founder_issue",
+        "operationId": "community_dissolve",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
                 "additionalProperties": false,
-                "properties": {
-                  "community": {
-                    "description": "A target explicitly linked by the trusted hosting caller.",
-                    "type": "string"
-                  },
-                  "recipient": {
-                    "description": "Opaque target-owned reference; no target bearer or member UUID crosses.",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "community",
-                  "recipient"
-                ],
                 "type": "object"
               }
             }
@@ -5026,35 +5060,6 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": false,
-                  "properties": {
-                    "checked_at": {
-                      "format": "int64",
-                      "minimum": 0,
-                      "type": "integer"
-                    },
-                    "expires_at": {
-                      "format": "int64",
-                      "minimum": 0,
-                      "type": "integer"
-                    },
-                    "id": {
-                      "type": "string"
-                    },
-                    "invitation": {
-                      "items": {
-                        "format": "int32",
-                        "minimum": 0,
-                        "type": "integer"
-                      },
-                      "type": "array"
-                    }
-                  },
-                  "required": [
-                    "invitation",
-                    "id",
-                    "expires_at",
-                    "checked_at"
-                  ],
                   "type": "object"
                 }
               }
@@ -5086,11 +5091,11 @@
             "session": []
           }
         ],
-        "summary": "Issue the original FounderAdmin entitlement for a distinct registered founder of an explicitly linked community",
+        "summary": "Dissolve this community; its admins only",
         "x-client-access": "forward",
         "x-effect": "record",
-        "x-role": "root",
-        "x-scope": "global"
+        "x-role": "admin",
+        "x-scope": "community"
       }
     },
     "/v1/community_self_ban_begin": {
@@ -5393,6 +5398,90 @@
         "x-effect": "record",
         "x-role": "public",
         "x-scope": "community"
+      }
+    },
+    "/v1/community_terminate": {
+      "post": {
+        "operationId": "community_terminate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Root ends a community at once: nothing is served, hostnames go, data is\ndeleted (or, under a legal hold, retained until the hold ends).",
+                "properties": {
+                  "address": {
+                    "type": "string"
+                  },
+                  "block_name": {
+                    "description": "Also block the address from ever being created again.",
+                    "type": "boolean"
+                  },
+                  "hold_until": {
+                    "description": "Legal orders only: keep the data, root-only, until this unix time.",
+                    "format": "int64",
+                    "minimum": 0,
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "reason": {
+                    "$ref": "#/components/schemas/TerminationReason"
+                  }
+                },
+                "required": [
+                  "address",
+                  "reason"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "End a community at once; Root only, always recorded",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "root",
+        "x-scope": "global"
       }
     },
     "/v1/contact_accept": {
@@ -5993,6 +6082,160 @@
         "x-scope": "global"
       }
     },
+    "/v1/creation_token_issue": {
+      "post": {
+        "operationId": "creation_token_issue",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Ask for one creation token: the client sends a blinded random message.",
+                "properties": {
+                  "blinded": {
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "blinded"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "The issuer's blind signature; the client unblinds it locally.",
+                  "properties": {
+                    "blind_signature": {
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "blind_signature"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Blind-sign one creation token within the per-person weekly and yearly limits",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "member",
+        "x-scope": "global"
+      }
+    },
+    "/v1/creation_token_key": {
+      "post": {
+        "operationId": "creation_token_key",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "The public key that verifies creation tokens, DER encoded.",
+                  "properties": {
+                    "public_key": {
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "public_key"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [],
+        "summary": "Read the public key that verifies creation tokens",
+        "x-client-access": "forward",
+        "x-effect": "check",
+        "x-role": "public",
+        "x-scope": "global"
+      }
+    },
     "/v1/credential_issue": {
       "post": {
         "operationId": "credential_issue",
@@ -6003,14 +6246,9 @@
                 "additionalProperties": false,
                 "properties": {
                   "creation": {
-                    "description": "Original target-Policy first-Root entitlement, redeemed with full gates.",
-                    "items": {
-                      "format": "int32",
-                      "minimum": 0,
-                      "type": "integer"
-                    },
+                    "description": "Creation id of a community being created, redeemed by its claimed\ncreator together with every configured gate; the creator becomes first admin.",
                     "type": [
-                      "array",
+                      "string",
                       "null"
                     ]
                   },
@@ -6024,18 +6262,6 @@
                       "type": "array"
                     },
                     "type": "array"
-                  },
-                  "founder": {
-                    "description": "Original target-Policy FounderAdmin entitlement, redeemed with full gates.",
-                    "items": {
-                      "format": "int32",
-                      "minimum": 0,
-                      "type": "integer"
-                    },
-                    "type": [
-                      "array",
-                      "null"
-                    ]
                   },
                   "presentation": {
                     "$ref": "#/components/schemas/PresentationInput"
@@ -6285,137 +6511,6 @@
         "summary": "Read current passkey-authorized signing keys",
         "x-client-access": "forward",
         "x-effect": "check",
-        "x-role": "member",
-        "x-scope": "community"
-      }
-    },
-    "/v1/gate_voucher": {
-      "post": {
-        "operationId": "gate_voucher",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "additionalProperties": false,
-                "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "member_binding": {
-                    "type": "string"
-                  },
-                  "signature": {
-                    "items": {
-                      "format": "int32",
-                      "minimum": 0,
-                      "type": "integer"
-                    },
-                    "type": "array"
-                  },
-                  "valid_until": {
-                    "format": "int64",
-                    "minimum": 0,
-                    "type": "integer"
-                  }
-                },
-                "required": [
-                  "id",
-                  "member_binding",
-                  "valid_until",
-                  "signature"
-                ],
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "handle": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "member_id": {
-                      "type": "string"
-                    },
-                    "missing": {
-                      "description": "Unsatisfied admission conditions, strongest requirement first.",
-                      "items": {
-                        "$ref": "#/components/schemas/LobbyMissing"
-                      },
-                      "type": "array"
-                    },
-                    "passport_required": {
-                      "description": "Passport proof is always fresh when requesting a community credential.",
-                      "type": "boolean"
-                    },
-                    "state": {
-                      "type": "string"
-                    },
-                    "steps": {
-                      "description": "Enabled community gates the member can pass now, each with its ordered inputs.",
-                      "items": {
-                        "$ref": "#/components/schemas/LobbyDescriptor"
-                      },
-                      "type": "array"
-                    },
-                    "warnings": {
-                      "items": {
-                        "$ref": "#/components/schemas/LobbyWarning"
-                      },
-                      "type": "array"
-                    }
-                  },
-                  "required": [
-                    "member_id",
-                    "state",
-                    "missing",
-                    "steps",
-                    "warnings",
-                    "passport_required"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Success"
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/Error"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Fixed redacted error category"
-          }
-        },
-        "security": [
-          {
-            "session": []
-          }
-        ],
-        "summary": "Verify a member-bound voucher",
-        "x-client-access": "forward",
-        "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -10724,6 +10819,584 @@
         },
         "security": [],
         "summary": "Read signed public trust snapshots",
+        "x-client-access": "forward",
+        "x-effect": "check",
+        "x-role": "public",
+        "x-scope": "community"
+      }
+    },
+    "/v1/voucher_link_create": {
+      "post": {
+        "operationId": "voucher_link_create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "The issuer's device registers a link by lookup id and secret hashes only.",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "manage_verifier": {
+                    "type": "string"
+                  },
+                  "signoff": {
+                    "description": "Honoured only for admins and roots; ordinary members get the fixed default.",
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "uses": {
+                    "format": "int32",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "valid_for": {
+                    "description": "Lifetime in seconds.",
+                    "format": "int64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "verifier": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "verifier",
+                  "manage_verifier",
+                  "uses",
+                  "valid_for"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "expires_at": {
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "signoff": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "expires_at",
+                    "signoff"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Register a voucher link by hashes; the issuer is not stored",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "member",
+        "x-scope": "community"
+      }
+    },
+    "/v1/voucher_link_revoke": {
+      "post": {
+        "operationId": "voucher_link_revoke",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "The issuer's device proves it manages a link with the management secret.",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "secret": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "secret"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "released": {
+                      "description": "Applicants released from the lobby; completed admissions stay.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "released"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [],
+        "summary": "Revoke a voucher link; completed admissions stay",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "public",
+        "x-scope": "community"
+      }
+    },
+    "/v1/voucher_link_view": {
+      "post": {
+        "operationId": "voucher_link_view",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "The issuer's device proves it manages a link with the management secret.",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "secret": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "secret"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "admitted": {
+                      "items": {
+                        "$ref": "#/components/schemas/VoucherEntry"
+                      },
+                      "type": "array"
+                    },
+                    "expires_at": {
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "revoked": {
+                      "type": "boolean"
+                    },
+                    "signoff": {
+                      "type": "boolean"
+                    },
+                    "uses": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "waiting": {
+                      "items": {
+                        "$ref": "#/components/schemas/VoucherEntry"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "waiting",
+                    "admitted",
+                    "revoked",
+                    "expires_at",
+                    "uses",
+                    "signoff"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [],
+        "summary": "Read a voucher link with its management secret",
+        "x-client-access": "forward",
+        "x-effect": "check",
+        "x-role": "public",
+        "x-scope": "community"
+      }
+    },
+    "/v1/voucher_redeem": {
+      "post": {
+        "operationId": "voucher_redeem",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "A newcomer presents a voucher link. The secret is the redemption secret\nderived on the device; the notice is sealed to the issuer's device and is\nrelayed opaque.",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "notice": {
+                    "type": "string"
+                  },
+                  "secret": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "secret",
+                  "notice"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "handle": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "member_id": {
+                      "type": "string"
+                    },
+                    "missing": {
+                      "description": "Unsatisfied admission conditions, strongest requirement first.",
+                      "items": {
+                        "$ref": "#/components/schemas/LobbyMissing"
+                      },
+                      "type": "array"
+                    },
+                    "passport_required": {
+                      "description": "Passport proof is always fresh when requesting a community credential.",
+                      "type": "boolean"
+                    },
+                    "state": {
+                      "type": "string"
+                    },
+                    "steps": {
+                      "description": "Enabled community gates the member can pass now, each with its ordered inputs.",
+                      "items": {
+                        "$ref": "#/components/schemas/LobbyDescriptor"
+                      },
+                      "type": "array"
+                    },
+                    "warnings": {
+                      "items": {
+                        "$ref": "#/components/schemas/LobbyWarning"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "member_id",
+                    "state",
+                    "missing",
+                    "steps",
+                    "warnings",
+                    "passport_required"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Present a voucher link; with sign-off the applicant waits in the lobby",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "member",
+        "x-scope": "community"
+      }
+    },
+    "/v1/voucher_signoff_decide": {
+      "post": {
+        "operationId": "voucher_signoff_decide",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "confirm": {
+                    "type": "boolean"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "member": {
+                    "type": "string"
+                  },
+                  "secret": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "secret",
+                  "member",
+                  "confirm"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "admitted": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "admitted"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [],
+        "summary": "Confirm or decline a waiting applicant",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "public",
+        "x-scope": "community"
+      }
+    },
+    "/v1/voucher_signoff_list": {
+      "post": {
+        "operationId": "voucher_signoff_list",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "The issuer's device proves it manages a link with the management secret.",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "secret": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "secret"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "waiting": {
+                      "items": {
+                        "$ref": "#/components/schemas/VoucherEntry"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "waiting"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [],
+        "summary": "List applicants waiting for sign-off",
         "x-client-access": "forward",
         "x-effect": "check",
         "x-role": "public",

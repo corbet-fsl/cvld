@@ -222,9 +222,9 @@ def main():
     # Per-run material.
     ledger = {
         "account": policy,
-        "max_authorization_seconds": request["nativeWrapper"]["maxAuthorizationSeconds"],
-        "max_proof_bytes": request["nativeWrapper"]["maxProofBytes"],
-        "checkpoint_period_seconds": request["nativeWrapper"]["checkpointPeriodSeconds"],
+        "maxAuthorizationSeconds": request["nativeWrapper"]["maxAuthorizationSeconds"],
+        "maxProofBytes": request["nativeWrapper"]["maxProofBytes"],
+        "checkpointPeriodSeconds": request["nativeWrapper"]["checkpointPeriodSeconds"],
     }
     (out / "ledger-policy.json").write_text(json.dumps(ledger))
     (out / "extension-policy.json").write_text(json.dumps(probe["extension"]))

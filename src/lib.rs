@@ -27,6 +27,7 @@ mod community_actions;
 pub mod config;
 #[cfg(feature = "server")]
 pub mod contact_gates;
+#[cfg(feature = "server")]
 pub mod creation_token;
 pub mod error;
 #[cfg(feature = "server")]

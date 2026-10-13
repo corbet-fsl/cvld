@@ -279,7 +279,12 @@ service host; `Authenticated` means the session's exact host-selected role.
 | lobby | Member | Community | Check |
 | handle_available | Public | Community | Check |
 | handle_reserve | Member | Community | Record |
-| gate_voucher | Member | Community | Record |
+| voucher_redeem | Member | Community | Record |
+| voucher_link_create | Member | Community | Record |
+| voucher_link_view | Public | Community | Check |
+| voucher_signoff_list | Public | Community | Check |
+| voucher_signoff_decide | Public | Community | Record |
+| voucher_link_revoke | Public | Community | Record |
 | gate_withdraw | Member | Community | Record |
 | credential_issue | Member | Community | Record |
 | pin_set | Member | Community | Record |
@@ -309,7 +314,15 @@ explicit service restart; no global secret or account data enters this path.
 
 Production global gate providers are not configured by this door yet; the only
 interactive global gate adapter in this build is the development feature. The
-community voucher gate is real and requires a configured sponsor public key.
+community voucher gate is real: it admits through cvch voucher links held in the
+community database. The host stores no issuer; the issuer's device registers a
+link by hashes, manages it with a secret (the manage actions are public and
+authenticated only by that secret), and receives the newcomer's sealed notice.
+The development feature adds `development_voucher_link` so fixtures can admit the
+first members. ALPHA-BLOCKER: link creation is authorised by a placeholder
+allowance that lets every admitted member create links; the accounting lane
+replaces it with a zero-knowledge proof of allowance and the issuer's device
+enforces limits.
 Legal-order/self-ban authority integration remains unconfigured. The mandatory legal veto still runs on every community gate check.
 
 Pin changes use cmbr's sealed cblc interface and remain disabled in the facade

@@ -98,6 +98,22 @@ struct SessionState {
     garden: bool,
     started: u64,
 }
+/// ALPHA-BLOCKER: placeholder for the accounting lane's allowance. It lets
+/// every admitted member create links; the real port proves in zero knowledge
+/// that some member of the community has allowance, and the issuer's device
+/// enforces the limit, spends and revokes. Nothing here limits vouching.
+struct AlphaAllowance;
+static ALPHA_ALLOWANCE: AlphaAllowance = AlphaAllowance;
+impl cvch::link::Allowance for AlphaAllowance {
+    async fn can_issue(&self, _member: &str) -> bool {
+        true
+    }
+    async fn remaining(&self, _member: &str) -> u32 {
+        u32::MAX
+    }
+    async fn spend_on_admission(&self, _sponsor: &str, _vouchee: &str) {}
+    async fn bond_established(&self, _side: cvch::link::BondSide, _bond: &cvch::link::Bond) {}
+}
 pub struct CommunityService {
     /// Set by the hosting hub for a community that is still being created.
     creation_gate: Option<Arc<dyn creation::CreationGate>>,
@@ -112,7 +128,8 @@ pub struct CommunityService {
     pub config: CommunityConfig,
     pub public: TrustFeed,
     pub changes: tokio::sync::watch::Sender<Arc<TrustFeed>>,
-    voucher: cgts::gates::VoucherGate,
+    links: cgts::LibsqlLinks,
+    voucher: cgts::gates::VoucherGate<cgts::LibsqlLinks>,
     pub payments: Option<Arc<tokio::sync::Mutex<crate::payments::PaymentHost>>>,
     accounts: Option<Arc<crate::accounting::clock::AccountRuntime>>,
     _construction: crate::accounting::NativeConstruction,
@@ -502,13 +519,11 @@ impl CommunityService {
                     .await
                     .map_err(Error::Unavailable.redact())?;
             }
-            let key: [u8; 32] = std::fs::read(&config.voucher_public_key_file)
-                .map_err(Error::Unavailable.redact())?
-                .try_into()
-                .map_err(Error::Invalid.redact())?;
+            let links =
+                cgts::LibsqlLinks::new(db, scope.clone()).map_err(Error::Invalid.redact())?;
             let voucher = cgts::gates::VoucherGate::new(
                 config.voucher_provider.clone(),
-                ed25519_dalek::VerifyingKey::from_bytes(&key).map_err(Error::Invalid.redact())?,
+                Arc::new(links.clone()),
             )
             .map_err(Error::Invalid.redact())?;
             let public_now = accounts
@@ -592,6 +607,7 @@ impl CommunityService {
                 config,
                 public,
                 changes,
+                links,
                 voucher,
                 payments,
                 accounts,
@@ -1093,10 +1109,12 @@ impl CommunityService {
             passport_required: true,
         })
     }
-    pub async fn voucher(
+    /// A newcomer presents a voucher link. With sign-off the applicant stays in
+    /// the lobby (the same link is presented again to learn the decision).
+    pub async fn voucher_redeem(
         &self,
         auth: &ckyh::Authentication,
-        request: Voucher,
+        request: VoucherRedeem,
         now: u64,
     ) -> Result<()> {
         let row = self
@@ -1110,10 +1128,13 @@ impl CommunityService {
             .snapshot(now)
             .await
             .map_err(Error::Refused.redact())?;
-        let input: <cgts::gates::VoucherGate as cgts::Gate>::Input =
-            serde_json::from_value(serde_json::to_value(request).map_err(Error::Invalid.redact())?)
-                .map_err(Error::Invalid.redact())?;
-        self.facade
+        let input = cvch::link::Request {
+            id: request.id,
+            secret: request.secret,
+            notice: request.notice,
+        };
+        match self
+            .facade
             .gates()
             .run(
                 cgts::Context {
@@ -1126,8 +1147,136 @@ impl CommunityService {
                 &input,
             )
             .await
+        {
+            Ok(_) | Err(cgts::Error::Pending) => Ok(()),
+            Err(_) => Err(Error::Refused),
+        }
+    }
+    fn vouching(&self) -> cvch::link::Vouching<'_, cgts::LibsqlLinks, AlphaAllowance> {
+        cvch::link::Vouching {
+            store: &self.links,
+            allowance: &ALPHA_ALLOWANCE,
+        }
+    }
+    /// Register a link for an admitted member. The member is checked and then
+    /// forgotten: the record holds no issuer.
+    pub async fn voucher_link_create(
+        &self,
+        auth: &ckyh::Authentication,
+        request: VoucherLinkCreate,
+        now: u64,
+    ) -> Result<VoucherLinkCreated> {
+        let lease = self
+            .facade
+            .membership()
+            .role(auth)
+            .await
             .map_err(Error::Refused.redact())?;
-        Ok(())
+        let member = lease.member().to_owned();
+        let may_set_signoff = matches!(lease.role(), cmbr::Role::Admin | cmbr::Role::Root);
+        drop(lease);
+        self.register_link(&member, may_set_signoff, request, now)
+            .await
+    }
+    /// Development only: register a link for a member who is not yet admitted,
+    /// so fixtures can bootstrap the first admissions.
+    #[cfg(feature = "development-gate")]
+    pub async fn development_voucher_link(
+        &self,
+        auth: &ckyh::Authentication,
+        request: VoucherLinkCreate,
+        now: u64,
+    ) -> Result<VoucherLinkCreated> {
+        let row = self
+            .facade
+            .membership()
+            .resume(auth)
+            .await
+            .map_err(Error::Refused.redact())?;
+        self.register_link(row.subject(), false, request, now).await
+    }
+    async fn register_link(
+        &self,
+        member: &str,
+        may_set_signoff: bool,
+        request: VoucherLinkCreate,
+        now: u64,
+    ) -> Result<VoucherLinkCreated> {
+        let options = cvch::link::Options::new(
+            request.uses,
+            request.valid_for,
+            request.signoff,
+            may_set_signoff,
+        )
+        .map_err(Error::Invalid.redact())?;
+        let registration = cvch::link::Registration::from_wire(
+            &request.id,
+            &request.verifier,
+            &request.manage_verifier,
+        )
+        .map_err(Error::Invalid.redact())?;
+        self.vouching()
+            .create(&registration, &self.config.community, member, options, now)
+            .await
+            .map_err(Error::Refused.redact())?;
+        Ok(VoucherLinkCreated {
+            id: registration.id().as_str().into(),
+            expires_at: now.saturating_add(options.valid_for()),
+            signoff: options.signoff(),
+        })
+    }
+    fn manage(request: &VoucherManage) -> Result<cvch::link::Manage> {
+        cvch::link::Manage::from_wire(&request.id, &request.secret).map_err(Error::Refused.redact())
+    }
+    fn entries(entries: Vec<cvch::link::Entry>) -> Vec<VoucherEntry> {
+        entries
+            .into_iter()
+            .map(|entry| VoucherEntry {
+                member: entry.member,
+                notice: entry.notice,
+            })
+            .collect()
+    }
+    pub async fn voucher_link_view(&self, request: VoucherManage) -> Result<VoucherLinkView> {
+        let view = self
+            .vouching()
+            .view(&Self::manage(&request)?)
+            .await
+            .map_err(Error::Refused.redact())?;
+        Ok(VoucherLinkView {
+            waiting: Self::entries(view.waiting),
+            admitted: Self::entries(view.admitted),
+            revoked: view.revoked,
+            expires_at: view.expires_at,
+            uses: view.options.uses(),
+            signoff: view.options.signoff(),
+        })
+    }
+    pub async fn voucher_signoff_list(&self, request: VoucherManage) -> Result<VoucherSignoffList> {
+        Ok(VoucherSignoffList {
+            waiting: self.voucher_link_view(request).await?.waiting,
+        })
+    }
+    pub async fn voucher_signoff_decide(
+        &self,
+        request: VoucherSignoffDecide,
+    ) -> Result<VoucherDecision> {
+        let manage = cvch::link::Manage::from_wire(&request.id, &request.secret)
+            .map_err(Error::Refused.redact())?;
+        let admitted = self
+            .vouching()
+            .decide(&manage, &request.member, request.confirm)
+            .await
+            .map_err(Error::Refused.redact())?;
+        Ok(VoucherDecision { admitted })
+    }
+    pub async fn voucher_link_revoke(&self, request: VoucherManage) -> Result<VoucherRevoked> {
+        let released = self
+            .vouching()
+            .revoke(&Self::manage(&request)?)
+            .await
+            .map_err(Error::Refused.redact())?;
+        Ok(VoucherRevoked { released })
     }
     pub(crate) async fn issue(
         &mut self,
