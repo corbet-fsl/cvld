@@ -14,7 +14,8 @@ async fn the_relay_takes_a_reply_without_a_session_and_only_its_member_reads_it(
     let host = "api.relay.example.test";
     let (_, first_passport, _) = wallet_passport(&global).await;
     let (_, second_passport, _) = wallet_passport(&global).await;
-    let first = admitted_community_member(&community, "relay", &first_passport, "relay_first").await;
+    let first =
+        admitted_community_member(&community, "relay", &first_passport, "relay_first").await;
     let second =
         admitted_community_member(&community, "relay", &second_passport, "relay_second").await;
     let subject = |passport: &cpsd::Passport| {
