@@ -47,6 +47,12 @@ pub struct AccountConfig {
     /// early-application route or inferred quota for the configured product.
     pub settlement: SettlementFiles,
     pub max_request_bytes: usize,
+    /// Set only in the hub's template: an absolute directory that holds the inputs
+    /// derived for each created community (seeds, daily settlement key, policy
+    /// window, activation). The per-community files named above are then ignored
+    /// and replaced; the platform-wide artifacts, limits and execution stay.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tenants_dir: Option<String>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]

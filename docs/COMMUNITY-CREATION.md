@@ -90,3 +90,27 @@ least seven days (`MIN_SHELL_SECONDS`), a repeat or a claim extends it by the sa
 The creation id presented in `credential_issue` only works for the member whose
 commitment `community_creation_claim` recorded. The claim secret is stored only
 as a hash. The token key signs creation tokens and nothing else.
+
+## Accounting per community
+
+When the platform template carries an accounting configuration with `tenants_dir`,
+every community needs its own accounting operator, derived at creation and never
+shared with another community or an earlier incarnation of the same address.
+
+- **Platform-wide** (from the template): circuits, proof artifacts, verifier keys,
+  limits and native execution.
+- **Derived per community** (`accounting::tenant`): the operator and certificate
+  seeds (HKDF of the incarnation's founding seed), a fresh daily outcome-deposit
+  epoch with its own RSA key (made once, never recreated), the account policy
+  window of the creation day, and the extension policy. The admission key ring
+  is the community's own Policy ring.
+- **Proved by the creator's device**: `community_terms {address}` names the
+  policies (and the hub's clock); the device proves one throwaway genesis of the
+  extension relation for exactly that community and sends it as `activation` in
+  `community_create`. The hub only verifies: the policy must equal the terms of
+  today's or yesterday's UTC day, and the ledger refuses a statement for another
+  community id and a proof that does not verify. The proof is made in the
+  background; `community_create` is repeatable until it is ready.
+
+Everything derived lives in `<tenants_dir>/<incarnation>/`; a restart reopens the
+same inputs and a failed or ended community deletes them.

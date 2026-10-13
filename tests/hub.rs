@@ -27,6 +27,7 @@ impl Factory for TestFactory {
         address: &'a str,
         seed: [u8; 32],
         plan: Option<cvld::config::CreationPlan>,
+        _activation: Option<cvld::accounting::Activation>,
     ) -> Boxed<'a, cvld::error::Result<Door>> {
         Box::pin(async move {
             let mut config = community_config(&self.dir, address, &self.public, 100);
@@ -36,6 +37,12 @@ impl Factory for TestFactory {
             Door::community(config, self.clock.clone()).await
         })
     }
+
+    fn terms(&self, _now: u64) -> cvld::error::Result<Option<cvld::accounting::AccountingTerms>> {
+        Ok(None)
+    }
+
+    fn forget(&self, _seed: [u8; 32]) {}
 }
 
 fn next_message() -> [u8; 32] {
@@ -132,7 +139,8 @@ impl Fixture {
         json!({"message":token.message,"randomizer":token.randomizer,"signature":token.signature})
     }
     async fn create(&self, address: &str, token: Value) -> cvld::error::Result<CommunityCreated> {
-        self.create_with(address, token, json!(["legal", "voucher"])).await
+        self.create_with(address, token, json!(["legal", "voucher"]))
+            .await
     }
     async fn create_with(
         &self,
@@ -170,9 +178,16 @@ async fn token_creation_claim_admission_registry_and_termination() {
     }
     // The chosen gates are checked before anything is created: `legal` is required
     // and a gate the platform does not offer is refused.
-    for gates in [json!([]), json!(["voucher"]), json!(["legal", "bogus"]), json!(["legal", "legal"])] {
+    for gates in [
+        json!([]),
+        json!(["voucher"]),
+        json!(["legal", "bogus"]),
+        json!(["legal", "legal"]),
+    ] {
         assert!(
-            f.create_with("gardenclub", token.clone(), gates.clone()).await.is_err(),
+            f.create_with("gardenclub", token.clone(), gates.clone())
+                .await
+                .is_err(),
             "{gates}"
         );
     }
@@ -181,7 +196,10 @@ async fn token_creation_claim_admission_registry_and_termination() {
     assert_eq!(created.community_host, format!("gardenclub.{DOMAIN}"));
     assert_eq!(created.vault_host, format!("vault.gardenclub.{DOMAIN}"));
     assert_eq!(created.fingerprint.len(), 64);
-    assert_eq!(f.provisioner.calls().iter().filter(|call| call.0).count(), 1);
+    assert_eq!(
+        f.provisioner.calls().iter().filter(|call| call.0).count(),
+        1
+    );
     // The token is reserved by the shell and cannot create a second community.
     assert!(f.create("otherclub1", token).await.is_err());
     let record = f.record(&created.community_host).await.unwrap();
@@ -209,7 +227,9 @@ async fn token_creation_claim_admission_registry_and_termination() {
             .windows(b"Garden Club".len())
             .any(|window| window == b"Garden Club")
     );
-    let genesis = feed.genesis.expect("the feed publishes the genesis document");
+    let genesis = feed
+        .genesis
+        .expect("the feed publishes the genesis document");
     let verified = csgn::verify_genesis(&genesis).unwrap();
     let digest: String = verified
         .fingerprint()
@@ -335,7 +355,8 @@ async fn an_interrupted_creation_is_repeated_without_a_second_community_or_count
     let kept = pending.to_state();
     let pending = creation_token::Pending::from_state(kept).unwrap();
     let token = creation_token::finish(&f.key, pending, &signatures[0]).unwrap();
-    let token = json!({"message":token.message,"randomizer":token.randomizer,"signature":token.signature});
+    let token =
+        json!({"message":token.message,"randomizer":token.randomizer,"signature":token.signature});
     // The creation is repeated with the same token and address: the same community,
     // the same claim, the same fingerprint, and nothing else is made.
     let first = f.create("restartclub", token.clone()).await.unwrap();
@@ -343,7 +364,10 @@ async fn an_interrupted_creation_is_repeated_without_a_second_community_or_count
     assert_eq!(again.id, first.id);
     assert_eq!(again.fingerprint, first.fingerprint);
     assert_eq!(again.claim, first.claim);
-    assert_eq!(f.provisioner.calls().iter().filter(|call| call.0).count(), 1);
+    assert_eq!(
+        f.provisioner.calls().iter().filter(|call| call.0).count(),
+        1
+    );
     // Another address with the token that is held by a shell is refused.
     let token_again = token.clone();
     assert!(f.create("otherclub1", token).await.is_err());

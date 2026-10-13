@@ -52,6 +52,42 @@ pub struct CommunityCreate {
     /// Admission gates the creator chose. `legal` is required; `voucher` is the
     /// community voucher gate; any other must be offered by the platform template.
     pub gates: Vec<String>,
+    /// The creator's device proved this community's accounting genesis (see
+    /// `community_terms`). Required when the platform runs accounting; the hub
+    /// verifies it and refuses a proof for another community or policy.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub activation: Option<AccountingActivation>,
+}
+/// Ask what a device must prove before it creates a community at this address.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct CommunityTermsRequest {
+    pub address: String,
+}
+/// The public inputs of the accounting genesis proof; absent without accounting.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct CommunityTerms {
+    pub accounting: Option<AccountingTermsWire>,
+}
+/// The account policy window and extension policy the community will run with.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AccountingTermsWire {
+    /// The hub's clock when it named these terms (unix seconds).
+    pub observed_at: u64,
+    #[schema(value_type = Object)]
+    pub ledger_policy: serde_json::Value,
+    #[schema(value_type = Object)]
+    pub extension_policy: serde_json::Value,
+}
+/// A creator device's genesis statement and proof for exactly this community.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AccountingActivation {
+    #[schema(value_type = Object)]
+    pub statement: serde_json::Value,
+    pub proof: Vec<u8>,
 }
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]

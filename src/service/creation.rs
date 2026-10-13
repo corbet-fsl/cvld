@@ -3,8 +3,9 @@
 use super::*;
 use crate::{
     api::{
-        CommunityCreate, CommunityCreated, CommunityTerminate, CreationClaim, CreationClaimed,
-        CreationTokenKey, CreationTokenRequest, CreationTokenResponse, Empty,
+        CommunityCreate, CommunityCreated, CommunityTerminate, CommunityTerms,
+        CommunityTermsRequest, CreationClaim, CreationClaimed, CreationTokenKey,
+        CreationTokenRequest, CreationTokenResponse, Empty,
     },
     hosts::Boxed,
 };
@@ -20,6 +21,12 @@ pub trait CommunityHub: Send + Sync {
         request: CommunityCreate,
         now: u64,
     ) -> Boxed<'a, Result<CommunityCreated>>;
+    /// What a device must prove before it creates a community at this address.
+    fn terms<'a>(
+        &'a self,
+        request: CommunityTermsRequest,
+        now: u64,
+    ) -> Boxed<'a, Result<CommunityTerms>>;
     /// Count one issuance for this person and blind-sign the request.
     fn issue_token<'a>(
         &'a self,
@@ -74,6 +81,13 @@ impl Door {
         request: CommunityCreate,
     ) -> Result<CommunityCreated> {
         self.hub()?.create(request, ctx.now).await
+    }
+    pub(crate) async fn community_terms(
+        &self,
+        ctx: Context,
+        request: CommunityTermsRequest,
+    ) -> Result<CommunityTerms> {
+        self.hub()?.terms(request, ctx.now).await
     }
     pub(crate) async fn community_terminate(
         &self,

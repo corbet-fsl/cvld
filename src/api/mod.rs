@@ -285,6 +285,7 @@ actions! {
     creation_token_key(Empty) -> CreationTokenKey, Public, Global, Check, Forward, "Read the public key that verifies creation tokens";
     creation_token_issue(CreationTokenRequest) -> CreationTokenResponse, Member, Global, Record, Forward, "Blind-sign one creation token within the per-person weekly and yearly limits";
     community_create(CommunityCreate) -> CommunityCreated, Public, Global, Record, Forward, "Create a community by redeeming a creation token; the platform learns no creator";
+    community_terms(CommunityTermsRequest) -> CommunityTerms, Public, Global, Check, Forward, "Read what a device must prove for a new community's accounting before creating it";
     community_terminate(CommunityTerminate) -> Empty, Root, Global, Record, Forward, "End a community at once; Root only, always recorded";
     community_dissolve(Empty) -> Empty, Admin, Community, Record, Forward, "Dissolve this community; its admins only";
     community_creation_claim(CreationClaim) -> CreationClaimed, Member, Community, Record, Forward, "Claim the first admin seat of a community being created";

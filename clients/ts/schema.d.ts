@@ -242,6 +242,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/community_terms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read what a device must prove for a new community's accounting before creating it */
+        post: operations["community_terms"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/contact_accept": {
         parameters: {
             query?: never;
@@ -1709,6 +1726,15 @@ export interface components {
                     binding: number[];
                     /** @enum {string} */
                     kind: "change";
+                } | {
+                    /** @enum {string} */
+                    kind: "admit";
+                    /** Format: uint8 */
+                    role: number;
+                } | {
+                    /** @enum {string} */
+                    kind: "consume";
+                    obligation: number[];
                 };
                 /** @description Settlement frontier, not a balance or an outcome counter. */
                 inbox: {
@@ -2234,6 +2260,11 @@ export interface components {
                 signature: string;
             };
         };
+        /** @description A creator device's genesis statement and proof for exactly this community. */
+        AccountingActivation: {
+            proof: number[];
+            statement: Record<string, never>;
+        };
         /**
          * @description Original delegation wire object. Its device signature authorizes the P-256
          *     coordinate; subsequent accounting signatures prove possession of that key.
@@ -2266,6 +2297,16 @@ export interface components {
              * @description Original delegation protocol version, exactly one.
              */
             version: number;
+        };
+        /** @description The account policy window and extension policy the community will run with. */
+        AccountingTermsWire: {
+            extension_policy: Record<string, never>;
+            ledger_policy: Record<string, never>;
+            /**
+             * Format: int64
+             * @description The hub's clock when it named these terms (unix seconds).
+             */
+            observed_at: number;
         };
         AdmissionGrant: {
             chatPublicKey: string;
@@ -2790,6 +2831,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    activation?: components["schemas"]["AccountingActivation"] | null;
                     /** @description Permanent address, `^[a-z0-9]{8,30}$`, not reserved or taken. */
                     address: string;
                     /** @description Name members see; 1 to 64 characters, no control characters. */
@@ -3115,6 +3157,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": Record<string, never>;
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    community_terms: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    address: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        accounting?: components["schemas"]["AccountingTermsWire"] | null;
+                    };
                 };
             };
             /** @description Fixed redacted error category */

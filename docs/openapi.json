@@ -1144,6 +1144,57 @@
                           "binding"
                         ],
                         "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "description": "The sponsor spends one voucher on an actual admission. The role class is the\nsponsor's current role; the ledger accepts it only if it equals its own record.",
+                        "properties": {
+                          "kind": {
+                            "enum": [
+                              "admit"
+                            ],
+                            "type": "string"
+                          },
+                          "role": {
+                            "format": "uint8",
+                            "maximum": 255,
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "role"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "description": "Consume one bond-addressed obligation. The tag is the only identifier the ledger\never sees; it must be present in the obligation mailbox and is removed with the update.",
+                        "properties": {
+                          "kind": {
+                            "enum": [
+                              "consume"
+                            ],
+                            "type": "string"
+                          },
+                          "obligation": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "obligation"
+                        ],
+                        "type": "object"
                       }
                     ]
                   },
@@ -3315,6 +3366,28 @@
         ],
         "title": "AccountServiceResponse"
       },
+      "AccountingActivation": {
+        "additionalProperties": false,
+        "description": "A creator device's genesis statement and proof for exactly this community.",
+        "properties": {
+          "proof": {
+            "items": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "statement": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "statement",
+          "proof"
+        ],
+        "type": "object"
+      },
       "AccountingDelegation": {
         "additionalProperties": false,
         "description": "Original delegation wire object. Its device signature authorizes the P-256\ncoordinate; subsequent accounting signatures prove possession of that key.",
@@ -3372,6 +3445,30 @@
           "issuedAt",
           "expiresAt",
           "signature"
+        ],
+        "type": "object"
+      },
+      "AccountingTermsWire": {
+        "additionalProperties": false,
+        "description": "The account policy window and extension policy the community will run with.",
+        "properties": {
+          "extension_policy": {
+            "type": "object"
+          },
+          "ledger_policy": {
+            "type": "object"
+          },
+          "observed_at": {
+            "description": "The hub's clock when it named these terms (unix seconds).",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "observed_at",
+          "ledger_policy",
+          "extension_policy"
         ],
         "type": "object"
       },
@@ -4856,6 +4953,17 @@
                 "additionalProperties": false,
                 "description": "Start a new community. No session: the token alone proves capacity, so the\nplatform cannot link the creator to the community.",
                 "properties": {
+                  "activation": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/AccountingActivation",
+                        "description": "The creator's device proved this community's accounting genesis (see\n`community_terms`). Required when the platform runs accounting; the hub\nverifies it and refuses a proof for another community or policy."
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "address": {
                     "description": "Permanent address, `^[a-z0-9]{8,30}$`, not reserved or taken.",
                     "type": "string"
@@ -5494,6 +5602,82 @@
         "x-client-access": "forward",
         "x-effect": "record",
         "x-role": "root",
+        "x-scope": "global"
+      }
+    },
+    "/v1/community_terms": {
+      "post": {
+        "operationId": "community_terms",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Ask what a device must prove before it creates a community at this address.",
+                "properties": {
+                  "address": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "address"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "The public inputs of the accounting genesis proof; absent without accounting.",
+                  "properties": {
+                    "accounting": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/AccountingTermsWire"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [],
+        "summary": "Read what a device must prove for a new community's accounting before creating it",
+        "x-client-access": "forward",
+        "x-effect": "check",
+        "x-role": "public",
         "x-scope": "global"
       }
     },

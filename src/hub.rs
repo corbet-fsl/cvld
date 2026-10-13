@@ -3,6 +3,7 @@
 //! database are the only durable state; the door map is derived and rebuilt from
 //! the registry at start (`restore`).
 use crate::{
+    accounting::{AccountingTerms, Activation},
     address::Reserved,
     api,
     community::creation::{CreationGate, Lifecycle, Terms},
@@ -25,12 +26,20 @@ use tower::ServiceExt;
 
 /// Opens the door of one community incarnation from its derived founding seed.
 pub trait Factory: Send + Sync {
+    /// `activation` is the creator's accounting genesis proof, given once at
+    /// creation; a reopened community finds what was stored with it.
     fn open<'a>(
         &'a self,
         address: &'a str,
         seed: [u8; 32],
         plan: Option<CreationPlan>,
+        activation: Option<Activation>,
     ) -> Boxed<'a, Result<Door>>;
+    /// What a device must prove before creating a community today; `None` when
+    /// the platform runs without accounting.
+    fn terms(&self, now: u64) -> Result<Option<AccountingTerms>>;
+    /// Remove what was derived for a community that is gone. Idempotent.
+    fn forget(&self, seed: [u8; 32]);
 }
 
 pub struct HubParts {
@@ -210,7 +219,7 @@ impl Hub {
         let now = self.clock.now();
         for entry in self.registry.serving().await? {
             let seed = seed(&self.master, &entry.id)?;
-            let door = self.factory.open(&entry.address, seed, None).await?;
+            let door = self.factory.open(&entry.address, seed, None, None).await?;
             if entry.state == State::BeingCreated && now < entry.expires_at.unwrap_or(0) {
                 door.attach_creation_gate(self.gate(entry.id)).await?;
             }
@@ -231,6 +240,9 @@ impl Hub {
         let _ = purge::purge_scope(&self.community_db, &entry.address).await;
         let _ = self.tokens.release(entry.id).await;
         let _ = self.registry.remove_shell(entry.id).await;
+        if let Ok(seed) = seed(&self.master, &entry.id) {
+            self.factory.forget(seed);
+        }
     }
 
     /// Expire abandoned shells; a shell whose creator already completed
@@ -303,6 +315,9 @@ impl Hub {
             .deprovision(&Hostnames::new(&entry.address, &self.base))
             .await?;
         purge::purge_scope(&self.community_db, &entry.address).await?;
+        if let Ok(seed) = seed(&self.master, &entry.id) {
+            self.factory.forget(seed);
+        }
         self.registry.finish_end(entry.id).await
     }
 
@@ -455,6 +470,15 @@ impl CommunityHub for Arc<Hub> {
                 display_name: request.display_name,
                 gates: request.gates,
             };
+            // With accounting every community needs its creator's genesis proof;
+            // the factory verifies it against this community, never the hub's say-so.
+            let activation = request.activation.map(|upload| Activation {
+                statement: upload.statement,
+                proof: upload.proof,
+            });
+            if hub.factory.terms(now)?.is_some() && activation.is_none() {
+                return Err(Error::Invalid);
+            }
             plan.validate()?;
             let token: creation_token::Token = request.token.into();
             let nullifier = creation_token::verify(hub.issuer.public(), &token)?;
@@ -512,7 +536,7 @@ impl CommunityHub for Arc<Hub> {
             let built = async {
                 let door = hub
                     .factory
-                    .open(&entry.address, founding, Some(plan))
+                    .open(&entry.address, founding, Some(plan), activation)
                     .await?;
                 let genesis = door.community_genesis().await?;
                 let fingerprint = csgn::fingerprint(&genesis);
@@ -540,6 +564,27 @@ impl CommunityHub for Arc<Hub> {
                 vault_host: hosts.vault,
                 claim,
                 expires_at: entry.expires_at.unwrap_or(now),
+            })
+        })
+    }
+
+    fn terms<'a>(
+        &'a self,
+        request: api::CommunityTermsRequest,
+        now: u64,
+    ) -> Boxed<'a, Result<api::CommunityTerms>> {
+        Box::pin(async move {
+            crate::address::validate(&request.address, &self.reserved)
+                .map_err(|_| Error::Invalid)?;
+            Ok(api::CommunityTerms {
+                accounting: self
+                    .factory
+                    .terms(now)?
+                    .map(|terms| api::AccountingTermsWire {
+                        observed_at: terms.observed_at,
+                        ledger_policy: terms.ledger_policy,
+                        extension_policy: terms.extension_policy,
+                    }),
             })
         })
     }

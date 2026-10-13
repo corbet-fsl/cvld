@@ -116,11 +116,42 @@ impl Factory for TemplateFactory {
         address: &'a str,
         seed: [u8; 32],
         plan: Option<cvld::config::CreationPlan>,
+        activation: Option<cvld::accounting::Activation>,
     ) -> cvld::hosts::Boxed<'a, Result<Door>> {
         Box::pin(async move {
             let mut config: CommunityConfig =
                 serde_json::from_slice(&self.template).map_err(Error::Invalid.redact())?;
             config.community = address.to_owned();
+            if let Some(template) = config.accounting.take() {
+                if template.is_template() {
+                    let now = self.clock.now();
+                    let community = address.to_owned();
+                    // Derivation includes RSA key generation: off the async executor.
+                    config.accounting = Some(
+                        tokio::task::spawn_blocking(move || {
+                            let checked = activation
+                                .map(|activation| {
+                                    template
+                                        .check_activation(&activation, now)
+                                        .map(|from| (activation, from))
+                                })
+                                .transpose()?;
+                            template.for_tenant(
+                                &community,
+                                &seed,
+                                now,
+                                checked
+                                    .as_ref()
+                                    .map(|(activation, from)| (activation, *from)),
+                            )
+                        })
+                        .await
+                        .map_err(|_| Error::Unavailable)??,
+                    );
+                } else {
+                    config.accounting = Some(template);
+                }
+            }
             config.founding_seed = Some(zeroize::Zeroizing::new(seed));
             config.creation = plan;
             config.shared_database = true;
@@ -135,6 +166,24 @@ impl Factory for TemplateFactory {
             }
             Ok(door)
         })
+    }
+
+    fn terms(&self, now: u64) -> Result<Option<cvld::accounting::AccountingTerms>> {
+        let config: CommunityConfig =
+            serde_json::from_slice(&self.template).map_err(Error::Invalid.redact())?;
+        match config.accounting {
+            Some(template) if template.is_template() => template.terms(now).map(Some),
+            _ => Ok(None),
+        }
+    }
+
+    fn forget(&self, seed: [u8; 32]) {
+        let Ok(config) = serde_json::from_slice::<CommunityConfig>(&self.template) else {
+            return;
+        };
+        if let Some(template) = config.accounting.filter(|template| template.is_template()) {
+            template.forget_tenant(&seed);
+        }
     }
 }
 
