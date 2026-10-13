@@ -712,7 +712,7 @@ pub fn voucher(community: &str, member: &str, id: &str, valid_until: u64) -> Val
         nonce: [3; 16],
         handle: None,
     };
-    let request = Request::new(&token, community, &notice).unwrap();
+    let request = Request::new(&token, &notice).unwrap();
     json!({
         "seed": {
             "id": registration.id().as_str(),
