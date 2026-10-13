@@ -144,6 +144,18 @@ async fn run() -> Result<()> {
         .as_secs();
     let clock = dir.path().join("clock");
     process::clock(&clock, now);
+    // The services read this file as their clock. A long-running stack keeps real time
+    // moving (a frozen server clock makes every ceremony look expired to a later client).
+    let ticking = clock.clone();
+    let clock_task = tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            if let Ok(elapsed) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
+            {
+                process::clock(&ticking, elapsed.as_secs());
+            }
+        }
+    });
     let global_dir = dir.path().join("global");
     fs::create_dir(&global_dir).map_err(|_| "global directory")?;
     let global_listen = process::port();
@@ -430,6 +442,7 @@ async fn run() -> Result<()> {
                     "keys_file": artifacts["keys_file"],
                     "srs_g1_file": artifacts["srs_g1_file"],
                     "srs_g2_file": artifacts["srs_g2_file"],
+                    "timeout_seconds": 300,
                 },
             });
             let path = out.join("device.json");
@@ -456,6 +469,7 @@ async fn run() -> Result<()> {
     for proxy in proxies {
         proxy.abort();
     }
+    clock_task.abort();
     drop(global);
     Ok(())
 }
