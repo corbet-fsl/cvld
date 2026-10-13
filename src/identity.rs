@@ -11,10 +11,17 @@ pub const SCHEMA: &str = "CREATE TABLE cvld_service (
 ) WITHOUT ROWID;";
 
 pub async fn bind(db: &Db, kind: &str, scope: &str) -> Result<()> {
-    let mut tx = db
-        .tx("cvld:service")
-        .await
-        .map_err(Error::Unavailable.redact())?;
+    bind_in(db, "cvld:service", kind, scope).await
+}
+
+/// Bind one community of a database that the hub shares between communities:
+/// each scope owns its own record, so the database as a whole is not tied to one.
+pub async fn bind_shared(db: &Db, scope: &str) -> Result<()> {
+    bind_in(db, &format!("cvld:service:{scope}"), "community", scope).await
+}
+
+async fn bind_in(db: &Db, key: &str, kind: &str, scope: &str) -> Result<()> {
+    let mut tx = db.tx(key).await.map_err(Error::Unavailable.redact())?;
     let rows = tx
         .query(
             "SELECT kind, scope FROM cvld_service WHERE singleton = ?1",

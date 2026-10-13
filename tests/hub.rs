@@ -26,13 +26,21 @@ impl Factory for TestFactory {
         &'a self,
         address: &'a str,
         seed: [u8; 32],
+        plan: Option<cvld::config::CreationPlan>,
     ) -> Boxed<'a, cvld::error::Result<Door>> {
         Box::pin(async move {
             let mut config = community_config(&self.dir, address, &self.public, 100);
             config.founding_seed = Some(zeroize::Zeroizing::new(seed));
+            config.creation = plan;
+            config.shared_database = true;
             Door::community(config, self.clock.clone()).await
         })
     }
+}
+
+fn next_message() -> [u8; 32] {
+    static NEXT: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(3);
+    [NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed); 32]
 }
 
 struct Fixture {
@@ -112,7 +120,7 @@ impl Fixture {
     /// A finished token obtained through the HTTP door with the wallet session.
     async fn token(&self) -> Value {
         let wallet = client(&self.front, WALLET, Some(&self.member.session));
-        let (pending, blinded) = creation_token::request(&self.key, [3; 32]).unwrap();
+        let (pending, blinded) = creation_token::request(&self.key, next_message()).unwrap();
         let response: CreationTokenResponse = serde_json::from_value(
             wallet
                 .call("creation_token_issue", json!({ "blinded": blinded }))
@@ -124,9 +132,20 @@ impl Fixture {
         json!({"message":token.message,"randomizer":token.randomizer,"signature":token.signature})
     }
     async fn create(&self, address: &str, token: Value) -> cvld::error::Result<CommunityCreated> {
+        self.create_with(address, token, json!(["legal", "voucher"])).await
+    }
+    async fn create_with(
+        &self,
+        address: &str,
+        token: Value,
+        gates: Value,
+    ) -> cvld::error::Result<CommunityCreated> {
         let anonymous = client(&self.front, WALLET, None);
         anonymous
-            .call("community_create", json!({"address":address,"token":token}))
+            .call(
+                "community_create",
+                json!({"address":address,"token":token,"display_name":"Garden Club","gates":gates}),
+            )
             .await
             .map(|value| serde_json::from_value(value).unwrap())
     }
@@ -149,11 +168,20 @@ async fn token_creation_claim_admission_registry_and_termination() {
     for bad in ["short", "with-hyphen", "reservedname"] {
         assert!(f.create(bad, token.clone()).await.is_err(), "{bad}");
     }
+    // The chosen gates are checked before anything is created: `legal` is required
+    // and a gate the platform does not offer is refused.
+    for gates in [json!([]), json!(["voucher"]), json!(["legal", "bogus"]), json!(["legal", "legal"])] {
+        assert!(
+            f.create_with("gardenclub", token.clone(), gates.clone()).await.is_err(),
+            "{gates}"
+        );
+    }
+    assert!(f.record(&format!("gardenclub.{DOMAIN}")).await.is_none());
     let created = f.create("gardenclub", token.clone()).await.unwrap();
     assert_eq!(created.community_host, format!("gardenclub.{DOMAIN}"));
     assert_eq!(created.vault_host, format!("vault.gardenclub.{DOMAIN}"));
     assert_eq!(created.fingerprint.len(), 64);
-    assert_eq!(f.provisioner.calls().len(), 1);
+    assert_eq!(f.provisioner.calls().iter().filter(|call| call.0).count(), 1);
     // The token is reserved by the shell and cannot create a second community.
     assert!(f.create("otherclub1", token).await.is_err());
     let record = f.record(&created.community_host).await.unwrap();
@@ -175,6 +203,12 @@ async fn token_creation_claim_admission_registry_and_termination() {
             .unwrap(),
     )
     .unwrap();
+    // The display name is part of the signed settings from the first publication.
+    assert!(
+        feed.settings
+            .windows(b"Garden Club".len())
+            .any(|window| window == b"Garden Club")
+    );
     let genesis = feed.genesis.expect("the feed publishes the genesis document");
     let verified = csgn::verify_genesis(&genesis).unwrap();
     let digest: String = verified
@@ -253,4 +287,27 @@ async fn token_creation_claim_admission_registry_and_termination() {
     let blocked = f.token().await;
     assert!(f.create("gardenclub", blocked).await.is_err());
     let _ = &f.hub;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_chosen_gates_decide_what_the_lobby_still_asks() {
+    let f = fixture().await;
+    let with = f.create("withvoucher", f.token().await).await.unwrap();
+    let without = f
+        .create_with("rosegarden", f.token().await, json!(["legal"]))
+        .await
+        .unwrap();
+    let mut missing = Vec::new();
+    for (address, created) in [("withvoucher", with), ("rosegarden", without)] {
+        let host = format!("api.{address}.{DOMAIN}");
+        let member = enrol_community(&f.front, &host, &f.passport).await;
+        let api = client(&f.front, &host, Some(&member.session));
+        api.call("community_creation_claim", json!({"claim": created.claim}))
+            .await
+            .unwrap();
+        let lobby = api.call("lobby", json!({})).await.unwrap();
+        missing.push(lobby["missing"].to_string());
+    }
+    assert!(missing[0].contains("cvch"), "{}", missing[0]);
+    assert!(!missing[1].contains("cvch"), "{}", missing[1]);
 }

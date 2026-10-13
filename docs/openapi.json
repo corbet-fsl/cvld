@@ -4860,13 +4860,26 @@
                     "description": "Permanent address, `^[a-z0-9]{8,30}$`, not reserved or taken.",
                     "type": "string"
                   },
+                  "display_name": {
+                    "description": "Name members see; 1 to 64 characters, no control characters.",
+                    "type": "string"
+                  },
+                  "gates": {
+                    "description": "Admission gates the creator chose. `legal` is required; `voucher` is the\ncommunity voucher gate; any other must be offered by the platform template.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
                   "token": {
                     "$ref": "#/components/schemas/CreationTokenWire"
                   }
                 },
                 "required": [
                   "address",
-                  "token"
+                  "token",
+                  "display_name",
+                  "gates"
                 ],
                 "type": "object"
               }

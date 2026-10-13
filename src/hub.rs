@@ -6,6 +6,7 @@ use crate::{
     address::Reserved,
     api,
     community::creation::{CreationGate, Lifecycle, Terms},
+    config::CreationPlan,
     creation_token::{self, Issuer, Store},
     error::{Error, Result},
     hosts::{Boxed, HostProvisioner, Hostnames},
@@ -24,7 +25,12 @@ use tower::ServiceExt;
 
 /// Opens the door of one community incarnation from its derived founding seed.
 pub trait Factory: Send + Sync {
-    fn open<'a>(&'a self, address: &'a str, seed: [u8; 32]) -> Boxed<'a, Result<Door>>;
+    fn open<'a>(
+        &'a self,
+        address: &'a str,
+        seed: [u8; 32],
+        plan: Option<CreationPlan>,
+    ) -> Boxed<'a, Result<Door>>;
 }
 
 pub struct HubParts {
@@ -184,7 +190,7 @@ impl Hub {
         let now = self.clock.now();
         for entry in self.registry.serving().await? {
             let seed = seed(&self.master, &entry.id)?;
-            let door = self.factory.open(&entry.address, seed).await?;
+            let door = self.factory.open(&entry.address, seed, None).await?;
             if entry.state == State::BeingCreated && now < entry.expires_at.unwrap_or(0) {
                 door.attach_creation_gate(self.gate(entry.id)).await?;
             }
@@ -425,6 +431,11 @@ impl CommunityHub for Arc<Hub> {
             // 1. Validate address and token before anything is created.
             crate::address::validate(&request.address, &hub.reserved)
                 .map_err(|_| Error::Invalid)?;
+            let plan = CreationPlan {
+                display_name: request.display_name,
+                gates: request.gates,
+            };
+            plan.validate()?;
             let token: creation_token::Token = request.token.into();
             let nullifier = creation_token::verify(hub.issuer.public(), &token)?;
             // 2. Shell id, claim secret and founding seed.
@@ -456,7 +467,10 @@ impl CommunityHub for Arc<Hub> {
             // 4..6. Open the community (creates its founding key and genesis),
             // register the fingerprint, provision hosts. Any failure rolls back.
             let built = async {
-                let door = hub.factory.open(&entry.address, founding).await?;
+                let door = hub
+                    .factory
+                    .open(&entry.address, founding, Some(plan))
+                    .await?;
                 let genesis = door.community_genesis().await?;
                 let fingerprint = csgn::fingerprint(&genesis);
                 hub.registry.set_fingerprint(id, fingerprint).await?;

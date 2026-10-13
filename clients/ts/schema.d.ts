@@ -2758,6 +2758,13 @@ export interface operations {
                 "application/json": {
                     /** @description Permanent address, `^[a-z0-9]{8,30}$`, not reserved or taken. */
                     address: string;
+                    /** @description Name members see; 1 to 64 characters, no control characters. */
+                    display_name: string;
+                    /**
+                     * @description Admission gates the creator chose. `legal` is required; `voucher` is the
+                     *     community voucher gate; any other must be offered by the platform template.
+                     */
+                    gates: string[];
                     token: components["schemas"]["CreationTokenWire"];
                 };
             };

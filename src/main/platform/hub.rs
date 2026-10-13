@@ -115,12 +115,15 @@ impl Factory for TemplateFactory {
         &'a self,
         address: &'a str,
         seed: [u8; 32],
+        plan: Option<cvld::config::CreationPlan>,
     ) -> cvld::hosts::Boxed<'a, Result<Door>> {
         Box::pin(async move {
             let mut config: CommunityConfig =
                 serde_json::from_slice(&self.template).map_err(Error::Invalid.redact())?;
             config.community = address.to_owned();
             config.founding_seed = Some(zeroize::Zeroizing::new(seed));
+            config.creation = plan;
+            config.shared_database = true;
             let door = Door::community_with_construction(
                 config,
                 self.clock.clone(),

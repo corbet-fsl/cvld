@@ -4,6 +4,7 @@ pub use root_board::RootCommunityConfig;
 pub use wallet::WalletConfig;
 
 use crate::error::{Error, Result};
+use cmty::cplc::crbk;
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 
@@ -151,7 +152,121 @@ pub struct CommunityConfig {
     /// Native accounts require an explicit economic policy, verifier and period.
     #[serde(default)]
     pub accounting: Option<crate::accounting::AccountConfig>,
+    /// The creator's choices, applied once to the founding rulebook of a community
+    /// created through the hub. Absent for deployed (static) communities.
+    #[serde(default)]
+    pub creation: Option<CreationPlan>,
+    /// The database holds several communities, each in its own scope (set by the
+    /// hub's factory); the service record is then kept per community.
+    #[serde(default)]
+    pub shared_database: bool,
 }
+
+/// Display name and admission gates chosen at creation. They are written into the
+/// founding rulebook as community-layer values, so the community never exists
+/// without them.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CreationPlan {
+    pub display_name: String,
+    pub gates: Vec<String>,
+}
+
+impl CreationPlan {
+    /// Largest display name, in characters.
+    pub const NAME_CHARS: usize = 64;
+    /// The gate every community has; it is enforced by the legal veto itself.
+    pub const LEGAL: &'static str = "legal";
+
+    /// Syntax check of what a creator sent.
+    pub fn validate(&self) -> Result<()> {
+        let name = self.display_name.trim();
+        if name.is_empty()
+            || name != self.display_name
+            || name.chars().count() > Self::NAME_CHARS
+            || name.chars().any(char::is_control)
+            || self.gates.len() > 16
+            || !self.gates.iter().any(|gate| gate == Self::LEGAL)
+        {
+            return Err(Error::Invalid);
+        }
+        for (index, gate) in self.gates.iter().enumerate() {
+            let valid = !gate.is_empty()
+                && gate.len() <= 32
+                && gate
+                    .bytes()
+                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_');
+            if !valid || self.gates[..index].contains(gate) {
+                return Err(Error::Invalid);
+            }
+        }
+        Ok(())
+    }
+
+    /// Write the plan into the founding rulebook: the admission policy keeps the
+    /// template's global requirements and only the community requirements the
+    /// creator chose (`voucher` stands for the `cvch` gate), and the display name
+    /// becomes a community setting. A gate the template does not offer is refused.
+    pub fn apply(&self, rulebook: &mut crbk::Rulebook) -> Result<()> {
+        self.validate()?;
+        let key = crbk::action_key(cmty::ADMISSION_ACTION);
+        let default = rulebook
+            .catalog()
+            .get(&key)
+            .ok_or(Error::Invalid)?
+            .default
+            .clone();
+        let mut policy: crbk::ActionPolicy =
+            serde_json::from_value(default).map_err(Error::Invalid.redact())?;
+        fn name_of(gate: &str) -> &str {
+            if gate == "voucher" { "cvch" } else { gate }
+        }
+        for gate in &self.gates {
+            if gate != Self::LEGAL
+                && !policy
+                    .all_of
+                    .iter()
+                    .any(|requirement| requirement.gate == name_of(gate))
+            {
+                return Err(Error::Invalid);
+            }
+        }
+        policy.all_of.retain(|requirement| {
+            requirement.level == crbk::GateLevel::Global
+                || self
+                    .gates
+                    .iter()
+                    .any(|gate| name_of(gate) == requirement.gate)
+        });
+        rulebook
+            .set_community(
+                &key,
+                Some(serde_json::to_value(policy).map_err(Error::Invalid.redact())?),
+            )
+            .map_err(Error::Invalid.redact())?;
+        if !rulebook.catalog().contains_key(DISPLAY_NAME) {
+            rulebook
+                .define(
+                    DISPLAY_NAME,
+                    crbk::Setting {
+                        value_type: crbk::SettingType::String,
+                        nullable: false,
+                        default: serde_json::json!(""),
+                        bounds: crbk::Bounds::default(),
+                        lowest_layer: crbk::Layer::Community,
+                        kind: crbk::SettingKind::Technical,
+                    },
+                )
+                .map_err(Error::Invalid.redact())?;
+        }
+        rulebook
+            .set_community(DISPLAY_NAME, Some(serde_json::json!(self.display_name)))
+            .map_err(Error::Invalid.redact())
+    }
+}
+
+/// Community-layer setting that holds the name members see.
+pub const DISPLAY_NAME: &str = "community.display_name";
 impl CommunityConfig {
     pub fn shutdown_budget(&self) -> Result<Duration> {
         shutdown_budget(self.shutdown_seconds)

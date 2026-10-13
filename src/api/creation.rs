@@ -47,6 +47,11 @@ pub struct CommunityCreate {
     /// Permanent address, `^[a-z0-9]{8,30}$`, not reserved or taken.
     pub address: String,
     pub token: CreationTokenWire,
+    /// Name members see; 1 to 64 characters, no control characters.
+    pub display_name: String,
+    /// Admission gates the creator chose. `legal` is required; `voucher` is the
+    /// community voucher gate; any other must be offered by the platform template.
+    pub gates: Vec<String>,
 }
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]

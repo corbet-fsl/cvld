@@ -511,6 +511,8 @@ pub fn community_config(
         voucher_provider: "sponsor".into(),
         payments: None,
         accounting: None,
+        creation: None,
+        shared_database: false,
     };
     write(dir, "config.json", &serde_json::to_vec(&config).unwrap());
     config

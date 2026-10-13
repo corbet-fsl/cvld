@@ -198,7 +198,11 @@ impl CommunityService {
         db.migrate(&migrations)
             .await
             .map_err(Error::Unavailable.redact())?;
-        crate::identity::bind(db, "community", &config.community).await?;
+        if config.shared_database {
+            crate::identity::bind_shared(db, &config.community).await?;
+        } else {
+            crate::identity::bind(db, "community", &config.community).await?;
+        }
         let global = crate::global_trust::load(db, &config, now).await?;
         let status = global.status;
         let status_until = global.valid_until;
@@ -274,10 +278,13 @@ impl CommunityService {
         }
         .map_err(Error::Unavailable.redact())?;
         if !exists {
-            let rulebook = serde_json::from_slice(
+            let mut rulebook: crbk::Rulebook = serde_json::from_slice(
                 &std::fs::read(&config.rulebook_file).map_err(Error::Unavailable.redact())?,
             )
             .map_err(Error::Invalid.redact())?;
+            if let Some(plan) = &config.creation {
+                plan.apply(&mut rulebook)?;
+            }
             policy
                 .schedule_rules(
                     None,

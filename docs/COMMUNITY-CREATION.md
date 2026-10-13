@@ -51,6 +51,17 @@ names (`any_ascii` transliteration) for the server and for the browser.
 Roots join the new community like any member through the root-board path; no
 Root action, bootstrap voucher or special label exists.
 
+## Name and gates at creation
+
+`community_create` carries `display_name` and `gates` with the address and token.
+They are checked before anything is created (`legal` is required; every other
+gate must be offered by the platform template: `voucher` is the community voucher
+gate) and written into the community's founding rulebook as community-layer
+values: the admission policy keeps the template's global requirements and only the
+chosen community gates, and `community.display_name` holds the name. A community
+therefore never exists without them; admins may change them later like any setting.
+The hub gives each community its own service record in the shared database.
+
 ## Ending
 
 * `community_dissolve` (admins) and `community_terminate` (Root:
