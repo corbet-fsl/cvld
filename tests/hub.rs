@@ -311,3 +311,68 @@ async fn the_chosen_gates_decide_what_the_lobby_still_asks() {
     assert!(missing[0].contains("cvch"), "{}", missing[0]);
     assert!(!missing[1].contains("cvch"), "{}", missing[1]);
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_interrupted_creation_is_repeated_without_a_second_community_or_count() {
+    let f = fixture().await;
+    let wallet = client(&f.front, WALLET, Some(&f.member.session));
+    // The same blinded message again is answered with the same signature and is not
+    // counted again (the fixture allows five per week).
+    let (pending, blinded) = creation_token::request(&f.key, [90; 32]).unwrap();
+    let mut signatures = Vec::new();
+    for _ in 0..8 {
+        let response: CreationTokenResponse = serde_json::from_value(
+            wallet
+                .call("creation_token_issue", json!({ "blinded": blinded }))
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        signatures.push(response.blind_signature);
+    }
+    assert!(signatures.windows(2).all(|pair| pair[0] == pair[1]));
+    // A device that kept only the pending state finishes the token after a restart.
+    let kept = pending.to_state();
+    let pending = creation_token::Pending::from_state(kept).unwrap();
+    let token = creation_token::finish(&f.key, pending, &signatures[0]).unwrap();
+    let token = json!({"message":token.message,"randomizer":token.randomizer,"signature":token.signature});
+    // The creation is repeated with the same token and address: the same community,
+    // the same claim, the same fingerprint, and nothing else is made.
+    let first = f.create("restartclub", token.clone()).await.unwrap();
+    let again = f.create("restartclub", token.clone()).await.unwrap();
+    assert_eq!(again.id, first.id);
+    assert_eq!(again.fingerprint, first.fingerprint);
+    assert_eq!(again.claim, first.claim);
+    assert_eq!(f.provisioner.calls().iter().filter(|call| call.0).count(), 1);
+    // Another address with the token that is held by a shell is refused.
+    let token_again = token.clone();
+    assert!(f.create("otherclub1", token).await.is_err());
+    // The repeated answer's claim seats the creator.
+    let host = format!("api.restartclub.{DOMAIN}");
+    let creator = enrol_community(&f.front, &host, &f.passport).await;
+    let api = client(&f.front, &host, Some(&creator.session));
+    let claimed: CreationClaimed = serde_json::from_value(
+        api.call("community_creation_claim", json!({"claim": again.claim}))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(claimed.id, first.id);
+    // A shell lives seven days at least.
+    let day = |days: u64| {
+        f.front
+            .clock
+            .0
+            .fetch_add(days * 86_400, std::sync::atomic::Ordering::SeqCst)
+    };
+    day(5);
+    // Every resume extends it again.
+    let resumed = f.create("restartclub", token_again).await.unwrap();
+    assert_eq!(resumed.id, first.id);
+    day(5);
+    f.hub.sweep().await.unwrap();
+    assert_eq!(
+        f.record(&first.community_host).await.unwrap()["state"],
+        "being_created"
+    );
+}

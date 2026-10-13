@@ -62,6 +62,14 @@ chosen community gates, and `community.display_name` holds the name. A community
 therefore never exists without them; admins may change them later like any setting.
 The hub gives each community its own service record in the shared database.
 
+## Interruption
+
+Every step can be repeated. `creation_token_issue` answers the same blinded message
+again with the same signature and counts it once. `community_create` with the same
+token and address answers from the shell it already made (same id, same derived claim
+secret, same fingerprint), extends the shell and makes nothing new. A shell lives at
+least seven days (`MIN_SHELL_SECONDS`), a repeat or a claim extends it by the same time.
+
 ## Ending
 
 * `community_dissolve` (admins) and `community_terminate` (Root:

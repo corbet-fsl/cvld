@@ -33,6 +33,51 @@ pub struct Pending {
     message: [u8; MESSAGE_LEN],
 }
 
+/// What a device must keep between sending a blinded message and finishing the
+/// token, so an interruption never loses a token the issuer already counted.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PendingState {
+    pub message: Vec<u8>,
+    pub blinded: Vec<u8>,
+    pub secret: Vec<u8>,
+    pub randomizer: Option<[u8; 32]>,
+}
+
+impl Pending {
+    /// The state to keep in custody. It is a secret of the device.
+    pub fn to_state(&self) -> PendingState {
+        PendingState {
+            message: self.message.to_vec(),
+            blinded: self.blinding.blind_message.0.clone(),
+            secret: self.blinding.secret.0.clone(),
+            randomizer: self.blinding.msg_randomizer.map(|value| value.0),
+        }
+    }
+
+    /// Restore kept state; a malformed record is refused.
+    pub fn from_state(state: PendingState) -> Result<Self> {
+        let message: [u8; MESSAGE_LEN] = state
+            .message
+            .as_slice()
+            .try_into()
+            .map_err(|_| Error::Invalid)?;
+        Ok(Self {
+            blinding: BlindingResult {
+                blind_message: blind_rsa_signatures::BlindMessage(state.blinded),
+                secret: blind_rsa_signatures::Secret(state.secret),
+                msg_randomizer: state.randomizer.map(MessageRandomizer),
+            },
+            message,
+        })
+    }
+
+    /// The blinded message that was (or is to be) sent to the issuer.
+    pub fn blinded(&self) -> &[u8] {
+        &self.blinding.blind_message.0
+    }
+}
+
 /// Parse the issuer's published public key.
 pub fn public_key(der: &[u8]) -> Result<PublicKey> {
     PublicKey::from_der(der).map_err(|_| Error::Invalid)
@@ -122,12 +167,25 @@ impl Issuer {
 }
 
 #[cfg(feature = "server")]
-pub use store::{Limits, SCHEMA, Store};
+pub use store::{Limits, SCHEMA, SIGNATURES_SCHEMA, Store};
 
 #[cfg(feature = "server")]
 mod store {
     use super::*;
     use crlt::{Community, params};
+
+    /// Signatures already issued, so a repeated request for the same blinded message
+    /// (a device interrupted before it stored the answer) is answered again without
+    /// counting a second issuance. The issuer saw the blinded message and the person
+    /// at issuance anyway; nothing here links a person to a community.
+    pub const SIGNATURES_SCHEMA: &str = "CREATE TABLE cvld_creation_signatures (
+    community_id TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    blinded_hash BLOB NOT NULL CHECK (length(blinded_hash) = 32),
+    signature BLOB NOT NULL,
+    issued_at INTEGER NOT NULL,
+    PRIMARY KEY (community_id, subject, blinded_hash)
+) WITHOUT ROWID;";
 
     pub const SCHEMA: &str = "CREATE TABLE cvld_creation_issued (
     community_id TEXT NOT NULL,
@@ -162,6 +220,11 @@ CREATE INDEX cvld_creation_tokens_shell ON cvld_creation_tokens (community_id, s
                 per_year: 12,
             }
         }
+    }
+
+    fn digest(bytes: &[u8]) -> Vec<u8> {
+        use sha2::{Digest, Sha256};
+        Sha256::digest(bytes).to_vec()
     }
 
     fn db<T>(_: T) -> Error {
@@ -217,6 +280,83 @@ CREATE INDEX cvld_creation_tokens_shell ON cvld_creation_tokens (community_id, s
             .await
             .map_err(db)?;
             tx.commit().await.map_err(db)
+        }
+
+        /// The signature issued earlier for exactly this blinded message to `subject`.
+        pub async fn replay(&self, subject: &str, blinded: &[u8]) -> Result<Option<Vec<u8>>> {
+            let rows = self
+                .scope
+                .query(
+                    "SELECT signature FROM cvld_creation_signatures WHERE subject = ?1 AND blinded_hash = ?2",
+                    params![subject, digest(blinded)],
+                )
+                .await
+                .map_err(db)?;
+            match rows.first() {
+                None => Ok(None),
+                Some(row) => match row.get_value(0).map_err(db)? {
+                    crlt::Value::Blob(bytes) => Ok(Some(bytes.clone())),
+                    _ => Err(Error::Unavailable),
+                },
+            }
+        }
+
+        /// Keep an issued signature for replay for a year (the issuance window).
+        pub async fn remember(
+            &self,
+            subject: &str,
+            blinded: &[u8],
+            signature: &[u8],
+            now: u64,
+        ) -> Result<()> {
+            let mut tx = self.scope.tx().await.map_err(db)?;
+            let year_start = i64::try_from(now.saturating_sub(YEAR)).map_err(db)?;
+            tx.execute(
+                "DELETE FROM cvld_creation_signatures WHERE issued_at <= ?1",
+                [year_start],
+            )
+            .await
+            .map_err(db)?;
+            let known = tx
+                .query(
+                    "SELECT issued_at FROM cvld_creation_signatures WHERE subject = ?1 AND blinded_hash = ?2",
+                    params![subject, digest(blinded)],
+                )
+                .await
+                .map_err(db)?;
+            if !known.is_empty() {
+                return tx.commit().await.map_err(db);
+            }
+            tx.execute(
+                "INSERT INTO cvld_creation_signatures (subject, blinded_hash, signature, issued_at) VALUES (?1, ?2, ?3, ?4)",
+                params![subject, digest(blinded), signature.to_vec(), i64::try_from(now).map_err(db)?],
+            )
+            .await
+            .map_err(db)?;
+            tx.commit().await.map_err(db)
+        }
+
+        /// The shell a token's nullifier is reserved for, and whether it is spent.
+        pub async fn reservation(
+            &self,
+            nullifier: [u8; MESSAGE_LEN],
+        ) -> Result<Option<([u8; 16], bool)>> {
+            let rows = self
+                .scope
+                .query(
+                    "SELECT shell, spent FROM cvld_creation_tokens WHERE nullifier = ?1",
+                    [nullifier.to_vec()],
+                )
+                .await
+                .map_err(db)?;
+            let Some(row) = rows.first() else {
+                return Ok(None);
+            };
+            let shell = match row.get_value(0).map_err(db)? {
+                crlt::Value::Blob(bytes) => <[u8; 16]>::try_from(bytes.as_slice()).map_err(db)?,
+                _ => return Err(Error::Unavailable),
+            };
+            Ok(Some((shell, row.get_i64(1).map_err(db)? != 0)))
         }
 
         /// Reserve a verified token's nullifier for one community shell.

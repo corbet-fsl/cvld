@@ -235,6 +235,19 @@ impl Registry {
             .map(|_| ())
     }
 
+    /// Keep a shell alive until `until`: the creator is still on its way (resumed
+    /// creation or a claimed seat waiting for the admission).
+    pub async fn extend_shell(&self, id: [u8; 16], until: u64) -> Result<()> {
+        let mut tx = self.scope.tx().await.map_err(db)?;
+        tx.execute(
+            "UPDATE cvld_communities SET expires_at = ?2 WHERE id = ?1 AND state = 'being_created' AND (expires_at IS NULL OR expires_at < ?2)",
+            params![id.to_vec(), int(until)?],
+        )
+        .await
+        .map_err(db)?;
+        tx.commit().await.map_err(db)
+    }
+
     /// Remove a shell that was never completed (rollback or expiry).
     pub async fn remove_shell(&self, id: [u8; 16]) -> Result<()> {
         let mut tx = self.scope.tx().await.map_err(db)?;

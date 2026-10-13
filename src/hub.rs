@@ -90,7 +90,23 @@ fn seed(master: &[u8], id: &[u8; 16]) -> Result<[u8; 32]> {
     Ok(out)
 }
 
+/// A creation is a person's interrupted afternoon, not a request: a shell lives at
+/// least this long, and every resume or claim extends it by the same time.
+pub const MIN_SHELL_SECONDS: u64 = 7 * 86_400;
+
+/// The claim secret is derived, so a creation that is repeated with the same token
+/// is answered with the same secret and a device interrupted before it stored the
+/// answer can still claim. Only the hash is kept in the registry.
+fn claim_for(master: &[u8], id: &[u8]) -> Result<Vec<u8>> {
+    let mut out = vec![0u8; 32];
+    Hkdf::<Sha256>::new(Some(b"cvld.community.claim.v1"), master)
+        .expand(id, &mut out)
+        .map_err(|_| Error::Unavailable)?;
+    Ok(out)
+}
+
 struct ShellGate {
+    shell_seconds: u64,
     registry: Arc<Registry>,
     tokens: Arc<dyn Fn([u8; 16]) -> Boxed<'static, Result<()>> + Send + Sync>,
     id: [u8; 16],
@@ -106,6 +122,9 @@ impl CreationGate for ShellGate {
             if !(fresh && matches) {
                 return Err(Error::Refused);
             }
+            // The claimed seat waits for the admission as long as a creation may.
+            let until = now.saturating_add(self.shell_seconds).max(until);
+            self.registry.extend_shell(self.id, until).await?;
             Ok(Terms {
                 id: hex(&self.id),
                 valid_until: until,
@@ -149,7 +168,7 @@ impl Hub {
             base: parts.base,
             reserved: parts.reserved,
             clock: parts.clock,
-            shell_seconds: parts.shell_seconds,
+            shell_seconds: parts.shell_seconds.max(MIN_SHELL_SECONDS),
             master: parts.master,
             doors: RwLock::new(BTreeMap::new()),
         }))
@@ -162,6 +181,7 @@ impl Hub {
     fn gate(self: &Arc<Self>, id: [u8; 16]) -> Arc<ShellGate> {
         let hub = self.clone();
         Arc::new(ShellGate {
+            shell_seconds: self.shell_seconds,
             registry: self.registry.clone(),
             tokens: Arc::new(move |id| {
                 let hub = hub.clone();
@@ -438,11 +458,34 @@ impl CommunityHub for Arc<Hub> {
             plan.validate()?;
             let token: creation_token::Token = request.token.into();
             let nullifier = creation_token::verify(hub.issuer.public(), &token)?;
+            // A repeat of an interrupted creation (same token, same address) is
+            // answered from the shell that already exists: never a second community.
+            if let Some((shell, spent)) = hub.tokens.reservation(nullifier).await? {
+                let entry = hub.registry.by_id(shell).await?.ok_or(Error::Refused)?;
+                let waiting = entry.state == State::BeingCreated
+                    && !spent
+                    && entry.address == request.address
+                    && now < entry.expires_at.unwrap_or(0);
+                let fingerprint = entry.fingerprint.ok_or(Error::Refused)?;
+                if !waiting {
+                    return Err(Error::Refused);
+                }
+                let until = now.saturating_add(hub.shell_seconds);
+                hub.registry.extend_shell(shell, until).await?;
+                let hosts = Hostnames::new(&entry.address, &hub.base);
+                return Ok(api::CommunityCreated {
+                    id: hex(&shell),
+                    fingerprint: hex(&fingerprint),
+                    community_host: hosts.community,
+                    vault_host: hosts.vault,
+                    claim: claim_for(&hub.master, &shell)?,
+                    expires_at: until.max(entry.expires_at.unwrap_or(0)),
+                });
+            }
             // 2. Shell id, claim secret and founding seed.
             let mut id = [0u8; 16];
-            let mut claim = vec![0u8; 32];
             rand::rngs::OsRng.fill_bytes(&mut id);
-            rand::rngs::OsRng.fill_bytes(&mut claim);
+            let claim = claim_for(&hub.master, &id)?;
             let founding = seed(&hub.master, &id)?;
             // 3. Reserve the token, then register the shell (address uniqueness).
             hub.tokens.reserve(nullifier, id).await?;
@@ -508,8 +551,16 @@ impl CommunityHub for Arc<Hub> {
         now: u64,
     ) -> Boxed<'a, Result<Vec<u8>>> {
         Box::pin(async move {
+            // The same blinded message again (an interrupted device) gets the
+            // same answer and no second count.
+            if let Some(signature) = self.tokens.replay(subject, blinded).await? {
+                return Ok(signature);
+            }
             let signature = self.issuer.sign(blinded)?;
             self.tokens.record_issuance(subject, now).await?;
+            self.tokens
+                .remember(subject, blinded, &signature, now)
+                .await?;
             Ok(signature)
         })
     }
