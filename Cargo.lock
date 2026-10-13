@@ -1108,7 +1108,7 @@ dependencies = [
 [[package]]
 name = "cblc"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cblc?branch=main#23e8c76bff4a61f964a0984d73e48f29d4ad8139"
+source = "git+https://git.corbet.ch/corbet-libs/cblc?branch=main#f249f9b11295b6db13d1bd227defb194755d77c5"
 dependencies = [
  "cbcn",
  "cmbl",
@@ -1177,7 +1177,7 @@ checksum = "f079e83a288787bcd14a6aea84cee5c87a67c5a3e660c30f557a3d24761b3527"
 [[package]]
 name = "cgbl"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cgbl.git?branch=main#e28064be791230d04cdc7176a623147ebe9e9b77"
+source = "git+https://git.corbet.ch/corbet-libs/cgbl.git?branch=main#a87730fa8dc23149cf7d028e06345fc20f65b1b5"
 dependencies = [
  "cbcn",
  "ckyh",
@@ -1687,7 +1687,7 @@ dependencies = [
 [[package]]
 name = "cplc"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cplc?branch=main#7106d2a1e176a493492afd8dc214c2db860f8f0a"
+source = "git+https://git.corbet.ch/corbet-libs/cplc?branch=main#8958ee98d235938a2543393b53292ede9a33d6e8"
 dependencies = [
  "cbcn",
  "cblc",
@@ -1735,7 +1735,7 @@ dependencies = [
 [[package]]
 name = "cpsd"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-foss/cpsd?branch=main#3a9c9c13715313620ec8c1a1b8a1f6c8084e56c4"
+source = "git+https://git.corbet.ch/corbet-foss/cpsd?branch=main#907b0a6264be4df6f31898cb89f31a68ad3ef04b"
 dependencies = [
  "ark-bls12-381",
  "ark-ec 0.4.2",
@@ -1784,7 +1784,7 @@ dependencies = [
 [[package]]
 name = "crbk"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-foss/crbk?branch=main#d3431a1bcf8f440be3f3ee0def7588ced2f752db"
+source = "git+https://git.corbet.ch/corbet-foss/crbk?branch=main#6dfc391ba24c2894946a9e5424ce4ad3ed68f6fa"
 dependencies = [
  "crlt",
  "semver 1.0.28",
@@ -2015,7 +2015,7 @@ dependencies = [
 [[package]]
 name = "cvch"
 version = "0.2.1"
-source = "git+https://git.corbet.ch/corbet-foss/cvch?branch=main#7cb895c09b712f55d360c88cbf89dd21f2292dd7"
+source = "git+https://git.corbet.ch/corbet-foss/cvch?branch=main#ac292fe9e2eb54e19d592b8926aa12c077d0f2e2"
 dependencies = [
  "cfbk",
  "csgn",
@@ -2107,7 +2107,7 @@ dependencies = [
 [[package]]
 name = "czkp"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-foss/czkp?branch=main#20a60821a96d46d0f57b9f5de6f5e7c8b5a73a3c"
+source = "git+https://git.corbet.ch/corbet-foss/czkp?branch=main#49db2e539df8e0d87d2e630473142a114fe476d2"
 dependencies = [
  "ark-bn254",
  "ark-ff 0.6.0",
