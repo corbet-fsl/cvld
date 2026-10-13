@@ -696,7 +696,7 @@ pub async fn finish_enrol(service: &Running, host: &str, start: Ceremony) -> Mem
 }
 /// A single-use voucher link for `member`: the development registration body
 /// (the first members have no earlier member to issue a link) and the redeem
-/// request, both derived from `id`. Present it with [`VoucherCall::voucher_redeem`].
+/// request and the link text, all derived from `id`. Present it with [`VoucherCall::voucher_redeem`].
 pub fn voucher(community: &str, member: &str, id: &str, valid_until: u64) -> Value {
     use cvch::link::{Notice, Options, Request, Token};
     let mut entropy = [1u8; 32];
@@ -723,6 +723,7 @@ pub fn voucher(community: &str, member: &str, id: &str, valid_until: u64) -> Val
             "signoff": null,
         },
         "redeem": {"id": request.id, "secret": request.secret, "notice": request.notice},
+        "link": token.fragment().to_string(),
     })
 }
 /// Present a [`voucher`]: register its link (a repeat is harmless) and redeem it.
