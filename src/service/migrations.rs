@@ -22,6 +22,7 @@ pub fn community_migrations() -> Vec<crlt::Migration<'static>> {
         ("cmbr-creation", cmbr::CREATION_SCHEMA),
         ("cmbr-role-redemption", cmbr::ROLE_REDEMPTION_SCHEMA),
         ("ohttp-replay", crate::ohttp::SCHEMA),
+        ("cmbr-device-pending", cmbr::DEVICE_PENDING_SCHEMA),
     ]);
     schemas
         .iter()

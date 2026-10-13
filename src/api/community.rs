@@ -315,6 +315,23 @@ pub struct DeviceKey {
     pub step_up: Option<StepUpProof>,
 }
 
+/// Make this passkey's pending device key live after its lineage revision is published.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DeviceConfirm {
+    pub key: [u8; 32],
+}
+
+/// Remove one device signing key of this account, live or pending (a lost device).
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DeviceRevoke {
+    pub key: [u8; 32],
+    /// Required except for Root, whose portal sign-in is the step-up.
+    #[serde(default)]
+    pub step_up: Option<StepUpProof>,
+}
+
 /// Current public signing keys; the authenticated passkey authorizes mutations.
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]

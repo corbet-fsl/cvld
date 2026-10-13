@@ -217,3 +217,77 @@ async fn a_credential_revoked_after_the_challenge_cannot_complete_it() {
         401
     );
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn pairing_actions_need_their_own_proof_and_never_substitute_a_live_key() {
+    let (_global, service, mut member) = fixture().await;
+    let key = vec![7u8; 32];
+    let signing = member.signing_key;
+    for (action, body) in [
+        ("device_pair_authorize", json!({"key": key})),
+        ("device_revoke", json!({"key": signing})),
+    ] {
+        assert_eq!(status(&service, &member, action, body).await, 403);
+    }
+    // Nothing is pending, so nothing can be confirmed.
+    assert_ne!(
+        status(&service, &member, "device_confirm", json!({"key": key})).await,
+        200
+    );
+    // This passkey already has a live key: a pending one is refused, not substituted.
+    let used = proof(
+        &service,
+        &mut member,
+        json!({"kind":"device_authorize","key":key}),
+    )
+    .await;
+    assert_ne!(
+        status(
+            &service,
+            &member,
+            "device_pair_authorize",
+            json!({"key": key, "step_up": used})
+        )
+        .await,
+        200
+    );
+    unchanged(&service, &member).await;
+    // A revocation proof for another key never opens this one; its own does, once.
+    let other = proof(
+        &service,
+        &mut member,
+        json!({"kind":"device_revoke","key":key}),
+    )
+    .await;
+    assert_eq!(
+        status(
+            &service,
+            &member,
+            "device_revoke",
+            json!({"key": signing, "step_up": other})
+        )
+        .await,
+        401
+    );
+    unchanged(&service, &member).await;
+    let own = proof(
+        &service,
+        &mut member,
+        json!({"kind":"device_revoke","key":signing}),
+    )
+    .await;
+    assert_eq!(
+        status(
+            &service,
+            &member,
+            "device_revoke",
+            json!({"key": signing, "step_up": own})
+        )
+        .await,
+        200
+    );
+    let c = client(&service, HOST, Some(&member.session));
+    let keys: DeviceKeys =
+        serde_json::from_value(c.call("device_keys", json!({})).await.unwrap()).unwrap();
+    assert!(keys.keys.is_empty());
+}

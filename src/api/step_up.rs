@@ -11,6 +11,8 @@ pub enum StepUpAction {
     PasskeyRevoke { credential: Vec<u8> },
     /// Authorize this exact device signing key.
     DeviceAuthorize { key: [u8; 32] },
+    /// Remove this exact device signing key, live or pending.
+    DeviceRevoke { key: [u8; 32] },
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]
