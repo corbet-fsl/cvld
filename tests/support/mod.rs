@@ -706,7 +706,7 @@ pub fn voucher(_community: &str, member: &str, id: &str, valid_until: u64) -> Va
     for (at, byte) in id.bytes().enumerate() {
         entropy[at % 32] ^= byte;
     }
-    let (token, _) = Token::issue(entropy, [7; 32]).unwrap();
+    let (token, _) = Token::issue(entropy, [7; 32], [5; 32]).unwrap();
     let registration = token.registration();
     let valid_for = valid_until.saturating_sub(NOW).max(1);
     Options::new(1, valid_for, None, false).unwrap();
