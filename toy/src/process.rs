@@ -210,7 +210,12 @@ impl Service {
             .env("CVLD_TOY_METER", &cli.meter)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
+            // Service diagnostics are fixed messages; opt in to see why one stops.
+            .stderr(if std::env::var_os("CVLD_TOY_SERVICE_STDERR").is_some() {
+                Stdio::inherit()
+            } else {
+                Stdio::null()
+            })
             .spawn()
             .map_err(|_| "cannot start cvld service".into())
     }
