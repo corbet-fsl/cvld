@@ -1149,6 +1149,7 @@ dependencies = [
 [[package]]
 name = "cblc"
 version = "0.0.0"
+source = "git+https://git.corbet.ch/corbet-libs/cblc?branch=main#82f1f7b0ec5539834e6b70e54100252f4651c618"
 dependencies = [
  "cbcn",
  "cmbl",
@@ -1481,7 +1482,7 @@ dependencies = [
 [[package]]
 name = "cmbl"
 version = "0.1.0"
-source = "git+https://git.corbet.ch/corbet-foss/cmbl.git?branch=v01#86f3df5f2854a486802f30c1055f8fccbdfc8fd5"
+source = "git+https://git.corbet.ch/corbet-foss/cmbl.git?branch=main#bdebddaac7ed2f0e2ec19989d3b8a996a538531b"
 dependencies = [
  "blake3",
  "blind-rsa-signatures",
@@ -1842,6 +1843,7 @@ dependencies = [
 [[package]]
 name = "crbk"
 version = "0.0.0"
+source = "git+https://git.corbet.ch/corbet-foss/crbk?branch=main#b3aefb7d173e54f1f72eb102e4ece587c98aa23c"
 dependencies = [
  "crlt",
  "czkp",
@@ -2188,6 +2190,7 @@ dependencies = [
 [[package]]
 name = "czkp"
 version = "0.0.0"
+source = "git+https://git.corbet.ch/corbet-foss/czkp?branch=main#a977faf973d3be751df3468f3f39a7bd6df2392b"
 dependencies = [
  "ark-bn254",
  "ark-ff 0.6.0",
@@ -6548,7 +6551,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix 1.1.5",
  "windows-sys 0.61.2",
@@ -7847,11 +7850,3 @@ name = "zmij"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
-
-[[patch.unused]]
-name = "cwlt"
-version = "0.0.0"
-
-[[patch.unused]]
-name = "cwlt-engine"
-version = "0.0.0"
