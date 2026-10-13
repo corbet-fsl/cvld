@@ -157,7 +157,13 @@ async fn run() -> Result<()> {
     let alpha_dir = dir.path().join("alpha");
     fs::create_dir(&alpha_dir).map_err(|_| "alpha directory")?;
     let alpha_listen = process::port();
-    fixtures::community(&alpha_dir, alpha_listen.clone(), "alpha", &public, 1000);
+    // The real accounting operator's activation probe is cut for the community "omega".
+    let community_name = if std::env::var_os("CVLD_G5_ACCOUNT_CONFIG").is_some() {
+        "omega"
+    } else {
+        "alpha"
+    };
+    fixtures::community(&alpha_dir, alpha_listen.clone(), community_name, &public, 1000);
     fs::write(
         global_dir.join("platform.json"),
         serde_json::to_vec(&json!({
@@ -272,7 +278,7 @@ async fn run() -> Result<()> {
     .map_err(|_| "write member configuration")?;
     // The community device: wallet passport service first, then the community.
     let mut community = member.clone();
-    community["community"] = json!("alpha");
+    community["community"] = json!(community_name);
     community["services"] = json!([
         {"scope": "global", "base": format!("https://127.0.0.1:{port}"), "host": "127.0.0.1"},
         {"scope": "community", "base": format!("https://127.0.0.1:{alpha_port}"), "host": "127.0.0.1"},

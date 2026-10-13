@@ -232,7 +232,32 @@ pub fn community_schema(community: &str, version: u32) -> cplc::cshm::Schema {
     serde_json::from_value(json!({"community":community,"version":version,
         "public":[{"id":"restricted","label":"Restricted", "kind":{"type":"yes_no"},"required":false,"filterable":false,"change_preset":"stable","no_contact_details":false}],"private":[]})).unwrap()
 }
+/// The real native accounting operator, when the toy job provides the assembled
+/// G5 configuration (`tools/g5-account-config.py`, retained cblc artifacts).
+/// Its Rulebook carries the period and the daily quota the operator reads.
+pub fn accounting() -> Option<(cvld::accounting::AccountConfig, crbk::Rulebook)> {
+    let path = std::env::var_os("CVLD_G5_ACCOUNT_CONFIG")?;
+    let account: cvld::accounting::AccountConfig =
+        serde_json::from_slice(&std::fs::read(path).expect("G5 account configuration"))
+            .expect("G5 account configuration decodes");
+    let mut rules = community_rules();
+    crbk::RecordEpochSettings::define(&mut rules, &account.period_key).expect("period key");
+    crbk::OutcomeQuotaSettings::define(&mut rules, &account.settlement.quota_key)
+        .expect("quota key");
+    rules
+        .set_community(&account.period_key, Some(json!(86_400)))
+        .expect("period");
+    rules
+        .set_community(&account.settlement.quota_key, Some(json!(4)))
+        .expect("quota");
+    Some((account, rules))
+}
+
 pub fn community(dir: &Path, listen: String, name: &str, public: &GlobalPublic, burst: u32) {
+    let (accounting, rules) = match accounting() {
+        Some((account, rules)) => (Some(account), rules),
+        None => (None, community_rules()),
+    };
     let config = CommunityConfig {
         listen,
         domain: DOMAIN.into(),
@@ -244,7 +269,7 @@ pub fn community(dir: &Path, listen: String, name: &str, public: &GlobalPublic, 
         rulebook_file: write(
             dir,
             "rulebook",
-            &serde_json::to_vec(&community_rules()).unwrap(),
+            &serde_json::to_vec(&rules).unwrap(),
         ),
         schema_file: write(
             dir,
@@ -288,7 +313,7 @@ pub fn community(dir: &Path, listen: String, name: &str, public: &GlobalPublic, 
             "voucher-key",
             SigningKey::from_bytes(&[9; 32]).verifying_key().as_bytes(),
         ),
-        accounting: None,
+        accounting,
         trusted_proxies: Vec::new(),
         ohttp: None,
     };
