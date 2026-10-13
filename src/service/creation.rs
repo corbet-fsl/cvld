@@ -31,6 +31,11 @@ pub trait CommunityHub: Send + Sync {
     fn terminate<'a>(&'a self, request: CommunityTerminate, now: u64) -> Boxed<'a, Result<()>>;
     /// The public key that verifies creation tokens (DER).
     fn token_key(&self) -> Result<Vec<u8>>;
+    /// True when `host` resolves to a LIVE community of this hub (unknown, shell, ending and
+    /// ended hosts are all false); the OHTTP gateway serves exactly these authorities.
+    fn serves_host<'a>(&'a self, _host: &'a str) -> Boxed<'a, bool> {
+        Box::pin(async { false })
+    }
 }
 
 impl Door {

@@ -420,6 +420,14 @@ impl Lifecycle for Dissolve {
 }
 
 impl CommunityHub for Arc<Hub> {
+    fn serves_host<'a>(&'a self, host: &'a str) -> Boxed<'a, bool> {
+        Box::pin(async move {
+            matches!(
+                self.registry.by_host(host, &self.base).await,
+                Ok(Some((entry, _))) if entry.state == State::Live
+            )
+        })
+    }
     fn terminate<'a>(
         &'a self,
         request: api::CommunityTerminate,

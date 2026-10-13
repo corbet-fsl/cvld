@@ -101,7 +101,7 @@ pub struct Door {
 }
 struct Inner {
     /// Hosting hub of a multi-tenant global door; set once by the launcher.
-    hub: std::sync::OnceLock<Arc<dyn CommunityHub>>,
+    hub: Arc<std::sync::OnceLock<Arc<dyn CommunityHub>>>,
     requests: Arc<Mutex<()>>,
     ceremony_slots: Arc<Semaphore>,
     public_slots: Arc<Semaphore>,
@@ -280,7 +280,8 @@ impl Door {
         let sources = source_buckets(config.throttle_burst, config.throttle_interval_ms)?;
         let proxies = crate::bucket::Proxies::new(&config.trusted_proxies).ok_or(Error::Invalid)?;
         let names: Vec<String> = hosts.keys().cloned().collect();
-        let ohttp = crate::ohttp::build(config.ohttp.as_ref(), &names, &db, "ohttp").await?;
+        let hub_slot: Arc<std::sync::OnceLock<Arc<dyn CommunityHub>>> = Arc::new(std::sync::OnceLock::new());
+        let ohttp = crate::ohttp::build(config.ohttp.as_ref(), &names, &db, "ohttp", Some(hub_slot.clone())).await?;
         Ok(Self {
             inner: Arc::new(Inner {
                 requests: Arc::new(Mutex::new(())),
@@ -290,7 +291,7 @@ impl Door {
                 watch_slots: Arc::new(Semaphore::new(16)),
                 published,
                 scope: Scope::Global,
-                hub: std::sync::OnceLock::new(),
+                hub: hub_slot,
                 hosts,
                 backend: Backend::Global(Box::new(Mutex::new(global))),
                 member_host: None,
@@ -515,10 +516,10 @@ impl Door {
                 crate::bucket::Proxies::new(&config.trusted_proxies).ok_or(Error::Invalid)?;
             let names: Vec<String> = hosts.keys().cloned().collect();
             let ohttp =
-                crate::ohttp::build(config.ohttp.as_ref(), &names, &db, &config.community).await?;
+                crate::ohttp::build(config.ohttp.as_ref(), &names, &db, &config.community, None).await?;
             Ok(Self {
                 inner: Arc::new(Inner {
-                    hub: std::sync::OnceLock::new(),
+                    hub: Arc::new(std::sync::OnceLock::new()),
                     requests: Arc::new(Mutex::new(())),
                     ceremony_slots: Arc::new(Semaphore::new(16)),
                     public_slots: Arc::new(Semaphore::new(32)),
