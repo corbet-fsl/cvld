@@ -447,6 +447,24 @@ export interface paths {
         trace?: never;
     };
     "/v1/gate_withdraw": {
+    "/v1/platform_list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** List the settings catalogue with platform values and force switches */
+        post: operations["platform_list"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/platform_set": {
         parameters: {
             query?: never;
             header?: never;
@@ -549,6 +567,24 @@ export interface paths {
         trace?: never;
     };
     "/v1/handle_available": {
+    "/v1/setting_list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** List the settings catalogue with community values */
+        post: operations["setting_list"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/setting_set": {
         parameters: {
             query?: never;
             header?: never;
@@ -605,6 +641,98 @@ export interface paths {
             header?: never;
             path?: never;
             cookie?: never;
+}
+export type webhooks = Record<string, never>;
+export interface components {
+    schemas: {
+        CredentialRequest: {
+            devices: number[][];
+            presentation: components["schemas"]["PresentationInput"];
+        };
+        /** @enum {string} */
+        Error: "invalid" | "unauthorized" | "forbidden" | "wrong_host" | "throttled" | "refused" | "unavailable" | "reconcile";
+        Lobby: {
+            handle?: string | null;
+            member_id: string;
+            missing: unknown;
+            /** @description Passport proof is always fresh when requesting a community credential. */
+            passport_required: boolean;
+            state: string;
+            steps: unknown[];
+            warnings: components["schemas"]["LobbyWarning"][];
+        };
+        LobbyWarning: {
+            /** Format: int64 */
+            deadline: number;
+            /** @enum {string} */
+            kind: "registration_expires";
+        } | {
+            /** @enum {string} */
+            kind: "add_second_device_or_synced_passkey";
+        };
+        /** @description Wire schema of cmbr's versioned pin capability; cmbr validates every binding. */
+        PinEnvelope: {
+            community: string;
+            field: string;
+            fingerprint: number[];
+            member: string;
+            /** Format: int32 */
+            version: number;
+        };
+        PinView: {
+            fingerprint: number[];
+            /** Format: int64 */
+            revision: number;
+        };
+        PresentationInput: {
+            challenge: string;
+            proof: number[];
+        };
+        /** @enum {string} */
+        Role: "member" | "admin" | "root";
+        Setting: {
+            /** Format: int64 */
+            effective_at: number;
+            inherit: boolean;
+            key: string;
+            /** @description Explicit null is a value. Set inherit to remove this layer's row. */
+            value: unknown;
+        };
+        /** @description A catalogue entry with everything a generic settings screen needs. */
+        SettingItem: {
+            community?: components["schemas"]["SettingLayer"] | null;
+            default: unknown;
+            /** @description Whether the caller's role may edit this setting in its own layer. */
+            editable: boolean;
+            /** @description The resolved value everyone sees. */
+            effective: unknown;
+            group: string;
+            help: string;
+            key: string;
+            label: string;
+            /** @description platform, template, community or member: the deepest layer allowed to override. */
+            lowest_layer: string;
+            max?: unknown;
+            min?: unknown;
+            nullable: boolean;
+            /** @description Switching off is permanent for earlier cases; ask for confirmation. */
+            one_way: boolean;
+            platform?: components["schemas"]["SettingLayer"] | null;
+            unit?: string | null;
+            /** @description boolean, integer, number, string, array, object or policy. */
+            value_type: string;
+        };
+        /** @description One layer row of a setting; the wrapper keeps "not set" apart from explicit null. */
+        SettingLayer: {
+            /** @description Platform rows only: override every lower layer. */
+            force: boolean;
+            value: unknown;
+        };
+        /** @description Original publishing-key endorsement; routing metadata is not authority. */
+        TrustKeyTransition: {
+            proof: number[];
+            /** Format: int64 */
+            revision: number;
         };
         get?: never;
         put?: never;
@@ -5801,6 +5929,44 @@ export interface operations {
         };
     };
     voucher_redeem: {
+    platform_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        settings: components["schemas"]["SettingItem"][];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    platform_set: {
         parameters: {
             query?: never;
             header?: never;
@@ -6055,6 +6221,44 @@ export interface operations {
         };
     };
     wallet_device_keys: {
+    setting_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        settings: components["schemas"]["SettingItem"][];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    setting_set: {
         parameters: {
             query?: never;
             header?: never;

@@ -34,6 +34,34 @@ pub(crate) fn via(_: &axum::extract::Request) -> bool {
     false
 }
 
+/// The hosting hub of a multi-tenant global door, filled once by the launcher.
+pub(crate) type HubSlot = std::sync::Arc<std::sync::OnceLock<std::sync::Arc<dyn crate::service::CommunityHub>>>;
+
+/// Authorities the gateway serves: the door's own configured host, plus (global door) every
+/// community the hub reports as live. Everything else is refused uniformly.
+#[cfg(feature = "ohttp")]
+struct Live {
+    own: String,
+    hub: Option<HubSlot>,
+}
+#[cfg(feature = "ohttp")]
+impl cblv::gateway::Authorities for Live {
+    fn accepts<'a>(&'a self, authority: &'a [u8]) -> cblv::replay::BoxFuture<'a, bool> {
+        Box::pin(async move {
+            let Ok(host) = std::str::from_utf8(authority) else {
+                return false;
+            };
+            if host == self.own {
+                return true;
+            }
+            match self.hub.as_ref().and_then(|slot| slot.get()) {
+                Some(hub) => hub.serves_host(host).await,
+                None => false,
+            }
+        })
+    }
+}
+
 /// Build the gateway for one door, or none when it is not configured.
 #[cfg(not(feature = "ohttp"))]
 pub(crate) async fn build(
@@ -41,6 +69,7 @@ pub(crate) async fn build(
     _hosts: &[String],
     _db: &crlt::Db,
     _scope: &str,
+    _hub: Option<HubSlot>,
 ) -> Result<Option<Mounted>> {
     match config {
         None => Ok(None),
@@ -54,6 +83,7 @@ pub(crate) async fn build(
     hosts: &[String],
     db: &crlt::Db,
     scope: &str,
+    hub: Option<HubSlot>,
 ) -> Result<Option<Mounted>> {
     use cblv::gateway::{Gateway, GatewayKey, system_clock};
     let Some(config) = config else {
@@ -81,7 +111,7 @@ pub(crate) async fn build(
         replay::DatabaseReplay::start(db.community(scope).map_err(Error::Unavailable.redact())?)
             .await?;
     Ok(Some(std::sync::Arc::new(Gateway {
-        authority: config.authority.clone(),
+        authorities: std::sync::Arc::new(Live { own: config.authority.clone(), hub }),
         keys,
         replay: std::sync::Arc::new(replay),
         mutating: std::sync::Arc::new(mutating),
@@ -305,12 +335,13 @@ mod tests {
         std::fs::write(&ikm, [5u8; 32]).unwrap();
         let ikm = ikm.to_str().unwrap();
         let hosts = vec!["api.example.test".to_owned()];
-        assert!(build(None, &hosts, &db, "ohttp").await.unwrap().is_none());
+        assert!(build(None, &hosts, &db, "ohttp", None).await.unwrap().is_none());
         let started = build(
             Some(&config("api.example.test", 1, ikm)),
             &hosts,
             &db,
             "ohttp",
+            None,
         )
         .await;
         assert!(started.unwrap().is_some());
@@ -320,7 +351,7 @@ mod tests {
             config("api.example.test", 5, ikm),
             config("api.example.test", 1, "/nonexistent/ikm"),
         ] {
-            assert!(build(Some(&bad), &hosts, &db, "ohttp").await.is_err());
+            assert!(build(Some(&bad), &hosts, &db, "ohttp", None).await.is_err());
         }
     }
 }
@@ -343,7 +374,7 @@ mod tests {
             keys: Vec::new(),
             relay_secret_file: None,
         };
-        assert!(build(None, &[], &db, "ohttp").await.unwrap().is_none());
-        assert!(build(Some(&config), &[], &db, "ohttp").await.is_err());
+        assert!(build(None, &[], &db, "ohttp", None).await.unwrap().is_none());
+        assert!(build(Some(&config), &[], &db, "ohttp", None).await.is_err());
     }
 }
