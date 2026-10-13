@@ -330,6 +330,8 @@ actions! {
     voucher_link_view(VoucherManage) -> VoucherLinkView, Public, Community, Check, Forward, "Read a voucher link with its management secret";
     voucher_signoff_list(VoucherManage) -> VoucherSignoffList, Public, Community, Check, Forward, "List applicants waiting for sign-off";
     voucher_signoff_decide(VoucherSignoffDecide) -> VoucherDecision, Public, Community, Record, Forward, "Confirm or decline a waiting applicant";
+    voucher_reply_post(VoucherReplyPost) -> Empty, Public, Community, Record, Forward, "Leave a sealed reply for an admitted person; the host cannot read it";
+    voucher_reply_get(VoucherReplyGet) -> VoucherReply, Member, Community, Check, Forward, "Read the sealed reply left for this member on a voucher link";
     voucher_link_revoke(VoucherManage) -> VoucherRevoked, Public, Community, Record, Forward, "Revoke a voucher link; completed admissions stay";
     #[cfg(feature = "development-gate")]
     development_voucher_link(VoucherLinkCreate) -> VoucherLinkCreated, Member, Community, Record, Forward, "Development only: register a voucher link for a member who is not yet admitted";
