@@ -1180,7 +1180,7 @@ dependencies = [
 [[package]]
 name = "cblv"
 version = "0.1.0"
-source = "git+https://git.corbet.ch/corbet-foss/cblv.git?branch=main#80ccdc0b15685865af0d605ed3bcba67bf723c5d"
+source = "git+https://git.corbet.ch/corbet-foss/cblv.git?branch=main#a6be186aba379b6fcbd8800164dcbf9ef14971d7"
 dependencies = [
  "axum",
  "bhttp",
@@ -1235,7 +1235,7 @@ checksum = "f079e83a288787bcd14a6aea84cee5c87a67c5a3e660c30f557a3d24761b3527"
 [[package]]
 name = "cgbl"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cgbl.git?branch=main#a87730fa8dc23149cf7d028e06345fc20f65b1b5"
+source = "git+https://git.corbet.ch/corbet-libs/cgbl.git?branch=main#e321bd7c921e922ade542a3e26524c7c7b60fd59"
 dependencies = [
  "cbcn",
  "ckyh",
@@ -1482,7 +1482,7 @@ dependencies = [
 [[package]]
 name = "cmbl"
 version = "0.1.0"
-source = "git+https://git.corbet.ch/corbet-foss/cmbl.git?branch=v01#1f35359af7c4874a8773ebc756579088f86131e1"
+source = "git+https://git.corbet.ch/corbet-foss/cmbl.git?branch=v01#a1b7c7341a50d3d19afc4b08642b8e33f466890e"
 dependencies = [
  "blake3",
  "blind-rsa-signatures",
@@ -1745,10 +1745,11 @@ dependencies = [
 [[package]]
 name = "cplc"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cplc?branch=main#8958ee98d235938a2543393b53292ede9a33d6e8"
+source = "git+https://git.corbet.ch/corbet-libs/cplc?branch=main#84a4de39d5a3352d4ff16313d70e3c01fba27855"
 dependencies = [
  "cbcn",
  "cblc",
+ "cblv",
  "cgts",
  "ckyh",
  "cpsd",
@@ -2087,7 +2088,7 @@ dependencies = [
 [[package]]
 name = "cvch"
 version = "0.2.1"
-source = "git+https://git.corbet.ch/corbet-foss/cvch?branch=main#e331a10aa08fba61960ef4e605bd725e46a006d6"
+source = "git+https://git.corbet.ch/corbet-foss/cvch?branch=main#da6654d36327eafbed46714279816c6561ffc811"
 dependencies = [
  "cfbk",
  "csgn",
