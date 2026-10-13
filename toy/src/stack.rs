@@ -310,10 +310,76 @@ async fn run() -> Result<()> {
     let root_path = out.join("root.json");
     fs::write(&root_path, serde_json::to_vec(&root).map_err(|_| "encode")?)
         .map_err(|_| "write root configuration")?;
+    // With the real accounting operator, the production device composer needs its
+    // settings: both services' pinned key rings, passkey contexts, and the prover.
+    let device_settings = match std::env::var_os("CVLD_G5_ACCOUNT_CONFIG") {
+        None => None,
+        Some(account_path) => {
+            let account: serde_json::Value =
+                serde_json::from_slice(&fs::read(account_path).map_err(|_| "G5 configuration")?)
+                    .map_err(|_| "G5 configuration decoding")?;
+            let feed = |base: String, action: &'static str| {
+                let roots = [cert_der.clone()];
+                async move {
+                    let client = cvld::client::HttpClient::with_roots(
+                        base,
+                        "127.0.0.1".into(),
+                        None,
+                        &roots,
+                    )
+                    .map_err(|_| "trust feed client")?;
+                    let feed = client
+                        .call(action, json!({}))
+                        .await
+                        .map_err(|_| "trust feed")?;
+                    Ok::<_, &'static str>(feed["key_ring"].clone())
+                }
+            };
+            let wallet_ring = feed(format!("https://127.0.0.1:{port}"), "wallet_trust_feed").await?;
+            let community_ring =
+                feed(format!("https://127.0.0.1:{alpha_port}"), "trust_feed").await?;
+            let artifacts = &account["extension_artifacts"];
+            let ca = out.join("ca.der");
+            let settings = json!({
+                "global": {
+                    "origin": format!("https://127.0.0.1:{port}"),
+                    "scope": "wallet",
+                    "passkey_origin": format!("https://vault.{}", fixtures::WALLET),
+                    "rp_id": fixtures::WALLET,
+                    "trust_key_ring": wallet_ring,
+                    "connect_host": "127.0.0.1",
+                    "tls_root_files": [ca],
+                },
+                "community": {
+                    "origin": format!("https://127.0.0.1:{alpha_port}"),
+                    "scope": community_name,
+                    "passkey_origin": format!("https://vault.{community_name}.{}", fixtures::DOMAIN),
+                    "rp_id": format!("{community_name}.{}", fixtures::DOMAIN),
+                    "trust_key_ring": community_ring,
+                    "connect_host": "127.0.0.1",
+                    "tls_root_files": [ca],
+                },
+                "community_name": community_name,
+                "prover": {
+                    "worker_executable": std::env::var("CMSG_NATIVE_PROVER_WORKER")
+                        .map_err(|_| "set CMSG_NATIVE_PROVER_WORKER")?,
+                    "circuit_file": artifacts["circuit_file"],
+                    "keys_file": artifacts["keys_file"],
+                    "srs_g1_file": artifacts["srs_g1_file"],
+                    "srs_g2_file": artifacts["srs_g2_file"],
+                },
+            });
+            let path = out.join("device.json");
+            fs::write(&path, serde_json::to_vec(&settings).map_err(|_| "encode")?)
+                .map_err(|_| "write device settings")?;
+            Some(path)
+        }
+    };
     // The public synthetic enrolment capability of the test Root, never a production secret.
     println!(
         "{}",
         json!({
+            "device_settings": device_settings,
             "member_config": member_path,
             "community_config": community_path,
             "root_config": root_path,
