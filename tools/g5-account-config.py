@@ -34,6 +34,11 @@ EXTENSION_GROUPS = {
     "4a933fc30a8f8d9e1a5801ed2f826a82efd9b861": {
         "manifestSha256": "81aec00155f28e7b1d064adeb893593e4bedae01bd8334f80bf0c65ce91c8efc",
     },
+    # artifact-conformance group of cblc b412abc (branch omega-long-window, bb 5.2.1): the omega
+    # activation probe carries a ten-year policy window and the retained native worker is pinned.
+    "b412abcbd3d59e899bf27b86c1bae854d128b860": {
+        "manifestSha256": "519b5669bd21c3b41e83d7cdbdd1c78e3960bc0d290a222c70efa6a2d56e73b5",
+    },
 }
 ACCOUNT_CAPTURES = {
     # native-startup-fixture-retained capture of cblc 6232481 (account circuit).
@@ -48,7 +53,7 @@ WORKER_CAPTURES = {
         "workerBytes": 68078712,
     },
 }
-DEFAULT_GROUP = "4a933fc30a8f8d9e1a5801ed2f826a82efd9b861"
+DEFAULT_GROUP = "b412abcbd3d59e899bf27b86c1bae854d128b860"
 DEFAULT_ACCOUNT = "f0731b7c62ff034c79965fa0c9016bf16b3fd5c2e38f32409cfa00682acb1407"
 DEFAULT_WORKER = "23cf333ef4c1bb9acc401e3cf448528978d960fe793dbcc50da7a1ef54f6b212"
 
