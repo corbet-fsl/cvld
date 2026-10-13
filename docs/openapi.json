@@ -4557,6 +4557,54 @@
               "kind"
             ],
             "type": "object"
+          },
+          {
+            "description": "Approve this pending device signing key from another, existing passkey.",
+            "properties": {
+              "key": {
+                "items": {
+                  "format": "int32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              "kind": {
+                "enum": [
+                  "device_approve"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "key",
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "Remove this exact device signing key, live or pending.",
+            "properties": {
+              "key": {
+                "items": {
+                  "format": "int32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              "kind": {
+                "enum": [
+                  "device_revoke"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "key",
+              "kind"
+            ],
+            "type": "object"
           }
         ]
       },
@@ -6641,6 +6689,106 @@
         "x-scope": "community"
       }
     },
+    "/v1/device_approve": {
+      "post": {
+        "operationId": "device_approve",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "The existing device's approval of a pending device key, after publishing the lineage\nrevision that contains it.",
+                "properties": {
+                  "key": {
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "step_up": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/StepUpProof",
+                        "description": "Required except for Root, whose portal sign-in is the step-up."
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "key"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "Current public signing keys; the authenticated passkey authorizes mutations.",
+                  "properties": {
+                    "keys": {
+                      "items": {
+                        "items": {
+                          "format": "int32",
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "type": "array"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "keys"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Approve a pending device key from another existing passkey with a fresh step-up",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "member",
+        "x-scope": "community"
+      }
+    },
     "/v1/device_authorize": {
       "post": {
         "operationId": "device_authorize",
@@ -6741,6 +6889,95 @@
         "x-scope": "community"
       }
     },
+    "/v1/device_confirm": {
+      "post": {
+        "operationId": "device_confirm",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Make this passkey's pending device key live after its lineage revision is published.",
+                "properties": {
+                  "key": {
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "key"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "Current public signing keys; the authenticated passkey authorizes mutations.",
+                  "properties": {
+                    "keys": {
+                      "items": {
+                        "items": {
+                          "format": "int32",
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "type": "array"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "keys"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Make this passkey's pending device key live once its lineage revision is published",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "member",
+        "x-scope": "community"
+      }
+    },
     "/v1/device_keys": {
       "post": {
         "operationId": "device_keys",
@@ -6812,6 +7049,206 @@
         "summary": "Read current passkey-authorized signing keys",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-role": "member",
+        "x-scope": "community"
+      }
+    },
+    "/v1/device_pair_authorize": {
+      "post": {
+        "operationId": "device_pair_authorize",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Bind one actual lineage device key to the current passkey.",
+                "properties": {
+                  "key": {
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "step_up": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/StepUpProof",
+                        "description": "Required except for Root, whose portal sign-in is the step-up."
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "key"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "Current public signing keys; the authenticated passkey authorizes mutations.",
+                  "properties": {
+                    "keys": {
+                      "items": {
+                        "items": {
+                          "format": "int32",
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "type": "array"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "keys"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Authorize a pairing device key with this live passkey: pending, grants nothing, expires unless confirmed",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-role": "member",
+        "x-scope": "community"
+      }
+    },
+    "/v1/device_revoke": {
+      "post": {
+        "operationId": "device_revoke",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Remove one device signing key of this account, live or pending (a lost device).",
+                "properties": {
+                  "key": {
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "step_up": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/StepUpProof",
+                        "description": "Required except for Root, whose portal sign-in is the step-up."
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "key"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "Current public signing keys; the authenticated passkey authorizes mutations.",
+                  "properties": {
+                    "keys": {
+                      "items": {
+                        "items": {
+                          "format": "int32",
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "type": "array"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "keys"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Remove a device key, live or pending, with a fresh step-up",
+        "x-client-access": "forward",
+        "x-effect": "record",
         "x-role": "member",
         "x-scope": "community"
       }

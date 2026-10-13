@@ -38,6 +38,7 @@ pub fn community_migrations() -> Vec<crlt::Migration<'static>> {
         ("cmbr-role-redemption", RETIRED_ROLE_REDEMPTION_SCHEMA),
         ("ohttp-replay", crate::ohttp::SCHEMA),
         ("genesis", crate::genesis_store::SCHEMA),
+        ("cmbr-device-pending", cmbr::DEVICE_PENDING_SCHEMA),
     ]);
     schemas
         .iter()

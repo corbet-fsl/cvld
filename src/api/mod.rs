@@ -355,6 +355,10 @@ actions! {
     passkey_add(AddPasskeyRequest) -> AddedPasskey, Authenticated, Both, Record, Forward, "Register another UV-required passkey for this account";
     passkey_revoke(RevokePasskey) -> Empty, Authenticated, Both, Record, Forward, "Revoke one of this account's passkeys";
     device_authorize(DeviceKey) -> DeviceKeys, Member, Community, Record, Forward, "Authorize the lineage device key with this live passkey";
+    device_pair_authorize(DeviceKey) -> DeviceKeys, Member, Community, Record, Forward, "Authorize a pairing device key with this live passkey: pending, grants nothing, expires unless confirmed";
+    device_approve(DeviceApprove) -> DeviceKeys, Member, Community, Record, Forward, "Approve a pending device key from another existing passkey with a fresh step-up";
+    device_confirm(DeviceConfirm) -> DeviceKeys, Member, Community, Record, Forward, "Make this passkey's pending device key live once its lineage revision is published";
+    device_revoke(DeviceRevoke) -> DeviceKeys, Member, Community, Record, Forward, "Remove a device key, live or pending, with a fresh step-up";
     device_keys(Empty) -> DeviceKeys, Member, Community, Check, Forward, "Read current passkey-authorized signing keys";
     setting_set(Setting) -> TrustFeed, Admin, Community, Record, Forward, "Edit a community setting";
     setting_list(Empty) -> SettingList, Admin, Community, Check, Forward, "List the settings catalogue with community values";

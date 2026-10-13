@@ -633,6 +633,109 @@ impl Door {
         Ok(DeviceKeys { keys })
     }
 
+    /// Pairing: bind the new device's key to the new device's own passkey as PENDING. It
+    /// grants nothing (the answer lists only live keys) and expires unless confirmed.
+    pub(crate) async fn device_pair_authorize(
+        &self,
+        ctx: Context,
+        request: DeviceKey,
+    ) -> Result<DeviceKeys> {
+        let DeviceKey { key, step_up } = request;
+        self.require_step_up(&ctx, StepUpAction::DeviceAuthorize { key }, step_up)
+            .await?;
+        let community = self.community_backend()?.lock().await;
+        let auth = ctx.member()?;
+        let membership = community.facade.membership();
+        membership
+            .authorize_pending_device_key(auth, key)
+            .await
+            .map_err(Error::Refused.redact())?;
+        let keys = membership
+            .current_device_keys(auth)
+            .await
+            .map_err(Error::Refused.redact())?;
+        Ok(DeviceKeys { keys })
+    }
+
+    /// Pairing: the existing device approves a pending key, with a fresh step-up for that
+    /// exact key, after publishing the lineage revision that contains it.
+    pub(crate) async fn device_approve(
+        &self,
+        ctx: Context,
+        request: DeviceApprove,
+    ) -> Result<DeviceKeys> {
+        let DeviceApprove { key, step_up } = request;
+        self.require_step_up(&ctx, StepUpAction::DeviceApprove { key }, step_up)
+            .await?;
+        let community = self.community_backend()?.lock().await;
+        let auth = ctx.member()?;
+        let membership = community.facade.membership();
+        membership
+            .approve_pending_device_key(auth, key)
+            .await
+            .map_err(Error::Refused.redact())?;
+        let keys = membership
+            .current_device_keys(auth)
+            .await
+            .map_err(Error::Refused.redact())?;
+        Ok(DeviceKeys { keys })
+    }
+
+    /// Pairing: make this passkey's pending key live once its lineage revision is published.
+    pub(crate) async fn device_confirm(
+        &self,
+        ctx: Context,
+        request: DeviceConfirm,
+    ) -> Result<DeviceKeys> {
+        let community = self.community_backend()?.lock().await;
+        let auth = ctx.member()?;
+        let membership = community.facade.membership();
+        membership
+            .confirm_device_key(auth, request.key)
+            .await
+            .map_err(Error::Refused.redact())?;
+        let keys = membership
+            .current_device_keys(auth)
+            .await
+            .map_err(Error::Refused.redact())?;
+        Ok(DeviceKeys { keys })
+    }
+
+    /// Remove a device key (a lost device), live or pending, behind a fresh step-up.
+    pub(crate) async fn device_revoke(
+        &self,
+        ctx: Context,
+        request: DeviceRevoke,
+    ) -> Result<DeviceKeys> {
+        let DeviceRevoke { key, step_up } = request;
+        self.require_step_up(&ctx, StepUpAction::DeviceRevoke { key }, step_up)
+            .await?;
+        let mut community = self.community_backend()?.lock().await;
+        let auth = ctx.member()?;
+        community
+            .facade
+            .membership()
+            .revoke_device_key(auth, key)
+            .await
+            .map_err(Error::Refused.redact())?;
+        if community
+            .facade
+            .flush_revocations(ctx.now)
+            .await
+            .map_err(Error::Unavailable.redact())?
+            > 0
+        {
+            community.refresh(ctx.now).await?;
+        }
+        let keys = community
+            .facade
+            .membership()
+            .current_device_keys(auth)
+            .await
+            .map_err(Error::Refused.redact())?;
+        Ok(DeviceKeys { keys })
+    }
+
     pub(crate) async fn device_keys(&self, ctx: Context, _: Empty) -> Result<DeviceKeys> {
         let community = self.community_backend()?.lock().await;
         let keys = community
