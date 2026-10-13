@@ -458,3 +458,43 @@ pub enum AddedPasskey {
         credential: Vec<u8>,
     },
 }
+
+/// One layer row of a setting; the wrapper keeps "not set" apart from explicit null.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SettingLayer {
+    pub value: Value,
+    /// Platform rows only: override every lower layer.
+    pub force: bool,
+}
+/// A catalogue entry with everything a generic settings screen needs.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SettingItem {
+    pub key: String,
+    pub group: String,
+    pub label: String,
+    pub help: String,
+    pub unit: Option<String>,
+    /// Switching off is permanent for earlier cases; ask for confirmation.
+    pub one_way: bool,
+    /// boolean, integer, number, string, array, object or policy.
+    pub value_type: String,
+    pub nullable: bool,
+    pub min: Option<Value>,
+    pub max: Option<Value>,
+    /// platform, template, community or member: the deepest layer allowed to override.
+    pub lowest_layer: String,
+    pub default: Value,
+    pub platform: Option<SettingLayer>,
+    pub community: Option<SettingLayer>,
+    /// The resolved value everyone sees.
+    pub effective: Value,
+    /// Whether the caller's role may edit this setting in its own layer.
+    pub editable: bool,
+}
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SettingList {
+    pub settings: Vec<SettingItem>,
+}

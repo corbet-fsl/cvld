@@ -1144,6 +1144,57 @@
                           "binding"
                         ],
                         "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "description": "The sponsor spends one voucher on an actual admission. The role class is the\nsponsor's current role; the ledger accepts it only if it equals its own record.",
+                        "properties": {
+                          "kind": {
+                            "enum": [
+                              "admit"
+                            ],
+                            "type": "string"
+                          },
+                          "role": {
+                            "format": "uint8",
+                            "maximum": 255,
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "role"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "additionalProperties": false,
+                        "description": "Consume one bond-addressed obligation. The tag is the only identifier the ledger\never sees; it must be present in the obligation mailbox and is removed with the update.",
+                        "properties": {
+                          "kind": {
+                            "enum": [
+                              "consume"
+                            ],
+                            "type": "string"
+                          },
+                          "obligation": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "obligation"
+                        ],
+                        "type": "object"
                       }
                     ]
                   },
@@ -4237,6 +4288,105 @@
           "value",
           "inherit",
           "effective_at"
+        ],
+        "type": "object"
+      },
+      "SettingItem": {
+        "additionalProperties": false,
+        "description": "A catalogue entry with everything a generic settings screen needs.",
+        "properties": {
+          "community": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SettingLayer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "default": {},
+          "editable": {
+            "description": "Whether the caller's role may edit this setting in its own layer.",
+            "type": "boolean"
+          },
+          "effective": {
+            "description": "The resolved value everyone sees."
+          },
+          "group": {
+            "type": "string"
+          },
+          "help": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "lowest_layer": {
+            "description": "platform, template, community or member: the deepest layer allowed to override.",
+            "type": "string"
+          },
+          "max": {},
+          "min": {},
+          "nullable": {
+            "type": "boolean"
+          },
+          "one_way": {
+            "description": "Switching off is permanent for earlier cases; ask for confirmation.",
+            "type": "boolean"
+          },
+          "platform": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SettingLayer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "value_type": {
+            "description": "boolean, integer, number, string, array, object or policy.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "group",
+          "label",
+          "help",
+          "one_way",
+          "value_type",
+          "nullable",
+          "lowest_layer",
+          "default",
+          "effective",
+          "editable"
+        ],
+        "type": "object"
+      },
+      "SettingLayer": {
+        "additionalProperties": false,
+        "description": "One layer row of a setting; the wrapper keeps \"not set\" apart from explicit null.",
+        "properties": {
+          "force": {
+            "description": "Platform rows only: override every lower layer.",
+            "type": "boolean"
+          },
+          "value": {}
+        },
+        "required": [
+          "value",
+          "force"
         ],
         "type": "object"
       },
@@ -9478,6 +9628,75 @@
         "x-scope": "community"
       }
     },
+    "/v1/platform_list": {
+      "post": {
+        "operationId": "platform_list",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "settings": {
+                      "items": {
+                        "$ref": "#/components/schemas/SettingItem"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "settings"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "List the settings catalogue with platform values and force switches",
+        "x-client-access": "forward",
+        "x-effect": "check",
+        "x-role": "root",
+        "x-scope": "community"
+      }
+    },
     "/v1/platform_set": {
       "post": {
         "operationId": "platform_set",
@@ -10338,6 +10557,75 @@
         "summary": "Publish a profile schema",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-role": "admin",
+        "x-scope": "community"
+      }
+    },
+    "/v1/setting_list": {
+      "post": {
+        "operationId": "setting_list",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "settings": {
+                      "items": {
+                        "$ref": "#/components/schemas/SettingItem"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "settings"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "List the settings catalogue with community values",
+        "x-client-access": "forward",
+        "x-effect": "check",
         "x-role": "admin",
         "x-scope": "community"
       }
