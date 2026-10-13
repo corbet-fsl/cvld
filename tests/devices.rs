@@ -37,7 +37,7 @@ fn register(
     let options: ckyh::CreationChallengeResponse = serde_json::from_value(options).unwrap();
     token
         .perform_register(
-            ckyh::Url::parse(&format!("https://{host}")).unwrap(),
+            ckyh::Url::parse(&support::origin_for(host)).unwrap(),
             {
                 // SoftToken is a legacy non-resident fixture.
                 let mut options = options.public_key;

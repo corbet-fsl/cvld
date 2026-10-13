@@ -34,7 +34,7 @@ async fn discover(service: &Running, host: &str, device: &mut Resident) -> Sessi
 }
 async fn assertion(device: &mut Resident, options: Value, host: &str) -> Value {
     let mut credential = device
-        .ceremony(options, false, &format!("https://{host}"))
+        .ceremony(options, false, &support::origin_for(host))
         .await;
     strip_prf(&mut credential);
     credential
@@ -54,7 +54,7 @@ async fn owner(service: &Running, host: &str, passport: Option<&cpsd::Passport>)
     .unwrap();
     let mut device = Resident::default();
     let mut credential = device
-        .ceremony(begin.options, true, &format!("https://{host}"))
+        .ceremony(begin.options, true, &support::origin_for(host))
         .await;
     strip_prf(&mut credential);
     api.call(

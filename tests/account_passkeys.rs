@@ -17,7 +17,7 @@ async fn discover(service: &Running, host: &str, device: &mut Resident) -> Sessi
     )
     .unwrap();
     let mut response = device
-        .ceremony(begin.options, false, &format!("https://{host}"))
+        .ceremony(begin.options, false, &support::origin_for(host))
         .await;
     strip_prf(&mut response);
     serde_json::from_value(
@@ -41,7 +41,7 @@ async fn register_account(
         serde_json::from_value(public.call("register_begin", body).await.unwrap()).unwrap();
     let mut original = Resident::default();
     let mut response = original
-        .ceremony(begin.options, true, &format!("https://{host}"))
+        .ceremony(begin.options, true, &support::origin_for(host))
         .await;
     strip_prf(&mut response);
     let credential: ckyh::RegisterPublicKeyCredential =
@@ -129,7 +129,7 @@ async fn manage(
     assert_eq!(expected, user.user);
     let mut added = Resident::default();
     let mut response = added
-        .ceremony(options, true, &format!("https://{host}"))
+        .ceremony(options, true, &support::origin_for(host))
         .await;
     strip_prf(&mut response);
     let body = json!({"step":"finish","ceremony":ceremony,"credential":response});
@@ -266,7 +266,7 @@ async fn configured_wallet_refuses_consumed_addition_before_publication_effects(
     };
     let mut added = Resident::default();
     let mut credential = added
-        .ceremony(options, true, &format!("https://{WALLET}"))
+        .ceremony(options, true, &format!("https://vault.{WALLET}"))
         .await;
     strip_prf(&mut credential);
     let body = json!({"step":"finish", "ceremony":ceremony, "credential":credential});

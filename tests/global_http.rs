@@ -182,7 +182,7 @@ async fn registration_requires_user_verification_and_ceremonies_are_single_use()
     let mut authenticator = SoftToken::new(false).unwrap().0;
     let credential = authenticator
         .perform_register(
-            ckyh::Url::parse(&format!("https://{WALLET}")).unwrap(),
+            ckyh::Url::parse(&format!("https://vault.{WALLET}")).unwrap(),
             {
                 // SoftToken is a legacy non-resident fixture.
                 let mut options = challenge.public_key;
@@ -229,7 +229,7 @@ async fn valid_signature_without_uv_cannot_create_a_session() {
     let credential = member
         .authenticator
         .perform_auth(
-            ckyh::Url::parse(&format!("https://{WALLET}")).unwrap(),
+            ckyh::Url::parse(&format!("https://vault.{WALLET}")).unwrap(),
             challenge.public_key,
             300_000,
         )

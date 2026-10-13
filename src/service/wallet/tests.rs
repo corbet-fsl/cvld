@@ -165,7 +165,7 @@ async fn original_uv_self_ban_publishes_wallet_key_and_device_revocations_withou
     let credential = member
         .authenticator
         .perform_auth(
-            ckyh::Url::parse(&format!("https://{WALLET}")).unwrap(),
+            ckyh::Url::parse(&format!("https://vault.{WALLET}")).unwrap(),
             request.public_key,
             300_000,
         )

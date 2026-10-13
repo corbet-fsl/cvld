@@ -24,6 +24,14 @@ pub const NOW: u64 = 1_800_000_000;
 const _: () = assert!(!NOW.is_multiple_of(86_400));
 pub const DOMAIN: &str = "example.test";
 pub const WALLET: &str = "wallet.example.test";
+/// Page origin of a passkey ceremony: the wallet's runs in the vault frame.
+pub fn origin_for(host: &str) -> String {
+    if host.starts_with("wallet.") {
+        format!("https://vault.{host}")
+    } else {
+        format!("https://{host}")
+    }
+}
 pub const ROOT: &str = "api.admin.root.example.test";
 pub struct TestClock(pub AtomicU64);
 impl Clock for TestClock {
@@ -176,7 +184,7 @@ pub async fn enrol_raw(service: &Running, host: &str, bootstrap: Option<&str>) -
     let challenge: ckyh::CreationChallengeResponse = serde_json::from_value(start.options).unwrap();
     let credential = authenticator
         .perform_register(
-            ckyh::Url::parse(&format!("https://{host}")).unwrap(),
+            ckyh::Url::parse(&origin_for(host)).unwrap(),
             {
                 // SoftToken is a legacy non-resident fixture.
                 let mut options = challenge.public_key;
@@ -235,7 +243,7 @@ pub async fn login(
     let challenge: ckyh::RequestChallengeResponse = serde_json::from_value(start.options).unwrap();
     let credential = authenticator
         .perform_auth(
-            ckyh::Url::parse(&format!("https://{host}")).unwrap(),
+            ckyh::Url::parse(&origin_for(host)).unwrap(),
             challenge.public_key,
             300_000,
         )
@@ -271,7 +279,7 @@ pub async fn step_up(
     let challenge: ckyh::RequestChallengeResponse = serde_json::from_value(begin.options).unwrap();
     let credential = authenticator
         .perform_auth(
-            ckyh::Url::parse(&format!("https://{host}")).unwrap(),
+            ckyh::Url::parse(&origin_for(host)).unwrap(),
             challenge.public_key,
             300_000,
         )
@@ -634,7 +642,7 @@ pub async fn finish_enrol(service: &Running, host: &str, start: Ceremony) -> Mem
     let challenge: ckyh::CreationChallengeResponse = serde_json::from_value(start.options).unwrap();
     let credential = authenticator
         .perform_register(
-            ckyh::Url::parse(&format!("https://{host}")).unwrap(),
+            ckyh::Url::parse(&origin_for(host)).unwrap(),
             {
                 // SoftToken is a legacy non-resident fixture.
                 let mut options = challenge.public_key;

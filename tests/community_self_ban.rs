@@ -25,7 +25,7 @@ async fn discover(service: &Running, host: &str, device: &mut Resident) -> Sessi
     )
     .unwrap();
     let mut credential = device
-        .ceremony(challenge.options, false, &format!("https://{host}"))
+        .ceremony(challenge.options, false, &support::origin_for(host))
         .await;
     strip_prf(&mut credential);
     serde_json::from_value(
@@ -49,7 +49,7 @@ async fn member(service: &Running, host: &str, passport: &cpsd::Passport) -> Mem
     .unwrap();
     let mut device = Resident::default();
     let mut credential = device
-        .ceremony(begin.options, true, &format!("https://{host}"))
+        .ceremony(begin.options, true, &support::origin_for(host))
         .await;
     strip_prf(&mut credential);
     let id: ckyh::RegisterPublicKeyCredential = serde_json::from_value(credential.clone()).unwrap();

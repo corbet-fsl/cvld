@@ -37,7 +37,7 @@ async fn wallet_discovers_a_synced_passkey_with_one_ceremony_and_refuses_prf_at_
         serde_json::from_value(api.call("register_begin", json!({})).await.unwrap()).unwrap();
     assert_eq!(begin.options["publicKey"]["rp"]["id"], WALLET);
     let mut device = Resident::default();
-    let origin = format!("https://{WALLET}");
+    let origin = format!("https://vault.{WALLET}");
     let mut response = device.ceremony(begin.options, true, &origin).await;
     assert_eq!(
         call_status(

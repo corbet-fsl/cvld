@@ -22,7 +22,7 @@ pub async fn discover(service: &Running, host: &str, device: &mut Resident) -> S
     )
     .unwrap();
     let mut credential = device
-        .ceremony(begin.options, false, &format!("https://{host}"))
+        .ceremony(begin.options, false, &super::origin_for(host))
         .await;
     strip_prf(&mut credential);
     serde_json::from_value(
@@ -45,7 +45,7 @@ pub async fn wallet(service: &Running, host: &str, bootstrap: Option<&str>) -> W
     .unwrap();
     let mut device = Resident::default();
     let mut credential = device
-        .ceremony(begin.options, true, &format!("https://{host}"))
+        .ceremony(begin.options, true, &super::origin_for(host))
         .await;
     strip_prf(&mut credential);
     let id: ckyh::RegisterPublicKeyCredential = serde_json::from_value(credential.clone()).unwrap();
@@ -85,7 +85,7 @@ pub async fn confirmation(service: &Running, owner: &mut Wallet) -> Value {
     );
     let mut credential = owner
         .device
-        .ceremony(challenge.options, false, &format!("https://{WALLET}"))
+        .ceremony(challenge.options, false, &format!("https://vault.{WALLET}"))
         .await;
     strip_prf(&mut credential);
     json!({"ceremony":challenge.ceremony,"credential":credential})

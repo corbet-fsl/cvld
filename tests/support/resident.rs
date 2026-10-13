@@ -114,7 +114,7 @@ impl Resident {
         )
         .unwrap();
         let mut response = self
-            .ceremony(begin.options, false, &format!("https://{host}"))
+            .ceremony(begin.options, false, &super::origin_for(host))
             .await;
         strip_prf(&mut response);
         json!({"ceremony":begin.ceremony,"credential":response})

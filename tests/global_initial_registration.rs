@@ -71,7 +71,7 @@ async fn production() -> Running {
 }
 async fn signed_response(device: &mut Resident, options: Value, create: bool) -> Value {
     let mut credential = device
-        .ceremony(options, create, &format!("https://{WALLET}"))
+        .ceremony(options, create, &format!("https://vault.{WALLET}"))
         .await;
     strip_prf(&mut credential);
     credential

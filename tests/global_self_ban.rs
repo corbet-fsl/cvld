@@ -281,7 +281,7 @@ async fn a_real_login_assertion_expired_intent_logout_and_revocation_never_suspe
                 .unwrap();
                 let mut credential = owner
                     .device
-                    .ceremony(begin.options, false, &format!("https://{WALLET}"))
+                    .ceremony(begin.options, false, &format!("https://vault.{WALLET}"))
                     .await;
                 strip_prf(&mut credential);
                 body["credential"] = credential;
@@ -324,7 +324,7 @@ async fn a_real_login_assertion_expired_intent_logout_and_revocation_never_suspe
                 .unwrap();
                 let mut credential = owner
                     .device
-                    .ceremony(begin.options, false, &format!("https://{WALLET}"))
+                    .ceremony(begin.options, false, &format!("https://vault.{WALLET}"))
                     .await;
                 strip_prf(&mut credential);
                 assert_eq!(
