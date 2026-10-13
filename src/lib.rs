@@ -27,11 +27,14 @@ mod community_actions;
 pub mod config;
 #[cfg(feature = "server")]
 pub mod contact_gates;
+pub mod creation_token;
 pub mod error;
 #[cfg(feature = "server")]
 mod global;
 #[cfg(feature = "server")]
 mod global_trust;
+#[cfg(feature = "server")]
+pub mod hosts;
 #[cfg(feature = "server")]
 mod identity;
 #[cfg(feature = "server")]

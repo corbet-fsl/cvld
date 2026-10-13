@@ -52,6 +52,7 @@ rmcp = { version = "3.5.0", features = ["server", "client", "transport-io", "tra
 reqwest = { version = "0.12.28", default-features = false, features = ["json", "rustls-tls"], optional = true }
 serde = { version = "1", features = ["derive"] }
 any_ascii = "0.3"
+blind-rsa-signatures = { version = "0.18", default-features = false }
 rustrict = { version = "0.7", default-features = false, features = ["censor"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"], optional = true }
