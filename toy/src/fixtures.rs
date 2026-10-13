@@ -11,6 +11,10 @@ pub const NOW: u64 = 1_800_000_000;
 pub const DOMAIN: &str = "example.test";
 pub const WALLET: &str = "wallet.example.test";
 pub const ROOT: &str = "api.root.example.test";
+pub const ALPHA: &str = "api.alpha.example.test";
+/// The Root operator host and its page origin host.
+pub const ROOT_ADMIN: &str = "api.admin.root.example.test";
+pub const ROOT_ORIGIN: &str = "admin.root.example.test";
 fn write(dir: &Path, name: &str, bytes: &[u8]) -> String {
     let path = dir.join(name);
     std::fs::write(&path, bytes).unwrap();
@@ -81,9 +85,57 @@ pub async fn global(dir: &Path, listen: String, burst: u32, now: u64) {
         development: true,
         trusted_proxies: Vec::new(),
         ohttp: None,
-        wallet: None,
+        wallet: Some(wallet(dir)),
     };
     write(dir, "config.json", &serde_json::to_vec(&config).unwrap());
+}
+/// The explicit literal-wallet section: its own signing seed and publication file.
+pub fn wallet(dir: &Path) -> cvld::config::WalletConfig {
+    let mut rules = crbk::Rulebook::default();
+    rules
+        .define(
+            "quota",
+            crbk::Setting {
+                value_type: crbk::SettingType::Integer,
+                nullable: false,
+                default: json!(17),
+                bounds: crbk::Bounds {
+                    min: Some(0.into()),
+                    max: Some(100.into()),
+                },
+                lowest_layer: crbk::Layer::Community,
+                kind: crbk::SettingKind::Technical,
+            },
+        )
+        .unwrap();
+    let schema = serde_json::from_value(json!({"community":"wallet","version":1,
+        "public":[{"id":"consent","label":"Receive invitations?","kind":{"type":"yes_no"},
+            "required":true,"filterable":false,"change_preset":"stable","no_contact_details":false}],"private":[]})).unwrap();
+    let publication = cgbl::WalletPublicationConfig::new(
+        WALLET,
+        &format!("https://vault.{WALLET}"),
+        rules,
+        cplc::SchemaVersions {
+            purpose: cplc::SchemaVersionsPurpose::SchemaVersionsV1,
+            current: 1,
+            versions: vec![cplc::SchemaVersion {
+                schema,
+                changes: None,
+            }],
+        },
+        std::collections::BTreeSet::new(),
+        2 * 86_400,
+    )
+    .unwrap();
+    cvld::config::WalletConfig {
+        signing_seed_file: write(dir, "wallet-seed", &[47; 32]),
+        publication_file: write(
+            dir,
+            "wallet-publication.json",
+            &serde_json::to_vec(&publication).unwrap(),
+        ),
+        signer_max_seconds: 100 * 86_400,
+    }
 }
 pub fn community_rules() -> crbk::Rulebook {
     let mut rules = crbk::Rulebook::default();

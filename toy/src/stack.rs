@@ -33,6 +33,7 @@ use tokio_rustls::{
 async fn relay(
     client: tokio_rustls::server::TlsStream<tokio::net::TcpStream>,
     upstream: tokio::net::TcpStream,
+    host: &str,
 ) {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     let (mut from_client, mut to_client) = tokio::io::split(client);
@@ -80,7 +81,7 @@ async fn relay(
         for line in head.split("\r\n").filter(|line| !line.is_empty()) {
             let lower = line.to_ascii_lowercase();
             if lower.starts_with("host:") {
-                rewritten.push_str(&format!("Host: {}\r\n", fixtures::WALLET));
+                rewritten.push_str(&format!("Host: {host}\r\n"));
                 continue;
             }
             if let Some(value) = lower.strip_prefix("content-length:") {
@@ -138,16 +139,47 @@ async fn run() -> Result<()> {
     process::clock(&clock, now);
     let global_dir = dir.path().join("global");
     fs::create_dir(&global_dir).map_err(|_| "global directory")?;
-    fixtures::global(&global_dir, process::port(), 1000, now).await;
+    let global_listen = process::port();
+    fixtures::global(&global_dir, global_listen.clone(), 1000, now).await;
+    // The community needs the global public documents at startup: read them from
+    // the global service alone, stop it, then start both in one platform process.
+    let public: cvld::api::GlobalPublic = {
+        let probe = Service::start(
+            &bin,
+            &global_dir,
+            "global",
+            fixtures::WALLET.into(),
+            &clock,
+            Arc::new(Mutex::new(Metrics::default())),
+        )?;
+        serde_json::from_value(probe.initial.clone()).map_err(|_| "global public documents")?
+    };
+    let alpha_dir = dir.path().join("alpha");
+    fs::create_dir(&alpha_dir).map_err(|_| "alpha directory")?;
+    let alpha_listen = process::port();
+    fixtures::community(&alpha_dir, alpha_listen.clone(), "alpha", &public, 1000);
+    fs::write(
+        global_dir.join("platform.json"),
+        serde_json::to_vec(&json!({
+            "global_config": global_dir.join("config.json"),
+            "community_configs": [alpha_dir.join("config.json")],
+        }))
+        .map_err(|_| "encode")?,
+    )
+    .map_err(|_| "write platform configuration")?;
     let global = Service::start(
         &bin,
         &global_dir,
-        "global",
+        "platform",
         fixtures::WALLET.into(),
         &clock,
         Arc::new(Mutex::new(Metrics::default())),
     )?;
-    let upstream = global.cli.base.trim_start_matches("http://").to_owned();
+    let upstreams = [
+        (global_listen.clone(), fixtures::WALLET),
+        (alpha_listen, fixtures::ALPHA),
+        (global_listen, fixtures::ROOT_ADMIN),
+    ];
 
     // One self-signed end-entity certificate is the only trust root handed out.
     let rcgen::CertifiedKey { cert, signing_key } = rcgen::generate_simple_self_signed(vec![
@@ -168,34 +200,37 @@ async fn run() -> Result<()> {
         .with_single_cert(vec![CertificateDer::from(cert_der.clone())], key)
         .map_err(|_| "tls configuration")?;
     let acceptor = TlsAcceptor::from(Arc::new(config));
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-        .await
-        .map_err(|_| "tls listener")?;
-    let port = listener.local_addr().map_err(|_| "tls address")?.port();
-    eprintln!("stack listening on {port}");
-    let proxy = tokio::spawn(async move {
-        loop {
-            let Ok((tcp, _)) = listener.accept().await else {
-                continue;
-            };
-            eprintln!("stack tcp connection");
-            let acceptor = acceptor.clone();
-            let upstream = upstream.clone();
-            tokio::spawn(async move {
-                let tls = match acceptor.accept(tcp).await {
-                    Ok(tls) => tls,
-                    Err(error) => {
-                        eprintln!("stack tls accept failed: {error}");
+    // One TLS front end per virtual host: the client insists that its https host
+    // equals the host it sends, so each service gets its own loopback port.
+    let mut ports = Vec::new();
+    let mut proxies = Vec::new();
+    for (upstream, host) in upstreams {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .map_err(|_| "tls listener")?;
+        ports.push(listener.local_addr().map_err(|_| "tls address")?.port());
+        let acceptor = acceptor.clone();
+        proxies.push(tokio::spawn(async move {
+            loop {
+                let Ok((tcp, _)) = listener.accept().await else {
+                    continue;
+                };
+                let acceptor = acceptor.clone();
+                let upstream = upstream.clone();
+                tokio::spawn(async move {
+                    let Ok(tls) = acceptor.accept(tcp).await else {
                         return;
-                    }
-                };
-                let Ok(plain) = tokio::net::TcpStream::connect(&upstream).await else {
-                    return;
-                };
-                relay(tls, plain).await;
-            });
-        }
-    });
+                    };
+                    let Ok(plain) = tokio::net::TcpStream::connect(&upstream).await else {
+                        return;
+                    };
+                    relay(tls, plain, host).await;
+                });
+            }
+        }));
+    }
+    let (port, alpha_port, root_port) = (ports[0], ports[1], ports[2]);
+    eprintln!("stack listening on {port} {alpha_port} {root_port}");
 
     // Self-probe with the same client the devices use; reports only the outcome class.
     let probe = cvld::client::HttpClient::with_roots(
@@ -235,16 +270,56 @@ async fn run() -> Result<()> {
         serde_json::to_vec(&member).map_err(|_| "encode")?,
     )
     .map_err(|_| "write member configuration")?;
+    // The community device: wallet passport service first, then the community.
+    let mut community = member.clone();
+    community["community"] = json!("alpha");
+    community["services"] = json!([
+        {"scope": "global", "base": format!("https://127.0.0.1:{port}"), "host": "127.0.0.1"},
+        {"scope": "community", "base": format!("https://127.0.0.1:{alpha_port}"), "host": "127.0.0.1"},
+    ]);
+    let community_path = out.join("alpha.json");
+    fs::write(
+        &community_path,
+        serde_json::to_vec(&community).map_err(|_| "encode")?,
+    )
+    .map_err(|_| "write community configuration")?;
+    // The platform Root device: admin host, vault page on the admin vault host.
+    let root_origin = format!("https://{}", fixtures::ROOT_ORIGIN);
+    let root = json!({
+        "community": "global",
+        "origin": root_origin,
+        "role": "root",
+        "primary": "global",
+        "services": [{
+            "scope": "global",
+            "base": format!("https://127.0.0.1:{root_port}"),
+            "host": "127.0.0.1",
+        }],
+        "login": {
+            "page": "https://vault.root.example.test/login",
+            "origin": "https://vault.root.example.test",
+            "relying_party": "root.example.test",
+        },
+    });
+    let root_path = out.join("root.json");
+    fs::write(&root_path, serde_json::to_vec(&root).map_err(|_| "encode")?)
+        .map_err(|_| "write root configuration")?;
+    // The public synthetic enrolment capability of the test Root, never a production secret.
     println!(
         "{}",
         json!({
             "member_config": member_path,
+            "community_config": community_path,
+            "root_config": root_path,
+            "root_bootstrap": global_dir.join("bootstrap"),
             "ca_der": out.join("ca.der"),
         })
     );
     // Hold the services until the owner closes our stdin.
     let _ = tokio::io::copy(&mut tokio::io::stdin(), &mut tokio::io::sink()).await;
-    proxy.abort();
+    for proxy in proxies {
+        proxy.abort();
+    }
     drop(global);
     Ok(())
 }

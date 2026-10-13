@@ -192,9 +192,15 @@ impl Service {
         if !Path::new(&library).is_file() {
             return Err("set LIBFAKETIME_PATH to libfaketimeMT.so.1".into());
         }
+        // The platform launcher reads the composition file beside the global one.
+        let file = if scope == "platform" {
+            "platform.json"
+        } else {
+            "config.json"
+        };
         Command::new(&cli.bin)
             .args(["serve", scope, "--config"])
-            .arg(cli.dir.join("config.json"))
+            .arg(cli.dir.join(file))
             .env("LD_PRELOAD", library)
             .env("FAKETIME_TIMESTAMP_FILE", faketime)
             .env("FAKETIME_NO_CACHE", "1")
@@ -209,7 +215,7 @@ impl Service {
             .map_err(|_| "cannot start cvld service".into())
     }
     fn ready(&mut self) -> Result<()> {
-        let action = if self.scope == "global" {
+        let action = if self.scope == "global" || self.scope == "platform" {
             "global_public"
         } else {
             "trust_feed"
