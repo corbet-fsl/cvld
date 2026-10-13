@@ -80,7 +80,7 @@ async fn relay(
         let mut length = 0usize;
         for line in head.split("\r\n").filter(|line| !line.is_empty()) {
             let lower = line.to_ascii_lowercase();
-            if lower.starts_with("host:") {
+            if lower.starts_with("host:") && !host.is_empty() {
                 rewritten.push_str(&format!("Host: {host}\r\n"));
                 continue;
             }
@@ -164,13 +164,50 @@ async fn run() -> Result<()> {
         "alpha"
     };
     fixtures::community(&alpha_dir, alpha_listen.clone(), community_name, &public, 1000);
+    // Multi-tenant hosting (communities created at runtime behind the Host-routing front)
+    // runs next to the real accounting operator; the template carries none yet.
+    let hub = if std::env::var_os("CVLD_G5_ACCOUNT_CONFIG").is_some() {
+        let hub_dir = dir.path().join("hub");
+        fs::create_dir(&hub_dir).map_err(|_| "hub directory")?;
+        fixtures::community_with(&hub_dir, process::port(), "template", &public, 1000, false);
+        fs::write(hub_dir.join("master"), cpsd::rand::random::<[u8; 32]>())
+            .map_err(|_| "hub master secret")?;
+        let key = std::process::Command::new("openssl")
+            .args([
+                "genpkey",
+                "-algorithm",
+                "RSA",
+                "-pkeyopt",
+                "rsa_keygen_bits:2048",
+                "-outform",
+                "DER",
+            ])
+            .output()
+            .map_err(|_| "openssl")?;
+        if !key.status.success() {
+            return Err("token issuer key generation".into());
+        }
+        fs::write(hub_dir.join("token-issuer.der"), key.stdout).map_err(|_| "token issuer key")?;
+        Some(json!({
+            "template_config": hub_dir.join("config.json"),
+            "master_secret_file": hub_dir.join("master"),
+            "token_issuer_file": hub_dir.join("token-issuer.der"),
+            "shell_seconds": 7 * 86_400,
+            "provisioner": {"kind": "noop"},
+        }))
+    } else {
+        None
+    };
+    let mut platform = json!({
+        "global_config": global_dir.join("config.json"),
+        "community_configs": [alpha_dir.join("config.json")],
+    });
+    if let Some(hub) = hub {
+        platform["hub"] = hub;
+    }
     fs::write(
         global_dir.join("platform.json"),
-        serde_json::to_vec(&json!({
-            "global_config": global_dir.join("config.json"),
-            "community_configs": [alpha_dir.join("config.json")],
-        }))
-        .map_err(|_| "encode")?,
+        serde_json::to_vec(&platform).map_err(|_| "encode")?,
     )
     .map_err(|_| "write platform configuration")?;
     let global = Service::start(
@@ -184,7 +221,9 @@ async fn run() -> Result<()> {
     let upstreams = [
         (global_listen.clone(), fixtures::WALLET),
         (alpha_listen, fixtures::ALPHA),
-        (global_listen, fixtures::ROOT_ADMIN),
+        (global_listen.clone(), fixtures::ROOT_ADMIN),
+        // Created communities: the client's own Host header reaches the Host-routing front.
+        (global_listen, ""),
     ];
 
     // One self-signed end-entity certificate is the only trust root handed out.
@@ -235,7 +274,8 @@ async fn run() -> Result<()> {
             }
         }));
     }
-    let (port, alpha_port, root_port) = (ports[0], ports[1], ports[2]);
+    let (port, alpha_port, root_port, passthrough_port) =
+        (ports[0], ports[1], ports[2], ports[3]);
     eprintln!("stack listening on {port} {alpha_port} {root_port}");
 
     // Self-probe with the same client the devices use; reports only the outcome class.
@@ -380,6 +420,7 @@ async fn run() -> Result<()> {
         "{}",
         json!({
             "device_settings": device_settings,
+            "passthrough_base": format!("https://127.0.0.1:{passthrough_port}"),
             "member_config": member_path,
             "community_config": community_path,
             "root_config": root_path,

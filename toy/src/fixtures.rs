@@ -254,7 +254,21 @@ pub fn accounting() -> Option<(cvld::accounting::AccountConfig, crbk::Rulebook)>
 }
 
 pub fn community(dir: &Path, listen: String, name: &str, public: &GlobalPublic, burst: u32) {
-    let (accounting, rules) = match accounting() {
+    community_with(dir, listen, name, public, burst, true);
+}
+
+/// A community configuration. `with_accounting` selects the real operator when the
+/// assembled G5 configuration is provided (the hub template has none until the
+/// operator state is derived per created community).
+pub fn community_with(
+    dir: &Path,
+    listen: String,
+    name: &str,
+    public: &GlobalPublic,
+    burst: u32,
+    with_accounting: bool,
+) {
+    let (accounting, rules) = match accounting().filter(|_| with_accounting) {
         Some((account, rules)) => (Some(account), rules),
         None => (None, community_rules()),
     };
@@ -311,6 +325,8 @@ pub fn community(dir: &Path, listen: String, name: &str, public: &GlobalPublic, 
         voucher_provider: "sponsor".into(),
         accounting,
         trusted_proxies: Vec::new(),
+        creation: None,
+        shared_database: false,
         ohttp: None,
     };
     write(dir, "config.json", &serde_json::to_vec(&config).unwrap());
