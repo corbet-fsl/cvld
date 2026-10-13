@@ -80,7 +80,14 @@ async fn relay(
         let mut length = 0usize;
         for line in head.split("\r\n").filter(|line| !line.is_empty()) {
             let lower = line.to_ascii_lowercase();
-            if lower.starts_with("host:") && !host.is_empty() {
+            if lower.starts_with("host:") && host.is_empty() {
+                // Pass-through: keep the client's own host, without the port.
+                let name = line[5..].trim();
+                let name = name.rsplit_once(':').map_or(name, |(head, _)| head);
+                rewritten.push_str(&format!("Host: {name}\r\n"));
+                continue;
+            }
+            if lower.starts_with("host:") {
                 rewritten.push_str(&format!("Host: {host}\r\n"));
                 continue;
             }
@@ -218,9 +225,11 @@ async fn run() -> Result<()> {
         &clock,
         Arc::new(Mutex::new(Metrics::default())),
     )?;
+    let alpha_host: &'static str =
+        Box::leak(format!("api.{community_name}.{}", fixtures::DOMAIN).into_boxed_str());
     let upstreams = [
         (global_listen.clone(), fixtures::WALLET),
-        (alpha_listen, fixtures::ALPHA),
+        (alpha_listen, alpha_host),
         (global_listen.clone(), fixtures::ROOT_ADMIN),
         // Created communities: the client's own Host header reaches the Host-routing front.
         (global_listen, ""),
@@ -342,9 +351,9 @@ async fn run() -> Result<()> {
             "host": "127.0.0.1",
         }],
         "login": {
-            "page": "https://vault.root.example.test/login",
-            "origin": "https://vault.root.example.test",
-            "relying_party": "root.example.test",
+            "page": "https://vault.root.toy.localhost/login",
+            "origin": "https://vault.root.toy.localhost",
+            "relying_party": "root.toy.localhost",
         },
     });
     let root_path = out.join("root.json");

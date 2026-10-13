@@ -8,13 +8,13 @@ use serde_json::json;
 use std::path::Path;
 
 pub const NOW: u64 = 1_800_000_000;
-pub const DOMAIN: &str = "example.test";
-pub const WALLET: &str = "wallet.example.test";
-pub const ROOT: &str = "api.root.example.test";
-pub const ALPHA: &str = "api.alpha.example.test";
+pub const DOMAIN: &str = "toy.localhost";
+pub const WALLET: &str = "wallet.toy.localhost";
+pub const ROOT: &str = "api.root.toy.localhost";
+pub const ALPHA: &str = "api.alpha.toy.localhost";
 /// The Root operator host and its page origin host.
-pub const ROOT_ADMIN: &str = "api.admin.root.example.test";
-pub const ROOT_ORIGIN: &str = "admin.root.example.test";
+pub const ROOT_ADMIN: &str = "api.admin.root.toy.localhost";
+pub const ROOT_ORIGIN: &str = "admin.root.toy.localhost";
 fn write(dir: &Path, name: &str, bytes: &[u8]) -> String {
     let path = dir.join(name);
     std::fs::write(&path, bytes).unwrap();
