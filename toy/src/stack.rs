@@ -165,11 +165,25 @@ async fn run() -> Result<()> {
     };
     fixtures::community(&alpha_dir, alpha_listen.clone(), community_name, &public, 1000);
     // Multi-tenant hosting (communities created at runtime behind the Host-routing front)
-    // runs next to the real accounting operator; the template carries none yet.
+    // runs next to the real accounting operator; each created community derives its own.
     let hub = if std::env::var_os("CVLD_G5_ACCOUNT_CONFIG").is_some() {
         let hub_dir = dir.path().join("hub");
         fs::create_dir(&hub_dir).map_err(|_| "hub directory")?;
-        fixtures::community_with(&hub_dir, process::port(), "template", &public, 1000, false);
+        // The template carries the platform-wide accounting (artifacts, limits, execution)
+        // and names the directory where each created community's own inputs are derived.
+        fixtures::community_with(&hub_dir, process::port(), "template", &public, 1000, true);
+        let tenants = hub_dir.join("tenants");
+        fs::create_dir(&tenants).map_err(|_| "tenants directory")?;
+        let template_path = hub_dir.join("config.json");
+        let mut template: serde_json::Value =
+            serde_json::from_slice(&fs::read(&template_path).map_err(|_| "template")?)
+                .map_err(|_| "template decodes")?;
+        template["accounting"]["tenants_dir"] = tenants.to_string_lossy().as_ref().into();
+        fs::write(
+            &template_path,
+            serde_json::to_vec(&template).map_err(|_| "encode template")?,
+        )
+        .map_err(|_| "write template")?;
         fs::write(hub_dir.join("master"), cpsd::rand::random::<[u8; 32]>())
             .map_err(|_| "hub master secret")?;
         let key = std::process::Command::new("openssl")

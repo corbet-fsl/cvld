@@ -111,7 +111,7 @@ impl AccountConfig {
         let account = ledger.get_mut("account").ok_or(Error::Invalid)?;
         let span = number(account, "policyValidUntil")?
             .checked_sub(number(account, "policyValidFrom")?)
-            .filter(|span| *span >= DAY && span.is_multiple_of(DAY))
+            .filter(|span| *span >= DAY)
             .ok_or(Error::Invalid)?;
         account["policyValidFrom"] = from.into();
         account["policyValidUntil"] = from.checked_add(span).ok_or(Error::Invalid)?.into();
