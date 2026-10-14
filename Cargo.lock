@@ -1260,13 +1260,14 @@ dependencies = [
 [[package]]
 name = "cgrd"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-foss/cgrd?branch=main#fabf73fadd927817754b1d2c7d4808a0a9e5a5a2"
+source = "git+https://git.corbet.ch/corbet-foss/cgrd?branch=main#2aceefc2f98e5381d3f51f83bbcef1dd58473f82"
 dependencies = [
  "bigdecimal",
  "cpns",
  "crbk",
  "csgn",
  "cshm",
+ "cvch",
  "ed25519-dalek 3.0.0",
  "geographiclib-rs",
  "precis-profiles",
@@ -2089,7 +2090,7 @@ dependencies = [
 [[package]]
 name = "cvch"
 version = "0.2.1"
-source = "git+https://git.corbet.ch/corbet-foss/cvch?branch=main#a0f153cf194f6513cf6e60eefa087d906616fc8f"
+source = "git+https://git.corbet.ch/corbet-foss/cvch?branch=main#41b6d57cf1c48b1bea8c5c6b721aaad4b54c1992"
 dependencies = [
  "cfbk",
  "csgn",
