@@ -1149,7 +1149,7 @@ dependencies = [
 [[package]]
 name = "cblc"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cblc?branch=main#b67be7da6ecd1dac841269503376f7e4775417c3"
+source = "git+https://git.corbet.ch/corbet-libs/cblc?branch=main#c4e1d39c77da7970084fa2922b6c6a3dd37765e0"
 dependencies = [
  "cbcn",
  "cmbl",
@@ -1235,7 +1235,7 @@ checksum = "f079e83a288787bcd14a6aea84cee5c87a67c5a3e660c30f557a3d24761b3527"
 [[package]]
 name = "cgbl"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cgbl.git?branch=main#7186dedba16cb43b1e1a9826fe6e56e311ade956"
+source = "git+https://git.corbet.ch/corbet-libs/cgbl.git?branch=main#4c7da99a5125ad6dffde9b2641e86981d64cde6c"
 dependencies = [
  "cbcn",
  "ckyh",
@@ -1260,7 +1260,7 @@ dependencies = [
 [[package]]
 name = "cgrd"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-foss/cgrd?branch=main#6ed9485f32e55cd3efc78f36bbad1e4678989688"
+source = "git+https://git.corbet.ch/corbet-foss/cgrd?branch=main#fabf73fadd927817754b1d2c7d4808a0a9e5a5a2"
 dependencies = [
  "bigdecimal",
  "cpns",
@@ -1280,7 +1280,7 @@ dependencies = [
 [[package]]
 name = "cgts"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cgts?branch=main#a7803028a5cf03b7a7231cf5d0591c8cdc4ddae6"
+source = "git+https://git.corbet.ch/corbet-libs/cgts?branch=main#b37c0640d79994c80613f5ed7a23a900093cf091"
 dependencies = [
  "cblc",
  "cgrd",
@@ -1502,7 +1502,7 @@ dependencies = [
 [[package]]
 name = "cmbr"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cmbr?branch=main#39eb785cd4a25a79613ab995049f2ad85c58a40a"
+source = "git+https://git.corbet.ch/corbet-libs/cmbr?branch=main#fc82aa50b6552bab415b48f979545c8ff9ce1de7"
 dependencies = [
  "cgrd",
  "cgts",
@@ -1558,7 +1558,7 @@ checksum = "0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a"
 [[package]]
 name = "cmty"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cmty?branch=main#54a2ffe192192d308073a39019bcf667b906dfc6"
+source = "git+https://git.corbet.ch/corbet-libs/cmty?branch=main#09d1d65d31024eca452b46e853724e190a1757f7"
 dependencies = [
  "cgts",
  "chrono",
@@ -1745,7 +1745,7 @@ dependencies = [
 [[package]]
 name = "cplc"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cplc?branch=main#e82a6aaa63ed36a9ec5520b1029fc42d3e36baf8"
+source = "git+https://git.corbet.ch/corbet-libs/cplc?branch=main#29832188e1f83d39df80ff188491150e5c331315"
 dependencies = [
  "cbcn",
  "cblc",
@@ -1794,7 +1794,7 @@ dependencies = [
 [[package]]
 name = "cpsd"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-foss/cpsd?branch=main#908ceb88a2896baf6e633b30abcada2f25bcbabe"
+source = "git+https://git.corbet.ch/corbet-foss/cpsd?branch=main#c43253b08014f0aecb038055db099c018ae6f037"
 dependencies = [
  "ark-bls12-381",
  "ark-ec 0.4.2",
