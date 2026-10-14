@@ -225,10 +225,23 @@ impl Service {
         } else {
             "trust_feed"
         };
-        let deadline = Instant::now() + Duration::from_secs(30);
+        // Readiness deadline in seconds; the default stays 30. A loaded host may raise it.
+        let seconds = std::env::var("CVLD_TOY_READY_SECONDS")
+            .ok()
+            .and_then(|text| text.parse().ok())
+            .unwrap_or(30);
+        let deadline = Instant::now() + Duration::from_secs(seconds);
         while Instant::now() < deadline {
             if self.child.try_wait().map_err(|_| "poll service")?.is_some() {
-                return Err(format!("{} service exited during startup", self.scope));
+                return Err(format!(
+                    "{} service exited during startup ({})",
+                    self.scope,
+                    self.child
+                        .try_wait()
+                        .ok()
+                        .flatten()
+                        .map_or("status unknown".to_owned(), |status| status.to_string())
+                ));
             }
             if let Ok(value) = self.cli.call(None, action, serde_json::json!({})) {
                 self.initial = value;
