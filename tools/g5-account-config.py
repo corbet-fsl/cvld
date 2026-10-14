@@ -44,6 +44,11 @@ EXTENSION_GROUPS = {
     "eeb879eb8d5278924de5f665c8c43a5fa6d5bd71": {
         "manifestSha256": "68c5c8b4940800ef4c31df259545812215df665c055a48ff004eb05ea41aaf07",
     },
+    # artifact-conformance group of cblc 660e913 (rulebook parameters, standing digest 13869f92):
+    # the alpha/omega probes carry the digest the hub-derived terms use.
+    "660e913088aa2d4b2a510143e66be31c9daed963": {
+        "manifestSha256": "f935b80363c34496463b3b7f2a3270add37f52696e14d048c4c4c96aa478d228",
+    },
 }
 ACCOUNT_CAPTURES = {
     # native-startup-fixture-retained capture of cblc 6232481 (account circuit).
@@ -67,7 +72,7 @@ WORKER_CAPTURES = {
         "workerBytes": 68155080,
     },
 }
-DEFAULT_GROUP = "eeb879eb8d5278924de5f665c8c43a5fa6d5bd71"
+DEFAULT_GROUP = "660e913088aa2d4b2a510143e66be31c9daed963"
 DEFAULT_ACCOUNT = "1e1262a03a6a56caba2ba76e92047799e2323bf986312ccd3ac5b1827b7929a5"
 DEFAULT_WORKER = "44452b71ef1d79c60a3f61f128aebefaeb43babee55b0ce701f2f7219d8a22d6"
 
