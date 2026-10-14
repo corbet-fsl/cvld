@@ -117,7 +117,13 @@ impl Drop for CancelOnDrop {
 impl Transport for BrowserClient {
     async fn send(&mut self, path: &str, request: Value) -> Result<Value> {
         let name = path.strip_prefix("/v1/").ok_or(Error::Invalid)?;
-        self.call(name, request).await
+        let result = self.call(name, request).await;
+        // A successful logout ended the server session: stop presenting its bearer, which the owner
+        // refuses as an unknown session even on public routes.
+        if name == "logout" && result.is_ok() {
+            self.token = None;
+        }
+        result
     }
 }
 
