@@ -32,8 +32,10 @@ fn community() -> Value {
         "signer_max_seconds": 8640000,
         "minimum_notice_seconds": 0,
         "voucher_provider": "sponsor",
-                "payments": null,
-        "accounting": null
+        "payments": null,
+        "accounting": null,
+        "creation": null,
+        "shared_database": false
     })
 }
 
@@ -107,6 +109,8 @@ fn required_configuration_and_operator_fields_cannot_be_omitted() {
             "payments",
             "accounting",
             "trusted_proxies",
+            "creation",
+            "shared_database",
         ]
         .contains(&field.as_str())
         {

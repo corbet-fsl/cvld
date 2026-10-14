@@ -87,7 +87,7 @@ impl Door {
         .await
     }
     pub(crate) async fn member_role(&self, ctx: Context, _: Empty) -> Result<MemberRole> {
-        if !self.is_community_member(&ctx.host) {
+        if !self.is_membership_host(&ctx.host) {
             return Err(Error::WrongHost);
         }
         self.community_backend()?
