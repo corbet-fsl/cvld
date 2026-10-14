@@ -238,6 +238,13 @@ mod tests {
         ) -> crate::hosts::Boxed<'a, crate::error::Result<crate::api::CommunityCreated>> {
             Box::pin(async { Err(crate::error::Error::Unavailable) })
         }
+        fn terms<'a>(
+            &'a self,
+            _: crate::api::CommunityTermsRequest,
+            _: u64,
+        ) -> crate::hosts::Boxed<'a, crate::error::Result<crate::api::CommunityTerms>> {
+            Box::pin(async { Err(crate::error::Error::Unavailable) })
+        }
         fn issue_token<'a>(
             &'a self,
             _: &'a str,
