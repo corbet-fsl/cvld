@@ -202,6 +202,9 @@ impl Service {
             .args(["serve", scope, "--config"])
             .arg(cli.dir.join(file))
             .env("LD_PRELOAD", library)
+            // A harness may run the whole stack under an offset clock (a continued saved state); the
+            // services take their time from the clock file the stack keeps, nothing else.
+            .env_remove("FAKETIME")
             .env("FAKETIME_TIMESTAMP_FILE", faketime)
             .env("FAKETIME_NO_CACHE", "1")
             .env("FAKETIME_DONT_FAKE_MONOTONIC", "1")

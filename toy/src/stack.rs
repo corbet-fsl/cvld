@@ -123,6 +123,18 @@ async fn relay(
     let _ = back.await;
 }
 
+fn hex_encode(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+fn hex_decode(text: &str) -> Result<Vec<u8>> {
+    (0..text.len() / 2)
+        .map(|i| {
+            u8::from_str_radix(&text[2 * i..2 * i + 2], 16).map_err(|_| "saved certificate".into())
+        })
+        .collect()
+}
+
 #[tokio::main]
 async fn main() {
     if let Err(error) = run().await {
@@ -137,7 +149,37 @@ async fn run() -> Result<()> {
         .canonicalize()
         .map_err(|_| "CVLD_BIN is not a file")?;
     fs::create_dir_all(&out).map_err(|_| "output directory")?;
-    let dir = tempfile::tempdir().map_err(|_| "temporary directory")?;
+    // Saved test states: with CVLD_STACK_STATE the stack keeps its databases, keys, ports and
+    // certificate in that directory (nothing is removed on exit), and a stack started on a
+    // directory that already holds a state continues it. Without it the stack is throwaway.
+    let state_root = std::env::var_os("CVLD_STACK_STATE").map(PathBuf::from);
+    let temp = match &state_root {
+        Some(root) => {
+            fs::create_dir_all(root).map_err(|_| "state directory")?;
+            None
+        }
+        None => Some(tempfile::tempdir().map_err(|_| "temporary directory")?),
+    };
+    let base_dir: PathBuf = state_root.clone().unwrap_or_else(|| {
+        temp.as_ref()
+            .map(|t| t.path().to_owned())
+            .unwrap_or_default()
+    });
+    let saved_path = base_dir.join("stack-saved.json");
+    let saved: Option<serde_json::Value> = if state_root.is_some() {
+        fs::read(&saved_path)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+    } else {
+        None
+    };
+    struct Dir(PathBuf);
+    impl Dir {
+        fn path(&self) -> &std::path::Path {
+            &self.0
+        }
+    }
+    let dir = Dir(base_dir);
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_err(|_| "clock")?
@@ -157,92 +199,109 @@ async fn run() -> Result<()> {
         }
     });
     let global_dir = dir.path().join("global");
-    fs::create_dir(&global_dir).map_err(|_| "global directory")?;
-    let global_listen = process::port();
-    fixtures::global(&global_dir, global_listen.clone(), 1000, now).await;
-    // The community needs the global public documents at startup: read them from
-    // the global service alone, stop it, then start both in one platform process.
-    let public: cvld::api::GlobalPublic = {
-        let probe = Service::start(
-            &bin,
-            &global_dir,
-            "global",
-            fixtures::WALLET.into(),
-            &clock,
-            Arc::new(Mutex::new(Metrics::default())),
-        )?;
-        serde_json::from_value(probe.initial.clone()).map_err(|_| "global public documents")?
-    };
     let alpha_dir = dir.path().join("alpha");
-    fs::create_dir(&alpha_dir).map_err(|_| "alpha directory")?;
-    let alpha_listen = process::port();
+    let resume = saved.is_some();
+    let saved_text = |key: &str| {
+        saved
+            .as_ref()
+            .and_then(|value| value[key].as_str())
+            .map(str::to_owned)
+    };
+    let global_listen = saved_text("global_listen").unwrap_or_else(process::port);
+    let alpha_listen = saved_text("alpha_listen").unwrap_or_else(process::port);
     // The real accounting operator's activation probe is cut for the community "omega".
     let community_name = if std::env::var_os("CVLD_G5_ACCOUNT_CONFIG").is_some() {
         "omega"
     } else {
         "alpha"
     };
-    fixtures::community(&alpha_dir, alpha_listen.clone(), community_name, &public, 1000);
-    // Multi-tenant hosting (communities created at runtime behind the Host-routing front)
-    // runs next to the real accounting operator; each created community derives its own.
-    let hub = if std::env::var_os("CVLD_G5_ACCOUNT_CONFIG").is_some() {
-        let hub_dir = dir.path().join("hub");
-        fs::create_dir(&hub_dir).map_err(|_| "hub directory")?;
-        // The template carries the platform-wide accounting (artifacts, limits, execution)
-        // and names the directory where each created community's own inputs are derived.
-        fixtures::community_with(&hub_dir, process::port(), "template", &public, 1000, true);
-        let tenants = hub_dir.join("tenants");
-        fs::create_dir(&tenants).map_err(|_| "tenants directory")?;
-        let template_path = hub_dir.join("config.json");
-        let mut template: serde_json::Value =
-            serde_json::from_slice(&fs::read(&template_path).map_err(|_| "template")?)
-                .map_err(|_| "template decodes")?;
-        template["accounting"]["tenants_dir"] = tenants.to_string_lossy().as_ref().into();
-        fs::write(
-            &template_path,
-            serde_json::to_vec(&template).map_err(|_| "encode template")?,
-        )
-        .map_err(|_| "write template")?;
-        fs::write(hub_dir.join("master"), cpsd::rand::random::<[u8; 32]>())
-            .map_err(|_| "hub master secret")?;
-        let key = std::process::Command::new("openssl")
-            .args([
-                "genpkey",
-                "-algorithm",
-                "RSA",
-                "-pkeyopt",
-                "rsa_keygen_bits:2048",
-                "-outform",
-                "DER",
-            ])
-            .output()
-            .map_err(|_| "openssl")?;
-        if !key.status.success() {
-            return Err("token issuer key generation".into());
+    // A continued state keeps its directories, configurations and platform composition as saved.
+    if !resume {
+        fs::create_dir(&global_dir).map_err(|_| "global directory")?;
+        fixtures::global(&global_dir, global_listen.clone(), 1000, now).await;
+        // The community needs the global public documents at startup: read them from
+        // the global service alone, stop it, then start both in one platform process.
+        let public: cvld::api::GlobalPublic = {
+            let probe = Service::start(
+                &bin,
+                &global_dir,
+                "global",
+                fixtures::WALLET.into(),
+                &clock,
+                Arc::new(Mutex::new(Metrics::default())),
+            )?;
+            serde_json::from_value(probe.initial.clone()).map_err(|_| "global public documents")?
+        };
+        fs::create_dir(&alpha_dir).map_err(|_| "alpha directory")?;
+        fixtures::community(
+            &alpha_dir,
+            alpha_listen.clone(),
+            community_name,
+            &public,
+            1000,
+        );
+        // Multi-tenant hosting (communities created at runtime behind the Host-routing front)
+        // runs next to the real accounting operator; each created community derives its own.
+        let hub = if std::env::var_os("CVLD_G5_ACCOUNT_CONFIG").is_some() {
+            let hub_dir = dir.path().join("hub");
+            fs::create_dir(&hub_dir).map_err(|_| "hub directory")?;
+            // The template carries the platform-wide accounting (artifacts, limits, execution)
+            // and names the directory where each created community's own inputs are derived.
+            fixtures::community_with(&hub_dir, process::port(), "template", &public, 1000, true);
+            let tenants = hub_dir.join("tenants");
+            fs::create_dir(&tenants).map_err(|_| "tenants directory")?;
+            let template_path = hub_dir.join("config.json");
+            let mut template: serde_json::Value =
+                serde_json::from_slice(&fs::read(&template_path).map_err(|_| "template")?)
+                    .map_err(|_| "template decodes")?;
+            template["accounting"]["tenants_dir"] = tenants.to_string_lossy().as_ref().into();
+            fs::write(
+                &template_path,
+                serde_json::to_vec(&template).map_err(|_| "encode template")?,
+            )
+            .map_err(|_| "write template")?;
+            fs::write(hub_dir.join("master"), cpsd::rand::random::<[u8; 32]>())
+                .map_err(|_| "hub master secret")?;
+            let key = std::process::Command::new("openssl")
+                .args([
+                    "genpkey",
+                    "-algorithm",
+                    "RSA",
+                    "-pkeyopt",
+                    "rsa_keygen_bits:2048",
+                    "-outform",
+                    "DER",
+                ])
+                .output()
+                .map_err(|_| "openssl")?;
+            if !key.status.success() {
+                return Err("token issuer key generation".into());
+            }
+            fs::write(hub_dir.join("token-issuer.der"), key.stdout)
+                .map_err(|_| "token issuer key")?;
+            Some(json!({
+                "template_config": hub_dir.join("config.json"),
+                "master_secret_file": hub_dir.join("master"),
+                "token_issuer_file": hub_dir.join("token-issuer.der"),
+                "shell_seconds": 7 * 86_400,
+                "provisioner": {"kind": "noop"},
+            }))
+        } else {
+            None
+        };
+        let mut platform = json!({
+            "global_config": global_dir.join("config.json"),
+            "community_configs": [alpha_dir.join("config.json")],
+        });
+        if let Some(hub) = hub {
+            platform["hub"] = hub;
         }
-        fs::write(hub_dir.join("token-issuer.der"), key.stdout).map_err(|_| "token issuer key")?;
-        Some(json!({
-            "template_config": hub_dir.join("config.json"),
-            "master_secret_file": hub_dir.join("master"),
-            "token_issuer_file": hub_dir.join("token-issuer.der"),
-            "shell_seconds": 7 * 86_400,
-            "provisioner": {"kind": "noop"},
-        }))
-    } else {
-        None
-    };
-    let mut platform = json!({
-        "global_config": global_dir.join("config.json"),
-        "community_configs": [alpha_dir.join("config.json")],
-    });
-    if let Some(hub) = hub {
-        platform["hub"] = hub;
+        fs::write(
+            global_dir.join("platform.json"),
+            serde_json::to_vec(&platform).map_err(|_| "encode")?,
+        )
+        .map_err(|_| "write platform configuration")?;
     }
-    fs::write(
-        global_dir.join("platform.json"),
-        serde_json::to_vec(&platform).map_err(|_| "encode")?,
-    )
-    .map_err(|_| "write platform configuration")?;
     let global = Service::start(
         &bin,
         &global_dir,
@@ -253,24 +312,32 @@ async fn run() -> Result<()> {
     )?;
     let alpha_host: &'static str =
         Box::leak(format!("api.{community_name}.{}", fixtures::DOMAIN).into_boxed_str());
+    let (upstream_global, upstream_alpha) = (global_listen.clone(), alpha_listen.clone());
     let upstreams = [
         (global_listen.clone(), fixtures::WALLET),
-        (alpha_listen, alpha_host),
+        (alpha_listen.clone(), alpha_host),
         (global_listen.clone(), fixtures::ROOT_ADMIN),
         // Created communities: the client's own Host header reaches the Host-routing front.
         (global_listen, ""),
     ];
 
-    // One self-signed end-entity certificate is the only trust root handed out.
-    let rcgen::CertifiedKey { cert, signing_key } = rcgen::generate_simple_self_signed(vec![
-        "localhost".into(),
-        fixtures::WALLET.into(),
-        "127.0.0.1".into(),
-    ])
-    .map_err(|_| "certificate generation")?;
-    let cert_der = cert.der().to_vec();
+    // One self-signed end-entity certificate is the only trust root handed out. A continued
+    // state keeps the certificate (the devices pin it) and the four front-end ports.
+    let (cert_der, key_der) = match (saved_text("cert_der"), saved_text("key_der")) {
+        (Some(cert), Some(key)) => (hex_decode(&cert)?, hex_decode(&key)?),
+        _ => {
+            let rcgen::CertifiedKey { cert, signing_key } =
+                rcgen::generate_simple_self_signed(vec![
+                    "localhost".into(),
+                    fixtures::WALLET.into(),
+                    "127.0.0.1".into(),
+                ])
+                .map_err(|_| "certificate generation")?;
+            (cert.der().to_vec(), signing_key.serialize_der())
+        }
+    };
     fs::write(out.join("ca.der"), &cert_der).map_err(|_| "write trust root")?;
-    let key = PrivateKeyDer::from(PrivatePkcs8KeyDer::from(signing_key.serialize_der()));
+    let key = PrivateKeyDer::from(PrivatePkcs8KeyDer::from(key_der.clone()));
     // Several rustls providers are linked; name the one this crate enables.
     let provider = Arc::new(tokio_rustls::rustls::crypto::ring::default_provider());
     let config = ServerConfig::builder_with_provider(provider)
@@ -282,10 +349,21 @@ async fn run() -> Result<()> {
     let acceptor = TlsAcceptor::from(Arc::new(config));
     // One TLS front end per virtual host: the client insists that its https host
     // equals the host it sends, so each service gets its own loopback port.
+    let saved_ports: Vec<u16> = saved
+        .as_ref()
+        .and_then(|value| value["ports"].as_array())
+        .map(|ports| {
+            ports
+                .iter()
+                .filter_map(|p| p.as_u64().map(|p| p as u16))
+                .collect()
+        })
+        .unwrap_or_default();
     let mut ports = Vec::new();
     let mut proxies = Vec::new();
-    for (upstream, host) in upstreams {
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+    for (index, (upstream, host)) in upstreams.into_iter().enumerate() {
+        let wanted = saved_ports.get(index).copied().unwrap_or(0);
+        let listener = tokio::net::TcpListener::bind(("127.0.0.1", wanted))
             .await
             .map_err(|_| "tls listener")?;
         ports.push(listener.local_addr().map_err(|_| "tls address")?.port());
@@ -309,8 +387,22 @@ async fn run() -> Result<()> {
             }
         }));
     }
-    let (port, alpha_port, root_port, passthrough_port) =
-        (ports[0], ports[1], ports[2], ports[3]);
+    if state_root.is_some() && !resume {
+        // Test state (public values and the test certificate key); written once the stack is up.
+        let record = json!({
+            "global_listen": upstream_global,
+            "alpha_listen": upstream_alpha,
+            "ports": ports,
+            "cert_der": hex_encode(&cert_der),
+            "key_der": hex_encode(&key_der),
+        });
+        fs::write(
+            &saved_path,
+            serde_json::to_vec(&record).map_err(|_| "encode")?,
+        )
+        .map_err(|_| "write stack state")?;
+    }
+    let (port, alpha_port, root_port, passthrough_port) = (ports[0], ports[1], ports[2], ports[3]);
     eprintln!("stack listening on {port} {alpha_port} {root_port}");
 
     // Self-probe with the same client the devices use; reports only the outcome class.
@@ -410,7 +502,8 @@ async fn run() -> Result<()> {
                     Ok::<_, &'static str>(feed["key_ring"].clone())
                 }
             };
-            let wallet_ring = feed(format!("https://127.0.0.1:{port}"), "wallet_trust_feed").await?;
+            let wallet_ring =
+                feed(format!("https://127.0.0.1:{port}"), "wallet_trust_feed").await?;
             let community_ring =
                 feed(format!("https://127.0.0.1:{alpha_port}"), "trust_feed").await?;
             let artifacts = &account["extension_artifacts"];
