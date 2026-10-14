@@ -7,7 +7,34 @@ use std::sync::atomic::Ordering;
 pub(super) struct InertHttp {
     calls: std::sync::atomic::AtomicUsize,
     clock: std::sync::Arc<TestClock>,
+    /// The destinations of the latest send request; a check names only the verification.
+    latest: std::sync::Mutex<[String; 2]>,
 }
+
+/// The `To` form field of a provider request, percent-decoded: the inert upstream
+/// answers for the destination it was asked about, as the real one does.
+fn requested_destination(body: &[u8], fallback: &str) -> String {
+    let text = String::from_utf8_lossy(body);
+    let Some(value) = text.split('&').find_map(|pair| pair.strip_prefix("To=")) else {
+        return fallback.into();
+    };
+    let bytes = value.replace('+', " ").into_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() + 0 {
+            if let Ok(byte) = u8::from_str_radix(&String::from_utf8_lossy(&bytes[i + 1..i + 3]), 16) {
+                out.push(byte);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8(out).unwrap_or_else(|_| fallback.into())
+}
+
 impl cvld::contact_gates::transport::TrustedTransport for InertHttp {
     fn mode(&self) -> cfbk::cost::Mode {
         cfbk::cost::Mode::Production
@@ -29,7 +56,15 @@ impl cvld::contact_gates::transport::TrustedTransport for InertHttp {
             assert!(request.headers()[axum::http::header::AUTHORIZATION].is_sensitive());
             self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             let checking = request.uri().path().ends_with("/VerificationCheck");
-            Ok(axum::http::Response::new(cphn::Private::new(serde_json::to_vec(&json!({"sid":format!("VE{}","0".repeat(32)),"account_sid":format!("AC{}","0".repeat(32)),"service_sid":format!("VA{}","0".repeat(32)),"to":"+12025550123","channel":"sms","status":if checking {"approved"} else {"pending"},"valid":checking,"extension":"private-inert-upstream"})).unwrap())))
+            let to = {
+                let mut latest = self.latest.lock().unwrap();
+                let named = requested_destination(request.body().expose(), "");
+                if !named.is_empty() {
+                    latest[0] = named;
+                }
+                latest[0].clone()
+            };
+            Ok(axum::http::Response::new(cphn::Private::new(serde_json::to_vec(&json!({"sid":format!("VE{}","0".repeat(32)),"account_sid":format!("AC{}","0".repeat(32)),"service_sid":format!("VA{}","0".repeat(32)),"to":to,"channel":"sms","status":if checking {"approved"} else {"pending"},"valid":checking,"extension":"private-inert-upstream"})).unwrap())))
         })
     }
     fn mailbox(
@@ -49,7 +84,19 @@ impl cvld::contact_gates::transport::TrustedTransport for InertHttp {
             assert!(request.headers()[axum::http::header::AUTHORIZATION].is_sensitive());
             self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             let checking = request.uri().path().ends_with("/VerificationCheck");
-            Ok(axum::http::Response::new(cmbx::Private::new(serde_json::to_vec(&json!({"sid":format!("VE{}","0".repeat(32)),"account_sid":format!("AC{}","0".repeat(32)),"service_sid":format!("VA{}","0".repeat(32)),"to":"Member+alias@example.test","channel":"email","status":if checking {"approved"} else {"pending"},"valid":checking,"extension":"private-inert-upstream"})).unwrap())))
+            let to = {
+                let mut latest = self.latest.lock().unwrap();
+                let named = requested_destination(request.body().expose(), "");
+                if !named.is_empty() {
+                    latest[1] = named;
+                }
+                latest[1].clone()
+            };
+            let to = match to.rsplit_once('@') {
+                Some((local, domain)) => format!("{local}@{}", domain.to_lowercase()),
+                None => to,
+            };
+            Ok(axum::http::Response::new(cmbx::Private::new(serde_json::to_vec(&json!({"sid":format!("VE{}","0".repeat(32)),"account_sid":format!("AC{}","0".repeat(32)),"service_sid":format!("VA{}","0".repeat(32)),"to":to,"channel":"email","status":if checking {"approved"} else {"pending"},"valid":checking,"extension":"private-inert-upstream"})).unwrap())))
         })
     }
 }
@@ -164,6 +211,7 @@ pub(super) async fn production_with_issuer(
     let wire = std::sync::Arc::new(InertHttp {
         calls: std::sync::atomic::AtomicUsize::new(0),
         clock: clock.clone(),
+        latest: std::sync::Mutex::new(["+12025550123".into(), "Member+alias@EXAMPLE.test".into()]),
     });
     let door =
         Door::global_with_contact_transport(config, clock.clone(), AnyTransport::new(wire.clone()))
@@ -211,11 +259,27 @@ pub(super) async fn wallet_with_holder(
     cohort: u64,
     secret: &cpsd::HolderSecret,
 ) -> (Member, cpsd::Passport, GlobalPublic) {
+    wallet_with_contacts(
+        service,
+        cohort,
+        secret,
+        ["+12025550123", "Member+alias@EXAMPLE.test"],
+    )
+    .await
+}
+
+/// A wallet for a person with their own phone number and mailbox.
+pub(super) async fn wallet_with_contacts(
+    service: &Running,
+    cohort: u64,
+    secret: &cpsd::HolderSecret,
+    [phone, mailbox]: [&str; 2],
+) -> (Member, cpsd::Passport, GlobalPublic) {
     let member = enrol(service, WALLET, None).await;
     let api = client(service, WALLET, Some(&member.session));
     for (option, destination, gate) in [
-        ("phone", "+12025550123", "cphn"),
-        ("mailbox", "Member+alias@EXAMPLE.test", "cmbx"),
+        ("phone", phone, "cphn"),
+        ("mailbox", mailbox, "cmbx"),
     ] {
         let preview = api
             .call("contact_plan", plan(option, destination, 10))

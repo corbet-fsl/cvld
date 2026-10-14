@@ -5,7 +5,7 @@
 mod payment_support;
 mod support;
 use cmty::cplc;
-use cvld::{api::*, service::Door};
+use cvld::{api::*, service::{Clock as _, Door}};
 use ed25519_dalek::{Signer as _, SigningKey};
 use serde_json::json;
 use std::sync::{Arc, atomic::Ordering};
@@ -69,7 +69,9 @@ async fn real_production_contacts_passport_paid_membership_and_guard_share_one_j
     let (_wallet, passport, public) = contacts::wallet(&global, cohort).await;
     assert_eq!(contact_wire.calls(), 4);
     let payment_wire = payment_support::Wire::new(payment_support::Reply::Success);
-    let service = payment::community(&public, payment_wire.clone()).await;
+    let service = payment::community_founded(&global, cohort, &public, payment_wire.clone()).await;
+    // Founding the community verified the founder's own contacts; admission must add no provider call after that.
+    let after_founding = contact_wire.calls();
     let mut member = enrol_community(&service, HOST, &passport).await;
     let api = client(&service, HOST, Some(&member.session));
     api.call("handle_reserve", json!({"handle":"production_member"}))
@@ -87,7 +89,7 @@ async fn real_production_contacts_passport_paid_membership_and_guard_share_one_j
     assert_eq!(payment_wire.supported.load(Ordering::SeqCst), 1);
     assert_eq!(payment_wire.verified.load(Ordering::SeqCst), 1);
     assert_eq!(payment_wire.settled.load(Ordering::SeqCst), 1);
-    assert_eq!(contact_wire.calls(), 4);
+    assert_eq!(contact_wire.calls(), after_founding);
     let public = feed(&service).await;
     let credential = issued.credential.unwrap();
     let ring = csgn::KeyRing::from_cbor(&public.key_ring).unwrap();
@@ -142,7 +144,7 @@ async fn real_production_contacts_passport_paid_membership_and_guard_share_one_j
     assert!(guard(&bundle, &public).is_admitted());
     let certificate: PasskeyCertificateResponse =
         serde_json::from_value(api.call("passkey_certificate", json!({})).await.unwrap()).unwrap();
-    assert_eq!(certificate.checked_at, NOW);
+    assert_eq!(certificate.checked_at, service.clock.now());
     let certified =
         ckyh::certificate::verify(&ring, &certificate.bytes, &claims.member, NOW).unwrap();
     assert_eq!(certified.credential_id(), member.credential.as_slice());
@@ -185,5 +187,5 @@ async fn real_production_contacts_passport_paid_membership_and_guard_share_one_j
         409
     );
     assert_eq!(payment_wire.settled.load(Ordering::SeqCst), 1);
-    assert_eq!(contact_wire.calls(), 4);
+    assert_eq!(contact_wire.calls(), after_founding);
 }
