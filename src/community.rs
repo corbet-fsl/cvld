@@ -23,6 +23,7 @@ pub(crate) mod creation;
 mod enrollment;
 pub(crate) mod garden;
 mod legal;
+mod lobby_upcoming;
 mod payments;
 mod pin_change;
 mod root_board;
@@ -1122,6 +1123,14 @@ impl CommunityService {
                 })
                 .collect(),
             passport_required: true,
+            upcoming: lobby_upcoming::changes(
+                &policy.rulebook(now).await.map_err(Error::Unavailable.redact())?,
+                &policy
+                    .upcoming(now, lobby_upcoming::LOOKAHEAD)
+                    .await
+                    .map_err(Error::Unavailable.redact())?,
+            )
+            .map_err(Error::Unavailable.redact())?,
         })
     }
     /// A newcomer presents a voucher link. With sign-off the applicant stays in

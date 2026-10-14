@@ -42,6 +42,20 @@ pub struct Lobby {
     pub warnings: Vec<LobbyWarning>,
     /// Passport proof is always fresh when requesting a community credential.
     pub passport_required: bool,
+    /// Announced settings changes not yet in force, soonest first.
+    pub upcoming: Vec<LobbyUpcoming>,
+}
+/// One announced change of a setting's resolved value.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LobbyUpcoming {
+    pub key: String,
+    /// Plain label for the setting.
+    pub label: String,
+    pub from: Value,
+    pub to: Value,
+    /// Unix seconds when the new value begins to apply.
+    pub effective_at: i64,
 }
 /// An enabled gate and provider with the ordered inputs the member can supply.
 #[derive(Serialize, Deserialize, ToSchema)]
