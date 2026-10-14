@@ -620,6 +620,9 @@ impl Door {
                 | "account_checkpoint"
                 | "wallet_trust_feed"
                 | "wallet_trust_changes"
+                | "login_begin"
+                | "login_discoverable_begin"
+                | "login_finish"
         ) && let Some(token) = &ctx.token
         {
             if self.is_membership_host(&ctx.host) {
@@ -754,6 +757,11 @@ impl Door {
                 | "wallet_trust_changes"
                 | "community_self_ban_status_begin"
                 | "community_self_ban_status_finish"
+                // A sign-in ceremony starts a new session: a held token of an ended, expired or banned
+                // one must not block it.
+                | "login_begin"
+                | "login_discoverable_begin"
+                | "login_finish"
         ) {
             None
         } else {
