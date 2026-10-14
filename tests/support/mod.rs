@@ -714,6 +714,7 @@ pub fn voucher(_community: &str, member: &str, id: &str, valid_until: u64) -> Va
         member: member.into(),
         nonce: [3; 16],
         handle: None,
+        key_package: Vec::new(),
     };
     let request = Request::new(&token, &notice).unwrap();
     json!({
