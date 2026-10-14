@@ -158,8 +158,13 @@ fn trusted_constructor_and_file_reader_require_root_scope_and_public_path() {
 }
 
 #[test]
-fn root_board_serve_mode_requires_explicit_configuration_and_stays_distinct() {
-    for mode in ["root-board", "community"] {
+fn serve_mode_requires_explicit_configuration_and_no_root_board_mode_exists() {
+    assert!(
+        cvld::cli::command()
+            .try_get_matches_from(["cvld", "serve", "root-board", "--config", "fixture/config.json"])
+            .is_err()
+    );
+    for mode in ["community"] {
         let matches = cvld::cli::command()
             .try_get_matches_from(["cvld", "serve", mode, "--config", "fixture/config.json"])
             .unwrap();

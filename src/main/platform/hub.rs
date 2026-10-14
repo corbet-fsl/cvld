@@ -27,6 +27,10 @@ pub(super) struct HubFiles {
     reserved_file: Option<String>,
     /// Lifetime of an unclaimed community shell.
     shell_seconds: u64,
+    /// Raw 32-byte public X25519 key of the root hold key (a PUBLIC key). Without
+    /// it a legal hold is refused; the secret half stays offline with Root.
+    #[serde(default)]
+    hold_public_key_file: Option<String>,
     #[serde(default)]
     per_week: Option<u32>,
     #[serde(default)]
@@ -54,6 +58,10 @@ pub(super) struct Prepared {
     reserved: Reserved,
     shell_seconds: u64,
     limits: Limits,
+    /// Set when the operator pinned `per_week` or `per_year` in the file: the pin
+    /// then wins over the settings chain.
+    pinned_limits: Option<Limits>,
+    hold_key: Option<[u8; 32]>,
     provisioner: Arc<dyn HostProvisioner>,
 }
 
@@ -99,6 +107,20 @@ pub(super) fn read(files: &HubFiles) -> Result<Prepared> {
             per_week: files.per_week.unwrap_or(defaults.per_week),
             per_year: files.per_year.unwrap_or(defaults.per_year),
         },
+        pinned_limits: (files.per_week.is_some() || files.per_year.is_some()).then_some(Limits {
+            per_week: files.per_week.unwrap_or(defaults.per_week),
+            per_year: files.per_year.unwrap_or(defaults.per_year),
+        }),
+        hold_key: files
+            .hold_public_key_file
+            .as_deref()
+            .map(|path| -> Result<[u8; 32]> {
+                Config::secret(path)?
+                    .as_slice()
+                    .try_into()
+                    .map_err(|_| Error::Invalid)
+            })
+            .transpose()?,
         provisioner,
     })
 }
@@ -109,6 +131,7 @@ struct TemplateFactory {
     clock: Arc<dyn Clock>,
     construction: NativeConstruction,
     purpose: OnceLock<Arc<RootBoardPurpose>>,
+    pinned_limits: Option<Limits>,
 }
 
 impl TemplateFactory {
@@ -197,6 +220,26 @@ impl Factory for TemplateFactory {
         }
     }
 
+    fn creation_limits(&self) -> Result<Option<Limits>> {
+        if let Some(pinned) = self.pinned_limits {
+            return Ok(Some(pinned));
+        }
+        let values = self
+            .rulebook()?
+            .resolve(&Default::default())
+            .map_err(Error::Invalid.redact())?;
+        let read = |key: &str| {
+            values
+                .get(key)
+                .and_then(serde_json::Value::as_u64)
+                .and_then(|value| u32::try_from(value).ok())
+        };
+        Ok(Some(Limits {
+            per_week: read(crbk::CREATE_PER_WEEK).ok_or(Error::Invalid)?,
+            per_year: read(crbk::CREATE_PER_YEAR).ok_or(Error::Invalid)?,
+        }))
+    }
+
     fn forget(&self, seed: [u8; 32]) {
         let Ok(config) = serde_json::from_slice::<CommunityConfig>(&self.template) else {
             return;
@@ -240,6 +283,7 @@ pub(super) async fn open(
         clock: clock.clone(),
         construction: construction.clone(),
         purpose: OnceLock::new(),
+        pinned_limits: prepared.pinned_limits,
     });
     if let Some(purpose) = purpose {
         let _ = factory.purpose.set(purpose);
@@ -256,10 +300,12 @@ pub(super) async fn open(
         clock,
         shell_seconds: prepared.shell_seconds,
         master: prepared.master,
+        hold_key: prepared.hold_key,
     })
     .await?;
     let global = services.first_mut().ok_or(Error::Unavailable)?;
     global.door.attach_hub(Arc::new(hub.clone()))?;
+    hub.attach_feed(Arc::new(global.door.clone()))?;
     global.router = Some(hub.front(&global.door));
     global.hub = Some(hub.clone());
     hub.restore().await?;

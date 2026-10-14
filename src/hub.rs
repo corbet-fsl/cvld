@@ -13,7 +13,7 @@ use crate::{
     hosts::{Boxed, HostProvisioner, Hostnames},
     purge,
     registry::{Entry, Registry, State},
-    service::{Clock, CommunityHub, Door},
+    service::{Clock, CommunityHub, Door, EndFeed},
 };
 use axum::{body::Body, http::Request, response::IntoResponse};
 use hkdf::Hkdf;
@@ -40,6 +40,12 @@ pub trait Factory: Send + Sync {
     fn terms(&self, now: u64) -> Result<Option<AccountingTerms>>;
     /// Remove what was derived for a community that is gone. Idempotent.
     fn forget(&self, seed: [u8; 32]);
+    /// The per-person creation limits the settings chain currently resolves
+    /// (`community.create.per_week` / `per_year`); `None` keeps the hub's fixed
+    /// limits.
+    fn creation_limits(&self) -> Result<Option<creation_token::Limits>> {
+        Ok(None)
+    }
 }
 
 pub struct HubParts {
@@ -59,6 +65,9 @@ pub struct HubParts {
     pub shell_seconds: u64,
     /// Platform charter master secret; per-community seeds derive from it.
     pub master: zeroize::Zeroizing<Vec<u8>>,
+    /// Public X25519 key of the root hold key: a legal hold is only possible
+    /// when it is set, and the held data is then readable by that key alone.
+    pub hold_key: Option<[u8; 32]>,
 }
 
 struct Live {
@@ -78,6 +87,12 @@ pub struct Hub {
     clock: Arc<dyn Clock>,
     shell_seconds: u64,
     master: zeroize::Zeroizing<Vec<u8>>,
+    hold_key: Option<[u8; 32]>,
+    /// The platform feed that carries end-of-chain statements; set by the launcher.
+    feed: std::sync::OnceLock<Arc<dyn EndFeed>>,
+    /// Registry change counter up to which the feed has been told (restart: 0,
+    /// publication is idempotent).
+    fed: std::sync::atomic::AtomicU64,
     doors: RwLock<BTreeMap<String, Live>>,
 }
 
@@ -98,6 +113,9 @@ fn seed(master: &[u8], id: &[u8; 16]) -> Result<[u8; 32]> {
         .map_err(|_| Error::Unavailable)?;
     Ok(out)
 }
+
+/// Host labels (below the base domain) of the platform operator portal.
+const PORTAL_LABELS: [&str; 2] = ["api.admin.root", "api.root"];
 
 /// A creation is a person's interrupted afternoon, not a request: a shell lives at
 /// least this long, and every resume or claim extends it by the same time.
@@ -179,8 +197,53 @@ impl Hub {
             clock: parts.clock,
             shell_seconds: parts.shell_seconds.max(MIN_SHELL_SECONDS),
             master: parts.master,
+            hold_key: parts.hold_key,
+            feed: std::sync::OnceLock::new(),
+            fed: std::sync::atomic::AtomicU64::new(0),
             doors: RwLock::new(BTreeMap::new()),
         }))
+    }
+
+    /// Attach the platform feed that publishes end-of-chain statements. Once.
+    pub fn attach_feed(&self, feed: Arc<dyn EndFeed>) -> Result<()> {
+        self.feed.set(feed).map_err(|_| Error::Forbidden)
+    }
+
+    /// Tell the platform feed about every ended chain the registry knows and the
+    /// feed has not yet heard of. A failure leaves the cursor, so the next
+    /// maintenance round repeats it; devices see the statement within one
+    /// refresh of the round that succeeds.
+    async fn announce_ended(&self) -> Result<()> {
+        use std::sync::atomic::Ordering;
+        let Some(feed) = self.feed.get() else {
+            return Ok(());
+        };
+        let now = self.clock.now();
+        loop {
+            let cursor = self.fed.load(Ordering::SeqCst);
+            let entries = self.registry.finished_since(cursor, 100).await?;
+            if entries.is_empty() {
+                return Ok(());
+            }
+            for entry in &entries {
+                if let (Some(fingerprint), Some(reason)) = (entry.fingerprint, &entry.end_reason) {
+                    feed.publish(
+                        cmty::cplc::EndedChain {
+                            fingerprint,
+                            reason_class: if reason == "dissolved" {
+                                cmty::cplc::EndReasonClass::Dissolved
+                            } else {
+                                cmty::cplc::EndReasonClass::Banned
+                            },
+                            ended_at: entry.ended_at.unwrap_or(now),
+                        },
+                        now,
+                    )
+                    .await?;
+                }
+                self.fed.fetch_max(entry.seq, Ordering::SeqCst);
+            }
+        }
     }
 
     pub fn registry(&self) -> &Arc<Registry> {
@@ -253,6 +316,12 @@ impl Hub {
             self.detach(&entry).await;
             self.finish(&entry, now).await?;
         }
+        // A hold interrupted before the data was sealed and purged is finished
+        // again; at the end of the hold the sealed copy goes too (see `finish`).
+        for entry in self.registry.holding(now).await? {
+            self.finish(&entry, now).await?;
+        }
+        self.announce_ended().await?;
         for entry in self.registry.expired_shells(now).await? {
             let admitted = match self.doors.read().await.get(&entry.address) {
                 Some(live) => live.door.community_active().await.unwrap_or(false),
@@ -285,12 +354,21 @@ impl Hub {
             .await?
             .filter(|entry| entry.state.serves())
             .ok_or(Error::Refused)?;
+        // A hold is only possible when a root hold key is configured: the held
+        // data is never kept in the clear, so there is no fallback.
+        if hold_until.is_some_and(|until| until > now) && self.hold_key.is_none() {
+            return Err(Error::Invalid);
+        }
         let entry = self
             .registry
             .begin_end(entry.id, now, reason, hold_until, block_name)
             .await?;
         self.detach(&entry).await;
-        self.finish(&entry, now).await
+        let finished = self.finish(&entry, now).await;
+        // The feed tells member devices to delete their copies. A failure here
+        // does not undo the ending; the next maintenance round repeats it.
+        let _ = self.announce_ended().await;
+        finished
     }
 
     /// Stop serving: close the door and remove the hostnames. Idempotent.
@@ -306,15 +384,28 @@ impl Hub {
         let _ = self.tokens.release(entry.id).await;
     }
 
-    /// Delete the data of an ending community once no hold applies.
+    /// Delete the data of an ending community. Under a hold the data is first
+    /// sealed to the root hold key (the only copy, ciphertext) and the server
+    /// scope is emptied all the same; the sealed copy goes when the hold ends.
     async fn finish(&self, entry: &Entry, now: u64) -> Result<()> {
-        if entry.hold_until.is_some_and(|until| until > now) {
+        if let Some(until) = entry.hold_until.filter(|until| *until > now) {
+            if self.registry.held(entry.id).await?.is_none() {
+                let key = self.hold_key.ok_or(Error::Invalid)?;
+                let dump = purge::dump_scope(&self.community_db, &entry.address).await?;
+                let sealed = crate::hold::seal(&key, &entry.id, &dump)?;
+                self.registry.store_held(entry.id, until, &sealed).await?;
+            }
+            purge::purge_scope(&self.community_db, &entry.address).await?;
+            if let Ok(seed) = seed(&self.master, &entry.id) {
+                self.factory.forget(seed);
+            }
             return Ok(());
         }
         self.provisioner
             .deprovision(&Hostnames::new(&entry.address, &self.base))
             .await?;
         purge::purge_scope(&self.community_db, &entry.address).await?;
+        self.registry.delete_held(entry.id).await?;
         if let Ok(seed) = seed(&self.master, &entry.id) {
             self.factory.forget(seed);
         }
@@ -347,16 +438,22 @@ impl Hub {
         else {
             return Error::WrongHost.into_response();
         };
-        let label = suffix
-            .strip_prefix("api.admin.")
-            .or_else(|| suffix.strip_prefix("api."));
+        // The platform's own operator portal is a host of the global door, not a
+        // community; no community address is treated specially.
+        let label = (!PORTAL_LABELS.contains(&suffix))
+            .then(|| {
+                suffix
+                    .strip_prefix("api.admin.")
+                    .or_else(|| suffix.strip_prefix("api."))
+            })
+            .flatten();
         let router = match label {
-            Some(address) if address != "root" => match self.doors.read().await.get(address) {
+            Some(address) => match self.doors.read().await.get(address) {
                 Some(live) => live.router.clone(),
                 None => return Error::WrongHost.into_response(),
             },
-            // wallet.<base>, api.admin.root.<base> and every other global host.
-            _ => global,
+            // wallet.<base>, the operator portal and every other global host.
+            None => global,
         };
         match router.oneshot(request).await {
             Ok(response) => response,
@@ -578,6 +675,52 @@ impl CommunityHub for Arc<Hub> {
         })
     }
 
+    fn address<'a>(
+        &'a self,
+        request: api::AddressCheck,
+        now: u64,
+    ) -> Boxed<'a, Result<api::AddressAnswer>> {
+        Box::pin(async move {
+            use crate::address::{Light, Refusal};
+            let light = match crate::address::light(&request.address) {
+                Light::Red => api::AddressLight::Red,
+                Light::Amber => api::AddressLight::Amber,
+                Light::Green => api::AddressLight::Green,
+            };
+            let refusal = match crate::address::validate(&request.address, &self.reserved) {
+                Err(Refusal::TooShort) => Some(api::AddressRefusal::TooShort),
+                Err(Refusal::TooLong) => Some(api::AddressRefusal::TooLong),
+                Err(Refusal::Charset) => Some(api::AddressRefusal::Charset),
+                Err(Refusal::Reserved) => Some(api::AddressRefusal::Reserved),
+                Err(Refusal::Offensive) => Some(api::AddressRefusal::Offensive),
+                Ok(()) if !self.registry.address_available(&request.address, now).await? => {
+                    Some(api::AddressRefusal::Taken)
+                }
+                Ok(()) => None,
+            };
+            let wanted = usize::from(request.suggestions.min(8));
+            let mut suggestions = Vec::new();
+            if wanted > 0 && request.display_name.chars().count() <= CreationPlan::NAME_CHARS {
+                for candidate in
+                    crate::address::suggest(&request.display_name, &self.reserved, 64)
+                {
+                    if suggestions.len() == wanted {
+                        break;
+                    }
+                    if self.registry.address_available(&candidate, now).await? {
+                        suggestions.push(candidate);
+                    }
+                }
+            }
+            Ok(api::AddressAnswer {
+                available: refusal.is_none(),
+                refusal,
+                light,
+                suggestions,
+            })
+        })
+    }
+
     fn terms<'a>(
         &'a self,
         request: api::CommunityTermsRequest,
@@ -613,7 +756,14 @@ impl CommunityHub for Arc<Hub> {
                 return Ok(signature);
             }
             let signature = self.issuer.sign(blinded)?;
-            self.tokens.record_issuance(subject, now).await?;
+            match self.factory.creation_limits()? {
+                Some(limits) => {
+                    self.tokens
+                        .record_issuance_within(subject, now, limits)
+                        .await?
+                }
+                None => self.tokens.record_issuance(subject, now).await?,
+            }
             self.tokens
                 .remember(subject, blinded, &signature, now)
                 .await?;

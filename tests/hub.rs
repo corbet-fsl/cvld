@@ -58,6 +58,9 @@ struct Fixture {
     member: Member,
     passport: cpsd::Passport,
     key: creation_token::PublicKey,
+    /// Secret half of the root hold key (offline with Root in production).
+    hold_secret: [u8; 32],
+    dir_path: PathBuf,
     _dir: tempfile::TempDir,
 }
 
@@ -68,13 +71,18 @@ async fn open(db: &std::path::Path) -> crlt::Db {
 }
 
 async fn fixture() -> Fixture {
-    let global = global(100).await;
+    fixture_with(true).await
+}
+
+async fn fixture_with(hold: bool) -> Fixture {
+    let global = configured_wallet(100).await;
     let (member, passport, public) = wallet_passport(&global).await;
     let dir = tempfile::tempdir().unwrap();
     let pair = KeyPair::generate(&mut DefaultRng, 2048).unwrap();
     let issuer = Issuer::from_der(&pair.sk.to_der().unwrap()).unwrap();
     let key = creation_token::public_key(&issuer.public_der().unwrap()).unwrap();
     let provisioner = Arc::new(NoopProvisioner::default());
+    let (hold_secret, hold_public) = cvld::hold::generate();
     let hub = Hub::new(HubParts {
         global_db: open(&global.dir.path().join("global.db")).await,
         community_db: open(&dir.path().join("community.db")).await,
@@ -94,10 +102,12 @@ async fn fixture() -> Fixture {
         clock: global.clock.clone(),
         shell_seconds: 3600,
         master: zeroize::Zeroizing::new(vec![5; 32]),
+        hold_key: hold.then_some(hold_public),
     })
     .await
     .unwrap();
     global.door.attach_hub(Arc::new(hub.clone())).unwrap();
+    hub.attach_feed(Arc::new(global.door.clone())).unwrap();
     let router = hub.front(&global.door);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}", listener.local_addr().unwrap());
@@ -119,11 +129,24 @@ async fn fixture() -> Fixture {
         member,
         passport,
         key,
+        hold_secret,
+        dir_path: dir.path().to_path_buf(),
         _dir: dir,
     }
 }
 
 impl Fixture {
+    /// Whether the platform feed (the wallet's Communities snapshot) states that
+    /// the chain with this fingerprint ended.
+    async fn ended_in_feed(&self, fingerprint: &str) -> bool {
+        let wallet = client(&self.front, WALLET, None);
+        let feed: TrustFeed = serde_json::from_value(
+            wallet.call("wallet_trust_feed", json!({})).await.unwrap(),
+        )
+        .unwrap();
+        let text = String::from_utf8_lossy(&feed.communities).into_owned();
+        text.contains(fingerprint) && text.contains("ended")
+    }
     /// A finished token obtained through the HTTP door with the wallet session.
     async fn token(&self) -> Value {
         let wallet = client(&self.front, WALLET, Some(&self.member.session));
@@ -181,6 +204,7 @@ async fn token_creation_claim_admission_registry_and_termination() {
     for gates in [
         json!([]),
         json!(["voucher"]),
+        json!(["legal"]),
         json!(["legal", "bogus"]),
         json!(["legal", "legal"]),
     ] {
@@ -316,30 +340,127 @@ async fn token_creation_claim_admission_registry_and_termination() {
     assert_eq!(f.provisioner.calls().last().map(|c| c.0), Some(false));
     let blocked = f.token().await;
     assert!(f.create("gardenclub", blocked).await.is_err());
-    let _ = &f.hub;
+    // Exactly one root-log row for the termination (not for the creation).
+    let log = f.hub.registry().root_log(10).await.unwrap();
+    assert_eq!(log.len(), 1);
+    assert_eq!(log[0].address, "gardenclub");
+    assert_eq!(log[0].reason, "terms");
+    assert!(log[0].block_name && log[0].hold_until.is_none());
+    // The platform feed states the end of the chain; a maintenance round repeats
+    // the statement if it was lost, without a second entry.
+    f.hub.maintain().await.unwrap();
+    assert!(f.ended_in_feed(&created.fingerprint).await);
+    assert_eq!(f.hub.registry().root_log(10).await.unwrap().len(), 1);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_legal_hold_keeps_only_ciphertext_a_root_key_opens() {
+    let f = fixture().await;
+    let created = f.create("heldclub1", f.token().await).await.unwrap();
+    let root = enrol(
+        &f.global,
+        ROOT,
+        Some("synthetic-operator-enrolment-capability"),
+    )
+    .await;
+    let root_api = client(&f.front, ROOT, Some(&root.session));
+    // A hold belongs to legal orders only.
+    let until = f.front.clock.now() + 86_400;
+    assert!(
+        root_api
+            .call(
+                "community_terminate",
+                json!({"address":"heldclub1","reason":"terms","hold_until":until}),
+            )
+            .await
+            .is_err()
+    );
+    root_api
+        .call(
+            "community_terminate",
+            json!({"address":"heldclub1","reason":"legal","hold_until":until}),
+        )
+        .await
+        .unwrap();
+    // The server scope is empty; the only copy is ciphertext.
+    let db = open(&f.dir_path.join("community.db")).await;
+    db.migrate(&cvld::service::community_migrations())
+        .await
+        .unwrap();
+    let rows = db
+        .community("heldclub1")
+        .unwrap()
+        .query("SELECT count(*) FROM cvld_genesis", ())
+        .await
+        .unwrap();
+    assert_eq!(rows[0].get_i64(0).unwrap(), 0);
+    let id: [u8; 16] = (0..16)
+        .map(|i| u8::from_str_radix(&created.id[2 * i..2 * i + 2], 16).unwrap())
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap();
+    let sealed = f.hub.registry().held(id).await.unwrap().unwrap();
+    assert!(!sealed.windows(11).any(|w| w == b"cvld_genesi"));
+    let opened = cvld::hold::open(&f.hold_secret, &id, &sealed).unwrap();
+    assert!(
+        String::from_utf8(opened)
+            .unwrap()
+            .contains("cvld_genesis")
+    );
+    assert!(cvld::hold::open(&[9; 32], &id, &sealed).is_err());
+    assert_eq!(f.hub.registry().root_log(10).await.unwrap().len(), 1);
+    // The hold ends: the sealed copy goes and the community is ended.
+    f.front.clock.set(until + 1);
+    f.hub.maintain().await.unwrap();
+    assert!(f.hub.registry().held(id).await.unwrap().is_none());
+    assert!(f.ended_in_feed(&created.fingerprint).await);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn without_a_hold_key_a_legal_hold_is_refused_and_nothing_changes() {
+    let f = fixture_with(false).await;
+    f.create("noholdclub", f.token().await).await.unwrap();
+    let root = enrol(
+        &f.global,
+        ROOT,
+        Some("synthetic-operator-enrolment-capability"),
+    )
+    .await;
+    let root_api = client(&f.front, ROOT, Some(&root.session));
+    let until = f.front.clock.now() + 86_400;
+    assert!(
+        root_api
+            .call(
+                "community_terminate",
+                json!({"address":"noholdclub","reason":"legal","hold_until":until}),
+            )
+            .await
+            .is_err()
+    );
+    assert!(f.record(&format!("noholdclub.{DOMAIN}")).await.is_some());
+    assert!(f.hub.registry().root_log(10).await.unwrap().is_empty());
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_chosen_gates_decide_what_the_lobby_still_asks() {
     let f = fixture().await;
+    // The bot fence: `legal` alone (no strong gate, fewer than two medium gates)
+    // is refused; `legal` with a voucher is accepted.
+    assert!(
+        f.create_with("rosegarden", f.token().await, json!(["legal"]))
+            .await
+            .is_err()
+    );
     let with = f.create("withvoucher", f.token().await).await.unwrap();
-    let without = f
-        .create_with("rosegarden", f.token().await, json!(["legal"]))
+    let host = format!("api.withvoucher.{DOMAIN}");
+    let member = enrol_community(&f.front, &host, &f.passport).await;
+    let api = client(&f.front, &host, Some(&member.session));
+    api.call("community_creation_claim", json!({"claim": with.claim}))
         .await
         .unwrap();
-    let mut missing = Vec::new();
-    for (address, created) in [("withvoucher", with), ("rosegarden", without)] {
-        let host = format!("api.{address}.{DOMAIN}");
-        let member = enrol_community(&f.front, &host, &f.passport).await;
-        let api = client(&f.front, &host, Some(&member.session));
-        api.call("community_creation_claim", json!({"claim": created.claim}))
-            .await
-            .unwrap();
-        let lobby = api.call("lobby", json!({})).await.unwrap();
-        missing.push(lobby["missing"].to_string());
-    }
-    assert!(missing[0].contains("cvch"), "{}", missing[0]);
-    assert!(!missing[1].contains("cvch"), "{}", missing[1]);
+    let lobby = api.call("lobby", json!({})).await.unwrap();
+    let missing = lobby["missing"].to_string();
+    assert!(missing.contains("cvch"), "{missing}");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -409,4 +530,41 @@ async fn an_interrupted_creation_is_repeated_without_a_second_community_or_count
         f.record(&first.community_host).await.unwrap()["state"],
         "being_created"
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_address_check_names_refusals_the_light_and_free_suggestions() {
+    let f = fixture().await;
+    let api = client(&f.front, WALLET, None);
+    let check = |address: &'static str, name: &'static str| {
+        let api = &api;
+        async move {
+            serde_json::from_value::<AddressAnswer>(
+                api.call(
+                    "address_check",
+                    json!({"address": address, "display_name": name, "suggestions": 3}),
+                )
+                .await
+                .unwrap(),
+            )
+            .unwrap()
+        }
+    };
+    let free = check("rosegarden", "Rose Garden").await;
+    assert!(free.available && free.refusal.is_none());
+    assert_eq!(free.light, AddressLight::Green);
+    assert!(free.suggestions.len() <= 3);
+    let short = check("rose", "Rose Garden").await;
+    assert_eq!(short.refusal, Some(AddressRefusal::TooShort));
+    assert_eq!(short.light, AddressLight::Red);
+    assert!(!short.suggestions.is_empty());
+    assert_eq!(
+        check("reservedname", "").await.refusal,
+        Some(AddressRefusal::Reserved)
+    );
+    // A taken address is refused and never suggested.
+    f.create("rosegarden", f.token().await).await.unwrap();
+    let taken = check("rosegarden", "Rosegarden").await;
+    assert_eq!(taken.refusal, Some(AddressRefusal::Taken));
+    assert!(!taken.suggestions.iter().any(|s| s == "rosegarden"));
 }

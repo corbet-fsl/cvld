@@ -9,7 +9,7 @@ publish = false
 
 [features]
 default = ["server"]
-server = ["client-http", "dep:cpmt", "dep:crpt", "dep:x402-types", "dep:cmty", "dep:cvch", "dep:clbs", "dep:cphn", "dep:cmbx", "dep:cfbk", "dep:ed25519-dalek", "dep:ed25519-dalek-v2", "dep:cblc", "dep:czkp", "dep:cssr", "dep:cpsd", "dep:crlt", "dep:csgn", "dep:cgbl", "dep:ckyh", "dep:governor", "dep:axum", "dep:tower-http", "dep:utoipa", "dep:clap", "dep:rmcp", "dep:tokio", "dep:uuid", "dep:chrono", "dep:rand", "dep:subtle", "dep:hkdf", "dep:sha2", "dep:tower", "dep:openssl"]
+server = ["client-http", "dep:cpmt", "dep:crpt", "dep:x402-types", "dep:cmty", "dep:cvch", "dep:clbs", "dep:cphn", "dep:cmbx", "dep:cfbk", "dep:ed25519-dalek", "dep:ed25519-dalek-v2", "dep:cblc", "dep:czkp", "dep:cssr", "dep:cpsd", "dep:crlt", "dep:csgn", "dep:cgbl", "dep:ckyh", "dep:governor", "dep:axum", "dep:tower-http", "dep:utoipa", "dep:clap", "dep:rmcp", "dep:tokio", "dep:uuid", "dep:chrono", "dep:rand", "dep:subtle", "dep:hkdf", "dep:hpke", "dep:sha2", "dep:tower", "dep:openssl"]
 client = ["dep:jsonschema", "dep:blind-rsa-signatures"]
 client-http = ["client", "dep:reqwest", "dep:url"]
 client-ohttp = ["client", "dep:url", "dep:cblv", "cblv/client"]
@@ -63,6 +63,7 @@ thiserror = "2"
 zeroize = "1.9"
 subtle = { version = "2.6", optional = true }
 hkdf = { version = "0.12", optional = true }
+hpke = { version = "0.14", default-features = false, features = ["alloc", "getrandom", "x25519", "chacha", "hkdfsha2"], optional = true }
 openssl = { version = "0.10", optional = true }
 sha2 = { version = "0.10", optional = true }
 tower = { version = "0.5", features = ["util"], optional = true }

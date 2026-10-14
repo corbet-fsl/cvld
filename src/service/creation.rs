@@ -3,7 +3,7 @@
 use super::*;
 use crate::{
     api::{
-        CommunityCreate, CommunityCreated, CommunityTerminate, CommunityTerms,
+        AddressAnswer, AddressCheck, CommunityCreate, CommunityCreated, CommunityTerminate, CommunityTerms,
         CommunityTermsRequest, CreationClaim, CreationClaimed, CreationTokenKey,
         CreationTokenRequest, CreationTokenResponse, Empty,
     },
@@ -27,6 +27,9 @@ pub trait CommunityHub: Send + Sync {
         request: CommunityTermsRequest,
         now: u64,
     ) -> Boxed<'a, Result<CommunityTerms>>;
+    /// Whether an address is usable and free, with a length light and suggestions.
+    fn address<'a>(&'a self, request: AddressCheck, now: u64)
+    -> Boxed<'a, Result<AddressAnswer>>;
     /// Count one issuance for this person and blind-sign the request.
     fn issue_token<'a>(
         &'a self,
@@ -42,6 +45,25 @@ pub trait CommunityHub: Send + Sync {
     /// ended hosts are all false); the OHTTP gateway serves exactly these authorities.
     fn serves_host<'a>(&'a self, _host: &'a str) -> Boxed<'a, bool> {
         Box::pin(async { false })
+    }
+}
+
+/// Where the hub states that a community's key chain ended: the platform feed.
+pub trait EndFeed: Send + Sync {
+    /// Publish one end-of-chain statement. Idempotent per fingerprint.
+    fn publish<'a>(&'a self, entry: cmty::cplc::EndedChain, now: u64) -> Boxed<'a, Result<()>>;
+}
+
+impl EndFeed for Door {
+    fn publish<'a>(&'a self, entry: cmty::cplc::EndedChain, now: u64) -> Boxed<'a, Result<()>> {
+        Box::pin(async move {
+            let mut global = self.global_backend()?.lock().await;
+            let wallet = global.wallet.as_mut().ok_or(Error::Forbidden)?;
+            wallet
+                .end_chain(entry, now)
+                .await
+                .map_err(Error::Unavailable.redact())
+        })
     }
 }
 
@@ -86,6 +108,13 @@ impl Door {
         request: CommunityCreate,
     ) -> Result<CommunityCreated> {
         self.hub()?.create(request, ctx.now).await
+    }
+    pub(crate) async fn address_check(
+        &self,
+        ctx: Context,
+        request: AddressCheck,
+    ) -> Result<AddressAnswer> {
+        self.hub()?.address(request, ctx.now).await
     }
     pub(crate) async fn community_terms(
         &self,

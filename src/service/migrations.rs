@@ -80,5 +80,6 @@ pub fn global_migrations() -> Vec<crlt::Migration<'static>> {
             "creation-signatures",
             crate::creation_token::SIGNATURES_SCHEMA,
         ),
+        crlt::Migration::new(14, "root-log", crate::registry::ROOT_LOG_SCHEMA),
     ]
 }

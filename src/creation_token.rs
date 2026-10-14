@@ -245,6 +245,17 @@ CREATE INDEX cvld_creation_tokens_shell ON cvld_creation_tokens (community_id, s
         /// Count and record one issuance for `subject`, or refuse when a limit
         /// is reached. Counting is per person and keeps no community link.
         pub async fn record_issuance(&self, subject: &str, now: u64) -> Result<()> {
+            self.record_issuance_within(subject, now, self.limits).await
+        }
+
+        /// [`Store::record_issuance`] under limits read from the settings chain
+        /// at the moment of the request instead of the store's fixed ones.
+        pub async fn record_issuance_within(
+            &self,
+            subject: &str,
+            now: u64,
+            limits: Limits,
+        ) -> Result<()> {
             let mut tx = self.scope.tx().await.map_err(db)?;
             let year_start = i64::try_from(now.saturating_sub(YEAR)).map_err(db)?;
             tx.execute(
@@ -269,7 +280,7 @@ CREATE INDEX cvld_creation_tokens_shell ON cvld_creation_tokens (community_id, s
                     week += 1;
                 }
             }
-            if week >= self.limits.per_week || rows.len() >= self.limits.per_year as usize {
+            if week >= limits.per_week || rows.len() >= limits.per_year as usize {
                 tx.rollback().await.map_err(db)?;
                 return Err(Error::Throttled);
             }

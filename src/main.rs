@@ -21,7 +21,6 @@ mod signals;
 enum ServeConfig {
     Global(Box<Config>),
     Community(Box<CommunityConfig>),
-    Root(Box<RootCommunityConfig>),
 }
 
 fn main() {
@@ -104,14 +103,6 @@ async fn execute(matches: clap::ArgMatches, deadline: Arc<OnceLock<Instant>>) ->
                         ServeConfig::Community(Box::new(config)),
                     )
                 }
-                "root-board" => {
-                    let config = RootCommunityConfig::read(path)?;
-                    (
-                        config.listen().to_owned(),
-                        config.shutdown_budget()?,
-                        ServeConfig::Root(Box::new(config)),
-                    )
-                }
                 _ => return Err(Error::Invalid),
             };
             let signals = signals::Signals::install(shutdown_budget, deadline.clone()).await?;
@@ -124,14 +115,6 @@ async fn execute(matches: clap::ArgMatches, deadline: Arc<OnceLock<Instant>>) ->
                     }
                     ServeConfig::Community(config) => {
                         Door::community_with_construction(
-                            *config,
-                            Arc::new(SystemClock),
-                            construction.clone(),
-                        )
-                        .await
-                    }
-                    ServeConfig::Root(config) => {
-                        Door::root_board_with_construction(
                             *config,
                             Arc::new(SystemClock),
                             construction.clone(),

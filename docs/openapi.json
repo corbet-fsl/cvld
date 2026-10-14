@@ -3477,6 +3477,27 @@
         ],
         "type": "object"
       },
+      "AddressLight": {
+        "description": "Length hint for the creation form.",
+        "enum": [
+          "red",
+          "amber",
+          "green"
+        ],
+        "type": "string"
+      },
+      "AddressRefusal": {
+        "description": "Why an address is refused, if it is.",
+        "enum": [
+          "too_short",
+          "too_long",
+          "charset",
+          "reserved",
+          "offensive",
+          "taken"
+        ],
+        "type": "string"
+      },
       "AdmissionGrant": {
         "additionalProperties": false,
         "properties": {
@@ -5093,6 +5114,110 @@
         "x-effect": "check",
         "x-role": "public",
         "x-scope": "community"
+      }
+    },
+    "/v1/address_check": {
+      "post": {
+        "operationId": "address_check",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Ask whether an address can be used, how long it feels, and for alternatives.\nNo session: it reveals nothing the public name space does not.",
+                "properties": {
+                  "address": {
+                    "description": "The address the creator is typing (may be incomplete).",
+                    "type": "string"
+                  },
+                  "display_name": {
+                    "description": "The display name suggestions are derived from; empty for none.",
+                    "type": "string"
+                  },
+                  "suggestions": {
+                    "description": "How many suggestions at most (0 to 8).",
+                    "format": "int32",
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "address"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "available": {
+                      "type": "boolean"
+                    },
+                    "light": {
+                      "$ref": "#/components/schemas/AddressLight"
+                    },
+                    "refusal": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/AddressRefusal"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "suggestions": {
+                      "description": "Valid and currently available addresses derived from the display name.",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "available",
+                    "light",
+                    "suggestions"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [],
+        "summary": "Check whether a community address is usable and available, its length light, and suggest free alternatives",
+        "x-client-access": "forward",
+        "x-effect": "check",
+        "x-role": "public",
+        "x-scope": "global"
       }
     },
     "/v1/community_create": {

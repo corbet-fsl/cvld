@@ -22,7 +22,7 @@ mod accounting;
 mod bootstrap;
 mod contacts;
 mod creation;
-pub use creation::CommunityHub;
+pub use creation::{CommunityHub, EndFeed};
 mod enrollment;
 mod garden;
 mod global_self_ban;

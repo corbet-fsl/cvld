@@ -177,6 +177,10 @@ impl CreationPlan {
     pub const NAME_CHARS: usize = 64;
     /// The gate every community has; it is enforced by the legal veto itself.
     pub const LEGAL: &'static str = "legal";
+    /// Gates that count as strong for the bot fence: one is enough.
+    pub const STRONG_GATES: &'static [&'static str] = &["voucher", "eid", "id_document", "payment"];
+    /// Gates that count as medium for the bot fence: two are needed.
+    pub const MEDIUM_GATES: &'static [&'static str] = &["phone", "provider"];
 
     /// Syntax check of what a creator sent.
     pub fn validate(&self) -> Result<()> {
@@ -200,7 +204,23 @@ impl CreationPlan {
                 return Err(Error::Invalid);
             }
         }
-        Ok(())
+        self.fence()
+    }
+
+    /// The bot fence: at least one strong gate or two medium gates. Weak gates
+    /// (CAPTCHA, proof of work, waiting period, Privacy Pass, email) never count.
+    pub fn fence(&self) -> Result<()> {
+        let count = |class: &[&str]| {
+            self.gates
+                .iter()
+                .filter(|gate| class.contains(&gate.as_str()))
+                .count()
+        };
+        if count(Self::STRONG_GATES) >= 1 || count(Self::MEDIUM_GATES) >= 2 {
+            Ok(())
+        } else {
+            Err(Error::Invalid)
+        }
     }
 
     /// Write the plan into the founding rulebook: the admission policy keeps the
@@ -275,5 +295,32 @@ impl CommunityConfig {
     pub fn read(path: &str) -> Result<Self> {
         serde_json::from_slice(&std::fs::read(path).map_err(Error::Unavailable.redact())?)
             .map_err(Error::Invalid.redact())
+    }
+}
+
+#[cfg(test)]
+mod fence_tests {
+    use super::CreationPlan;
+
+    fn plan(gates: &[&str]) -> CreationPlan {
+        CreationPlan {
+            display_name: "Garden".into(),
+            gates: gates.iter().map(|gate| (*gate).to_owned()).collect(),
+        }
+    }
+
+    #[test]
+    fn one_strong_gate_or_two_medium_gates_fence_a_community() {
+        assert!(plan(&["legal", "voucher"]).validate().is_ok());
+        assert!(plan(&["legal", "payment"]).validate().is_ok());
+        assert!(plan(&["legal", "phone", "provider"]).validate().is_ok());
+    }
+
+    #[test]
+    fn weak_or_too_few_gates_are_refused() {
+        assert!(plan(&["legal"]).validate().is_err());
+        assert!(plan(&["legal", "phone"]).validate().is_err());
+        assert!(plan(&["legal", "captcha", "email", "proof_of_work"]).validate().is_err());
+        assert!(plan(&["voucher"]).validate().is_err());
     }
 }

@@ -34,6 +34,51 @@ pub async fn purge_scope(db: &crlt::Db, scope: &str) -> Result<()> {
     tx.commit().await.map_err(Error::Unavailable.redact())
 }
 
+/// Every row of `scope` in every community table, as one JSON document. Used only
+/// to seal the data of a community under a legal hold (`hold::seal`) before the
+/// scope is purged.
+pub async fn dump_scope(db: &crlt::Db, scope: &str) -> Result<Vec<u8>> {
+    let mut tx = db.tx(scope).await.map_err(Error::Unavailable.redact())?;
+    let mut document = serde_json::Map::new();
+    for table in tables() {
+        let rows = tx
+            .query(&format!("SELECT * FROM {table}"), ())
+            .await
+            .map_err(Error::Unavailable.redact())?;
+        let rows: Vec<serde_json::Value> = rows
+            .iter()
+            .map(|row| {
+                serde_json::Value::Array(
+                    row.columns()
+                        .iter()
+                        .zip(row.values())
+                        .map(|(name, value)| serde_json::json!([name, cell(value)]))
+                        .collect(),
+                )
+            })
+            .collect();
+        if !rows.is_empty() {
+            document.insert(table, serde_json::Value::Array(rows));
+        }
+    }
+    tx.rollback().await.map_err(Error::Unavailable.redact())?;
+    serde_json::to_vec(&document).map_err(Error::Unavailable.redact())
+}
+
+fn cell(value: &crlt::Value) -> serde_json::Value {
+    use crlt::Value;
+    match value {
+        Value::Null => serde_json::Value::Null,
+        Value::Integer(number) => serde_json::json!({ "i": number }),
+        Value::Real(number) => serde_json::json!({ "r": number }),
+        Value::Text(text) => serde_json::json!({ "t": text }),
+        Value::Blob(bytes) => {
+            let hex: String = bytes.iter().map(|byte| format!("{byte:02x}")).collect();
+            serde_json::json!({ "b": hex })
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

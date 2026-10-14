@@ -25,10 +25,6 @@ pub fn command() -> Command {
                     Command::new("community").arg(Arg::new("config").long("config").required(true)),
                 )
                 .subcommand(
-                    Command::new("root-board")
-                        .arg(Arg::new("config").long("config").required(true)),
-                )
-                .subcommand(
                     Command::new("platform")
                         .about("Serve the global service with explicitly linked communities in one process")
                         .arg(Arg::new("config").long("config").required(true)),

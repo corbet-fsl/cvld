@@ -284,6 +284,7 @@ actions! {
     initial_registration_begin(InitialRegistrationBegin) -> InitialCeremony, Public, Community, Record, Forward, "Begin first community registration with original creation provenance";
     creation_token_key(Empty) -> CreationTokenKey, Public, Global, Check, Forward, "Read the public key that verifies creation tokens";
     creation_token_issue(CreationTokenRequest) -> CreationTokenResponse, Member, Global, Record, Forward, "Blind-sign one creation token within the per-person weekly and yearly limits";
+    address_check(AddressCheck) -> AddressAnswer, Public, Global, Check, Forward, "Check whether a community address is usable and available, its length light, and suggest free alternatives";
     community_create(CommunityCreate) -> CommunityCreated, Public, Global, Record, Forward, "Create a community by redeeming a creation token; the platform learns no creator";
     community_terms(CommunityTermsRequest) -> CommunityTerms, Public, Global, Check, Forward, "Read what a device must prove for a new community's accounting before creating it";
     community_terminate(CommunityTerminate) -> Empty, Root, Global, Record, Forward, "End a community at once; Root only, always recorded";
@@ -295,7 +296,7 @@ actions! {
     login_discoverable_begin(Empty) -> DiscoverableCeremony, Public, Both, Check, Forward, "Begin usernameless sign-in with a synced passkey";
     login_finish(LoginFinish) -> Session, Public, Both, Record, Trusted, "Verify user and counter; create an ephemeral session";
     logout(Empty) -> Empty, Authenticated, Both, Check, Forward, "End this ephemeral session";
-    member_role(Empty) -> MemberRole, Member, Community, Check, Forward, "Read the current original local membership role";
+    member_role(Empty) -> MemberRole, Authenticated, Community, Check, Forward, "Read the current original local membership role";
     member_role_set(SetMemberRole) -> Empty, Admin, Community, Record, Forward, "Change a role under current garden membership authority";
     wallet_trust_feed(Empty) -> TrustFeed, Public, Global, Check, Forward, "Read the isolated wallet original trust snapshots";
     wallet_trust_changes(Since) -> Announcement, Public, Global, Check, Forward, "Read the isolated wallet whole-view revision hint";

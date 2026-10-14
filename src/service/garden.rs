@@ -87,7 +87,9 @@ impl Door {
         .await
     }
     pub(crate) async fn member_role(&self, ctx: Context, _: Empty) -> Result<MemberRole> {
-        if !self.is_community_member(&ctx.host) {
+        // Any session of this community's member or garden host may read its own
+        // current role (an admin or Root on the garden knows what it may do).
+        if !self.is_membership_host(&ctx.host) {
             return Err(Error::WrongHost);
         }
         self.community_backend()?

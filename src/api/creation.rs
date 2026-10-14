@@ -64,6 +64,49 @@ pub struct CommunityCreate {
 pub struct CommunityTermsRequest {
     pub address: String,
 }
+/// Ask whether an address can be used, how long it feels, and for alternatives.
+/// No session: it reveals nothing the public name space does not.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AddressCheck {
+    /// The address the creator is typing (may be incomplete).
+    pub address: String,
+    /// The display name suggestions are derived from; empty for none.
+    #[serde(default)]
+    pub display_name: String,
+    /// How many suggestions at most (0 to 8).
+    #[serde(default)]
+    pub suggestions: u8,
+}
+/// Why an address is refused, if it is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum AddressRefusal {
+    TooShort,
+    TooLong,
+    Charset,
+    Reserved,
+    Offensive,
+    /// Syntactically fine but held by a live, ending or held community, or blocked.
+    Taken,
+}
+/// Length hint for the creation form.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum AddressLight {
+    Red,
+    Amber,
+    Green,
+}
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AddressAnswer {
+    pub available: bool,
+    pub refusal: Option<AddressRefusal>,
+    pub light: AddressLight,
+    /// Valid and currently available addresses derived from the display name.
+    pub suggestions: Vec<String>,
+}
 /// The public inputs of the accounting genesis proof; absent without accounting.
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]

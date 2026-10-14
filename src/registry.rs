@@ -32,6 +32,40 @@ CREATE TABLE cvld_blocked_names (
     PRIMARY KEY (community_id, address)
 ) WITHOUT ROWID;";
 
+/// Second registry migration: the root log (one row per Root termination) and the
+/// sealed data of communities under a legal hold. Migration history is immutable,
+/// so these tables are a separate, later migration.
+pub const ROOT_LOG_SCHEMA: &str = "CREATE TABLE cvld_root_log (
+    community_id TEXT NOT NULL,
+    seq INTEGER NOT NULL,
+    at INTEGER NOT NULL,
+    action TEXT NOT NULL CHECK (action IN ('terminate')),
+    address TEXT NOT NULL,
+    reason TEXT NOT NULL CHECK (reason IN ('legal', 'terms', 'name')),
+    hold_until INTEGER,
+    block_name INTEGER NOT NULL CHECK (block_name IN (0, 1)),
+    PRIMARY KEY (community_id, seq)
+) WITHOUT ROWID;
+CREATE TABLE cvld_held (
+    community_id TEXT NOT NULL,
+    id BLOB NOT NULL CHECK (length(id) = 16),
+    hold_until INTEGER NOT NULL,
+    sealed BLOB NOT NULL,
+    PRIMARY KEY (community_id, id)
+) WITHOUT ROWID;";
+
+/// One row of the root log. It names what Root did, never who did it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RootLogRow {
+    pub seq: u64,
+    pub at: u64,
+    pub action: String,
+    pub address: String,
+    pub reason: String,
+    pub hold_until: Option<u64>,
+    pub block_name: bool,
+}
+
 /// Life-cycle state of a registered community.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum State {
@@ -302,6 +336,21 @@ impl Registry {
         )
         .await
         .map_err(db)?;
+        if reason != "dissolved" {
+            tx.execute(
+                "INSERT INTO cvld_root_log (seq, at, action, address, reason, hold_until, block_name) VALUES (?1, ?2, 'terminate', ?3, ?4, ?5, ?6)",
+                params![
+                    int(seq)?,
+                    int(now)?,
+                    current.address.as_str(),
+                    reason,
+                    hold_until.map(int).transpose()?,
+                    i64::from(block_name)
+                ],
+            )
+            .await
+            .map_err(db)?;
+        }
         if block_name {
             let known = tx
                 .query(
@@ -328,6 +377,71 @@ impl Registry {
             seq,
             ..current
         })
+    }
+
+    /// The root log, oldest first.
+    pub async fn root_log(&self, limit: usize) -> Result<Vec<RootLogRow>> {
+        let rows = self
+            .scope
+            .query(
+                "SELECT seq, at, action, address, reason, hold_until, block_name FROM cvld_root_log ORDER BY seq LIMIT ?1",
+                [int(limit as u64)?],
+            )
+            .await
+            .map_err(db)?;
+        rows.iter()
+            .map(|row| {
+                Ok(RootLogRow {
+                    seq: u64::try_from(row.get_i64(0).map_err(db)?).map_err(db)?,
+                    at: u64::try_from(row.get_i64(1).map_err(db)?).map_err(db)?,
+                    action: row.get_str(2).map_err(db)?.to_owned(),
+                    address: row.get_str(3).map_err(db)?.to_owned(),
+                    reason: row.get_str(4).map_err(db)?.to_owned(),
+                    hold_until: optional(row, 5)?,
+                    block_name: row.get_i64(6).map_err(db)? == 1,
+                })
+            })
+            .collect()
+    }
+
+    /// Keep the sealed data of a community under a legal hold until `until`.
+    pub async fn store_held(&self, id: [u8; 16], until: u64, sealed: &[u8]) -> Result<()> {
+        let mut tx = self.scope.tx().await.map_err(db)?;
+        tx.execute("DELETE FROM cvld_held WHERE id = ?1", [id.to_vec()])
+            .await
+            .map_err(db)?;
+        tx.execute(
+            "INSERT INTO cvld_held (id, hold_until, sealed) VALUES (?1, ?2, ?3)",
+            params![id.to_vec(), int(until)?, sealed.to_vec()],
+        )
+        .await
+        .map_err(db)?;
+        tx.commit().await.map_err(db)
+    }
+
+    /// The sealed data kept for a community under a legal hold.
+    pub async fn held(&self, id: [u8; 16]) -> Result<Option<Vec<u8>>> {
+        let rows = self
+            .scope
+            .query("SELECT sealed FROM cvld_held WHERE id = ?1", [id.to_vec()])
+            .await
+            .map_err(db)?;
+        match rows.first() {
+            None => Ok(None),
+            Some(row) => match row.get_value(0).map_err(db)? {
+                Value::Blob(bytes) => Ok(Some(bytes.clone())),
+                _ => Err(Error::Unavailable),
+            },
+        }
+    }
+
+    /// Delete the held data (the hold ended).
+    pub async fn delete_held(&self, id: [u8; 16]) -> Result<()> {
+        let mut tx = self.scope.tx().await.map_err(db)?;
+        tx.execute("DELETE FROM cvld_held WHERE id = ?1", [id.to_vec()])
+            .await
+            .map_err(db)?;
+        tx.commit().await.map_err(db)
     }
 
     /// Ending to ended: the community's data is gone (or was deleted at hold end).
@@ -374,6 +488,20 @@ impl Registry {
             }
         }
         Ok(found)
+    }
+
+    /// Whether an address could be registered right now: not blocked and not
+    /// held by a live, being-created, ending or held community.
+    pub async fn address_available(&self, address: &str, now: u64) -> Result<bool> {
+        let blocked = self
+            .scope
+            .query(
+                "SELECT address FROM cvld_blocked_names WHERE address = ?1",
+                [address],
+            )
+            .await
+            .map_err(db)?;
+        Ok(blocked.is_empty() && self.by_address(address, now).await?.is_none())
     }
 
     pub async fn by_id(&self, id: [u8; 16]) -> Result<Option<Entry>> {
@@ -440,6 +568,21 @@ impl Registry {
             .query(
                 &format!(
                     "SELECT {COLUMNS} FROM cvld_communities WHERE state = 'ending' AND (hold_until IS NULL OR hold_until <= ?1)"
+                ),
+                [int(now)?],
+            )
+            .await
+            .map_err(db)?;
+        rows.iter().map(entry).collect()
+    }
+
+    /// Communities in `ending` under a hold that has not passed yet.
+    pub async fn holding(&self, now: u64) -> Result<Vec<Entry>> {
+        let rows = self
+            .scope
+            .query(
+                &format!(
+                    "SELECT {COLUMNS} FROM cvld_communities WHERE state = 'ending' AND hold_until > ?1"
                 ),
                 [int(now)?],
             )
