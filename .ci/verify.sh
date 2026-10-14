@@ -33,6 +33,7 @@ node --test .github/test-auto-merge.mjs
 export CARGO_TERM_COLOR=never
 rustc --version
 node --test .github/check-pins.test.mjs
+bash .ci/update-our-crates.sh
 cargo metadata --locked --format-version 1 > dependency-metadata.json
 node .github/check-pins.mjs dependency-metadata.json
 cargo fmt --all --check
