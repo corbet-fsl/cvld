@@ -112,7 +112,7 @@ mod tests {
             let action = ACTIONS.iter().find(|a| a.name == held).unwrap();
             assert!(!action.lobby, "{held} must be held by default");
         }
-        // Admin actions never lock an admin out of the portal.
-        assert!(ACTIONS.iter().filter(|a| a.access == Access::Admin).all(|a| a.lobby));
+        // No role exemption: admin actions are held like every other action.
+        assert!(ACTIONS.iter().filter(|a| a.access == Access::Admin).all(|a| !a.lobby));
     }
 }

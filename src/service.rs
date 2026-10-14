@@ -630,9 +630,14 @@ impl Door {
                 } else {
                     community.authenticate(token, ctx.now).await?
                 };
-                // Default held: only actions declared `lobby` run for a member
-                // who has not passed the gates now in force.
-                if action.access == Access::Member && !action.lobby && !self.is_garden(&ctx.host) {
+                // Default held, no role exemption: only actions declared `lobby`
+                // run for a member or admin who has not passed the gates now in
+                // force. Root is a platform role without a membership; it is the
+                // lockout repair path and is never held.
+                if matches!(action.access, Access::Member | Access::Admin)
+                    && !action.lobby
+                    && grant.role != Role::Root
+                {
                     community.refuse_if_held(&authentication, ctx.now).await?;
                 }
                 ctx.grant = Some(grant);
