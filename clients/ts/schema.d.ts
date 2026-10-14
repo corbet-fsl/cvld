@@ -2515,7 +2515,7 @@ export interface components {
             version: number;
         };
         /** @enum {string} */
-        Error: "invalid" | "unauthorized" | "forbidden" | "wrong_host" | "throttled" | "refused" | "unavailable" | "reconcile";
+        Error: "invalid" | "unauthorized" | "forbidden" | "held_in_lobby" | "wrong_host" | "throttled" | "refused" | "unavailable" | "reconcile";
         Lobby: {
             handle?: string | null;
             member_id: string;
@@ -2526,6 +2526,8 @@ export interface components {
             state: string;
             /** @description Enabled community gates the member can pass now, each with its ordered inputs. */
             steps: components["schemas"]["LobbyDescriptor"][];
+            /** @description Announced settings changes not yet in force, soonest first. */
+            upcoming: components["schemas"]["LobbyUpcoming"][];
             warnings: components["schemas"]["LobbyWarning"][];
         };
         /** @description An enabled gate and provider with the ordered inputs the member can supply. */
@@ -2572,6 +2574,19 @@ export interface components {
             id: string;
             /** @description Protocol payload type the member submits to its route. */
             input: string;
+        };
+        /** @description One announced change of a setting's resolved value. */
+        LobbyUpcoming: {
+            /**
+             * Format: int64
+             * @description Unix seconds when the new value begins to apply.
+             */
+            effective_at: number;
+            from: unknown;
+            key: string;
+            /** @description Plain label for the setting. */
+            label: string;
+            to: unknown;
         };
         LobbyWarning: {
             /** Format: int64 */
@@ -4312,6 +4327,8 @@ export interface operations {
                         state: string;
                         /** @description Enabled community gates the member can pass now, each with its ordered inputs. */
                         steps: components["schemas"]["LobbyDescriptor"][];
+                        /** @description Announced settings changes not yet in force, soonest first. */
+                        upcoming: components["schemas"]["LobbyUpcoming"][];
                         warnings: components["schemas"]["LobbyWarning"][];
                     };
                 };
@@ -4489,6 +4506,8 @@ export interface operations {
                         state: string;
                         /** @description Enabled community gates the member can pass now, each with its ordered inputs. */
                         steps: components["schemas"]["LobbyDescriptor"][];
+                        /** @description Announced settings changes not yet in force, soonest first. */
+                        upcoming: components["schemas"]["LobbyUpcoming"][];
                         warnings: components["schemas"]["LobbyWarning"][];
                     };
                 };
@@ -6206,6 +6225,8 @@ export interface operations {
                         state: string;
                         /** @description Enabled community gates the member can pass now, each with its ordered inputs. */
                         steps: components["schemas"]["LobbyDescriptor"][];
+                        /** @description Announced settings changes not yet in force, soonest first. */
+                        upcoming: components["schemas"]["LobbyUpcoming"][];
                         warnings: components["schemas"]["LobbyWarning"][];
                     };
                 };

@@ -71,6 +71,9 @@ pub struct Action {
     pub scope: Scope,
     pub effect: Effect,
     pub client_access: ClientAccess,
+    /// Declared `lobby`: a member held in the lobby may still call it. Every
+    /// action without the mark is refused to a held member.
+    pub lobby: bool,
     pub request: fn() -> Value,
     pub response: fn() -> Value,
     protocol: fn() -> Protocol,
@@ -230,11 +233,12 @@ fn schema<T: ToSchema>() -> Value {
 }
 
 macro_rules! actions {
-    ($( $(#[$attr:meta])* $name:ident($request:ty) -> $response:ty, $access:ident, $scope:ident, $effect:ident, $client:ident, $description:literal; )*) => {
+    ($( $(#[$attr:meta])* $name:ident($request:ty) -> $response:ty, $access:ident, $scope:ident, $effect:ident, $client:ident, $( lobby $lobby:tt, )? $description:literal; )*) => {
         pub static ACTIONS: &[Action] = &[$(
             $(#[$attr])* Action { name: stringify!($name), description: $description,
                 access: Access::$access, scope: Scope::$scope, effect: Effect::$effect,
                 client_access: ClientAccess::$client,
+                lobby: false $( || { let _ = stringify!($lobby); true } )?,
                 request: schema::<$request>, response: schema::<$response>, protocol: protocol::<$request, $response> },
         )*];
         pub fn router(door: Door) -> Router {
@@ -287,16 +291,16 @@ actions! {
     community_create(CommunityCreate) -> CommunityCreated, Public, Global, Record, Forward, "Create a community by redeeming a creation token; the platform learns no creator";
     community_terms(CommunityTermsRequest) -> CommunityTerms, Public, Global, Check, Forward, "Read what a device must prove for a new community's accounting before creating it";
     community_terminate(CommunityTerminate) -> Empty, Root, Global, Record, Forward, "End a community at once; Root only, always recorded";
-    community_dissolve(Empty) -> Empty, Admin, Community, Record, Forward, "Dissolve this community; its admins only";
-    community_creation_claim(CreationClaim) -> CreationClaimed, Member, Community, Record, Forward, "Claim the first admin seat of a community being created";
-    initial_creation(Empty) -> InitialCreationResponse, Member, Both, Check, Forward, "Read this current passkey's original enrollment provenance";
-    initial_publication_bind(InitialPublicationBind) -> InitialCreationResponse, Member, Both, Record, Forward, "Bind one original publication to this current passkey's initial enrollment";
+    community_dissolve(Empty) -> Empty, Admin, Community, Record, Forward, lobby 1, "Dissolve this community; its admins only";
+    community_creation_claim(CreationClaim) -> CreationClaimed, Member, Community, Record, Forward, lobby 1, "Claim the first admin seat of a community being created";
+    initial_creation(Empty) -> InitialCreationResponse, Member, Both, Check, Forward, lobby 1, "Read this current passkey's original enrollment provenance";
+    initial_publication_bind(InitialPublicationBind) -> InitialCreationResponse, Member, Both, Record, Forward, lobby 1, "Bind one original publication to this current passkey's initial enrollment";
     login_begin(LoginStart) -> Ceremony, Public, Both, Check, Forward, "Begin credential-first passkey authentication";
     login_discoverable_begin(Empty) -> DiscoverableCeremony, Public, Both, Check, Forward, "Begin usernameless sign-in with a synced passkey";
     login_finish(LoginFinish) -> Session, Public, Both, Record, Trusted, "Verify user and counter; create an ephemeral session";
     logout(Empty) -> Empty, Authenticated, Both, Check, Forward, "End this ephemeral session";
     member_role(Empty) -> MemberRole, Member, Community, Check, Forward, "Read the current original local membership role";
-    member_role_set(SetMemberRole) -> Empty, Admin, Community, Record, Forward, "Change a role under current garden membership authority";
+    member_role_set(SetMemberRole) -> Empty, Admin, Community, Record, Forward, lobby 1, "Change a role under current garden membership authority";
     wallet_trust_feed(Empty) -> TrustFeed, Public, Global, Check, Forward, "Read the isolated wallet original trust snapshots";
     wallet_trust_changes(Since) -> Announcement, Public, Global, Check, Forward, "Read the isolated wallet whole-view revision hint";
     wallet_device_keys(Empty) -> DeviceKeys, Member, Global, Check, Forward, "Read this wallet member's current public device bindings";
@@ -313,14 +317,14 @@ actions! {
     global_self_ban_begin(Empty) -> SelfBanChallenge, Member, Global, Check, Forward, "Confirm permanent global self-ban with a fresh passkey ceremony";
     global_self_ban_finish(SelfBanConfirmation) -> Empty, Member, Global, Record, Forward, "Permanently suspend this authenticated global account; no recovery";
     global_self_ban_status(Empty) -> SelfBanStatus, Member, Global, Check, Forward, "Read this authenticated wallet's permanent self-ban outcome";
-    community_self_ban_begin(Empty) -> SelfBanChallenge, Member, Community, Check, Forward, "Confirm permanent community self-ban with a fresh passkey ceremony";
-    community_self_ban_finish(SelfBanConfirmation) -> Empty, Member, Community, Record, Forward, "Permanently end this membership; no recovery or operator override";
+    community_self_ban_begin(Empty) -> SelfBanChallenge, Member, Community, Check, Forward, lobby 1, "Confirm permanent community self-ban with a fresh passkey ceremony";
+    community_self_ban_finish(SelfBanConfirmation) -> Empty, Member, Community, Record, Forward, lobby 1, "Permanently end this membership; no recovery or operator override";
     community_self_ban_status_begin(Empty) -> SelfBanStatusChallenge, Public, Community, Check, Forward, "Begin passkey authentication solely to inspect your own self-ban outcome";
     community_self_ban_status_finish(SelfBanConfirmation) -> SelfBanStatus, Public, Community, Record, Forward, "Inspect your own permanent self-ban with fresh UV; never restore access";
     presentation_challenge(Empty) -> PresentationChallenge, Public, Community, Record, Forward, "Begin a signed community passport presentation";
-    root_board_issue_begin(Empty) -> RootBoardIssueChallenge, Admin, Community, Record, Forward, "Begin source-authorized blind root credential issuance";
-    root_board_issue_finish(RootBoardIssueFinish) -> Bytes, Admin, Community, Record, Forward, "Complete same-holder blind root credential issuance";
-    lobby(Empty) -> Lobby, Member, Community, Check, Forward, "Read enrolment and missing requirements";
+    root_board_issue_begin(Empty) -> RootBoardIssueChallenge, Admin, Community, Record, Forward, lobby 1, "Begin source-authorized blind root credential issuance";
+    root_board_issue_finish(RootBoardIssueFinish) -> Bytes, Admin, Community, Record, Forward, lobby 1, "Complete same-holder blind root credential issuance";
+    lobby(Empty) -> Lobby, Member, Community, Check, Forward, lobby 1, "Read enrolment and missing requirements";
     payment_offer(Empty) -> PaymentOffer, Member, Community, Check, Forward, "Read the configured original x402 offer and requested access";
     payment_plan(PaymentPlan) -> PaymentPreview, Member, Community, Check, Forward, "Preview the exact paid-access operation without provider calls";
     payment_execute(PaymentExecute) -> PaymentReceipt, Member, Community, Record, Forward, "Explicitly execute the exact prepared x402 settlement";
@@ -328,18 +332,18 @@ actions! {
     payment_accept(PaymentOperation) -> PaymentReceipt, Member, Community, Record, Forward, "Accept genuine paid access through the community gate owner";
     payment_simulate(PaymentSimulationRequest) -> PaymentSimulationResponse, Member, Community, Check, Forward, "Simulate dummy payment planning locally without provider I/O";
     handle_available(Handle) -> Available, Public, Community, Check, Forward, "Check a community handle";
-    handle_reserve(Handle) -> Lobby, Member, Community, Record, Forward, "Reserve a community handle";
-    voucher_redeem(VoucherRedeem) -> Lobby, Member, Community, Record, Forward, "Present a voucher link; with sign-off the applicant waits in the lobby";
+    handle_reserve(Handle) -> Lobby, Member, Community, Record, Forward, lobby 1, "Reserve a community handle";
+    voucher_redeem(VoucherRedeem) -> Lobby, Member, Community, Record, Forward, lobby 1, "Present a voucher link; with sign-off the applicant waits in the lobby";
     voucher_link_create(VoucherLinkCreate) -> VoucherLinkCreated, Member, Community, Record, Forward, "Register a voucher link by hashes; the issuer is not stored";
     voucher_link_view(VoucherManage) -> VoucherLinkView, Public, Community, Check, Forward, "Read a voucher link with its management secret";
     voucher_signoff_list(VoucherManage) -> VoucherSignoffList, Public, Community, Check, Forward, "List applicants waiting for sign-off";
     voucher_signoff_decide(VoucherSignoffDecide) -> VoucherDecision, Public, Community, Record, Forward, "Confirm or decline a waiting applicant";
     voucher_reply_post(VoucherReplyPost) -> Empty, Public, Community, Record, Forward, "Leave a sealed reply for an admitted person; the host cannot read it";
-    voucher_reply_get(VoucherReplyGet) -> VoucherReply, Member, Community, Check, Forward, "Read the sealed reply left for this member on a voucher link";
+    voucher_reply_get(VoucherReplyGet) -> VoucherReply, Member, Community, Check, Forward, lobby 1, "Read the sealed reply left for this member on a voucher link";
     voucher_link_revoke(VoucherManage) -> VoucherRevoked, Public, Community, Record, Forward, "Revoke a voucher link; completed admissions stay";
     #[cfg(feature = "development-gate")]
     development_voucher_link(VoucherLinkCreate) -> VoucherLinkCreated, Member, Community, Record, Forward, "Development only: register a voucher link for a member who is not yet admitted";
-    gate_withdraw(Withdraw) -> CredentialResponse, Member, Community, Record, Forward, "Withdraw a retained community gate";
+    gate_withdraw(Withdraw) -> CredentialResponse, Member, Community, Record, Forward, lobby 1, "Withdraw a retained community gate";
     credential_issue(CredentialRequest) -> CredentialResponse, Member, Community, Record, Forward, "Present a passport and request admission or renewal";
     account_credential_issue(AccountCredentialRequest) -> AccountCredentialResponse, Member, Community, Record, Forward, "Request the original account grant from the same full admission decision";
     account(AccountRequest) -> AccountResponse, Member, Community, Record, Forward, "Forward this admitted member's original account operation";
@@ -351,21 +355,21 @@ actions! {
     pin_change(PinChange) -> PinResponse, Member, Community, Record, Forward, "Change a fingerprint using spent-token evidence";
     step_up_begin(StepUpStart) -> StepUpChallenge, Authenticated, Both, Check, Forward, "Begin a fresh user-verifying passkey assertion bound to one passkey, device or revocation action";
     passkey_list(Empty) -> PasskeyList, Authenticated, Both, Check, Forward, "List this account's passkeys and revocation status";
-    passkey_certificate(Empty) -> PasskeyCertificateResponse, Member, Both, Check, Forward, "Certify the current registered passkey for original lineage assertions";
+    passkey_certificate(Empty) -> PasskeyCertificateResponse, Member, Both, Check, Forward, lobby 1, "Certify the current registered passkey for original lineage assertions";
     passkey_add(AddPasskeyRequest) -> AddedPasskey, Authenticated, Both, Record, Forward, "Register another UV-required passkey for this account";
     passkey_revoke(RevokePasskey) -> Empty, Authenticated, Both, Record, Forward, "Revoke one of this account's passkeys";
-    device_authorize(DeviceKey) -> DeviceKeys, Member, Community, Record, Forward, "Authorize the lineage device key with this live passkey";
-    device_pair_authorize(DeviceKey) -> DeviceKeys, Member, Community, Record, Forward, "Authorize a pairing device key with this live passkey: pending, grants nothing, expires unless confirmed";
-    device_approve(DeviceApprove) -> DeviceKeys, Member, Community, Record, Forward, "Approve a pending device key from another existing passkey with a fresh step-up";
-    device_confirm(DeviceConfirm) -> DeviceKeys, Member, Community, Record, Forward, "Make this passkey's pending device key live once its lineage revision is published";
-    device_revoke(DeviceRevoke) -> DeviceKeys, Member, Community, Record, Forward, "Remove a device key, live or pending, with a fresh step-up";
-    device_keys(Empty) -> DeviceKeys, Member, Community, Check, Forward, "Read current passkey-authorized signing keys";
-    setting_set(Setting) -> TrustFeed, Admin, Community, Record, Forward, "Edit a community setting";
-    setting_list(Empty) -> SettingList, Admin, Community, Check, Forward, "List the settings catalogue with community values";
+    device_authorize(DeviceKey) -> DeviceKeys, Member, Community, Record, Forward, lobby 1, "Authorize the lineage device key with this live passkey";
+    device_pair_authorize(DeviceKey) -> DeviceKeys, Member, Community, Record, Forward, lobby 1, "Authorize a pairing device key with this live passkey: pending, grants nothing, expires unless confirmed";
+    device_approve(DeviceApprove) -> DeviceKeys, Member, Community, Record, Forward, lobby 1, "Approve a pending device key from another existing passkey with a fresh step-up";
+    device_confirm(DeviceConfirm) -> DeviceKeys, Member, Community, Record, Forward, lobby 1, "Make this passkey's pending device key live once its lineage revision is published";
+    device_revoke(DeviceRevoke) -> DeviceKeys, Member, Community, Record, Forward, lobby 1, "Remove a device key, live or pending, with a fresh step-up";
+    device_keys(Empty) -> DeviceKeys, Member, Community, Check, Forward, lobby 1, "Read current passkey-authorized signing keys";
+    setting_set(Setting) -> TrustFeed, Admin, Community, Record, Forward, lobby 1, "Edit a community setting";
+    setting_list(Empty) -> SettingList, Admin, Community, Check, Forward, lobby 1, "List the settings catalogue with community values";
     platform_list(Empty) -> SettingList, Root, Community, Check, Forward, "List the settings catalogue with platform values and force switches";
     platform_set(PlatformSetting) -> TrustFeed, Root, Community, Record, Forward, "Edit a platform setting or force switch";
-    schema_check(SchemaRequest) -> SchemaChanges, Admin, Community, Check, Forward, "Classify profile schema changes";
-    schema_set(SchemaRequest) -> TrustFeed, Admin, Community, Record, Forward, "Publish a profile schema";
+    schema_check(SchemaRequest) -> SchemaChanges, Admin, Community, Check, Forward, lobby 1, "Classify profile schema changes";
+    schema_set(SchemaRequest) -> TrustFeed, Admin, Community, Record, Forward, lobby 1, "Publish a profile schema";
     trust_feed(Empty) -> TrustFeed, Public, Community, Check, Forward, "Read signed public trust snapshots";
     trust_changes(Since) -> Announcement, Public, Community, Check, Forward, "Wait for a public revision announcement";
     #[cfg(feature = "development-gate")]
@@ -416,6 +420,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
         operation.extensions = Some(
             [
                 ("x-role", format!("{:?}", action.access).to_lowercase()),
+                ("x-lobby", action.lobby.to_string()),
                 ("x-effect", format!("{:?}", action.effect).to_lowercase()),
                 ("x-scope", format!("{:?}", action.scope).to_lowercase()),
                 (

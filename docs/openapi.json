@@ -3831,6 +3831,7 @@
           "invalid",
           "unauthorized",
           "forbidden",
+          "held_in_lobby",
           "wrong_host",
           "throttled",
           "refused",
@@ -3872,6 +3873,13 @@
             },
             "type": "array"
           },
+          "upcoming": {
+            "description": "Announced settings changes not yet in force, soonest first.",
+            "items": {
+              "$ref": "#/components/schemas/LobbyUpcoming"
+            },
+            "type": "array"
+          },
           "warnings": {
             "items": {
               "$ref": "#/components/schemas/LobbyWarning"
@@ -3885,7 +3893,8 @@
           "missing",
           "steps",
           "warnings",
-          "passport_required"
+          "passport_required",
+          "upcoming"
         ],
         "type": "object"
       },
@@ -4069,6 +4078,34 @@
           "id",
           "description",
           "input"
+        ],
+        "type": "object"
+      },
+      "LobbyUpcoming": {
+        "additionalProperties": false,
+        "description": "One announced change of a setting's resolved value.",
+        "properties": {
+          "effective_at": {
+            "description": "Unix seconds when the new value begins to apply.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "from": {},
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "description": "Plain label for the setting.",
+            "type": "string"
+          },
+          "to": {}
+        },
+        "required": [
+          "key",
+          "label",
+          "from",
+          "to",
+          "effective_at"
         ],
         "type": "object"
       },
@@ -4744,6 +4781,7 @@
         "summary": "Forward this admitted member's original account operation",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -4816,6 +4854,7 @@
         "summary": "Publish the current common enrollment roster or read an installed historical slot",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "public",
         "x-scope": "community"
       }
@@ -4923,6 +4962,7 @@
         "summary": "Request the original account grant from the same full admission decision",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -4981,6 +5021,7 @@
         "summary": "Enroll this member's signed account delegation in the original registry",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -5048,6 +5089,7 @@
         "summary": "Read the fixed common record resource link",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "public",
         "x-scope": "community"
       }
@@ -5222,6 +5264,7 @@
         "summary": "Create a community by redeeming a creation token; the platform learns no creator",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "public",
         "x-scope": "global"
       }
@@ -5309,6 +5352,7 @@
         "summary": "Claim the first admin seat of a community being created",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "true",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -5367,6 +5411,7 @@
         "summary": "Dissolve this community; its admins only",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "true",
         "x-role": "admin",
         "x-scope": "community"
       }
@@ -5451,6 +5496,7 @@
         "summary": "Confirm permanent community self-ban with a fresh passkey ceremony",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "true",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -5522,6 +5568,7 @@
         "summary": "Permanently end this membership; no recovery or operator override",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "true",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -5593,6 +5640,7 @@
         "summary": "Begin passkey authentication solely to inspect your own self-ban outcome",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "public",
         "x-scope": "community"
       }
@@ -5669,6 +5717,7 @@
         "summary": "Inspect your own permanent self-ban with fresh UV; never restore access",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "public",
         "x-scope": "community"
       }
@@ -5753,6 +5802,7 @@
         "summary": "End a community at once; Root only, always recorded",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "root",
         "x-scope": "global"
       }
@@ -5829,6 +5879,7 @@
         "summary": "Read what a device must prove for a new community's accounting before creating it",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "public",
         "x-scope": "global"
       }
@@ -5913,6 +5964,7 @@
         "summary": "Accept a real typed contact fact through the global facade",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "member",
         "x-scope": "global"
       }
@@ -6024,6 +6076,7 @@
         "summary": "Preview one check of this RAM-held contact session",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "member",
         "x-scope": "global"
       }
@@ -6110,6 +6163,7 @@
         "summary": "Explicitly authorize the exact prepared contact cost preview",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "member",
         "x-scope": "global"
       }
@@ -6238,6 +6292,7 @@
         "summary": "Preview enabled contact verification costs without dispatch",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "member",
         "x-scope": "global"
       }
@@ -6345,6 +6400,7 @@
         "summary": "Simulate dummy contact planning locally without providers or credentials",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "member",
         "x-scope": "global"
       }
@@ -6427,6 +6483,7 @@
         "summary": "Read the minimal outcome and reserved contact exposure",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "member",
         "x-scope": "global"
       }
@@ -6513,6 +6570,7 @@
         "summary": "Blind-sign one creation token within the per-person weekly and yearly limits",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "member",
         "x-scope": "global"
       }
@@ -6581,6 +6639,7 @@
         "summary": "Read the public key that verifies creation tokens",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "public",
         "x-scope": "global"
       }
@@ -6685,6 +6744,7 @@
         "summary": "Present a passport and request admission or renewal",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -6785,6 +6845,7 @@
         "summary": "Approve a pending device key from another existing passkey with a fresh step-up",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "true",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -6885,6 +6946,7 @@
         "summary": "Authorize the lineage device key with this live passkey",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "true",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -6974,6 +7036,7 @@
         "summary": "Make this passkey's pending device key live once its lineage revision is published",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "true",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -7049,6 +7112,7 @@
         "summary": "Read current passkey-authorized signing keys",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "true",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -7149,6 +7213,7 @@
         "summary": "Authorize a pairing device key with this live passkey: pending, grants nothing, expires unless confirmed",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "true",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -7249,6 +7314,7 @@
         "summary": "Remove a device key, live or pending, with a fresh step-up",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "true",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -7342,6 +7408,7 @@
         "summary": "Withdraw a retained community gate",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "true",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -7444,6 +7511,7 @@
         "summary": "Bind creation provenance to the retained first wallet registration",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "public",
         "x-scope": "global"
       }
@@ -7529,6 +7597,7 @@
         "summary": "Read authenticated global issuer material",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "public",
         "x-scope": "global"
       }
@@ -7613,6 +7682,7 @@
         "summary": "Confirm permanent global self-ban with a fresh passkey ceremony",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "member",
         "x-scope": "global"
       }
@@ -7684,6 +7754,7 @@
         "summary": "Permanently suspend this authenticated global account; no recovery",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "member",
         "x-scope": "global"
       }
@@ -7751,6 +7822,7 @@
         "summary": "Read this authenticated wallet's permanent self-ban outcome",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "member",
         "x-scope": "global"
       }
@@ -7821,6 +7893,7 @@
         "summary": "Check a community handle",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "public",
         "x-scope": "community"
       }
@@ -7884,6 +7957,13 @@
                       },
                       "type": "array"
                     },
+                    "upcoming": {
+                      "description": "Announced settings changes not yet in force, soonest first.",
+                      "items": {
+                        "$ref": "#/components/schemas/LobbyUpcoming"
+                      },
+                      "type": "array"
+                    },
                     "warnings": {
                       "items": {
                         "$ref": "#/components/schemas/LobbyWarning"
@@ -7897,7 +7977,8 @@
                     "missing",
                     "steps",
                     "warnings",
-                    "passport_required"
+                    "passport_required",
+                    "upcoming"
                   ],
                   "type": "object"
                 }
@@ -7933,6 +8014,7 @@
         "summary": "Reserve a community handle",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "true",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -8022,6 +8104,7 @@
         "summary": "Read this current passkey's original enrollment provenance",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "true",
         "x-role": "member",
         "x-scope": "both"
       }
@@ -8134,6 +8217,7 @@
         "summary": "Bind one original publication to this current passkey's initial enrollment",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "true",
         "x-role": "member",
         "x-scope": "both"
       }
@@ -8236,6 +8320,7 @@
         "summary": "Begin first community registration with original creation provenance",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "public",
         "x-scope": "community"
       }
@@ -8291,6 +8376,13 @@
                       },
                       "type": "array"
                     },
+                    "upcoming": {
+                      "description": "Announced settings changes not yet in force, soonest first.",
+                      "items": {
+                        "$ref": "#/components/schemas/LobbyUpcoming"
+                      },
+                      "type": "array"
+                    },
                     "warnings": {
                       "items": {
                         "$ref": "#/components/schemas/LobbyWarning"
@@ -8304,7 +8396,8 @@
                     "missing",
                     "steps",
                     "warnings",
-                    "passport_required"
+                    "passport_required",
+                    "upcoming"
                   ],
                   "type": "object"
                 }
@@ -8340,6 +8433,7 @@
         "summary": "Read enrolment and missing requirements",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "true",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -8425,6 +8519,7 @@
         "summary": "Begin credential-first passkey authentication",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "public",
         "x-scope": "both"
       }
@@ -8490,6 +8585,7 @@
         "summary": "Begin usernameless sign-in with a synced passkey",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "public",
         "x-scope": "both"
       }
@@ -8579,6 +8675,7 @@
         "summary": "Verify user and counter; create an ephemeral session",
         "x-client-access": "trusted",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "public",
         "x-scope": "both"
       }
@@ -8637,6 +8734,7 @@
         "summary": "End this ephemeral session",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "authenticated",
         "x-scope": "both"
       }
@@ -8707,6 +8805,7 @@
         "summary": "Read the current original local membership role",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -8778,6 +8877,7 @@
         "summary": "Change a role under current garden membership authority",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "true",
         "x-role": "admin",
         "x-scope": "community"
       }
@@ -8936,6 +9036,7 @@
         "summary": "Register another UV-required passkey for this account",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "authenticated",
         "x-scope": "both"
       }
@@ -9014,6 +9115,7 @@
         "summary": "Certify the current registered passkey for original lineage assertions",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "true",
         "x-role": "member",
         "x-scope": "both"
       }
@@ -9083,6 +9185,7 @@
         "summary": "List this account's passkeys and revocation status",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "authenticated",
         "x-scope": "both"
       }
@@ -9165,6 +9268,7 @@
         "summary": "Revoke one of this account's passkeys",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "authenticated",
         "x-scope": "both"
       }
@@ -9236,6 +9340,7 @@
         "summary": "Reserve a blind passport issuance challenge",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "member",
         "x-scope": "global"
       }
@@ -9329,6 +9434,7 @@
         "summary": "Issue a blind passport after global policy checks",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "member",
         "x-scope": "global"
       }
@@ -9417,6 +9523,7 @@
         "summary": "Accept genuine paid access through the community gate owner",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -9509,6 +9616,7 @@
         "summary": "Explicitly execute the exact prepared x402 settlement",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -9584,6 +9692,7 @@
         "summary": "Read the configured original x402 offer and requested access",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -9710,6 +9819,7 @@
         "summary": "Preview the exact paid-access operation without provider calls",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -9860,6 +9970,7 @@
         "summary": "Simulate dummy payment planning locally without provider I/O",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -9948,6 +10059,7 @@
         "summary": "Read only this member's minimal payment outcome",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -10039,6 +10151,7 @@
         "summary": "Change a fingerprint using spent-token evidence",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -10117,6 +10230,7 @@
         "summary": "Read a sealed fingerprint",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -10199,6 +10313,7 @@
         "summary": "Seal an initial profile fingerprint",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -10268,6 +10383,7 @@
         "summary": "List the settings catalogue with platform values and force switches",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "root",
         "x-scope": "community"
       }
@@ -10459,6 +10575,7 @@
         "summary": "Edit a platform setting or force switch",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "root",
         "x-scope": "community"
       }
@@ -10530,6 +10647,7 @@
         "summary": "Begin a signed community passport presentation",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "public",
         "x-scope": "community"
       }
@@ -10618,6 +10736,7 @@
         "summary": "Begin UV-required passkey registration",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "public",
         "x-scope": "both"
       }
@@ -10693,6 +10812,7 @@
         "summary": "Verify and store the first passkey",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "public",
         "x-scope": "both"
       }
@@ -10784,6 +10904,7 @@
         "summary": "Begin source-authorized blind root credential issuance",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "true",
         "x-role": "admin",
         "x-scope": "community"
       }
@@ -10873,6 +10994,7 @@
         "summary": "Complete same-holder blind root credential issuance",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "true",
         "x-role": "admin",
         "x-scope": "community"
       }
@@ -10945,6 +11067,7 @@
         "summary": "Classify profile schema changes",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "true",
         "x-role": "admin",
         "x-scope": "community"
       }
@@ -11132,6 +11255,7 @@
         "summary": "Publish a profile schema",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "true",
         "x-role": "admin",
         "x-scope": "community"
       }
@@ -11201,6 +11325,7 @@
         "summary": "List the settings catalogue with community values",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "true",
         "x-role": "admin",
         "x-scope": "community"
       }
@@ -11402,6 +11527,7 @@
         "summary": "Edit a community setting",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "true",
         "x-role": "admin",
         "x-scope": "community"
       }
@@ -11486,6 +11612,7 @@
         "summary": "Begin a fresh user-verifying passkey assertion bound to one passkey, device or revocation action",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "authenticated",
         "x-scope": "both"
       }
@@ -11570,6 +11697,7 @@
         "summary": "Wait for a public revision announcement",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "public",
         "x-scope": "community"
       }
@@ -11745,6 +11873,7 @@
         "summary": "Read signed public trust snapshots",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "public",
         "x-scope": "community"
       }
@@ -11858,6 +11987,7 @@
         "summary": "Register a voucher link by hashes; the issuer is not stored",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -11937,6 +12067,7 @@
         "summary": "Revoke a voucher link; completed admissions stay",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "public",
         "x-scope": "community"
       }
@@ -12042,6 +12173,7 @@
         "summary": "Read a voucher link with its management secret",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "public",
         "x-scope": "community"
       }
@@ -12114,6 +12246,13 @@
                       },
                       "type": "array"
                     },
+                    "upcoming": {
+                      "description": "Announced settings changes not yet in force, soonest first.",
+                      "items": {
+                        "$ref": "#/components/schemas/LobbyUpcoming"
+                      },
+                      "type": "array"
+                    },
                     "warnings": {
                       "items": {
                         "$ref": "#/components/schemas/LobbyWarning"
@@ -12127,7 +12266,8 @@
                     "missing",
                     "steps",
                     "warnings",
-                    "passport_required"
+                    "passport_required",
+                    "upcoming"
                   ],
                   "type": "object"
                 }
@@ -12163,6 +12303,7 @@
         "summary": "Present a voucher link; with sign-off the applicant waits in the lobby",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "true",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -12243,6 +12384,7 @@
         "summary": "Read the sealed reply left for this member on a voucher link",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "true",
         "x-role": "member",
         "x-scope": "community"
       }
@@ -12319,6 +12461,7 @@
         "summary": "Leave a sealed reply for an admitted person; the host cannot read it",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "public",
         "x-scope": "community"
       }
@@ -12401,6 +12544,7 @@
         "summary": "Confirm or decline a waiting applicant",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "public",
         "x-scope": "community"
       }
@@ -12479,6 +12623,7 @@
         "summary": "List applicants waiting for sign-off",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "public",
         "x-scope": "community"
       }
@@ -12579,6 +12724,7 @@
         "summary": "Bind the wallet device to the exact authenticated passkey",
         "x-client-access": "forward",
         "x-effect": "record",
+        "x-lobby": "false",
         "x-role": "member",
         "x-scope": "global"
       }
@@ -12654,6 +12800,7 @@
         "summary": "Read this wallet member's current public device bindings",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "member",
         "x-scope": "global"
       }
@@ -12738,6 +12885,7 @@
         "summary": "Read the isolated wallet whole-view revision hint",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "public",
         "x-scope": "global"
       }
@@ -12913,6 +13061,7 @@
         "summary": "Read the isolated wallet original trust snapshots",
         "x-client-access": "forward",
         "x-effect": "check",
+        "x-lobby": "false",
         "x-role": "public",
         "x-scope": "global"
       }

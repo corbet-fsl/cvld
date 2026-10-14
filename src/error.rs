@@ -18,6 +18,8 @@ pub enum Error {
     Unauthorized,
     #[error("action forbidden")]
     Forbidden,
+    #[error("held in lobby")]
+    HeldInLobby,
     #[error("wrong host or service")]
     WrongHost,
     #[error("request throttled")]
@@ -48,7 +50,7 @@ impl Error {
         match self {
             Self::Invalid => 400,
             Self::Unauthorized => 401,
-            Self::Forbidden => 403,
+            Self::Forbidden | Self::HeldInLobby => 403,
             Self::WrongHost => 421,
             Self::Throttled => 429,
             Self::Refused => 409,

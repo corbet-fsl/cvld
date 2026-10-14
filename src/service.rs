@@ -630,6 +630,11 @@ impl Door {
                 } else {
                     community.authenticate(token, ctx.now).await?
                 };
+                // Default held: only actions declared `lobby` run for a member
+                // who has not passed the gates now in force.
+                if action.access == Access::Member && !action.lobby && !self.is_garden(&ctx.host) {
+                    community.refuse_if_held(&authentication, ctx.now).await?;
+                }
                 ctx.grant = Some(grant);
                 ctx.authentication = Some(authentication);
             } else {
