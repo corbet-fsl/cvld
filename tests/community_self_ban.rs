@@ -178,6 +178,9 @@ async fn admitted_bundle(
                 .unwrap(),
         ),
         openings: Vec::new(),
+        vouched_by: None,
+        vouched_verified: false,
+        vouched_snapshot: None,
     })
     .unwrap();
     cgrd::Bundle {

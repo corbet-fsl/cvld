@@ -127,6 +127,9 @@ async fn real_production_contacts_passport_paid_membership_and_guard_share_one_j
             .unwrap(),
         ),
         openings: Vec::new(),
+        vouched_by: None,
+        vouched_verified: false,
+        vouched_snapshot: None,
     })
     .unwrap();
     let bundle = cgrd::Bundle {
