@@ -298,6 +298,8 @@ actions! {
     login_begin(LoginStart) -> Ceremony, Public, Both, Check, Forward, "Begin credential-first passkey authentication";
     login_discoverable_begin(Empty) -> DiscoverableCeremony, Public, Both, Check, Forward, "Begin usernameless sign-in with a synced passkey";
     login_finish(LoginFinish) -> Session, Public, Both, Record, Trusted, "Verify user and counter; create an ephemeral session";
+    device_session_begin(Empty) -> DeviceSessionChallenge, Public, Community, Record, Forward, "Issue a one-use nonce for opening a session with a device key";
+    device_session_finish(DeviceSessionFinish) -> Session, Public, Community, Record, Trusted, "Open or renew a community session by the signed nonce of an active device key";
     logout(Empty) -> Empty, Authenticated, Both, Check, Forward, "End this ephemeral session";
     member_role(Empty) -> MemberRole, Authenticated, Community, Check, Forward, "Read the current original local membership role";
     member_role_set(SetMemberRole) -> Empty, Admin, Community, Record, Forward, lobby 1, "Change a role under current garden membership authority";

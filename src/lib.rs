@@ -29,6 +29,9 @@ pub mod config;
 pub mod contact_gates;
 #[cfg(feature = "client")]
 pub mod creation_token;
+pub mod device_session;
+#[cfg(feature = "server")]
+mod device_registry;
 pub mod error;
 #[cfg(feature = "server")]
 mod genesis_store;

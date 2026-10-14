@@ -19,6 +19,7 @@ mod account_tuning;
 mod accounting;
 mod admission;
 mod certificate;
+mod device_session;
 pub(crate) mod creation;
 mod enrollment;
 pub(crate) mod garden;
@@ -65,6 +66,9 @@ mod negative;
 #[cfg(all(test, feature = "development-gate"))]
 #[path = "community/tests/publication.rs"]
 mod publication_tests;
+#[cfg(all(test, feature = "development-gate"))]
+#[path = "community/tests/device_session.rs"]
+mod device_session_tests;
 #[cfg(all(test, feature = "development-gate"))]
 #[path = "community/tests/step_up.rs"]
 mod step_up_tests;
@@ -149,6 +153,9 @@ pub struct CommunityService {
     authority: CommunityAuthority,
     clock: Arc<dyn Clock>,
     sessions: HashMap<String, SessionState>,
+    /// Unspent device-session nonces and their issue times.
+    device_nonces: HashMap<[u8; 32], u64>,
+    device_sessions: HashMap<String, device_session::DeviceSession>,
 }
 impl CommunityService {
     #[cfg(test)]
@@ -640,6 +647,8 @@ impl CommunityService {
                 authority,
                 clock,
                 sessions: HashMap::new(),
+                device_nonces: HashMap::new(),
+                device_sessions: HashMap::new(),
             })
         }
         .await;
@@ -690,6 +699,9 @@ impl CommunityService {
         self.self_bans.retain(|_, p| p.until > now);
         self.self_ban_statuses.retain(|_, p| p.until > now);
         self.sessions.retain(|_, s| s.grant.expires > now);
+        self.device_nonces
+            .retain(|_, issued| *issued + crate::device_session::NONCE_SECONDS > now);
+        self.device_sessions.retain(|_, s| s.expires > now);
     }
     pub async fn authenticate(
         &mut self,

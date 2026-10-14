@@ -540,3 +540,21 @@ pub struct SettingItem {
 pub struct SettingList {
     pub settings: Vec<SettingItem>,
 }
+
+/// A one-use nonce for opening a community session with a device key.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DeviceSessionChallenge {
+    pub nonce: [u8; 32],
+    /// Issue time, part of the signed message (see `device_session::message`).
+    pub issued: u64,
+}
+/// The device key's signature over the challenge, from the member's registered key.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DeviceSessionFinish {
+    pub nonce: [u8; 32],
+    pub user: String,
+    pub device_key: [u8; 32],
+    pub signature: Vec<u8>,
+}

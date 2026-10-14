@@ -337,11 +337,18 @@ impl<T: SessionTransport> Client<T> {
     /// Finish a real passkey login and adopt its session at the same pinned origin.
     /// The request contains the public assertion from Passkeys, never its PRF.
     pub async fn authenticate(&mut self, request: Value) -> Result<SessionInfo> {
-        let action = action("login_finish").ok_or(Error::Invalid)?;
+        self.adopt("login_finish", request).await
+    }
+    /// Open or renew a community session from a device key's signed nonce, with no passkey.
+    pub async fn authenticate_device(&mut self, request: Value) -> Result<SessionInfo> {
+        self.adopt("device_session_finish", request).await
+    }
+    async fn adopt(&mut self, name: &str, request: Value) -> Result<SessionInfo> {
+        let action = action(name).ok_or(Error::Invalid)?;
         if action.schema()["x-client-access"] != "trusted" {
             return Err(Error::Invalid);
         }
-        let response = self.call("login_finish", request).await?;
+        let response = self.call(name, request).await?;
         let Value::Object(mut fields) = response else {
             return Err(Error::Reconcile);
         };

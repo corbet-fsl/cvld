@@ -276,6 +276,8 @@ service host; `Authenticated` means the session's exact host-selected role.
 | passport_challenge | Member | Global | Record |
 | passport_issue | Member | Global | Record |
 | presentation_challenge | Public | Community | Record |
+| device_session_begin | Public | Community | Record |
+| device_session_finish | Public | Community | Record |
 | lobby | Member | Community | Check |
 | handle_available | Public | Community | Check |
 | handle_reserve | Member | Community | Record |
@@ -381,6 +383,17 @@ community UUID and pseudonym. There is no manual approval or recovery identity.
 Removing a passkey immediately removes its sessions and outstanding additions.
 Members retain access through other passkeys. Losing every key permanently
 releases membership under NO RETURN.
+
+## Device-key sessions
+
+`device_session_begin({})` returns `{nonce, issued}`: a one-use nonce, valid 60 seconds, held in
+RAM and bounded by the pending capacity. The device signs
+`device_session::message(community, nonce, issued)` with its registered community device key and
+sends it to `device_session_finish({nonce, user, device_key, signature})`, which returns the same
+`Session` shape as `login_finish` (lifetime at most 3600 seconds). The key must be ACTIVE for that
+member in this community's registry (`pending`, `active`, `revoked`; the first key is bound at join
+by `bind_first_device_key`). Every refusal is `Unauthorized`; the nonce is spent whatever happens.
+Renewal repeats the exchange. This session does not yet authorize other actions.
 
 ## Discoverable sign-in and the vault origin
 

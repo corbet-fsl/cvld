@@ -97,6 +97,28 @@ impl Door {
             .challenge(ctx.grant.as_ref().map(|g| g.user), ctx.now)
             .await
     }
+    pub(crate) async fn device_session_begin(
+        &self,
+        ctx: Context,
+        _: Empty,
+    ) -> Result<DeviceSessionChallenge> {
+        self.community_backend()?
+            .lock()
+            .await
+            .device_session_begin(ctx.now)
+            .await
+    }
+    pub(crate) async fn device_session_finish(
+        &self,
+        ctx: Context,
+        request: DeviceSessionFinish,
+    ) -> Result<Session> {
+        self.community_backend()?
+            .lock()
+            .await
+            .device_session_finish(request, ctx.now)
+            .await
+    }
     pub(crate) async fn lobby(&self, ctx: Context, _: Empty) -> Result<Lobby> {
         self.community_backend()?
             .lock()
@@ -615,6 +637,8 @@ impl Door {
             .authorize_device_key(auth, key)
             .await
             .map_err(Error::Refused.redact())?;
+        // JOIN HOOK: the first device key of the member also enters the session registry.
+        community.bind_first_device_key(auth.member(), &key).await?;
         if community
             .facade
             .flush_revocations(ctx.now)

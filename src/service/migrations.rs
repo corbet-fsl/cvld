@@ -39,6 +39,7 @@ pub fn community_migrations() -> Vec<crlt::Migration<'static>> {
         ("ohttp-replay", crate::ohttp::SCHEMA),
         ("genesis", crate::genesis_store::SCHEMA),
         ("cmbr-device-pending", cmbr::DEVICE_PENDING_SCHEMA),
+        ("device-registry", crate::device_registry::SCHEMA),
     ]);
     schemas
         .iter()
