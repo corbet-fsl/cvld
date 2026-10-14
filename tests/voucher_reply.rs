@@ -67,3 +67,40 @@ async fn the_relay_takes_a_reply_without_a_session_and_only_its_member_reads_it(
         200
     );
 }
+
+/// An issuer cannot skip sign-off by asking: neither a member nor an admin. The
+/// skip becomes a proven property of the presentation later; until then a
+/// multi-use link always needs sign-off.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_multi_use_link_needs_sign_off_and_an_admin_cannot_skip_it() {
+    let global = global(100).await;
+    let (_, _, public) = wallet_passport(&global).await;
+    let community = community("skip", &public).await;
+    let (_, passport, _) = wallet_passport(&global).await;
+    let mut admin = admitted_community_member(&community, "skip", &passport, "skip_admin").await;
+    let subject = passport
+        .pseudonym(&cpsd::CommunityId::new("skip").unwrap())
+        .to_hex();
+    preexisting_role(&community, "skip", &subject, crgs::Role::Admin).await;
+    // The admin role is in force; the link is made on the ordinary member host.
+    let host = "api.skip.example.test";
+    admin.session = login(
+        &community,
+        host,
+        &mut admin.authenticator,
+        &admin.user,
+        &admin.credential,
+    )
+    .await;
+    let link = voucher("skip", &subject, "skip_link", NOW + 172_800);
+    let mut body = link["seed"].clone();
+    body["uses"] = json!(3);
+    body["signoff"] = json!(false);
+    let api = client(&community, host, Some(&admin.session));
+    // Asking to skip sign-off on a multi-use link is refused, admin or not.
+    assert!(api.call("voucher_link_create", body.clone()).await.is_err());
+    // The default is what a multi-use link gets.
+    body["signoff"] = json!(true);
+    let created = api.call("voucher_link_create", body).await.unwrap();
+    assert_eq!(created["signoff"], json!(true));
+}

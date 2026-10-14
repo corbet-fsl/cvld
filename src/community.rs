@@ -1188,9 +1188,11 @@ impl CommunityService {
             .await
             .map_err(Error::Refused.redact())?;
         let member = lease.member().to_owned();
-        let may_set_signoff = matches!(lease.role(), cmbr::Role::Admin | cmbr::Role::Root);
         drop(lease);
-        self.register_link(&member, may_set_signoff, request, now)
+        // Never trust an issuer flag or a role: skipping sign-off will be a proven
+        // property of the Issue presentation (standing >= the rulebook threshold).
+        // Until then the default decides: multi-use links always need sign-off.
+        self.register_link(&member, false, request, now)
             .await
     }
     /// Development only: register a link for a member who is not yet admitted,
