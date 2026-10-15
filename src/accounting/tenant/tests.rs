@@ -188,10 +188,10 @@ fn every_incarnation_has_its_own_keys_and_a_reopen_reuses_them() {
         .unwrap();
     let read = |path: &str| fs::read(path).unwrap();
     assert_ne!(read(&one.operator_seed_file), read(&two.operator_seed_file));
-    assert_ne!(
-        read(&one.certificate_seed_file),
-        read(&two.certificate_seed_file)
-    );
+    // The certificate issuer is pinned by the platform's extension artifacts:
+    // every created community keeps the template's.
+    assert_eq!(one.certificate_seed_file, template.certificate_seed_file);
+    assert_eq!(two.certificate_seed_file, template.certificate_seed_file);
     assert_ne!(
         read(&one.settlement.private_key_file),
         read(&two.settlement.private_key_file)

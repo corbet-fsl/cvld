@@ -3,7 +3,10 @@
 //! template; everything community-specific is derived here, once, for one
 //! incarnation, and kept in a private directory so a restart reopens the same
 //! inputs. A community's account owners never share a key with another
-//! community or with an earlier incarnation of the same address.
+//! community or with an earlier incarnation of the same address. The one
+//! exception is the certificate issuer: the extension artifacts pin its public
+//! key, so it is platform-wide like the circuits, and every certificate it
+//! signs names its community.
 use super::config::{AccountConfig, bounded};
 use crate::error::{Error, Result};
 use cblc::accounting::AccountStatement;
@@ -247,7 +250,6 @@ impl AccountConfig {
             return Err(Error::Invalid);
         }
         keep(&file("operator-seed"), &derive(seed, b"operator")?)?;
-        keep(&file("certificate-seed"), &derive(seed, b"certificate")?)?;
         keep(&file("rooms.json"), b"[]")?;
 
         // One outcome-deposit epoch per UTC day, each with its own private key
@@ -285,7 +287,8 @@ impl AccountConfig {
         config.ledger_policy_file = text(file("ledger-policy.json"));
         config.extension_policy_file = text(file("extension-policy.json"));
         config.operator_seed_file = text(file("operator-seed"));
-        config.certificate_seed_file = text(file("certificate-seed"));
+        // The certificate issuer stays the template's: its public key is pinned by
+        // the platform's extension artifacts, so a derived key would never verify.
         config.activation_statement_file = text(statement);
         config.activation_proof_file = text(proof);
         config.settlement.epoch_file = text(epoch_file);
