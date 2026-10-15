@@ -1,4 +1,4 @@
-//! A login ceremony cannot authorize an irreversible holder-requested suspension.
+//! A login ceremony cannot authorize an irreversible holder-requested block.
 use super::*;
 use crate::service::Clock;
 use std::time::{Duration, Instant};

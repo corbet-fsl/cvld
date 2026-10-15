@@ -43,7 +43,7 @@ identifies that exact preparation; an earlier begin/check consent cannot execute
 a later check preparation.
 
 The door first obtains read-only `authorize_contact` through its actual global
-facade: enabled gate/provider, live policy and unsuspended subject, with a clock
+facade: enabled gate/provider, live policy and an unblocked subject, with a clock
 sample after the database read. It derives each `ContactBinding`
 for the independently authenticated subject, check, configured gate and
 provider. `prepare_begin` receives those bindings plus `Owner` and explicit
@@ -116,7 +116,7 @@ signed global policies, blind passport issuance/presentation, real identity
 deduplication and inert external HTTP. They cover budgets across begin/check,
 durable concurrent reservations/reopen, stale consent, wrong owner/session,
 phase preservation, fallback stops, cancellation, expiry and privacy. Real
-signed-policy/suspension changes after durable reservation leave conservative
+signed-policy/block changes after durable reservation leave conservative
 exposure and send no provider request. Key-binding contention, changed-key
 reopen, provider credential replacement and populated legacy migrations use
 actual libSQL and genuine leaf/gate records. Formatter

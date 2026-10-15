@@ -47,8 +47,8 @@ for revocation. A member cannot request an operator role. Operator UUIDs and a
 one-time initial registration capability are explicit service configuration.
 Existing operator credentials prevent reuse of bootstrap across restart.
 
-The global service calls cgbl for uniqueness, gates, blind issuance, warning and
-temporary suspension. It never receives a community identifier or pseudonym.
+The global service calls cgbl for uniqueness, gates, blind issuance and permanent
+blocks. It never receives a community identifier or pseudonym.
 Public material contains only issuer keys, policy revision, epoch and common
 expiry. The purpose-bound global status uses csgn SettingsSnapshot, with UTC-day
 publication boundaries. A challenge binds to one UV-verified session; replay
@@ -476,8 +476,8 @@ member host. They use this session's actual original passkey authentication;
 no request names a user or credential. The SDK owns the first publication CAS:
 an equal retry returns the winner, while a different commitment refuses. A bind
 checks original CGbl account eligibility before and after the write under the
-original Auth-to-Global lock order. Permanent suspension never becomes renewed
-eligibility. An own query remains data-only even after suspension and grants no
+original Auth-to-Global lock order. A permanent block never becomes renewed
+eligibility. An own query remains data-only even after a block and grants no
 root creation, signing, membership or recovery authority.
 
 Only the opaque seed and immutable publication commitment are stored with the

@@ -96,7 +96,7 @@ async fn login(service: &Running, device: &mut Resident) -> Session {
     .unwrap()
 }
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn actual_wallet_uuid_seed_uv_query_bind_and_permanent_suspension_are_joined() {
+async fn actual_wallet_uuid_seed_uv_query_bind_and_permanent_block_are_joined() {
     let service = production().await;
     let api = client(&service, WALLET, None);
     let original: Ceremony =

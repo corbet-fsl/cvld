@@ -247,7 +247,7 @@ async fn a_wallet_can_self_ban_before_any_gate_without_blocking_a_different_wall
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn a_real_login_assertion_expired_intent_logout_and_revocation_never_suspend() {
+async fn a_real_login_assertion_expired_intent_logout_and_revocation_never_block() {
     for cause in ["login-proof", "expiry", "logout", "revocation"] {
         let service = global(200).await;
         let mut owner = wallet(&service, WALLET, None).await;

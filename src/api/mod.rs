@@ -315,7 +315,7 @@ actions! {
     passport_challenge(Empty) -> Bytes, Member, Global, Record, Forward, "Reserve a blind passport issuance challenge";
     passport_issue(PassportIssue) -> Bytes, Member, Global, Record, Forward, "Issue a blind passport after global policy checks";
     global_self_ban_begin(Empty) -> SelfBanChallenge, Member, Global, Check, Forward, "Confirm permanent global self-ban with a fresh passkey ceremony";
-    global_self_ban_finish(SelfBanConfirmation) -> Empty, Member, Global, Record, Forward, "Permanently suspend this authenticated global account; no recovery";
+    global_self_ban_finish(SelfBanConfirmation) -> Empty, Member, Global, Record, Forward, "Permanently block this authenticated global account; no recovery";
     global_self_ban_status(Empty) -> SelfBanStatus, Member, Global, Check, Forward, "Read this authenticated wallet's permanent self-ban outcome";
     community_self_ban_begin(Empty) -> SelfBanChallenge, Member, Community, Check, Forward, lobby 1, "Confirm permanent community self-ban with a fresh passkey ceremony";
     community_self_ban_finish(SelfBanConfirmation) -> Empty, Member, Community, Record, Forward, lobby 1, "Permanently end this membership; no recovery or operator override";

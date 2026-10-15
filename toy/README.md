@@ -75,7 +75,6 @@ prints a short description. Unexpected errors or assertion failures exit nonzero
 | `06-lost-passkeys.json` | Revoking the last passkey releases access, rejects its existing session and credential, and permanently refuses re-registration. Physical loss cannot be observed by a server; this exercises explicit loss/revocation of every registered key. |
 | `07-second-device.json` | Register a second UV-required passkey through `passkey_add`, revoke the first and refuse its session, log in with the surviving key, preserve the member and handle, and obtain a fresh independently verified credential. |
 | `08-root-force.json` | Root forces a setting; an admin's community override cannot change the effective value, and an admin cannot use the root action. |
-| `09-global-suspension.json` | A warned wallet is suspended. It cannot renew its passport, and both communities refuse its next credential renewal after consuming the updated signed global epoch. |
 | `10-throttle.json` | With a one-request burst, registration and handle checks independently exhaust their aggregate quotas. |
 | `11-offline.json` | A cfrm stand-in pulls all five signed snapshots and the manifest. After every service stops, it verifies the credential locally and refuses tampering, expiry and foreign-community trust. |
 

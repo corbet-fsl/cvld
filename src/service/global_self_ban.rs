@@ -17,7 +17,7 @@ impl Door {
             return Err(Error::Unauthorized);
         }
         // The genuine wallet login supplies the original enrolment. No member
-        // request can name a subject or enumerate other suspension records.
+        // request can name a subject or enumerate other block records.
         let self_banned = global
             .facade
             .self_ban_status(
@@ -107,7 +107,7 @@ impl Door {
             .await
             .map_err(Error::Reconcile.redact())?;
         auth.logout_account(confirmed.user());
-        // Suspension has committed even if publishing the advanced epoch fails.
+        // The block has committed even if publishing the advanced epoch fails.
         global.publish_wallet(self.inner.clock.now()).await?;
         global
             .refresh(self.inner.clock.now())

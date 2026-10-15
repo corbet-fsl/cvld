@@ -591,7 +591,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Permanently suspend this authenticated global account; no recovery */
+        /** Permanently block this authenticated global account; no recovery */
         post: operations["global_self_ban_finish"];
         delete?: never;
         options?: never;

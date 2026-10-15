@@ -122,7 +122,7 @@ impl Door {
         let state = auth
             .initial_creation(token, Some(request), now, self.inner.clock.as_ref())
             .await?;
-        // Already committed: suspension, key/session change or stale observation
+        // Already committed: a block, key/session change or stale observation
         // now withholds the reply without pretending the CAS did not happen.
         let result = async {
             let observed = global

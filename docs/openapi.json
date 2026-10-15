@@ -7751,7 +7751,7 @@
             "session": []
           }
         ],
-        "summary": "Permanently suspend this authenticated global account; no recovery",
+        "summary": "Permanently block this authenticated global account; no recovery",
         "x-client-access": "forward",
         "x-effect": "record",
         "x-lobby": "false",
