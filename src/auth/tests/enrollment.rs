@@ -108,7 +108,8 @@ async fn finish_and_continue_have_one_winner_and_legacy_keys_cannot_gain_a_seed(
             &session.token,
             Some(InitialPublicationBind {
                 seed: [1; 32],
-                publication: [2; 32]
+                publication: [2; 32],
+                evidence: None,
             }),
             NOW,
             &clock

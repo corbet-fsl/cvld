@@ -415,9 +415,8 @@ request's issuer tag against the member's passport tag, charges the per-member b
 Community: `device_join({passport, stamp, salt, device_key, seed, signature})` takes a passport
 presentation over this community's `presentation_challenge`, a stamp presentation covering the
 action `device_join` with payload digest = `device_session::join_payload(device_key, seed)` =
-SHA-256(device_key || seed) and the given salt (scope fingerprint:
-`device_session::scope_fingerprint`: the csgn founding fingerprint of the founding document, as
-the verified Charter reports it, or SHA-256 of `device_session::UNFOUNDED_FINGERPRINT_TAG` and the id),
+SHA-256(device_key || seed) and the given salt (scope: `cpsd::StampScope::of_community` over the
+id and `csgn::community_fingerprint` of the founding key, as the verified Charter reports it),
 and the key's signature over `device_session::join_message(community, challenge, device_key)`.
 The stamp's pseudonym must be the passport's. The digest is recorded once until the stamp expires;
 the same join repeated returns the same `{user}`. The member is created without any passkey; the
@@ -426,6 +425,19 @@ is the member's opaque initial creation commitment: that first key holds it as t
 passkey holds its commitment, so `initial_creation` and `initial_publication_bind` answer a
 session of that key (same response, same one-winner publication bind). The same stamp may carry
 further slots of this community (the lineage genesis); the join presents only its own.
+
+A device-key session's `initial_publication_bind({seed, publication, evidence})` REQUIRES
+`evidence`: the `cchr::genesis_stamp::GenesisStampEvidence` bytes (= cvlt's stamp
+`LineageEvidence` bytes) of the member's first lineage. Before the one-winner CAS the server
+verifies with `cchr::genesis_stamp` (no Charter: membership, rulebook and revocation are the
+session's own checks): the receipt is a first `Created` lineage of this community and the
+member's pseudonym, authored by the session's device key; the `lineage_genesis` slot covers the
+receipt challenge and `at` under the community's stamp scope, the stamp key is in the signed
+global ring and valid at `at`, the stamp's pseudonym is the member's and its epoch the current
+global epoch. The stamp digest is recorded once in `cvld_stamp_uses` (a repeated digest is the same
+member's retry); a definitive CAS refusal frees it again, an unknown outcome keeps it. An equal
+retry of an already bound publication is not re-verified. Passkey sessions, community or global,
+must not send `evidence` (`Invalid`).
 
 ## Discoverable sign-in and the vault origin
 

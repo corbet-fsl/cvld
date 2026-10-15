@@ -8485,6 +8485,18 @@
                 "additionalProperties": false,
                 "description": "Bind the original publication to this session's initial registration.",
                 "properties": {
+                  "evidence": {
+                    "description": "Genesis stamp evidence of the member's first lineage (`cchr::genesis_stamp`\nencoding): required iff the session is a device-key session, refused otherwise.\nIts stamp digest is recorded once; an equal retry of a bound publication is not\nre-verified.",
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  },
                   "publication": {
                     "items": {
                       "format": "int32",
@@ -9172,7 +9184,7 @@
         "x-client-access": "forward",
         "x-effect": "check",
         "x-lobby": "false",
-        "x-role": "member",
+        "x-role": "authenticated",
         "x-scope": "community"
       }
     },

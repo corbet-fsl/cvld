@@ -4627,6 +4627,13 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /**
+                     * @description Genesis stamp evidence of the member's first lineage (`cchr::genesis_stamp`
+                     *     encoding): required iff the session is a device-key session, refused otherwise.
+                     *     Its stamp digest is recorded once; an equal retry of a bound publication is not
+                     *     re-verified.
+                     */
+                    evidence?: number[] | null;
                     publication: number[];
                     seed: number[];
                 };
