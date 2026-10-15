@@ -125,6 +125,10 @@ pub struct CommunityConfig {
     pub minimum_global_epoch: u64,
     pub minimum_global_revision: u64,
     pub global_gates: Vec<String>,
+    /// Rulebook stamp cohort in seconds (default one UTC day); stamps of any other cohort are
+    /// refused.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stamp_cohort_seconds: Option<u64>,
     pub root: Operator,
     pub admin: Operator,
     pub pending_days: u32,

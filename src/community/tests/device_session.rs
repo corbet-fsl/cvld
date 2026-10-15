@@ -37,6 +37,12 @@ async fn fixture() -> (Running, Member, GlobalPublic) {
     let (_, passport, public) = wallet_passport(&global).await;
     let service = community("alpha", &public).await;
     let member = enrol_community(&service, HOST, &passport).await;
+    // The fixture member is a passkey member; give it the registered device key a join binds.
+    let community = service.door.community_backend().unwrap().lock().await;
+    device_registry::put(&community.db, "alpha", &member.user, &joined(), State::Active)
+        .await
+        .unwrap();
+    drop(community);
     (service, member, public)
 }
 
@@ -66,16 +72,13 @@ async fn an_active_key_opens_and_silently_renews_a_session() {
     assert_eq!(session.user, member.user);
     assert!(session.expires <= NOW + 3600);
     let mut community = service.door.community_backend().unwrap().lock().await;
-    assert_eq!(
-        community
-            .device_session_member(&session.token, NOW)
-            .await
-            .unwrap(),
-        member.user
-    );
+    let (grant, authentication) = community.authenticate(&session.token, NOW).await.unwrap();
+    assert_eq!(grant.user.to_string(), member.user);
+    assert_eq!(grant.origin, ckyh::Origin::DeviceKey);
+    assert_eq!(authentication.origin(), ckyh::Origin::DeviceKey);
     assert!(
         community
-            .device_session_member(&session.token, session.expires)
+            .authenticate(&session.token, session.expires)
             .await
             .is_err()
     );
@@ -147,12 +150,7 @@ async fn unknown_revoked_and_pending_keys_are_refused() {
     )
     .await
     .unwrap();
-    assert!(
-        community
-            .device_session_member(&session.token, NOW)
-            .await
-            .is_err()
-    );
+    assert!(community.authenticate(&session.token, NOW).await.is_err());
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -211,12 +209,8 @@ async fn a_nonce_is_single_use_expires_and_belongs_to_one_community() {
 async fn communities_keep_separate_device_keys_for_the_same_member() {
     let (service, member, _) = fixture().await;
     let community = service.door.community_backend().unwrap().lock().await;
-    let a = key(21).verifying_key().to_bytes();
     let b = key(22).verifying_key().to_bytes();
-    device_registry::bind_first_device_key(&community.db, "alpha", &member.user, &a)
-        .await
-        .unwrap();
-    device_registry::bind_first_device_key(&community.db, "beta", &member.user, &b)
+    device_registry::put(&community.db, "beta", &member.user, &b, State::Active)
         .await
         .unwrap();
     let state = |scope: &'static str, key: [u8; 32]| {
@@ -228,10 +222,52 @@ async fn communities_keep_separate_device_keys_for_the_same_member() {
                 .unwrap()
         }
     };
-    // Alpha already held the joined key, so the first-key hook left the second one unbound.
     assert_eq!(state("alpha", joined()).await, Some(State::Active));
-    assert_eq!(state("alpha", a).await, None);
+    assert_eq!(state("alpha", b).await, None);
     assert_eq!(state("beta", b).await, Some(State::Active));
-    assert_eq!(state("beta", a).await, None);
     assert_eq!(state("beta", joined()).await, None);
+    // Alpha's membership sees only alpha's registry.
+    let user = ckyh::Uuid::parse_str(&member.user).unwrap();
+    let membership = community.facade.membership();
+    assert_eq!(
+        membership.device_key_state(user, joined()).await.unwrap(),
+        Some(State::Active)
+    );
+    assert_eq!(membership.device_key_state(user, b).await.unwrap(), None);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_device_session_is_a_full_member_session_except_for_human_confirmations() {
+    let (service, member, _) = fixture().await;
+    let anonymous = client(&service, HOST, None);
+    let challenge: DeviceSessionChallenge = serde_json::from_value(
+        anonymous
+            .call("device_session_begin", json!({}))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let request = finish("alpha", &challenge, &member.user, &key(13));
+    let session: Session = serde_json::from_value(
+        anonymous
+            .call(
+                "device_session_finish",
+                serde_json::to_value(&request).unwrap(),
+            )
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let device = client(&service, HOST, Some(&session.token));
+    let passkey = client(&service, HOST, Some(&member.session));
+    // Same member, same role, same community: the lobby view is identical whatever the origin.
+    assert_eq!(
+        device.call("lobby", json!({})).await.unwrap(),
+        passkey.call("lobby", json!({})).await.unwrap()
+    );
+    // Human confirmations stay passkey-only until the confirmation stamp exists.
+    let action = json!({"kind":"device_authorize","key":joined()});
+    assert!(device.call("step_up_begin", json!({"action": action})).await.is_err());
+    assert!(passkey.call("step_up_begin", json!({"action": action})).await.is_ok());
+    assert!(device.call("passkey_list", json!({})).await.is_err());
 }

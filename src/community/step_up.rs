@@ -7,6 +7,11 @@ use crate::{
 
 impl CommunityService {
     fn step_up_session(&self, authentication: &ckyh::Authentication, grant: &Grant) -> Result<()> {
+        // A step-up IS a human confirmation: a device-key grant cannot produce one until the
+        // confirmation stamp (package 5) exists.
+        if authentication.origin() != ckyh::Origin::Passkey {
+            return Err(Error::Unauthorized);
+        }
         if self.sessions.values().any(|session| {
             session.grant.session_id == grant.session_id
                 && session.grant.user == authentication.member()

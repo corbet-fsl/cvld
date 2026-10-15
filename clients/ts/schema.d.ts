@@ -463,6 +463,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/device_join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Join by passport and one confirmation stamp, binding the member's first device key */
+        post: operations["device_join"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/device_keys": {
         parameters: {
             query?: never;
@@ -1290,6 +1307,40 @@ export interface paths {
         put?: never;
         /** Edit a community setting */
         post: operations["setting_set"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/stamp_challenge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reserve a single-use confirmation stamp nonce for this wallet member */
+        post: operations["stamp_challenge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/stamp_issue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Issue a blind confirmation stamp after one fresh wallet-passkey verification */
+        post: operations["stamp_issue"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2782,6 +2833,14 @@ export interface components {
             /** @description Sealed to the issuer's device, lowercase hex. */
             notice: string;
         };
+        /** @description The public signed fields of one user-verifying WebAuthn assertion of the wallet passkey. */
+        WebAuthnAssertion: {
+            authenticator_data: number[];
+            client_data_json: number[];
+            credential_id: number[];
+            signature: number[];
+            user_handle?: number[] | null;
+        };
     };
     responses: never;
     parameters: never;
@@ -3906,6 +3965,51 @@ export interface operations {
                 content: {
                     "application/json": {
                         keys: number[][];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    device_join: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    device_key: number[];
+                    passport: components["schemas"]["PresentationInput"];
+                    /** @description The stamp action's salt. */
+                    salt: number[];
+                    signature: number[];
+                    /** @description cpsd stamp presentation encoding. */
+                    stamp: number[];
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        user: string;
                     };
                 };
             };
@@ -6011,6 +6115,87 @@ export interface operations {
                         schema: number[];
                         schema_versions: number[];
                         settings: number[];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    stamp_challenge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description cpsd issuance challenge (32 bytes). */
+                        challenge: number[];
+                        /** @description cpsd stamp public key encoding (cohort included). */
+                        key: number[];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    stamp_issue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    assertion: components["schemas"]["WebAuthnAssertion"];
+                    challenge: number[];
+                    request: number[];
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        bytes: number[];
                     };
                 };
             };

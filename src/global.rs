@@ -104,6 +104,24 @@ impl GlobalService {
         )
         .await
         .map_err(Error::Unavailable.redact())?;
+        if let Some(wallet) = &config.wallet
+            && let Some(file) = &wallet.stamp_key_file
+        {
+            let key = cpsd::StampIssuerKey::from_secret_bytes(&Config::secret(file)?)
+                .map_err(Error::Invalid.redact())?;
+            let defaults = cgbl::StampRate::default();
+            facade
+                .attach_stamps(
+                    key,
+                    cgbl::StampRate {
+                        limit: wallet.stamp_limit.unwrap_or(defaults.limit),
+                        period_seconds: wallet
+                            .stamp_period_seconds
+                            .unwrap_or(defaults.period_seconds),
+                    },
+                )
+                .map_err(Error::Invalid.redact())?;
+        }
         let policy = std::fs::read(&config.policy_file).map_err(Error::Unavailable.redact())?;
         let authority = csgn::KeyRing::from_cbor(
             &std::fs::read(&config.policy_authority_file).map_err(Error::Unavailable.redact())?,

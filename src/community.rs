@@ -70,6 +70,9 @@ mod publication_tests;
 #[path = "community/tests/device_session.rs"]
 mod device_session_tests;
 #[cfg(all(test, feature = "development-gate"))]
+#[path = "community/tests/device_join.rs"]
+mod device_join_tests;
+#[cfg(all(test, feature = "development-gate"))]
 #[path = "community/tests/step_up.rs"]
 mod step_up_tests;
 
@@ -155,7 +158,6 @@ pub struct CommunityService {
     sessions: HashMap<String, SessionState>,
     /// Unspent device-session nonces and their issue times.
     device_nonces: HashMap<[u8; 32], u64>,
-    device_sessions: HashMap<String, device_session::DeviceSession>,
 }
 impl CommunityService {
     #[cfg(test)]
@@ -648,7 +650,6 @@ impl CommunityService {
                 clock,
                 sessions: HashMap::new(),
                 device_nonces: HashMap::new(),
-                device_sessions: HashMap::new(),
             })
         }
         .await;
@@ -701,7 +702,6 @@ impl CommunityService {
         self.sessions.retain(|_, s| s.grant.expires > now);
         self.device_nonces
             .retain(|_, issued| *issued + crate::device_session::NONCE_SECONDS > now);
-        self.device_sessions.retain(|_, s| s.expires > now);
     }
     pub async fn authenticate(
         &mut self,
@@ -723,13 +723,20 @@ impl CommunityService {
                 !session.garden && session.started <= now && now < session.grant.expires
             })
             .ok_or(Error::Unauthorized)?;
-        if !self
-            .facade
-            .membership()
-            .session_is_active(&session.authentication, &session.grant.credential)
-            .await
-            .map_err(Error::Unauthorized.redact())?
-        {
+        let live = if session.grant.origin == ckyh::Origin::DeviceKey {
+            self.facade
+                .membership()
+                .device_session_is_active(&session.authentication)
+                .await
+                .map_err(Error::Unauthorized.redact())?
+        } else {
+            self.facade
+                .membership()
+                .session_is_active(&session.authentication, &session.grant.credential)
+                .await
+                .map_err(Error::Unauthorized.redact())?
+        };
+        if !live {
             return Err(Error::Unauthorized);
         }
         Ok((session.grant.clone(), session.authentication.clone()))
@@ -1005,6 +1012,7 @@ impl CommunityService {
                     role,
                     expires,
                     credential,
+                    origin: ckyh::Origin::Passkey,
                     session_id: rand::random(),
                 },
             },

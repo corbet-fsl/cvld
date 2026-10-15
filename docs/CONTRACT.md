@@ -275,9 +275,12 @@ service host; `Authenticated` means the session's exact host-selected role.
 | global_public | Public | Global | Check |
 | passport_challenge | Member | Global | Record |
 | passport_issue | Member | Global | Record |
+| stamp_challenge | Member | Global | Record |
+| stamp_issue | Member | Global | Record |
 | presentation_challenge | Public | Community | Record |
 | device_session_begin | Public | Community | Record |
 | device_session_finish | Public | Community | Record |
+| device_join | Public | Community | Record |
 | lobby | Member | Community | Check |
 | handle_available | Public | Community | Check |
 | handle_reserve | Member | Community | Record |
@@ -391,9 +394,32 @@ RAM and bounded by the pending capacity. The device signs
 `device_session::message(community, nonce, issued)` with its registered community device key and
 sends it to `device_session_finish({nonce, user, device_key, signature})`, which returns the same
 `Session` shape as `login_finish` (lifetime at most 3600 seconds). The key must be ACTIVE for that
-member in this community's registry (`pending`, `active`, `revoked`; the first key is bound at join
-by `bind_first_device_key`). Every refusal is `Unauthorized`; the nonce is spent whatever happens.
-Renewal repeats the exchange. This session does not yet authorize other actions.
+member in this community's registry (`pending`, `active`, `revoked`; owned by cmbr; the first key
+is bound by `device_join`). Every refusal is `Unauthorized`; the nonce is spent whatever happens.
+Renewal repeats the exchange. The session is a full member session (grant origin `DeviceKey`):
+every check uses member, role and community; only human-confirmation actions (step-ups, device
+approval and revocation, passkey changes) refuse it until they take a stamp.
+
+## Confirmation stamps and join by device key
+
+Wallet (global host, wallet member session): `stamp_challenge({})` returns `{challenge, key}` (a
+single-use cpsd nonce and the wallet's stamp public key, a NEW key with the rulebook cohort).
+The device builds a blind request in its opaque holder (`begin_stamp`, up to 16 action digests)
+and gets ONE user-verifying assertion of its wallet passkey whose WebAuthn challenge is exactly
+`request.confirmation_challenge(challenge)`. `stamp_issue({challenge, request, assertion})`
+verifies that assertion against this session's own registered wallet credential, checks the
+request's issuer tag against the member's passport tag, charges the per-member budget (default
+20 per UTC day) and returns the blind stamp. The signed global status carries
+`stamp_public_key`; stamps are verified at the status epoch.
+
+Community: `device_join({passport, stamp, salt, device_key, signature})` takes a passport
+presentation over this community's `presentation_challenge`, a stamp presentation covering the
+action `device_join` with payload digest = `device_key` and the given salt (scope fingerprint:
+SHA-256 of the founding document, or of `device_session::UNFOUNDED_FINGERPRINT_TAG` and the id),
+and the key's signature over `device_session::join_message(community, challenge, device_key)`.
+The stamp's pseudonym must be the passport's. The digest is recorded once until the stamp expires;
+the same join repeated returns the same `{user}`. The member is created without any passkey; the
+key becomes the member's first ACTIVE key and opens sessions by `device_session_*`.
 
 ## Discoverable sign-in and the vault origin
 

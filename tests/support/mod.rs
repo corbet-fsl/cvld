@@ -458,6 +458,7 @@ pub fn community_config(
     burst: u32,
 ) -> CommunityConfig {
     let config = CommunityConfig {
+        stamp_cohort_seconds: None,
         founding_seed: None,
         listen: "127.0.0.1:0".into(),
         domain: DOMAIN.into(),
@@ -895,10 +896,25 @@ pub async fn wallet_config_at(dir: &Path, burst: u32, now: u64) -> Config {
     std::fs::write(&seed, [47; 32]).unwrap();
     let settings = dir.join("wallet-publication.json");
     std::fs::write(&settings, serde_json::to_vec(&publication).unwrap()).unwrap();
+    // Test secret: the wallet's confirmation-stamp key (one-day cohort).
+    let stamp = dir.join("wallet-stamp-key");
+    std::fs::write(&stamp, {
+        use cpsd::rand::SeedableRng as _;
+        let key = cpsd::StampIssuerKey::generate(
+            &mut cpsd::rand::rngs::StdRng::from_seed([53; 32]),
+            cpsd::KeyId::new("wallet-stamp-1").unwrap(),
+            &cpsd::StampParams::new(86_400).unwrap(),
+        )
+        .unwrap();
+        key.to_secret_bytes()
+    }).unwrap();
     config.wallet = Some(cvld::config::WalletConfig {
         signing_seed_file: seed.to_str().unwrap().into(),
         publication_file: settings.to_str().unwrap().into(),
         signer_max_seconds: 100 * 86_400,
+        stamp_key_file: Some(stamp.to_str().unwrap().into()),
+        stamp_limit: None,
+        stamp_period_seconds: None,
     });
     config
 }

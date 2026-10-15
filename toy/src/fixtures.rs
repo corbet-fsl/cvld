@@ -135,6 +135,19 @@ pub fn wallet(dir: &Path) -> cvld::config::WalletConfig {
             &serde_json::to_vec(&publication).unwrap(),
         ),
         signer_max_seconds: 100 * 86_400,
+        // Test secret: the wallet's confirmation-stamp key (one-day cohort).
+        stamp_key_file: Some(write(dir, "wallet-stamp-key", &{
+            use cpsd::rand::SeedableRng as _;
+            let key = cpsd::StampIssuerKey::generate(
+                &mut cpsd::rand::rngs::StdRng::from_seed([53; 32]),
+                cpsd::KeyId::new("wallet-stamp-1").unwrap(),
+                &cpsd::StampParams::new(86_400).unwrap(),
+            )
+            .unwrap();
+            key.to_secret_bytes()
+        })),
+        stamp_limit: None,
+        stamp_period_seconds: None,
     }
 }
 pub fn community_rules() -> crbk::Rulebook {
@@ -273,6 +286,7 @@ pub fn community_with(
         None => (None, community_rules()),
     };
     let config = CommunityConfig {
+        stamp_cohort_seconds: None,
         founding_seed: None,
         listen,
         domain: DOMAIN.into(),

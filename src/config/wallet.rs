@@ -10,4 +10,14 @@ pub struct WalletConfig {
     pub publication_file: String,
     /// Explicit maximum wallet signing lifetime, independent of passports.
     pub signer_max_seconds: u64,
+    /// The wallet's confirmation-stamp issuer key (cpsd secret encoding, cohort included),
+    /// never the passport key. Absent: the wallet issues no stamps.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stamp_key_file: Option<String>,
+    /// Stamps per member and window (rulebook setting; default 20).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stamp_limit: Option<u32>,
+    /// Stamp budget window in seconds (default one day).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stamp_period_seconds: Option<u64>,
 }

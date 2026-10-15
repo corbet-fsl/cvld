@@ -119,6 +119,13 @@ impl Door {
             .device_session_finish(request, ctx.now)
             .await
     }
+    pub(crate) async fn device_join(&self, ctx: Context, request: DeviceJoin) -> Result<DeviceJoined> {
+        self.community_backend()?
+            .lock()
+            .await
+            .device_join(request, ctx.now)
+            .await
+    }
     pub(crate) async fn lobby(&self, ctx: Context, _: Empty) -> Result<Lobby> {
         self.community_backend()?
             .lock()
@@ -557,7 +564,7 @@ impl Door {
                 .await;
         }
         let community = self.community_backend()?.lock().await;
-        let authentication = ctx.member()?;
+        let authentication = ctx.human_member()?;
         let records = community
             .facade
             .membership()
@@ -613,7 +620,7 @@ impl Door {
             .lock()
             .await
             .add_passkey(
-                ctx.member()?,
+                ctx.human_member()?,
                 ctx.grant.as_ref().ok_or(Error::Unauthorized)?,
                 request,
                 ctx.now,
@@ -630,15 +637,13 @@ impl Door {
         self.require_step_up(&ctx, StepUpAction::DeviceAuthorize { key }, step_up)
             .await?;
         let mut community = self.community_backend()?.lock().await;
-        let auth = ctx.member()?;
+        let auth = ctx.human_member()?;
         community
             .facade
             .membership()
             .authorize_device_key(auth, key)
             .await
             .map_err(Error::Refused.redact())?;
-        // JOIN HOOK: the first device key of the member also enters the session registry.
-        community.bind_first_device_key(auth.member(), &key).await?;
         if community
             .facade
             .flush_revocations(ctx.now)
@@ -668,7 +673,7 @@ impl Door {
         self.require_step_up(&ctx, StepUpAction::DeviceAuthorize { key }, step_up)
             .await?;
         let community = self.community_backend()?.lock().await;
-        let auth = ctx.member()?;
+        let auth = ctx.human_member()?;
         let membership = community.facade.membership();
         membership
             .authorize_pending_device_key(auth, key)
@@ -692,7 +697,7 @@ impl Door {
         self.require_step_up(&ctx, StepUpAction::DeviceApprove { key }, step_up)
             .await?;
         let community = self.community_backend()?.lock().await;
-        let auth = ctx.member()?;
+        let auth = ctx.human_member()?;
         let membership = community.facade.membership();
         membership
             .approve_pending_device_key(auth, key)
@@ -712,7 +717,7 @@ impl Door {
         request: DeviceConfirm,
     ) -> Result<DeviceKeys> {
         let community = self.community_backend()?.lock().await;
-        let auth = ctx.member()?;
+        let auth = ctx.human_member()?;
         let membership = community.facade.membership();
         membership
             .confirm_device_key(auth, request.key)
@@ -735,7 +740,7 @@ impl Door {
         self.require_step_up(&ctx, StepUpAction::DeviceRevoke { key }, step_up)
             .await?;
         let mut community = self.community_backend()?.lock().await;
-        let auth = ctx.member()?;
+        let auth = ctx.human_member()?;
         community
             .facade
             .membership()
@@ -813,7 +818,7 @@ impl Door {
         community
             .facade
             .membership()
-            .revoke_passkey(ctx.member()?, credential.clone())
+            .revoke_passkey(ctx.human_member()?, credential.clone())
             .await
             .map_err(Error::Refused.redact())?;
         community.revoke_sessions(&credential);

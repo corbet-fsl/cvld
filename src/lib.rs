@@ -32,6 +32,8 @@ pub mod creation_token;
 pub mod device_session;
 #[cfg(feature = "server")]
 mod device_registry;
+#[cfg(feature = "server")]
+mod stamp_uses;
 pub mod error;
 #[cfg(feature = "server")]
 mod genesis_store;

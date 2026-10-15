@@ -145,6 +145,19 @@ impl Context {
         self.authentication.as_deref().ok_or(Error::Unauthorized)
     }
 
+    /// The member for actions that by design need a human confirmation (device approval and
+    /// revocation, lineage changes, step-ups). The ONE place that keeps device-key grants out of
+    /// them; package 5 replaces it with a stamp check.
+    pub fn human_member(&self) -> Result<&ckyh::Authentication> {
+        self.member().and_then(|auth| {
+            if auth.origin() == ckyh::Origin::Passkey {
+                Ok(auth)
+            } else {
+                Err(Error::Unauthorized)
+            }
+        })
+    }
+
     pub fn global_session(&self) -> Result<cgbl::Session> {
         cgbl::Session::authenticated(
             self.subject()?,
@@ -962,6 +975,74 @@ impl Door {
             .map_err(Error::Refused.redact())?;
         Ok(Bytes {
             bytes: challenge.to_bytes().to_vec(),
+        })
+    }
+    pub(crate) async fn stamp_challenge(&self, ctx: Context, _: Empty) -> Result<StampChallenge> {
+        let global = self.global_backend()?.lock().await;
+        let (challenge, key) = global
+            .facade
+            .stamp_challenge(
+                &mut cpsd::rand::rngs::OsRng,
+                &ctx.global_session()?,
+                ctx.now,
+            )
+            .await
+            .map_err(Error::Refused.redact())?;
+        Ok(StampChallenge {
+            challenge: challenge.to_bytes().to_vec(),
+            key: key.to_bytes(),
+        })
+    }
+    /// The one human confirmation of a stamp: a user-verifying assertion of THIS session's
+    /// wallet passkey whose WebAuthn challenge is exactly the request's confirmation challenge.
+    /// Only after that verification does the wallet hand the challenge to cgbl.
+    pub(crate) async fn stamp_issue(&self, ctx: Context, request: StampIssue) -> Result<Bytes> {
+        let challenge = cpsd::IssuanceChallenge::from_bytes(
+            request
+                .challenge
+                .try_into()
+                .map_err(Error::Invalid.redact())?,
+        );
+        let stamp_request = cpsd::StampIssuanceRequest::from_bytes(&request.request)
+            .map_err(Error::Invalid.redact())?;
+        let confirmation = stamp_request.confirmation_challenge(&challenge);
+        let grant = ctx.grant.as_ref().ok_or(Error::Unauthorized)?;
+        let descriptor = {
+            let auth = self.auth(&ctx.host)?;
+            let auth = auth.lock().await;
+            let passkeys = auth.passkeys.clone();
+            let (user, credential) = (grant.user, grant.credential.clone());
+            tokio::task::spawn_blocking(move || {
+                passkeys.registered_public_credential(user, &credential)
+            })
+            .await
+            .map_err(Error::Unavailable.redact())?
+            .map_err(Error::Unauthorized.redact())?
+        };
+        let assertion = ckyh::lineage::Assertion {
+            credential_id: request.assertion.credential_id,
+            client_data_json: request.assertion.client_data_json,
+            authenticator_data: request.assertion.authenticator_data,
+            signature: request.assertion.signature,
+            user_handle: request.assertion.user_handle,
+        };
+        ckyh::lineage::verify(&descriptor, &assertion, confirmation)
+            .map_err(Error::Unauthorized.redact())?;
+        let global = self.global_backend()?.lock().await;
+        let blind = global
+            .facade
+            .issue_stamp(
+                &mut cpsd::rand::rngs::OsRng,
+                &ctx.global_session()?,
+                &stamp_request,
+                &challenge,
+                confirmation,
+                ctx.now,
+            )
+            .await
+            .map_err(Error::Refused.redact())?;
+        Ok(Bytes {
+            bytes: blind.to_bytes(),
         })
     }
     pub(crate) async fn passport_issue(

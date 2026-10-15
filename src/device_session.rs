@@ -15,3 +15,20 @@ pub fn message(community: &str, nonce: &[u8; NONCE_LEN], issued: u64) -> Vec<u8>
     message.extend_from_slice(&issued.to_be_bytes());
     message
 }
+
+/// Stamp action kind of a device join; the payload digest is the device key itself.
+pub const JOIN_ACTION: &str = "device_join";
+
+/// Signed message of a device join: domain tag, community, passport challenge id, device key.
+pub fn join_message(community: &str, challenge: &str, device_key: &[u8; 32]) -> Vec<u8> {
+    let mut message = b"cvld.device-join.v1\0".to_vec();
+    message.extend_from_slice(&(community.len() as u16).to_be_bytes());
+    message.extend_from_slice(community.as_bytes());
+    message.extend_from_slice(&(challenge.len() as u16).to_be_bytes());
+    message.extend_from_slice(challenge.as_bytes());
+    message.extend_from_slice(device_key);
+    message
+}
+
+/// Domain tag of the stamp fingerprint of a community without a founding document.
+pub const UNFOUNDED_FINGERPRINT_TAG: &[u8] = b"cvld.stamp.unfounded-community.v1\0";

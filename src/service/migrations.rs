@@ -40,6 +40,7 @@ pub fn community_migrations() -> Vec<crlt::Migration<'static>> {
         ("genesis", crate::genesis_store::SCHEMA),
         ("cmbr-device-pending", cmbr::DEVICE_PENDING_SCHEMA),
         ("device-registry", crate::device_registry::SCHEMA),
+        ("stamp-uses", crate::stamp_uses::SCHEMA),
     ]);
     schemas
         .iter()
@@ -80,6 +81,11 @@ pub fn global_migrations() -> Vec<crlt::Migration<'static>> {
             13,
             "creation-signatures",
             crate::creation_token::SIGNATURES_SCHEMA,
+        ),
+        crlt::Migration::new(
+            14,
+            "stamp-issuance",
+            cpsd::storage::libsql::STAMP_ISSUANCE_SCHEMA,
         ),
     ]
 }

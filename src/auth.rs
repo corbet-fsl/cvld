@@ -58,6 +58,9 @@ pub struct Grant {
     pub role: Role,
     pub expires: u64,
     pub(crate) credential: ckyh::CredentialID,
+    /// How the session was opened. Checks use member, role and community; only actions that need
+    /// a human confirmation look at the origin.
+    pub(crate) origin: ckyh::Origin,
     pub(crate) session_id: [u8; 32],
 }
 /// Random opaque bearer capability, without embedded member information.
@@ -354,6 +357,7 @@ impl Auth {
                     role: self.role,
                     expires,
                     credential,
+                    origin: ckyh::Origin::Passkey,
                     session_id: rand::random(),
                 },
                 authentication: Arc::new(authentication),

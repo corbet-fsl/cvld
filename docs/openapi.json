@@ -4712,6 +4712,62 @@
           "notice"
         ],
         "type": "object"
+      },
+      "WebAuthnAssertion": {
+        "additionalProperties": false,
+        "description": "The public signed fields of one user-verifying WebAuthn assertion of the wallet passkey.",
+        "properties": {
+          "authenticator_data": {
+            "items": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "client_data_json": {
+            "items": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "credential_id": {
+            "items": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "signature": {
+            "items": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "user_handle": {
+            "items": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "credential_id",
+          "client_data_json",
+          "authenticator_data",
+          "signature"
+        ],
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -7038,6 +7094,117 @@
         "x-effect": "record",
         "x-lobby": "true",
         "x-role": "member",
+        "x-scope": "community"
+      }
+    },
+    "/v1/device_join": {
+      "post": {
+        "operationId": "device_join",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Join a community by device key: a passport presentation over a challenge of this\ncommunity, a stamp presentation covering `device_join` of exactly `device_key`, and the\ndevice key's signature over [`crate::device_session::join_message`].",
+                "properties": {
+                  "device_key": {
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "passport": {
+                    "$ref": "#/components/schemas/PresentationInput"
+                  },
+                  "salt": {
+                    "description": "The stamp action's salt.",
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "signature": {
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "stamp": {
+                    "description": "cpsd stamp presentation encoding.",
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "passport",
+                  "stamp",
+                  "salt",
+                  "device_key",
+                  "signature"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "The member the joined device key belongs to (open sessions with `device_session_*`).",
+                  "properties": {
+                    "user": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "user"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [],
+        "summary": "Join by passport and one confirmation stamp, binding the member's first device key",
+        "x-client-access": "trusted",
+        "x-effect": "record",
+        "x-lobby": "false",
+        "x-role": "public",
         "x-scope": "community"
       }
     },
@@ -11719,6 +11886,189 @@
         "x-lobby": "true",
         "x-role": "admin",
         "x-scope": "community"
+      }
+    },
+    "/v1/stamp_challenge": {
+      "post": {
+        "operationId": "stamp_challenge",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "A single-use stamp nonce reserved for this wallet session, with the wallet's stamp key.",
+                  "properties": {
+                    "challenge": {
+                      "description": "cpsd issuance challenge (32 bytes).",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    },
+                    "key": {
+                      "description": "cpsd stamp public key encoding (cohort included).",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "challenge",
+                    "key"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Reserve a single-use confirmation stamp nonce for this wallet member",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-lobby": "false",
+        "x-role": "member",
+        "x-scope": "global"
+      }
+    },
+    "/v1/stamp_issue": {
+      "post": {
+        "operationId": "stamp_issue",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "One stamp request: the challenge, the cpsd request and the assertion whose WebAuthn\nchallenge is exactly the request's confirmation challenge.",
+                "properties": {
+                  "assertion": {
+                    "$ref": "#/components/schemas/WebAuthnAssertion"
+                  },
+                  "challenge": {
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "request": {
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "challenge",
+                  "request",
+                  "assertion"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "bytes": {
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "bytes"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Issue a blind confirmation stamp after one fresh wallet-passkey verification",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-lobby": "false",
+        "x-role": "member",
+        "x-scope": "global"
       }
     },
     "/v1/step_up_begin": {

@@ -26,6 +26,8 @@ mod self_ban;
 pub use self_ban::*;
 mod step_up;
 pub use step_up::*;
+mod stamp;
+pub use stamp::*;
 mod contacts;
 pub use contacts::*;
 mod payments;
@@ -300,6 +302,7 @@ actions! {
     login_finish(LoginFinish) -> Session, Public, Both, Record, Trusted, "Verify user and counter; create an ephemeral session";
     device_session_begin(Empty) -> DeviceSessionChallenge, Public, Community, Record, Forward, "Issue a one-use nonce for opening a session with a device key";
     device_session_finish(DeviceSessionFinish) -> Session, Public, Community, Record, Trusted, "Open or renew a community session by the signed nonce of an active device key";
+    device_join(DeviceJoin) -> DeviceJoined, Public, Community, Record, Trusted, "Join by passport and one confirmation stamp, binding the member's first device key";
     logout(Empty) -> Empty, Authenticated, Both, Check, Forward, "End this ephemeral session";
     member_role(Empty) -> MemberRole, Authenticated, Community, Check, Forward, "Read the current original local membership role";
     member_role_set(SetMemberRole) -> Empty, Admin, Community, Record, Forward, lobby 1, "Change a role under current garden membership authority";
@@ -316,6 +319,8 @@ actions! {
     contact_simulate(ContactSimulationRequest) -> ContactSimulationResponse, Member, Global, Check, Forward, "Simulate dummy contact planning locally without providers or credentials";
     passport_challenge(Empty) -> Bytes, Member, Global, Record, Forward, "Reserve a blind passport issuance challenge";
     passport_issue(PassportIssue) -> Bytes, Member, Global, Record, Forward, "Issue a blind passport after global policy checks";
+    stamp_challenge(Empty) -> StampChallenge, Member, Global, Record, Forward, "Reserve a single-use confirmation stamp nonce for this wallet member";
+    stamp_issue(StampIssue) -> Bytes, Member, Global, Record, Forward, "Issue a blind confirmation stamp after one fresh wallet-passkey verification";
     global_self_ban_begin(Empty) -> SelfBanChallenge, Member, Global, Check, Forward, "Confirm permanent global self-ban with a fresh passkey ceremony";
     global_self_ban_finish(SelfBanConfirmation) -> Empty, Member, Global, Record, Forward, "Permanently block this authenticated global account; no recovery";
     global_self_ban_status(Empty) -> SelfBanStatus, Member, Global, Check, Forward, "Read this authenticated wallet's permanent self-ban outcome";
