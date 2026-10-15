@@ -3,8 +3,7 @@
 //! Renewal is the same exchange. Every refusal after the nonce lookup is the same `Unauthorized`.
 use super::*;
 use crate::device_session::{
-    JOIN_ACTION, NONCE_LEN, NONCE_SECONDS, UNFOUNDED_FINGERPRINT_TAG, join_message, join_payload,
-    message,
+    JOIN_ACTION, NONCE_LEN, NONCE_SECONDS, join_message, join_payload, message, scope_fingerprint,
 };
 use ed25519_dalek::{Signature, VerifyingKey};
 
@@ -226,16 +225,9 @@ impl CommunityService {
     /// The community fingerprint stamp digests bind to: SHA-256 of the founding document, or
     /// for a community without one, SHA-256 of a domain tag and the community id.
     fn stamp_fingerprint(&self) -> cpsd::CommunityFingerprint {
-        use sha2::Digest as _;
-        let digest = match &self.genesis {
-            Some(genesis) => sha2::Sha256::digest(genesis),
-            None => {
-                let mut hasher = sha2::Sha256::new();
-                hasher.update(UNFOUNDED_FINGERPRINT_TAG);
-                hasher.update(self.config.community.as_bytes());
-                hasher.finalize()
-            }
-        };
-        cpsd::CommunityFingerprint::from_bytes(digest.into())
+        cpsd::CommunityFingerprint::from_bytes(scope_fingerprint(
+            &self.config.community,
+            self.genesis.as_deref(),
+        ))
     }
 }

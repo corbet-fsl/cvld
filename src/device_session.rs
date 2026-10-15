@@ -43,3 +43,18 @@ pub fn join_message(community: &str, challenge: &str, device_key: &[u8; 32]) -> 
 
 /// Domain tag of the stamp fingerprint of a community without a founding document.
 pub const UNFOUNDED_FINGERPRINT_TAG: &[u8] = b"cvld.stamp.unfounded-community.v1\0";
+
+/// The community fingerprint stamp digests bind to: SHA-256 of the founding document, or for a
+/// community without one, SHA-256 of [`UNFOUNDED_FINGERPRINT_TAG`] and the community id.
+pub fn scope_fingerprint(community: &str, genesis: Option<&[u8]>) -> [u8; 32] {
+    use sha2::Digest as _;
+    match genesis {
+        Some(genesis) => sha2::Sha256::digest(genesis).into(),
+        None => {
+            let mut hasher = sha2::Sha256::new();
+            hasher.update(UNFOUNDED_FINGERPRINT_TAG);
+            hasher.update(community.as_bytes());
+            hasher.finalize().into()
+        }
+    }
+}
