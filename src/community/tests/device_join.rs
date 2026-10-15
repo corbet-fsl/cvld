@@ -80,13 +80,10 @@ fn scope(community: &str) -> cpsd::StampScope {
 /// The device's stamp scope: the founding fingerprint of the founding document from the trust
 /// feed (the verified Charter's fingerprint), or the unfounded tag and id.
 fn scope_of(community: &str, genesis: Option<&[u8]>) -> cpsd::StampScope {
-    let founding = genesis.map(csgn::fingerprint);
-    cpsd::StampScope::new(
+    let founding = genesis.map(|genesis| csgn::verify_genesis(genesis).unwrap().fingerprint());
+    cpsd::StampScope::of_community(
         cpsd::CommunityId::new(community).unwrap(),
-        cpsd::CommunityFingerprint::from_bytes(crate::device_session::scope_fingerprint(
-            community,
-            founding.as_ref(),
-        )),
+        founding.as_ref(),
     )
 }
 

@@ -3,7 +3,7 @@
 //! Renewal is the same exchange. Every refusal after the nonce lookup is the same `Unauthorized`.
 use super::*;
 use crate::device_session::{
-    JOIN_ACTION, NONCE_LEN, NONCE_SECONDS, join_message, join_payload, message, scope_fingerprint,
+    JOIN_ACTION, NONCE_LEN, NONCE_SECONDS, join_message, join_payload, message,
 };
 use ed25519_dalek::{Signature, VerifyingKey};
 
@@ -163,7 +163,7 @@ impl CommunityService {
                 &self.config.community,
                 crate::stamp_uses::DEFAULT_CAPACITY,
             )?,
-            self.stamp_fingerprint(),
+            *self.stamp_scope()?.fingerprint(),
             vec![stamp_key.clone()],
             params,
         )
@@ -222,13 +222,19 @@ impl CommunityService {
         }
     }
 
-    /// The community fingerprint stamp digests bind to: the founding fingerprint of the
-    /// founding document, or for a community without one, the tagged community id.
-    fn stamp_fingerprint(&self) -> cpsd::CommunityFingerprint {
-        let founding = self.genesis.as_deref().map(csgn::fingerprint);
-        cpsd::CommunityFingerprint::from_bytes(scope_fingerprint(
-            &self.config.community,
-            founding.as_ref(),
-        ))
+    /// The stamp scope of this community (`cpsd::StampScope::of_community`): the
+    /// `csgn::community_fingerprint` of the founding document's key, or for a community
+    /// without one, of its id alone. Devices build it the same way from the verified Charter.
+    fn stamp_scope(&self) -> Result<cpsd::StampScope> {
+        let founding = match self.genesis.as_deref() {
+            Some(genesis) => Some(
+                csgn::verify_genesis(genesis)
+                    .map_err(Error::Unavailable.redact())?
+                    .fingerprint(),
+            ),
+            None => None,
+        };
+        let id = cpsd::CommunityId::new(&self.config.community).map_err(Error::Invalid.redact())?;
+        Ok(cpsd::StampScope::of_community(id, founding.as_ref()))
     }
 }

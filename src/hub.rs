@@ -549,7 +549,9 @@ impl CommunityHub for Arc<Hub> {
                     .open(&entry.address, founding, Some(plan), activation)
                     .await?;
                 let genesis = door.community_genesis().await?;
-                let fingerprint = csgn::fingerprint(&genesis);
+                let fingerprint = csgn::verify_genesis(&genesis)
+                    .map_err(Error::Unavailable.redact())?
+                    .fingerprint();
                 hub.registry.set_fingerprint(id, fingerprint).await?;
                 door.attach_creation_gate(hub.gate(id)).await?;
                 hub.provisioner

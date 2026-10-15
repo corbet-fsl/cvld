@@ -41,22 +41,5 @@ pub fn join_message(community: &str, challenge: &str, device_key: &[u8; 32]) -> 
     message
 }
 
-/// Domain tag of the stamp fingerprint of a community without a founding document.
-pub const UNFOUNDED_FINGERPRINT_TAG: &[u8] = b"cvld.stamp.unfounded-community.v1\0";
-
-/// The community fingerprint stamp digests bind to: the founding fingerprint (`csgn`
-/// fingerprint of the founding document, as the verified Charter reports it and as the
-/// community identity U_c uses it), or for a community without one, SHA-256 of
-/// [`UNFOUNDED_FINGERPRINT_TAG`] and the community id.
-pub fn scope_fingerprint(community: &str, founding: Option<&[u8; 32]>) -> [u8; 32] {
-    use sha2::Digest as _;
-    match founding {
-        Some(founding) => *founding,
-        None => {
-            let mut hasher = sha2::Sha256::new();
-            hasher.update(UNFOUNDED_FINGERPRINT_TAG);
-            hasher.update(community.as_bytes());
-            hasher.finalize().into()
-        }
-    }
-}
+// The stamp scope of a community is `cpsd::StampScope::of_community` over
+// `csgn::community_fingerprint`; server and device both build it there.
