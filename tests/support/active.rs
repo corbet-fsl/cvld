@@ -29,6 +29,16 @@ static BY_BASE: LazyLock<Mutex<HashMap<String, Arc<Global>>>> =
 static BY_ISSUER: LazyLock<Mutex<HashMap<Vec<u8>, Arc<Global>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
+/// The founder of each founded community (its first admin seat), by service base, until taken.
+static FOUNDERS: LazyLock<Mutex<HashMap<String, Member>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// The founder of `running` (the community's first admin) with the passkey that founded it, once. It
+/// signs in on the admin host with `login`.
+pub fn take_founder(running: &Running) -> Option<Member> {
+    FOUNDERS.lock().unwrap().remove(&running.base)
+}
+
 impl Global {
     fn running(&self) -> Running {
         Running {
@@ -106,6 +116,38 @@ pub async fn root_member(service: &Running, _bootstrap: Option<&str>) -> Member 
     }
 }
 
+/// A genuine Root sign-in assertion of a registered Global that the caller submits itself (a Foyer
+/// or any other client): the user and the `login_finish` body, built with the one enrolled passkey.
+pub async fn root_login_request(service: &Running) -> (String, Value) {
+    let global = BY_BASE.lock().unwrap().get(&service.base).cloned().unwrap();
+    root_member(service, None).await; // enrols the operator on first use
+    let mut guard = global.root.lock().await;
+    let root = guard.as_mut().unwrap();
+    let start: Ceremony = serde_json::from_value(
+        client(service, ROOT, None)
+            .call(
+                "login_begin",
+                json!({"user":root.user,"credential":root.credential}),
+            )
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let challenge: ckyh::RequestChallengeResponse = serde_json::from_value(start.options).unwrap();
+    let credential = root
+        .authenticator
+        .perform_auth(
+            ckyh::Url::parse(&origin_for(ROOT)).unwrap(),
+            challenge.public_key,
+            300_000,
+        )
+        .unwrap();
+    (
+        root.user.clone(),
+        json!({"ceremony":start.ceremony,"credential":credential}),
+    )
+}
+
 /// Another genuine Root session for a registered Global.
 pub async fn relogin_root(service: &Running) -> String {
     root_member(service, None).await.session
@@ -171,4 +213,5 @@ pub async fn found(running: &Running, name: &str, public: &GlobalPublic) {
     )
     .await
     .unwrap();
+    FOUNDERS.lock().unwrap().insert(running.base.clone(), founder);
 }
