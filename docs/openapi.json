@@ -7105,7 +7105,7 @@
             "application/json": {
               "schema": {
                 "additionalProperties": false,
-                "description": "Join a community by device key: a passport presentation over a challenge of this\ncommunity, a stamp presentation covering `device_join` of exactly `device_key`, and the\ndevice key's signature over [`crate::device_session::join_message`].",
+                "description": "Join a community by device key: a passport presentation over a challenge of this\ncommunity, a stamp presentation covering `device_join` with payload\n[`crate::device_session::join_payload`] of exactly `device_key` and `seed`, and the device\nkey's signature over [`crate::device_session::join_message`].",
                 "properties": {
                   "device_key": {
                     "items": {
@@ -7120,6 +7120,15 @@
                   },
                   "salt": {
                     "description": "The stamp action's salt.",
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "seed": {
+                    "description": "The member's opaque initial creation commitment (nonzero), held by this first key for\n`initial_creation` and `initial_publication_bind`.",
                     "items": {
                       "format": "int32",
                       "minimum": 0,
@@ -7150,6 +7159,7 @@
                   "stamp",
                   "salt",
                   "device_key",
+                  "seed",
                   "signature"
                 ],
                 "type": "object"

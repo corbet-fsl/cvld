@@ -3,7 +3,8 @@
 //! Renewal is the same exchange. Every refusal after the nonce lookup is the same `Unauthorized`.
 use super::*;
 use crate::device_session::{
-    JOIN_ACTION, NONCE_LEN, NONCE_SECONDS, UNFOUNDED_FINGERPRINT_TAG, join_message, message,
+    JOIN_ACTION, NONCE_LEN, NONCE_SECONDS, UNFOUNDED_FINGERPRINT_TAG, join_message, join_payload,
+    message,
 };
 use ed25519_dalek::{Signature, VerifyingKey};
 
@@ -97,7 +98,6 @@ impl CommunityService {
         })
     }
 
-
     /// JOIN by device key: one passport presentation over this community's challenge, one
     /// confirmation stamp covering `device_join` of exactly this key under the same pseudonym,
     /// and the key's signature over the join message. The digest is recorded once; a retry of
@@ -114,6 +114,12 @@ impl CommunityService {
         if challenge.owner.is_some() || challenge.value.root_board_request().is_some() {
             return Err(Error::Forbidden);
         }
+        if request.seed == [0; 32] {
+            return Err(Error::Invalid);
+        }
+        if request.seed == [0; 32] {
+            return Err(Error::Invalid);
+        }
         let key =
             VerifyingKey::from_bytes(&request.device_key).map_err(Error::Unauthorized.redact())?;
         if key.is_weak() {
@@ -122,11 +128,16 @@ impl CommunityService {
         let signature =
             Signature::from_slice(&request.signature).map_err(Error::Unauthorized.redact())?;
         key.verify_strict(
-            &join_message(&self.config.community, &input.challenge, &request.device_key),
+            &join_message(
+                &self.config.community,
+                &input.challenge,
+                &request.device_key,
+            ),
             &signature,
         )
         .map_err(Error::Unauthorized.redact())?;
-        let proof = cpsd::Presentation::from_bytes(&input.proof).map_err(Error::Invalid.redact())?;
+        let proof =
+            cpsd::Presentation::from_bytes(&input.proof).map_err(Error::Invalid.redact())?;
         let passport = self
             .facade
             .verify(&mut cpsd::rand::rngs::OsRng, &challenge.value, &proof, now)
@@ -160,7 +171,7 @@ impl CommunityService {
         .map_err(Error::Refused.redact())?;
         let action = cpsd::StampAction::new(
             cpsd::ActionKind::new(JOIN_ACTION).map_err(Error::Invalid.redact())?,
-            cpsd::PayloadDigest::from_bytes(request.device_key),
+            cpsd::PayloadDigest::from_bytes(join_payload(&request.device_key, &request.seed)),
             cpsd::StampSalt::from_bytes(request.salt),
         );
         let presentation =
@@ -178,7 +189,10 @@ impl CommunityService {
         if verified.pseudonym().to_hex() != passport.member_id() {
             return Err(Error::Refused);
         }
-        ledger.prune(now).await.map_err(Error::Unavailable.redact())?;
+        ledger
+            .prune(now)
+            .await
+            .map_err(Error::Unavailable.redact())?;
         // One use per digest; the same digest is the same join, which is idempotent below.
         let fresh = match ledger.record(&verified, now).await {
             Ok(()) => true,
@@ -187,7 +201,13 @@ impl CommunityService {
         };
         match self
             .facade
-            .join_with_device_key(passport, ckyh::Uuid::new_v4(), request.device_key, now)
+            .join_with_device_key(
+                passport,
+                ckyh::Uuid::new_v4(),
+                request.device_key,
+                request.seed,
+                now,
+            )
             .await
         {
             Ok(record) => Ok(DeviceJoined {

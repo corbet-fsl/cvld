@@ -3995,6 +3995,11 @@ export interface operations {
                     passport: components["schemas"]["PresentationInput"];
                     /** @description The stamp action's salt. */
                     salt: number[];
+                    /**
+                     * @description The member's opaque initial creation commitment (nonzero), held by this first key for
+                     *     `initial_creation` and `initial_publication_bind`.
+                     */
+                    seed: number[];
                     signature: number[];
                     /** @description cpsd stamp presentation encoding. */
                     stamp: number[];

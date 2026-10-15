@@ -39,8 +39,9 @@ pub struct StampIssue {
 }
 
 /// Join a community by device key: a passport presentation over a challenge of this
-/// community, a stamp presentation covering `device_join` of exactly `device_key`, and the
-/// device key's signature over [`crate::device_session::join_message`].
+/// community, a stamp presentation covering `device_join` with payload
+/// [`crate::device_session::join_payload`] of exactly `device_key` and `seed`, and the device
+/// key's signature over [`crate::device_session::join_message`].
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct DeviceJoin {
@@ -50,6 +51,9 @@ pub struct DeviceJoin {
     /// The stamp action's salt.
     pub salt: [u8; 32],
     pub device_key: [u8; 32],
+    /// The member's opaque initial creation commitment (nonzero), held by this first key for
+    /// `initial_creation` and `initial_publication_bind`.
+    pub seed: [u8; 32],
     pub signature: Vec<u8>,
 }
 

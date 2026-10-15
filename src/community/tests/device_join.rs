@@ -3,7 +3,7 @@
 //! first device key from a passport presentation plus that stamp, with no community passkey,
 //! and the key then opens sessions silently.
 use super::*;
-use crate::device_session::{JOIN_ACTION, join_message, message};
+use crate::device_session::{JOIN_ACTION, join_message, join_payload, message};
 use crate::test_support::*;
 use ed25519_dalek::{Signer as _, SigningKey};
 use serde_json::{Value, json};
@@ -107,10 +107,17 @@ async fn community_scope(service: &Running, community: &str) -> cpsd::StampScope
     scope_of(community, feed.genesis.as_deref())
 }
 
+/// The member's opaque initial creation commitment in these tests.
+const SEED: [u8; 32] = [33; 32];
+
 fn join_action(key: &[u8; 32], salt: [u8; 32]) -> cpsd::StampAction {
+    join_action_for(key, &SEED, salt)
+}
+
+fn join_action_for(key: &[u8; 32], seed: &[u8; 32], salt: [u8; 32]) -> cpsd::StampAction {
     cpsd::StampAction::new(
         cpsd::ActionKind::new(JOIN_ACTION).unwrap(),
-        cpsd::PayloadDigest::from_bytes(*key),
+        cpsd::PayloadDigest::from_bytes(join_payload(key, seed)),
         cpsd::StampSalt::from_bytes(salt),
     )
 }
@@ -201,6 +208,7 @@ async fn join_body(
         "stamp": presentation.to_bytes(),
         "salt": salt,
         "device_key": key,
+        "seed": SEED,
         "signature": device.sign(&join_message(community, &challenge.challenge, &key)).to_bytes().to_vec(),
     })
 }
@@ -365,4 +373,107 @@ async fn a_stamp_needs_the_exact_user_verification_and_the_members_own_passport(
     let body = json!({"challenge":challenge.to_bytes().to_vec(),"request":request.to_bytes(),"assertion":assertion});
     client.call("stamp_issue", body.clone()).await.unwrap();
     assert!(client.call("stamp_issue", body).await.is_err());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_joined_device_key_holds_the_stamped_creation_commitment_and_binds_one_publication() {
+    let global = configured_wallet(100).await;
+    let mut wallet = wallet(&global, 64).await;
+    let public: GlobalPublic = serde_json::from_value(
+        client(&global, WALLET, None)
+            .call("global_public", json!({}))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let service = community("alpha", &public).await;
+    let device = SigningKey::from_bytes(&[73; 32]);
+    let key = device.verifying_key().to_bytes();
+    let salt = [11; 32];
+    let scope = community_scope(&service, "alpha").await;
+    // ONE stamp, two slots of this community: the join and a second action (the lineage
+    // genesis in production); the join presents only its own slot.
+    let genesis = cpsd::StampAction::new(
+        cpsd::ActionKind::new("lineage_genesis").unwrap(),
+        cpsd::PayloadDigest::from_bytes([44; 32]),
+        cpsd::StampSalt::from_bytes([12; 32]),
+    );
+    stamp(
+        &global,
+        &mut wallet,
+        &[
+            (scope.clone(), join_action(&key, salt)),
+            (scope.clone(), genesis.clone()),
+        ],
+    )
+    .await;
+    assert!(wallet.holder.stamp_covers(&scope, &genesis, NOW));
+    // A seed other than the stamped one is refused (the payload digest differs).
+    let mut forged = join_body(&service, &wallet, "alpha", &device, salt).await;
+    forged["seed"] = json!(vec![34u8; 32]);
+    assert!(
+        client(&service, HOST, None)
+            .call("device_join", forged)
+            .await
+            .is_err()
+    );
+    // A zero seed is refused outright.
+    let mut zero = join_body(&service, &wallet, "alpha", &device, salt).await;
+    zero["seed"] = json!(vec![0u8; 32]);
+    assert!(
+        client(&service, HOST, None)
+            .call("device_join", zero)
+            .await
+            .is_err()
+    );
+    let body = join_body(&service, &wallet, "alpha", &device, salt).await;
+    let joined: crate::api::DeviceJoined = serde_json::from_value(
+        client(&service, HOST, None)
+            .call("device_join", body)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let session = open_session(&service, &joined.user, &device).await.unwrap();
+    let member = client(&service, HOST, Some(&session.token));
+    // The device-key session reads the commitment it joined with; no publication yet.
+    let read: crate::api::InitialCreationResponse =
+        serde_json::from_value(member.call("initial_creation", json!({})).await.unwrap()).unwrap();
+    assert_eq!(read.seed, SEED);
+    assert_eq!(read.publication, None);
+    // One publication binds; an equal retry agrees; a different winner or seed is refused.
+    let bind = json!({"seed": SEED, "publication": vec![55u8; 32]});
+    let bound: crate::api::InitialCreationResponse = serde_json::from_value(
+        member
+            .call("initial_publication_bind", bind.clone())
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(bound.publication, Some([55; 32]));
+    member.call("initial_publication_bind", bind).await.unwrap();
+    assert!(
+        member
+            .call(
+                "initial_publication_bind",
+                json!({"seed": SEED, "publication": vec![56u8; 32]}),
+            )
+            .await
+            .is_err()
+    );
+    assert!(
+        member
+            .call(
+                "initial_publication_bind",
+                json!({"seed": vec![34u8; 32], "publication": vec![55u8; 32]}),
+            )
+            .await
+            .is_err()
+    );
+    let read: crate::api::InitialCreationResponse =
+        serde_json::from_value(member.call("initial_creation", json!({})).await.unwrap()).unwrap();
+    assert_eq!((read.seed, read.publication), (SEED, Some([55; 32])));
+    // The device keys observation names the joined key as the member's credential.
+    let keys = member.call("device_keys", json!({})).await.unwrap();
+    assert_eq!(keys["keys"], json!([key]));
 }

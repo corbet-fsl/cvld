@@ -412,14 +412,19 @@ request's issuer tag against the member's passport tag, charges the per-member b
 20 per UTC day) and returns the blind stamp. The signed global status carries
 `stamp_public_key`; stamps are verified at the status epoch.
 
-Community: `device_join({passport, stamp, salt, device_key, signature})` takes a passport
+Community: `device_join({passport, stamp, salt, device_key, seed, signature})` takes a passport
 presentation over this community's `presentation_challenge`, a stamp presentation covering the
-action `device_join` with payload digest = `device_key` and the given salt (scope fingerprint:
+action `device_join` with payload digest = `device_session::join_payload(device_key, seed)` =
+SHA-256(device_key || seed) and the given salt (scope fingerprint:
 SHA-256 of the founding document, or of `device_session::UNFOUNDED_FINGERPRINT_TAG` and the id),
 and the key's signature over `device_session::join_message(community, challenge, device_key)`.
 The stamp's pseudonym must be the passport's. The digest is recorded once until the stamp expires;
 the same join repeated returns the same `{user}`. The member is created without any passkey; the
-key becomes the member's first ACTIVE key and opens sessions by `device_session_*`.
+key becomes the member's first ACTIVE key and opens sessions by `device_session_*`. `seed` (nonzero)
+is the member's opaque initial creation commitment: that first key holds it as the original
+passkey holds its commitment, so `initial_creation` and `initial_publication_bind` answer a
+session of that key (same response, same one-winner publication bind). The same stamp may carry
+further slots of this community (the lineage genesis); the join presents only its own.
 
 ## Discoverable sign-in and the vault origin
 
