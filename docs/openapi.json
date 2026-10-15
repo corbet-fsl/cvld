@@ -11927,11 +11927,16 @@
                         "type": "integer"
                       },
                       "type": "array"
+                    },
+                    "options": {
+                      "description": "WebAuthn request options of this session's wallet passkey. The device replaces the\nchallenge with the request's confirmation challenge; the options carry no authority.",
+                      "type": "object"
                     }
                   },
                   "required": [
                     "challenge",
-                    "key"
+                    "key",
+                    "options"
                   ],
                   "type": "object"
                 }

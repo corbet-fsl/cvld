@@ -6155,6 +6155,11 @@ export interface operations {
                         challenge: number[];
                         /** @description cpsd stamp public key encoding (cohort included). */
                         key: number[];
+                        /**
+                         * @description WebAuthn request options of this session's wallet passkey. The device replaces the
+                         *     challenge with the request's confirmation challenge; the options carry no authority.
+                         */
+                        options: Record<string, never>;
                     };
                 };
             };

@@ -47,19 +47,11 @@ async fn wallet(global: &Running, seed: u8) -> Wallet {
     Wallet { member, holder }
 }
 
-/// One user-verifying assertion of the wallet passkey over exactly `challenge`.
-async fn confirm(global: &Running, wallet: &mut Wallet, challenge: [u8; 32]) -> Value {
-    // A step-up ceremony supplies valid options for this credential; the stamp needs them over
-    // the confirmation challenge instead of the server's random one.
-    let begin: crate::api::StepUpChallenge = serde_json::from_value(
-        client(global, WALLET, Some(&wallet.member.session))
-            .call("step_up_begin", json!({"action":{"kind":"passkey_add"}}))
-            .await
-            .unwrap(),
-    )
-    .unwrap();
+/// One user-verifying assertion of the wallet passkey over exactly `challenge`, from the
+/// options the wallet's stamp challenge carries.
+async fn confirm(wallet: &mut Wallet, options: &Value, challenge: [u8; 32]) -> Value {
     let mut options: ckyh::RequestChallengeResponse =
-        serde_json::from_value(begin.options).unwrap();
+        serde_json::from_value(options.clone()).unwrap();
     options.public_key.challenge = challenge.to_vec().into();
     let credential = wallet
         .member
@@ -124,7 +116,11 @@ fn join_action(key: &[u8; 32], salt: [u8; 32]) -> cpsd::StampAction {
 }
 
 /// The one confirmation: a stamp covering `actions`, issued blindly by the wallet.
-async fn stamp(global: &Running, wallet: &mut Wallet, actions: &[(cpsd::StampScope, cpsd::StampAction)]) {
+async fn stamp(
+    global: &Running,
+    wallet: &mut Wallet,
+    actions: &[(cpsd::StampScope, cpsd::StampAction)],
+) {
     let client = client(global, WALLET, Some(&wallet.member.session));
     let reserved: crate::api::StampChallenge =
         serde_json::from_value(client.call("stamp_challenge", json!({})).await.unwrap()).unwrap();
@@ -134,7 +130,12 @@ async fn stamp(global: &Running, wallet: &mut Wallet, actions: &[(cpsd::StampSco
         .holder
         .begin_stamp(&mut cpsd::rand::rngs::OsRng, &key, &challenge, actions, NOW)
         .unwrap();
-    let assertion = confirm(global, wallet, request.confirmation_challenge(&challenge)).await;
+    let assertion = confirm(
+        wallet,
+        &reserved.options,
+        request.confirmation_challenge(&challenge),
+    )
+    .await;
     let blind: Bytes = serde_json::from_value(
         client
             .call(
@@ -178,7 +179,12 @@ async fn join_body(
     );
     let proof = wallet
         .holder
-        .present(&mut cpsd::rand::rngs::OsRng, &expected, &challenge.request, NOW)
+        .present(
+            &mut cpsd::rand::rngs::OsRng,
+            &expected,
+            &challenge.request,
+            NOW,
+        )
         .unwrap();
     let key = device.verifying_key().to_bytes();
     let presentation = wallet
@@ -218,7 +224,10 @@ async fn open_session(service: &Running, user: &str, device: &SigningKey) -> Res
             .to_vec(),
     };
     anonymous
-        .call("device_session_finish", serde_json::to_value(&request).unwrap())
+        .call(
+            "device_session_finish",
+            serde_json::to_value(&request).unwrap(),
+        )
         .await
         .map(|value| serde_json::from_value(value).unwrap())
         .map_err(|_| Error::Unauthorized)
@@ -226,7 +235,7 @@ async fn open_session(service: &Running, user: &str, device: &SigningKey) -> Res
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn one_wallet_confirmation_joins_by_device_key_and_opens_sessions_without_a_community_passkey()
-{
+ {
     let global = configured_wallet(100).await;
     let mut wallet = wallet(&global, 61).await;
     let public: GlobalPublic = serde_json::from_value(
@@ -272,7 +281,12 @@ async fn one_wallet_confirmation_joins_by_device_key_and_opens_sessions_without_
     let mut wrong = join_body(&service, &wallet, "alpha", &device, salt).await;
     let other_key = other.verifying_key().to_bytes();
     wrong["device_key"] = json!(other_key);
-    assert!(client(&service, HOST, None).call("device_join", wrong).await.is_err());
+    assert!(
+        client(&service, HOST, None)
+            .call("device_join", wrong)
+            .await
+            .is_err()
+    );
     // Without a stamp nothing joins.
     let mut unstamped = join_body(&service, &wallet, "alpha", &device, salt).await;
     unstamped["salt"] = json!(vec![8u8; 32]);
@@ -296,10 +310,16 @@ async fn a_stamp_needs_the_exact_user_verification_and_the_members_own_passport(
     let action = join_action(&[5; 32], [1; 32]);
     let request = wallet
         .holder
-        .begin_stamp(&mut cpsd::rand::rngs::OsRng, &key, &challenge, &[(scope("alpha"), action)], NOW)
+        .begin_stamp(
+            &mut cpsd::rand::rngs::OsRng,
+            &key,
+            &challenge,
+            &[(scope("alpha"), action)],
+            NOW,
+        )
         .unwrap();
     // An assertion over another challenge is refused.
-    let wrong = confirm(&global, &mut wallet, [0; 32]).await;
+    let wrong = confirm(&mut wallet, &reserved.options, [0; 32]).await;
     assert!(
         client
             .call(
@@ -320,7 +340,12 @@ async fn a_stamp_needs_the_exact_user_verification_and_the_members_own_passport(
             NOW,
         )
         .unwrap();
-    let assertion = confirm(&global, &mut wallet, foreign.confirmation_challenge(&challenge)).await;
+    let assertion = confirm(
+        &mut wallet,
+        &reserved.options,
+        foreign.confirmation_challenge(&challenge),
+    )
+    .await;
     assert!(
         client
             .call(
@@ -331,7 +356,12 @@ async fn a_stamp_needs_the_exact_user_verification_and_the_members_own_passport(
             .is_err()
     );
     // The right confirmation issues exactly once.
-    let assertion = confirm(&global, &mut wallet, request.confirmation_challenge(&challenge)).await;
+    let assertion = confirm(
+        &mut wallet,
+        &reserved.options,
+        request.confirmation_challenge(&challenge),
+    )
+    .await;
     let body = json!({"challenge":challenge.to_bytes().to_vec(),"request":request.to_bytes(),"assertion":assertion});
     client.call("stamp_issue", body.clone()).await.unwrap();
     assert!(client.call("stamp_issue", body).await.is_err());

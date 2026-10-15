@@ -10,6 +10,10 @@ pub struct StampChallenge {
     pub challenge: Vec<u8>,
     /// cpsd stamp public key encoding (cohort included).
     pub key: Vec<u8>,
+    /// WebAuthn request options of this session's wallet passkey. The device replaces the
+    /// challenge with the request's confirmation challenge; the options carry no authority.
+    #[schema(value_type = Object)]
+    pub options: serde_json::Value,
 }
 
 /// The public signed fields of one user-verifying WebAuthn assertion of the wallet passkey.

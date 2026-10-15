@@ -988,10 +988,26 @@ impl Door {
             )
             .await
             .map_err(Error::Refused.redact())?;
+        drop(global);
+        let options = serde_json::to_value(self.wallet_credential(&ctx).await?.request([0; 32]))
+            .map_err(Error::Unavailable.redact())?;
         Ok(StampChallenge {
             challenge: challenge.to_bytes().to_vec(),
             key: key.to_bytes(),
+            options,
         })
+    }
+    /// The registered passkey of this wallet session, as public verification material.
+    async fn wallet_credential(&self, ctx: &Context) -> Result<ckyh::lineage::PublicCredential> {
+        let grant = ctx.grant.as_ref().ok_or(Error::Unauthorized)?;
+        let auth = self.auth(&ctx.host)?;
+        let auth = auth.lock().await;
+        let passkeys = auth.passkeys.clone();
+        let (user, credential) = (grant.user, grant.credential.clone());
+        tokio::task::spawn_blocking(move || passkeys.registered_public_credential(user, &credential))
+            .await
+            .map_err(Error::Unavailable.redact())?
+            .map_err(Error::Unauthorized.redact())
     }
     /// The one human confirmation of a stamp: a user-verifying assertion of THIS session's
     /// wallet passkey whose WebAuthn challenge is exactly the request's confirmation challenge.
@@ -1006,19 +1022,7 @@ impl Door {
         let stamp_request = cpsd::StampIssuanceRequest::from_bytes(&request.request)
             .map_err(Error::Invalid.redact())?;
         let confirmation = stamp_request.confirmation_challenge(&challenge);
-        let grant = ctx.grant.as_ref().ok_or(Error::Unauthorized)?;
-        let descriptor = {
-            let auth = self.auth(&ctx.host)?;
-            let auth = auth.lock().await;
-            let passkeys = auth.passkeys.clone();
-            let (user, credential) = (grant.user, grant.credential.clone());
-            tokio::task::spawn_blocking(move || {
-                passkeys.registered_public_credential(user, &credential)
-            })
-            .await
-            .map_err(Error::Unavailable.redact())?
-            .map_err(Error::Unauthorized.redact())?
-        };
+        let descriptor = self.wallet_credential(&ctx).await?;
         let assertion = ckyh::lineage::Assertion {
             credential_id: request.assertion.credential_id,
             client_data_json: request.assertion.client_data_json,
