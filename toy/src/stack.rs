@@ -15,6 +15,7 @@ mod process;
 use process::{Metrics, Result, Service};
 use serde_json::json;
 use std::{
+    collections::HashMap,
     fs,
     path::PathBuf,
     sync::{Arc, Mutex},
@@ -23,9 +24,82 @@ use tokio_rustls::{
     TlsAcceptor,
     rustls::{
         ServerConfig,
-        pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer},
+        crypto::CryptoProvider,
+        pki_types::{PrivateKeyDer, PrivatePkcs8KeyDer},
+        server::{ClientHello, ResolvesServerCert},
+        sign::CertifiedKey,
     },
 };
+
+/// The toy's one trust root. Its parameters are fixed, so a continued state rebuilds
+/// the same issuer from the saved key alone.
+fn root_params() -> rcgen::CertificateParams {
+    let mut params = rcgen::CertificateParams::default();
+    params
+        .distinguished_name
+        .push(rcgen::DnType::CommonName, "cvld toy root");
+    params.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
+    params.key_usages = vec![
+        rcgen::KeyUsagePurpose::KeyCertSign,
+        rcgen::KeyUsagePurpose::CrlSign,
+    ];
+    params
+}
+
+/// Serves every toy host: a leaf for the name the client dials, minted once and signed
+/// by the root. A created community is dialed by names (`api.<address>.toy.localhost`)
+/// that no certificate made at start can list.
+struct Leaves {
+    issuer: rcgen::Issuer<'static, rcgen::KeyPair>,
+    provider: Arc<CryptoProvider>,
+    minted: Mutex<HashMap<String, Arc<CertifiedKey>>>,
+}
+
+impl std::fmt::Debug for Leaves {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("Leaves")
+    }
+}
+
+impl Leaves {
+    fn mint(&self, name: &str) -> Option<Arc<CertifiedKey>> {
+        let mut params = rcgen::CertificateParams::new(vec![name.to_owned()]).ok()?;
+        params.extended_key_usages = vec![rcgen::ExtendedKeyUsagePurpose::ServerAuth];
+        let key = rcgen::KeyPair::generate().ok()?;
+        let cert = params.signed_by(&key, &self.issuer).ok()?;
+        let signing = self
+            .provider
+            .key_provider
+            .load_private_key(PrivateKeyDer::from(PrivatePkcs8KeyDer::from(
+                key.serialize_der(),
+            )))
+            .ok()?;
+        Some(Arc::new(CertifiedKey::new(vec![cert.der().clone()], signing)))
+    }
+}
+
+impl ResolvesServerCert for Leaves {
+    fn resolve(&self, hello: ClientHello<'_>) -> Option<Arc<CertifiedKey>> {
+        // No SNI: the client dialed a literal loopback address.
+        let name = hello
+            .server_name()
+            .unwrap_or("127.0.0.1")
+            .to_ascii_lowercase();
+        let toy = name
+            .strip_suffix(fixtures::DOMAIN)
+            .is_some_and(|rest| rest.is_empty() || rest.ends_with('.'));
+        if !(toy || name == "localhost" || name == "127.0.0.1") {
+            return None;
+        }
+        let mut minted = self.minted.lock().ok()?;
+        if let Some(leaf) = minted.get(&name) {
+            return Some(leaf.clone());
+        }
+        let leaf = self.mint(&name)?;
+        minted.insert(name, leaf.clone());
+        Some(leaf)
+    }
+}
 
 /// Forward HTTP/1.1 requests with a Content-Length body, replacing the Host
 /// header by the service's real virtual host: the client insists that its https
@@ -321,31 +395,33 @@ async fn run() -> Result<()> {
         (global_listen, ""),
     ];
 
-    // One self-signed end-entity certificate is the only trust root handed out. A continued
-    // state keeps the certificate (the devices pin it) and the four front-end ports.
+    // One root certificate is the only trust root handed out; every host's leaf is minted
+    // from it on first use. A continued state keeps the root (the devices pin it) and the
+    // four front-end ports.
     let (cert_der, key_der) = match (saved_text("cert_der"), saved_text("key_der")) {
         (Some(cert), Some(key)) => (hex_decode(&cert)?, hex_decode(&key)?),
         _ => {
-            let rcgen::CertifiedKey { cert, signing_key } =
-                rcgen::generate_simple_self_signed(vec![
-                    "localhost".into(),
-                    fixtures::WALLET.into(),
-                    "127.0.0.1".into(),
-                ])
-                .map_err(|_| "certificate generation")?;
-            (cert.der().to_vec(), signing_key.serialize_der())
+            let key = rcgen::KeyPair::generate().map_err(|_| "root key generation")?;
+            let cert = root_params()
+                .self_signed(&key)
+                .map_err(|_| "root certificate generation")?;
+            (cert.der().to_vec(), key.serialize_der())
         }
     };
     fs::write(out.join("ca.der"), &cert_der).map_err(|_| "write trust root")?;
-    let key = PrivateKeyDer::from(PrivatePkcs8KeyDer::from(key_der.clone()));
+    let root_key = rcgen::KeyPair::try_from(key_der.as_slice()).map_err(|_| "root key")?;
     // Several rustls providers are linked; name the one this crate enables.
     let provider = Arc::new(tokio_rustls::rustls::crypto::ring::default_provider());
+    let leaves = Leaves {
+        issuer: rcgen::Issuer::new(root_params(), root_key),
+        provider: provider.clone(),
+        minted: Mutex::new(HashMap::new()),
+    };
     let config = ServerConfig::builder_with_provider(provider)
         .with_safe_default_protocol_versions()
         .map_err(|_| "tls versions")?
         .with_no_client_auth()
-        .with_single_cert(vec![CertificateDer::from(cert_der.clone())], key)
-        .map_err(|_| "tls configuration")?;
+        .with_cert_resolver(Arc::new(leaves));
     let acceptor = TlsAcceptor::from(Arc::new(config));
     // One TLS front end per virtual host: the client insists that its https host
     // equals the host it sends, so each service gets its own loopback port.
