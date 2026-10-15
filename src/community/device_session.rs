@@ -222,12 +222,13 @@ impl CommunityService {
         }
     }
 
-    /// The community fingerprint stamp digests bind to: SHA-256 of the founding document, or
-    /// for a community without one, SHA-256 of a domain tag and the community id.
+    /// The community fingerprint stamp digests bind to: the founding fingerprint of the
+    /// founding document, or for a community without one, the tagged community id.
     fn stamp_fingerprint(&self) -> cpsd::CommunityFingerprint {
+        let founding = self.genesis.as_deref().map(csgn::fingerprint);
         cpsd::CommunityFingerprint::from_bytes(scope_fingerprint(
             &self.config.community,
-            self.genesis.as_deref(),
+            founding.as_ref(),
         ))
     }
 }

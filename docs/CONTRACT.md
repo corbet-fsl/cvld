@@ -416,7 +416,8 @@ Community: `device_join({passport, stamp, salt, device_key, seed, signature})` t
 presentation over this community's `presentation_challenge`, a stamp presentation covering the
 action `device_join` with payload digest = `device_session::join_payload(device_key, seed)` =
 SHA-256(device_key || seed) and the given salt (scope fingerprint:
-SHA-256 of the founding document, or of `device_session::UNFOUNDED_FINGERPRINT_TAG` and the id),
+`device_session::scope_fingerprint`: the csgn founding fingerprint of the founding document, as
+the verified Charter reports it, or SHA-256 of `device_session::UNFOUNDED_FINGERPRINT_TAG` and the id),
 and the key's signature over `device_session::join_message(community, challenge, device_key)`.
 The stamp's pseudonym must be the passport's. The digest is recorded once until the stamp expires;
 the same join repeated returns the same `{user}`. The member is created without any passkey; the

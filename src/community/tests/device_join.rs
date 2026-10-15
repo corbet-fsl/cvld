@@ -77,22 +77,16 @@ fn scope(community: &str) -> cpsd::StampScope {
     scope_of(community, None)
 }
 
-/// The device's stamp scope: SHA-256 of the founding document from the trust feed, or the
-/// unfounded tag and id.
+/// The device's stamp scope: the founding fingerprint of the founding document from the trust
+/// feed (the verified Charter's fingerprint), or the unfounded tag and id.
 fn scope_of(community: &str, genesis: Option<&[u8]>) -> cpsd::StampScope {
-    use sha2::Digest as _;
-    let digest = match genesis {
-        Some(genesis) => sha2::Sha256::digest(genesis),
-        None => {
-            let mut hasher = sha2::Sha256::new();
-            hasher.update(crate::device_session::UNFOUNDED_FINGERPRINT_TAG);
-            hasher.update(community.as_bytes());
-            hasher.finalize()
-        }
-    };
+    let founding = genesis.map(csgn::fingerprint);
     cpsd::StampScope::new(
         cpsd::CommunityId::new(community).unwrap(),
-        cpsd::CommunityFingerprint::from_bytes(digest.into()),
+        cpsd::CommunityFingerprint::from_bytes(crate::device_session::scope_fingerprint(
+            community,
+            founding.as_ref(),
+        )),
     )
 }
 
