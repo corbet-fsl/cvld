@@ -15,7 +15,14 @@ pub(super) fn public_role(role: cmbr::Role) -> Role {
 impl CommunityService {
     pub(crate) async fn current_member_role(&self, bearer: &str, now: u64) -> Result<MemberRole> {
         crate::service::with_live_clock(async {
-            let (grant, auth) = self.authenticate_current(bearer, now).await?;
+            // A garden session is a membership session on the garden host; its authority is checked by the
+            // garden path, an ordinary session by the community path.
+            let garden = self.sessions.get(bearer).ok_or(Error::Unauthorized)?.garden;
+            let (grant, auth) = if garden {
+                self.authenticate_garden_current(bearer, now).await?
+            } else {
+                self.authenticate_current(bearer, now).await?
+            };
             let mut lease = self
                 .facade
                 .membership()

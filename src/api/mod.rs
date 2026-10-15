@@ -299,7 +299,7 @@ actions! {
     login_discoverable_begin(Empty) -> DiscoverableCeremony, Public, Both, Check, Forward, "Begin usernameless sign-in with a synced passkey";
     login_finish(LoginFinish) -> Session, Public, Both, Record, Trusted, "Verify user and counter; create an ephemeral session";
     logout(Empty) -> Empty, Authenticated, Both, Check, Forward, "End this ephemeral session";
-    member_role(Empty) -> MemberRole, Member, Community, Check, Forward, "Read the current original local membership role";
+    member_role(Empty) -> MemberRole, Authenticated, Community, Check, Forward, "Read the current original local membership role";
     member_role_set(SetMemberRole) -> Empty, Admin, Community, Record, Forward, lobby 1, "Change a role under current garden membership authority";
     wallet_trust_feed(Empty) -> TrustFeed, Public, Global, Check, Forward, "Read the isolated wallet original trust snapshots";
     wallet_trust_changes(Since) -> Announcement, Public, Global, Check, Forward, "Read the isolated wallet whole-view revision hint";
