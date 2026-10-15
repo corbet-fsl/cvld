@@ -1072,7 +1072,7 @@ async fn a_real_subject_or_signed_policy_change_after_reservation_blocks_all_pro
                     // The genuine persistent ledger now contains the maximum.
                     let rows = database.community("global").unwrap().query("SELECT exposure FROM cvld_contact_ceremony", ()).await.unwrap();
                     assert_eq!(rows[0].get_i64(0).unwrap(), 4);
-                    if cause == "block" { facade.suspend(&owner.subject, cgbl::Suspension::Permanent(cgbl::PermanentReason::SelfBan), 100).await.unwrap(); } else { revised_policy(&facade, false, true).await; }
+                    if cause == "block" { facade.burn(&owner.subject, cgbl::Burn::Permanent(cgbl::PermanentReason::SelfBan), 100).await.unwrap(); } else { revised_policy(&facade, false, true).await; }
                 }
                 facade.authorize_contact("cphn", "twilio", &owner.subject, &check, &||clock.now()).await.map(|authorized| authorized.observed_at()).map_err(|_| Error::Refused)
             })

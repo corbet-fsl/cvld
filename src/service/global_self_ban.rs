@@ -98,10 +98,10 @@ impl Door {
         let now = confirmed.validate(&grant, now, self.inner.clock.as_ref())?;
         global
             .facade
-            .suspend(
+            .burn(
                 &cgbl::Subject::new(confirmed.user().to_string())
                     .map_err(Error::Invalid.redact())?,
-                cgbl::Suspension::Permanent(cgbl::PermanentReason::SelfBan),
+                cgbl::Burn::Permanent(cgbl::PermanentReason::SelfBan),
                 now,
             )
             .await
