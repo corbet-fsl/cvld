@@ -144,6 +144,9 @@ impl Cli {
         client
     }
 }
+/// The service's own refusal text for a start that crossed a second boundary (cvld `Error::Reconcile`).
+const RECONCILE_START: &str = "outcome unknown; reconcile current state before another operation";
+const RECONCILE_RESTARTS: u32 = 5;
 pub struct Service {
     pub cli: Cli,
     child: Child,
@@ -213,11 +216,12 @@ impl Service {
             .env("CVLD_TOY_METER", &cli.meter)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            // Service diagnostics are fixed messages; opt in to see why one stops.
-            .stderr(if std::env::var_os("CVLD_TOY_SERVICE_STDERR").is_some() {
-                Stdio::inherit()
-            } else {
-                Stdio::null()
+            // Service diagnostics are fixed messages. They go to a file beside the configuration so a
+            // startup that exits can be told apart by its exact category; CVLD_TOY_SERVICE_STDERR also
+            // shows them on this process's stderr when the service has exited.
+            .stderr(match fs::File::create(cli.dir.join("service.stderr")) {
+                Ok(file) => Stdio::from(file),
+                Err(_) => Stdio::null(),
             })
             .spawn()
             .map_err(|_| "cannot start cvld service".into())
@@ -234,8 +238,27 @@ impl Service {
             .and_then(|text| text.parse().ok())
             .unwrap_or(30);
         let deadline = Instant::now() + Duration::from_secs(seconds);
+        let mut restarts = 0;
         while Instant::now() < deadline {
             if self.child.try_wait().map_err(|_| "poll service")?.is_some() {
+                let diagnostic = fs::read_to_string(self.cli.dir.join("service.stderr")).unwrap_or_default();
+                if std::env::var_os("CVLD_TOY_SERVICE_STDERR").is_some() {
+                    eprint!("{diagnostic}");
+                }
+                // The service refuses a start whose clock reading moved to another second while it
+                // verified its signed documents ("a new second requires retry"); on a loaded host that
+                // happens. Only this exact, labelled category is started again; any other exit fails.
+                if diagnostic.trim() == RECONCILE_START && restarts < RECONCILE_RESTARTS {
+                    restarts += 1;
+                    eprintln!(
+                        "INFRA: {} service start hit the second-boundary reconcile refusal; start {} of {}",
+                        self.scope,
+                        restarts + 1,
+                        RECONCILE_RESTARTS + 1
+                    );
+                    self.child = Self::spawn(&self.cli, &self.scope, &self.faketime)?;
+                    continue;
+                }
                 return Err(format!(
                     "{} service exited during startup ({})",
                     self.scope,
