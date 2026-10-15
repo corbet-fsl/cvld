@@ -312,10 +312,15 @@ impl CommunityService {
                 )
                 .await
                 .map_err(Error::Refused.redact())?;
-            let schema = serde_json::from_slice(
+            let mut schema: cplc::cshm::Schema = serde_json::from_slice(
                 &std::fs::read(&config.schema_file).map_err(Error::Unavailable.redact())?,
             )
             .map_err(Error::Invalid.redact())?;
+            // A hub-created community starts from the template's schema, which names
+            // the template; the new community's own schema names the community.
+            if config.creation.is_some() {
+                schema.community = scope.clone();
+            }
             policy
                 .set_schema(schema)
                 .await
