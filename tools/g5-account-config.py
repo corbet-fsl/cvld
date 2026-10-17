@@ -49,6 +49,11 @@ EXTENSION_GROUPS = {
     "660e913088aa2d4b2a510143e66be31c9daed963": {
         "manifestSha256": "f935b80363c34496463b3b7f2a3270add37f52696e14d048c4c4c96aa478d228",
     },
+    # artifact-conformance group of cblc 8d631b9 (chain2: certificate issuer key ring and community
+    # identity, deposit width 328, voucher reserved units): run 222.
+    "8d631b902d52893dd9480cf80aa75efce66a928a": {
+        "manifestSha256": "079028ca859d90a75b51632f0628fabb9a5bc4311615f915ee287ba8bba624f0",
+    },
 }
 ACCOUNT_CAPTURES = {
     # native-startup-fixture-retained capture of cblc 6232481 (account circuit).
@@ -58,6 +63,10 @@ ACCOUNT_CAPTURES = {
     # native-startup-fixture-retained capture of the voucher-accounting record-epoch run (cblc 829489a).
     "1e1262a03a6a56caba2ba76e92047799e2323bf986312ccd3ac5b1827b7929a5": {
         "accountManifestSha256": "2b0125c187850a3dbb94b06e16f105d2759cc81413dc844981659c99343f9144",
+    },
+    # native-startup-fixture-retained capture of the chain2 record-epoch run 221 (cblc e5514337).
+    "420e9a0965564966e36fc8d4029f12b90eeb3485777322153a8f8654181cab9c": {
+        "accountManifestSha256": "640133361f2ffd5f8b2336ec08ff693f74bcfb59b7e9cd41982490e872bff19f",
     },
 }
 WORKER_CAPTURES = {
@@ -71,10 +80,15 @@ WORKER_CAPTURES = {
         "workerSha256": "20136479f31369532345b1e56e0b95a2e4c82803e03b352b1d19b1cc18eab87a",
         "workerBytes": 68155080,
     },
+    # gather-record-fixture-retained capture of cblc e5514337 (czkp_bb_worker, record-epoch run 221).
+    "e55d4cafadb748f4e24a7a581208407c2fcb32ea74a1ae37532167e9054c4925": {
+        "workerSha256": "7d90df5d29d222545bebba3e10cdbbdeac974856bfe8ae27a235d8b31b8e42e6",
+        "workerBytes": 68211552,
+    },
 }
-DEFAULT_GROUP = "660e913088aa2d4b2a510143e66be31c9daed963"
-DEFAULT_ACCOUNT = "1e1262a03a6a56caba2ba76e92047799e2323bf986312ccd3ac5b1827b7929a5"
-DEFAULT_WORKER = "44452b71ef1d79c60a3f61f128aebefaeb43babee55b0ce701f2f7219d8a22d6"
+DEFAULT_GROUP = "8d631b902d52893dd9480cf80aa75efce66a928a"
+DEFAULT_ACCOUNT = "420e9a0965564966e36fc8d4029f12b90eeb3485777322153a8f8654181cab9c"
+DEFAULT_WORKER = "e55d4cafadb748f4e24a7a581208407c2fcb32ea74a1ae37532167e9054c4925"
 
 
 def fail(message):
