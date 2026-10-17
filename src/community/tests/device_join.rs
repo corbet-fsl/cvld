@@ -267,6 +267,18 @@ async fn join_body(
     device: &mut impl Device,
     salt: [u8; 32],
 ) -> Value {
+    join_body_with(service, wallet, community, device, salt, true).await
+}
+
+/// A join body; without `stamped` its stamp is empty (a stamp that no longer verifies).
+async fn join_body_with(
+    service: &Running,
+    wallet: &Wallet,
+    community: &str,
+    device: &mut impl Device,
+    salt: [u8; 32],
+    stamped: bool,
+) -> Value {
     let challenge: PresentationChallenge = serde_json::from_value(
         client(service, HOST, None)
             .call("presentation_challenge", json!({}))
@@ -295,18 +307,23 @@ async fn join_body(
         )
         .unwrap();
     let key = device.key();
-    let presentation = wallet
-        .holder
-        .present_stamp(
-            &mut cpsd::rand::rngs::OsRng,
-            &scope_of(community, feed.genesis.as_deref()),
-            &join_action(&key, salt),
-            NOW,
-        )
-        .unwrap();
+    let presentation = if stamped {
+        wallet
+            .holder
+            .present_stamp(
+                &mut cpsd::rand::rngs::OsRng,
+                &scope_of(community, feed.genesis.as_deref()),
+                &join_action(&key, salt),
+                NOW,
+            )
+            .unwrap()
+            .to_bytes()
+    } else {
+        Vec::new()
+    };
     json!({
         "passport": {"challenge": challenge.challenge, "proof": proof.to_bytes()},
-        "stamp": presentation.to_bytes(),
+        "stamp": presentation,
         "salt": salt,
         "device_key": key,
         "seed": SEED,
@@ -386,6 +403,29 @@ async fn one_wallet_confirmation_joins_by_device_key_and_opens_sessions_without_
     )
     .unwrap();
     assert_eq!(rejoined.user, joined.user);
+    // Once no stamp verifies any more (its cohort ended; here none is sent), the SAME applied
+    // join is re-confirmed from the member's state with a fresh passport and key signature:
+    // a device interrupted after the join never needs a second confirmation.
+    let uses = stamp_uses(&service).await;
+    let stampless = join_body_with(&service, &wallet, "alpha", &mut device, salt, false).await;
+    let reconfirmed: crate::api::DeviceJoined = serde_json::from_value(
+        client(&service, HOST, None)
+            .call("device_join", stampless)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(reconfirmed.user, joined.user);
+    assert_eq!(stamp_uses(&service).await, uses);
+    // A join that was never applied is not re-confirmed: another key without a stamp.
+    let mut stranger = SigningKey::from_bytes(&[73; 32]);
+    let stampless = join_body_with(&service, &wallet, "alpha", &mut stranger, salt, false).await;
+    assert!(
+        client(&service, HOST, None)
+            .call("device_join", stampless)
+            .await
+            .is_err()
+    );
     // The stamp covers exactly this key: another key is refused.
     let other = SigningKey::from_bytes(&[72; 32]);
     let mut wrong = join_body(&service, &wallet, "alpha", &mut device, salt).await;
@@ -465,7 +505,9 @@ async fn a_stamp_needs_the_exact_user_verification_and_the_members_own_passport(
             .await
             .is_err()
     );
-    // The right confirmation issues exactly once.
+    // The right confirmation issues once; the SAME request again (a device killed after the
+    // reply, before it stored the stamp) gets the SAME stamp without a new user verification,
+    // even with an assertion over another challenge.
     let assertion = confirm(
         &mut wallet,
         &reserved.options,
@@ -473,8 +515,20 @@ async fn a_stamp_needs_the_exact_user_verification_and_the_members_own_passport(
     )
     .await;
     let body = json!({"challenge":challenge.to_bytes().to_vec(),"request":request.to_bytes(),"assertion":assertion});
-    client.call("stamp_issue", body.clone()).await.unwrap();
-    assert!(client.call("stamp_issue", body).await.is_err());
+    let issued = client.call("stamp_issue", body.clone()).await.unwrap();
+    assert_eq!(client.call("stamp_issue", body).await.unwrap(), issued);
+    let unverified = json!({"challenge":challenge.to_bytes().to_vec(),"request":request.to_bytes(),"assertion":wrong});
+    assert_eq!(client.call("stamp_issue", unverified).await.unwrap(), issued);
+    // A different request is never a replay: it needs its own confirmation.
+    assert!(
+        client
+            .call(
+                "stamp_issue",
+                json!({"challenge":challenge.to_bytes().to_vec(),"request":foreign.to_bytes(),"assertion":wrong}),
+            )
+            .await
+            .is_err()
+    );
 }
 
 /// Recorded one-use stamp digests of the community `alpha`.

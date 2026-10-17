@@ -915,6 +915,7 @@ pub async fn wallet_config_at(dir: &Path, burst: u32, now: u64) -> Config {
         stamp_key_file: Some(stamp.to_str().unwrap().into()),
         stamp_limit: None,
         stamp_period_seconds: None,
+        stamp_replay_seconds: None,
     });
     config
 }

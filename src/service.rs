@@ -1021,6 +1021,21 @@ impl Door {
         );
         let stamp_request = cpsd::StampIssuanceRequest::from_bytes(&request.request)
             .map_err(Error::Invalid.redact())?;
+        // The SAME request again (a device killed after the reply, before it stored the
+        // stamp): the same stamp, no new user verification, no budget charge.
+        if let Some(blind) = self
+            .global_backend()?
+            .lock()
+            .await
+            .facade
+            .replay_stamp(&ctx.global_session()?, &stamp_request, ctx.now)
+            .await
+            .map_err(Error::Refused.redact())?
+        {
+            return Ok(Bytes {
+                bytes: blind.to_bytes(),
+            });
+        }
         let confirmation = stamp_request.confirmation_challenge(&challenge);
         let descriptor = self.wallet_credential(&ctx).await?;
         let assertion = ckyh::lineage::Assertion {

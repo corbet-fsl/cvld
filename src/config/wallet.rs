@@ -20,4 +20,8 @@ pub struct WalletConfig {
     /// Stamp budget window in seconds (default one day).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stamp_period_seconds: Option<u64>,
+    /// How long the same stamp request is answered again with the same stamp (default ten
+    /// minutes; 0 disables it).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stamp_replay_seconds: Option<u64>,
 }
