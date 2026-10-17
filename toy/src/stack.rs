@@ -387,12 +387,20 @@ async fn run() -> Result<()> {
     let alpha_host: &'static str =
         Box::leak(format!("api.{community_name}.{}", fixtures::DOMAIN).into_boxed_str());
     let (upstream_global, upstream_alpha) = (global_listen.clone(), alpha_listen.clone());
+    // The Forum of created communities (cfrm's own multi-tenant `serve`), when the harness
+    // names its binary and the hub runs: one process for every community the hub creates.
+    let forum_bin = std::env::var_os("CFRM_BIN")
+        .filter(|_| std::env::var_os("CVLD_G5_ACCOUNT_CONFIG").is_some())
+        .map(PathBuf::from);
+    let forum_listen = forum_bin
+        .as_ref()
+        .map(|_| saved_text("forum_listen").unwrap_or_else(process::port));
     let upstreams = [
         (global_listen.clone(), fixtures::WALLET),
         (alpha_listen.clone(), alpha_host),
         (global_listen.clone(), fixtures::ROOT_ADMIN),
         // Created communities: the client's own Host header reaches the Host-routing front.
-        (global_listen, ""),
+        (global_listen.clone(), ""),
     ];
 
     // One root certificate is the only trust root handed out; every host's leaf is minted
@@ -463,11 +471,70 @@ async fn run() -> Result<()> {
             }
         }));
     }
+    // Created communities at their production names on the default HTTPS port, as a deployment
+    // serves them: `<address>.<base>` is the community's Forum (and the origin its members present
+    // there), `api.<address>.<base>` its door, from which the Forum also follows the community's
+    // feed. The harness runs the stack in its own network namespace as root, so the port is
+    // free; elsewhere no created community has a Forum.
+    let mut forum = None;
+    if let (Some(bin), Some(listen)) = (&forum_bin, &forum_listen) {
+        let mut bound = false;
+        for address in ["127.0.0.1:443", "[::1]:443"] {
+            match tokio::net::TcpListener::bind(address).await {
+                Ok(listener) => {
+                    bound = true;
+                    let (acceptor, hub, forum) =
+                        (acceptor.clone(), upstream_global.clone(), listen.clone());
+                    proxies.push(tokio::spawn(async move {
+                        loop {
+                            let Ok((tcp, _)) = listener.accept().await else {
+                                continue;
+                            };
+                            let (acceptor, hub, forum) =
+                                (acceptor.clone(), hub.clone(), forum.clone());
+                            tokio::spawn(async move {
+                                let Ok(tls) = acceptor.accept(tcp).await else {
+                                    return;
+                                };
+                                let community = tls
+                                    .get_ref()
+                                    .1
+                                    .server_name()
+                                    .and_then(|name| name.strip_suffix(fixtures::DOMAIN))
+                                    .and_then(|label| label.strip_suffix('.'))
+                                    .is_some_and(|label| {
+                                        !label.is_empty() && !label.contains('.') && label != "wallet"
+                                    });
+                                let upstream = if community { forum } else { hub };
+                                let Ok(plain) = tokio::net::TcpStream::connect(&upstream).await
+                                else {
+                                    return;
+                                };
+                                relay(tls, plain, "").await;
+                            });
+                        }
+                    }));
+                }
+                Err(_) => eprintln!("stack: no listener on {address}"),
+            }
+        }
+        if !bound {
+            return Err("created communities need port 443 (run the stack in its own network namespace)".into());
+        }
+        forum = Some(start_forum(
+            bin,
+            &dir.path().join("forum"),
+            listen,
+            &upstream_global,
+            &cert_der,
+        )?);
+    }
     if state_root.is_some() && !resume {
         // Test state (public values and the test certificate key); written once the stack is up.
         let record = json!({
             "global_listen": upstream_global,
             "alpha_listen": upstream_alpha,
+            "forum_listen": forum_listen,
             "ports": ports,
             "cert_der": hex_encode(&cert_der),
             "key_der": hex_encode(&key_der),
@@ -639,6 +706,8 @@ async fn run() -> Result<()> {
         json!({
             "device_settings": device_settings,
             "passthrough_base": format!("https://127.0.0.1:{passthrough_port}"),
+            // A created community's Forum answers at `https://<community host>` (port 443).
+            "forum": forum.is_some(),
             "member_config": member_path,
             "community_config": community_path,
             "root_config": root_path,
@@ -652,6 +721,157 @@ async fn run() -> Result<()> {
         proxy.abort();
     }
     clock_task.abort();
+    if let Some(mut forum) = forum {
+        let _ = forum.kill();
+        let _ = forum.wait();
+    }
     drop(global);
     Ok(())
+}
+
+/// cfrm's own action names: `serve` refuses a throttle table that does not name exactly its
+/// actions (cfrm `src/api.rs`, `actions!`).
+const FORUM_ACTIONS: [&str; 21] = [
+    "settings",
+    "challenge",
+    "enter",
+    "replace",
+    "heartbeat",
+    "depart",
+    "search",
+    "watch",
+    "ciphertext",
+    "room_epoch",
+    "room_issue",
+    "room_list",
+    "room_connect",
+    "room_renew",
+    "room_disconnect",
+    "room_read",
+    "room_order",
+    "room_relay",
+    "room_resume",
+    "room_publish",
+    "room_handover",
+];
+
+/// Start cfrm `serve` for every created community: communities come from the hub's registry
+/// (`/registry/by-host`), each one's keys only from its own signed feed; native accounting
+/// verifies record proofs with the same retained extension artifacts as the ledger. Only
+/// public test values are written; diagnostics go to `service.stderr` in `dir`.
+fn start_forum(
+    bin: &std::path::Path,
+    dir: &std::path::Path,
+    listen: &str,
+    registry: &str,
+    root_der: &[u8],
+) -> Result<std::process::Child> {
+    let account_path = std::env::var_os("CVLD_G5_ACCOUNT_CONFIG").ok_or("G5 configuration")?;
+    let account: serde_json::Value =
+        serde_json::from_slice(&fs::read(account_path).map_err(|_| "G5 configuration")?)
+            .map_err(|_| "G5 configuration decoding")?;
+    let artifacts = &account["extension_artifacts"];
+    let manifest = PathBuf::from(artifacts["manifest_file"].as_str().ok_or("manifest file")?);
+    let directory = manifest.parent().ok_or("artifact directory")?;
+    let execution = &account["update_execution"];
+    let limits = &account["extension_limits"];
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|_| "clock")?
+        .as_millis() as u64;
+    let rate = json!({"burst": 1000, "replenish_ms": 100});
+    let throttle: serde_json::Map<String, serde_json::Value> = FORUM_ACTIONS
+        .iter()
+        .map(|action| ((*action).to_owned(), rate.clone()))
+        .collect();
+    let config = json!({
+        "bind": listen,
+        "admission_action": cmty::ADMISSION_ACTION,
+        "accounting": {
+            "period_key": account["period_key"],
+            // The toy Rulebook's record period (fixtures::accounting).
+            "period_seconds": 86_400,
+            "artifact_directory": directory,
+            "manifest_sha256": artifacts["manifest_sha256"],
+            "executable": execution["executable"],
+            "timeout_ms": execution["timeout_ms"],
+            "max_proof_bytes": execution["max_proof_bytes"],
+            "threads": execution["threads"],
+            "memory_megabytes": execution["memory_megabytes"],
+            "global_burst": limits["global_burst"],
+            "subject_burst": limits["subject_burst"],
+            "replenish_ms": limits["replenish_ms"],
+            "maximum_keys": limits["maximum_keys"],
+        },
+        // A fresh incarnation per start: a restart never reopens earlier volatile state.
+        "incarnation": format!("toy-{}", hex_encode(&cpsd::rand::random::<[u8; 8]>())),
+        "registry": {
+            "url": format!("http://{registry}/registry"),
+            "timeout_ms": 10_000,
+            "recheck_seconds": 5,
+            "sweep_seconds": 60,
+            "maximum_communities": 64,
+        },
+        "trust_roots_der": [root_der],
+        "refresh_seconds": 5,
+        "poll_seconds": 5,
+        "request_seconds": 30,
+        "initial_backoff_seconds": 1,
+        "maximum_backoff_seconds": 10,
+        "maximum_staleness_seconds": 3_600,
+        "maximum_snapshot_age": 3_600,
+        "storage": {"kind": "memory"},
+        "storage_limits": {
+            "records": 65_536,
+            "value_bytes": 1_048_576,
+            "batch": 64,
+            "indexes_per_record": 8,
+            "page": 256,
+            "ttl_ms": 86_400_000,
+        },
+        "maximum_lease_ms": 600_000,
+        "publication_bytes": 262_144,
+        "ciphertext_bytes": 262_144,
+        "candidate_count": 64,
+        "page_publication_bytes": 4_194_304,
+        "room_epoch": {
+            "epoch": 1,
+            "valid_from_ms": now_ms.saturating_sub(3_600_000),
+            "valid_until_ms": now_ms + 30 * 86_400_000,
+        },
+        "room_connections": 64,
+        "room_relay_messages": 256,
+        "room_message_bytes": 65_536,
+        "room_lifetime_ms": 3_600_000,
+        "room_proof_bytes": 8_192,
+        "room_operation_receipts": 256,
+        "request_bytes": 1_048_576,
+        "http_concurrent": 64,
+        "http_anonymous_concurrent": 16,
+        "http_body_timeout_ms": 30_000,
+        "http_request_timeout_ms": 300_000,
+        "source_bucket": {"burst": 10_000, "replenish_ms": 10, "keys": 4_096},
+        "session_bucket": {"burst": 10_000, "replenish_ms": 10, "keys": 4_096},
+        "command_capacity": 256,
+        "maintenance_ms": 1_000,
+        "shutdown_ms": 5_000,
+        "throttle_capacity": 4_096,
+        "throttle": throttle,
+    });
+    // A continued state starts the Forum again with a fresh incarnation (it holds no durable state).
+    fs::create_dir_all(dir).map_err(|_| "forum directory")?;
+    let path = dir.join("config.json");
+    fs::write(&path, serde_json::to_vec(&config).map_err(|_| "encode forum")?)
+        .map_err(|_| "write forum configuration")?;
+    std::process::Command::new(bin)
+        .args(["serve", "--config"])
+        .arg(&path)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(match fs::File::create(dir.join("service.stderr")) {
+            Ok(file) => std::process::Stdio::from(file),
+            Err(_) => std::process::Stdio::null(),
+        })
+        .spawn()
+        .map_err(|_| "cannot start the forum".into())
 }
