@@ -376,6 +376,17 @@ async fn one_wallet_confirmation_joins_by_device_key_and_opens_sessions_without_
     let salt = [9; 32];
     let scope = community_scope(&service, "alpha").await;
     stamp(&global, &mut wallet, &[(scope, join_action(&key, salt))]).await;
+    // Without a stamp nothing joins: the stamp covers exactly this salt, and before the join
+    // is applied there is nothing to re-confirm (after it, the same key and seed are
+    // re-confirmed, below).
+    let mut unstamped = join_body(&service, &wallet, "alpha", &mut device, salt).await;
+    unstamped["salt"] = json!(vec![8u8; 32]);
+    assert!(
+        client(&service, HOST, None)
+            .call("device_join", unstamped)
+            .await
+            .is_err()
+    );
     let body = join_body(&service, &wallet, "alpha", &mut device, salt).await;
     let joined: crate::api::DeviceJoined = serde_json::from_value(
         client(&service, HOST, None)
@@ -434,15 +445,6 @@ async fn one_wallet_confirmation_joins_by_device_key_and_opens_sessions_without_
     assert!(
         client(&service, HOST, None)
             .call("device_join", wrong)
-            .await
-            .is_err()
-    );
-    // Without a stamp nothing joins.
-    let mut unstamped = join_body(&service, &wallet, "alpha", &mut device, salt).await;
-    unstamped["salt"] = json!(vec![8u8; 32]);
-    assert!(
-        client(&service, HOST, None)
-            .call("device_join", unstamped)
             .await
             .is_err()
     );
