@@ -575,13 +575,25 @@ async fn run() -> Result<()> {
                         .call(action, json!({}))
                         .await
                         .map_err(|_| "trust feed")?;
-                    Ok::<_, &'static str>(feed["key_ring"].clone())
+                    Ok::<_, &'static str>(feed)
                 }
             };
-            let wallet_ring =
-                feed(format!("https://127.0.0.1:{port}"), "wallet_trust_feed").await?;
-            let community_ring =
+            let wallet_ring = feed(format!("https://127.0.0.1:{port}"), "wallet_trust_feed")
+                .await?["key_ring"]
+                .clone();
+            let community_feed =
                 feed(format!("https://127.0.0.1:{alpha_port}"), "trust_feed").await?;
+            let community_ring = community_feed["key_ring"].clone();
+            // The community's identity: its founding fingerprint, verified from the genesis
+            // document of its feed. Devices anchor their community trust to it (the vault of a
+            // device-key member derives from it; the stamp scope is built from it).
+            let genesis: Vec<u8> = serde_json::from_value(community_feed["genesis"].clone())
+                .map_err(|_| "community genesis")?;
+            let fingerprint = hex_encode(
+                &csgn::verify_genesis(&genesis)
+                    .map_err(|_| "community genesis")?
+                    .fingerprint(),
+            );
             let artifacts = &account["extension_artifacts"];
             let ca = out.join("ca.der");
             let settings = json!({
@@ -600,6 +612,7 @@ async fn run() -> Result<()> {
                     "passkey_origin": format!("https://vault.{community_name}.{}", fixtures::DOMAIN),
                     "rp_id": format!("{community_name}.{}", fixtures::DOMAIN),
                     "trust_key_ring": community_ring,
+                    "fingerprint": fingerprint,
                     "connect_host": "127.0.0.1",
                     "tls_root_files": [ca],
                 },
