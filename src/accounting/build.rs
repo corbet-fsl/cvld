@@ -264,6 +264,7 @@ impl NativeConstruction {
         config: AccountConfig,
         db: crlt::Db,
         community: String,
+        identity: [u8; 32],
         owners: Owners,
         clock: Arc<dyn Clock>,
         runtime: tokio::runtime::Handle,
@@ -275,7 +276,15 @@ impl NativeConstruction {
             }
             // Register under the shutdown lock before the first async wait.
             let task = Task::start(move |cancellation| {
-                config.build(&db, &community, owners, clock, runtime, cancellation)
+                config.build(
+                    &db,
+                    &community,
+                    identity,
+                    owners,
+                    clock,
+                    runtime,
+                    cancellation,
+                )
             })?;
             registry.tasks.push(task.clone());
             task

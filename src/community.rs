@@ -396,11 +396,20 @@ impl CommunityService {
             // Native proof verification and every synchronous CRLT call remain
             // off the async executor. The original CGTS worker then owns/drops
             // this ONE service; no second ledger or database is created.
+            // Certificates bind the community identity: the founding key's
+            // fingerprint (`csgn::community_fingerprint`), never the address alone.
+            let identity = match crate::genesis_store::load(db, &scope).await? {
+                Some(genesis) => csgn::verify_genesis(&genesis)
+                    .map_err(Error::Unavailable.redact())?
+                    .fingerprint(),
+                None => csgn::community_fingerprint(config.community.as_bytes(), None),
+            };
             let (service, enrollment, observed, settlement) = construction
                 .build(
                     account,
                     account_db,
                     account_community,
+                    identity,
                     crate::accounting::settlement::Owners {
                         admission: keys,
                         settlement,

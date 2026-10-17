@@ -34,6 +34,12 @@ pub struct AccountConfig {
     pub admission_policy_digest: String,
     pub operator_seed_file: String,
     pub certificate_seed_file: String,
+    /// Whose certificate issuer key signs this community's certificates: the
+    /// platform's (`certificate_seed_file` of the template, the default) or one
+    /// derived for each community incarnation. The ledger records the key in its
+    /// issuer key ring, so changing the seed is a rotation, never a new artifact.
+    #[serde(default, skip_serializing_if = "CertificateKeyScope::is_platform")]
+    pub certificate_key_scope: CertificateKeyScope,
     pub account_artifacts: ArtifactFiles,
     pub extension_artifacts: ArtifactFiles,
     pub activation_statement_file: String,
@@ -53,6 +59,20 @@ pub struct AccountConfig {
     /// and replaced; the platform-wide artifacts, limits and execution stay.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tenants_dir: Option<String>,
+}
+
+/// See [`AccountConfig::certificate_key_scope`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CertificateKeyScope {
+    #[default]
+    Platform,
+    Community,
+}
+impl CertificateKeyScope {
+    fn is_platform(&self) -> bool {
+        *self == Self::Platform
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -181,6 +201,7 @@ impl AccountConfig {
         &self,
         db: &crlt::Db,
         community: &str,
+        identity: [u8; 32],
         owners: Owners,
         clock: Arc<dyn Clock>,
         runtime: tokio::runtime::Handle,
@@ -303,15 +324,12 @@ impl AccountConfig {
         observed.observe()?;
         let native_clock = observed.clone();
         let clock: Box<dyn Fn() -> u64 + Send> = Box::new(move || native_clock.native_time());
+        // The configured issuer becomes the open period of the ledger's issuer key
+        // ring (a new seed retires the previous key, never removes it); its
+        // certificates bind the community identity, not the reusable address.
         AccountService::new(ledger, clock, self.max_request_bytes)
-            .map(|service| {
-                (
-                    service.with_extension_issuer(certificate),
-                    enrollment,
-                    observed,
-                    settlement,
-                )
-            })
+            .and_then(|service| service.with_extension_issuer(certificate, identity))
+            .map(|service| (service, enrollment, observed, settlement))
             .map_err(Error::Invalid.redact())
     }
 }
