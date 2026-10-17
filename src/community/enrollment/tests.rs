@@ -211,6 +211,7 @@ async fn leaf_expiry_after_actual_bind_returns_reconcile_and_fresh_uv_reads_the_
             Some(InitialPublicationBind {
                 seed: SEED,
                 publication: PUBLICATION,
+                evidence: None,
             }),
             NOW,
         )
@@ -252,6 +253,7 @@ async fn cancelled_bind_waiting_for_the_original_member_lease_leaves_no_publicat
         Some(InitialPublicationBind {
             seed: SEED,
             publication: PUBLICATION,
+            evidence: None,
         }),
         NOW,
     );
@@ -267,12 +269,28 @@ async fn cancelled_bind_waiting_for_the_original_member_lease_leaves_no_publicat
         .unwrap();
     assert_eq!(state.seed, SEED);
     assert_eq!(state.publication, None);
+    // A passkey session never carries genesis stamp evidence.
+    assert!(matches!(
+        service
+            .initial_creation(
+                &f.member.session,
+                Some(InitialPublicationBind {
+                    seed: SEED,
+                    publication: PUBLICATION,
+                    evidence: Some(vec![1]),
+                }),
+                NOW,
+            )
+            .await,
+        Err(Error::Invalid)
+    ));
     let bound = service
         .initial_creation(
             &f.member.session,
             Some(InitialPublicationBind {
                 seed: SEED,
                 publication: PUBLICATION,
+                evidence: None,
             }),
             NOW,
         )
@@ -295,6 +313,7 @@ async fn leaf_completion_floor_withholds_lost_bind_reply_but_exact_receipt_recov
             Some(InitialPublicationBind {
                 seed: SEED,
                 publication: PUBLICATION,
+                evidence: None,
             }),
             NOW,
         )
@@ -330,6 +349,7 @@ async fn session_expiry_after_a_real_owner_wait_refuses_before_binding() {
             Some(InitialPublicationBind {
                 seed: SEED,
                 publication: PUBLICATION,
+                evidence: None,
             }),
             NOW,
         );

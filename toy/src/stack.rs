@@ -15,6 +15,7 @@ mod process;
 use process::{Metrics, Result, Service};
 use serde_json::json;
 use std::{
+    collections::HashMap,
     fs,
     path::PathBuf,
     sync::{Arc, Mutex},
@@ -23,9 +24,82 @@ use tokio_rustls::{
     TlsAcceptor,
     rustls::{
         ServerConfig,
-        pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer},
+        crypto::CryptoProvider,
+        pki_types::{PrivateKeyDer, PrivatePkcs8KeyDer},
+        server::{ClientHello, ResolvesServerCert},
+        sign::CertifiedKey,
     },
 };
+
+/// The toy's one trust root. Its parameters are fixed, so a continued state rebuilds
+/// the same issuer from the saved key alone.
+fn root_params() -> rcgen::CertificateParams {
+    let mut params = rcgen::CertificateParams::default();
+    params
+        .distinguished_name
+        .push(rcgen::DnType::CommonName, "cvld toy root");
+    params.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
+    params.key_usages = vec![
+        rcgen::KeyUsagePurpose::KeyCertSign,
+        rcgen::KeyUsagePurpose::CrlSign,
+    ];
+    params
+}
+
+/// Serves every toy host: a leaf for the name the client dials, minted once and signed
+/// by the root. A created community is dialed by names (`api.<address>.toy.localhost`)
+/// that no certificate made at start can list.
+struct Leaves {
+    issuer: rcgen::Issuer<'static, rcgen::KeyPair>,
+    provider: Arc<CryptoProvider>,
+    minted: Mutex<HashMap<String, Arc<CertifiedKey>>>,
+}
+
+impl std::fmt::Debug for Leaves {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("Leaves")
+    }
+}
+
+impl Leaves {
+    fn mint(&self, name: &str) -> Option<Arc<CertifiedKey>> {
+        let mut params = rcgen::CertificateParams::new(vec![name.to_owned()]).ok()?;
+        params.extended_key_usages = vec![rcgen::ExtendedKeyUsagePurpose::ServerAuth];
+        let key = rcgen::KeyPair::generate().ok()?;
+        let cert = params.signed_by(&key, &self.issuer).ok()?;
+        let signing = self
+            .provider
+            .key_provider
+            .load_private_key(PrivateKeyDer::from(PrivatePkcs8KeyDer::from(
+                key.serialize_der(),
+            )))
+            .ok()?;
+        Some(Arc::new(CertifiedKey::new(vec![cert.der().clone()], signing)))
+    }
+}
+
+impl ResolvesServerCert for Leaves {
+    fn resolve(&self, hello: ClientHello<'_>) -> Option<Arc<CertifiedKey>> {
+        // No SNI: the client dialed a literal loopback address.
+        let name = hello
+            .server_name()
+            .unwrap_or("127.0.0.1")
+            .to_ascii_lowercase();
+        let toy = name
+            .strip_suffix(fixtures::DOMAIN)
+            .is_some_and(|rest| rest.is_empty() || rest.ends_with('.'));
+        if !(toy || name == "localhost" || name == "127.0.0.1") {
+            return None;
+        }
+        let mut minted = self.minted.lock().ok()?;
+        if let Some(leaf) = minted.get(&name) {
+            return Some(leaf.clone());
+        }
+        let leaf = self.mint(&name)?;
+        minted.insert(name, leaf.clone());
+        Some(leaf)
+    }
+}
 
 /// Forward HTTP/1.1 requests with a Content-Length body, replacing the Host
 /// header by the service's real virtual host: the client insists that its https
@@ -313,39 +387,49 @@ async fn run() -> Result<()> {
     let alpha_host: &'static str =
         Box::leak(format!("api.{community_name}.{}", fixtures::DOMAIN).into_boxed_str());
     let (upstream_global, upstream_alpha) = (global_listen.clone(), alpha_listen.clone());
+    // The Forum of created communities (cfrm's own multi-tenant `serve`), when the harness
+    // names its binary and the hub runs: one process for every community the hub creates.
+    let forum_bin = std::env::var_os("CFRM_BIN")
+        .filter(|_| std::env::var_os("CVLD_G5_ACCOUNT_CONFIG").is_some())
+        .map(PathBuf::from);
+    let forum_listen = forum_bin
+        .as_ref()
+        .map(|_| saved_text("forum_listen").unwrap_or_else(process::port));
     let upstreams = [
         (global_listen.clone(), fixtures::WALLET),
         (alpha_listen.clone(), alpha_host),
         (global_listen.clone(), fixtures::ROOT_ADMIN),
         // Created communities: the client's own Host header reaches the Host-routing front.
-        (global_listen, ""),
+        (global_listen.clone(), ""),
     ];
 
-    // One self-signed end-entity certificate is the only trust root handed out. A continued
-    // state keeps the certificate (the devices pin it) and the four front-end ports.
+    // One root certificate is the only trust root handed out; every host's leaf is minted
+    // from it on first use. A continued state keeps the root (the devices pin it) and the
+    // four front-end ports.
     let (cert_der, key_der) = match (saved_text("cert_der"), saved_text("key_der")) {
         (Some(cert), Some(key)) => (hex_decode(&cert)?, hex_decode(&key)?),
         _ => {
-            let rcgen::CertifiedKey { cert, signing_key } =
-                rcgen::generate_simple_self_signed(vec![
-                    "localhost".into(),
-                    fixtures::WALLET.into(),
-                    "127.0.0.1".into(),
-                ])
-                .map_err(|_| "certificate generation")?;
-            (cert.der().to_vec(), signing_key.serialize_der())
+            let key = rcgen::KeyPair::generate().map_err(|_| "root key generation")?;
+            let cert = root_params()
+                .self_signed(&key)
+                .map_err(|_| "root certificate generation")?;
+            (cert.der().to_vec(), key.serialize_der())
         }
     };
     fs::write(out.join("ca.der"), &cert_der).map_err(|_| "write trust root")?;
-    let key = PrivateKeyDer::from(PrivatePkcs8KeyDer::from(key_der.clone()));
+    let root_key = rcgen::KeyPair::try_from(key_der.as_slice()).map_err(|_| "root key")?;
     // Several rustls providers are linked; name the one this crate enables.
     let provider = Arc::new(tokio_rustls::rustls::crypto::ring::default_provider());
+    let leaves = Leaves {
+        issuer: rcgen::Issuer::new(root_params(), root_key),
+        provider: provider.clone(),
+        minted: Mutex::new(HashMap::new()),
+    };
     let config = ServerConfig::builder_with_provider(provider)
         .with_safe_default_protocol_versions()
         .map_err(|_| "tls versions")?
         .with_no_client_auth()
-        .with_single_cert(vec![CertificateDer::from(cert_der.clone())], key)
-        .map_err(|_| "tls configuration")?;
+        .with_cert_resolver(Arc::new(leaves));
     let acceptor = TlsAcceptor::from(Arc::new(config));
     // One TLS front end per virtual host: the client insists that its https host
     // equals the host it sends, so each service gets its own loopback port.
@@ -387,11 +471,70 @@ async fn run() -> Result<()> {
             }
         }));
     }
+    // Created communities at their production names on the default HTTPS port, as a deployment
+    // serves them: `<address>.<base>` is the community's Forum (and the origin its members present
+    // there), `api.<address>.<base>` its door, from which the Forum also follows the community's
+    // feed. The harness runs the stack in its own network namespace as root, so the port is
+    // free; elsewhere no created community has a Forum.
+    let mut forum = None;
+    if let (Some(bin), Some(listen)) = (&forum_bin, &forum_listen) {
+        let mut bound = false;
+        for address in ["127.0.0.1:443", "[::1]:443"] {
+            match tokio::net::TcpListener::bind(address).await {
+                Ok(listener) => {
+                    bound = true;
+                    let (acceptor, hub, forum) =
+                        (acceptor.clone(), upstream_global.clone(), listen.clone());
+                    proxies.push(tokio::spawn(async move {
+                        loop {
+                            let Ok((tcp, _)) = listener.accept().await else {
+                                continue;
+                            };
+                            let (acceptor, hub, forum) =
+                                (acceptor.clone(), hub.clone(), forum.clone());
+                            tokio::spawn(async move {
+                                let Ok(tls) = acceptor.accept(tcp).await else {
+                                    return;
+                                };
+                                let community = tls
+                                    .get_ref()
+                                    .1
+                                    .server_name()
+                                    .and_then(|name| name.strip_suffix(fixtures::DOMAIN))
+                                    .and_then(|label| label.strip_suffix('.'))
+                                    .is_some_and(|label| {
+                                        !label.is_empty() && !label.contains('.') && label != "wallet"
+                                    });
+                                let upstream = if community { forum } else { hub };
+                                let Ok(plain) = tokio::net::TcpStream::connect(&upstream).await
+                                else {
+                                    return;
+                                };
+                                relay(tls, plain, "").await;
+                            });
+                        }
+                    }));
+                }
+                Err(_) => eprintln!("stack: no listener on {address}"),
+            }
+        }
+        if !bound {
+            return Err("created communities need port 443 (run the stack in its own network namespace)".into());
+        }
+        forum = Some(start_forum(
+            bin,
+            &dir.path().join("forum"),
+            listen,
+            &upstream_global,
+            &cert_der,
+        )?);
+    }
     if state_root.is_some() && !resume {
         // Test state (public values and the test certificate key); written once the stack is up.
         let record = json!({
             "global_listen": upstream_global,
             "alpha_listen": upstream_alpha,
+            "forum_listen": forum_listen,
             "ports": ports,
             "cert_der": hex_encode(&cert_der),
             "key_der": hex_encode(&key_der),
@@ -499,13 +642,25 @@ async fn run() -> Result<()> {
                         .call(action, json!({}))
                         .await
                         .map_err(|_| "trust feed")?;
-                    Ok::<_, &'static str>(feed["key_ring"].clone())
+                    Ok::<_, &'static str>(feed)
                 }
             };
-            let wallet_ring =
-                feed(format!("https://127.0.0.1:{port}"), "wallet_trust_feed").await?;
-            let community_ring =
+            let wallet_ring = feed(format!("https://127.0.0.1:{port}"), "wallet_trust_feed")
+                .await?["key_ring"]
+                .clone();
+            let community_feed =
                 feed(format!("https://127.0.0.1:{alpha_port}"), "trust_feed").await?;
+            let community_ring = community_feed["key_ring"].clone();
+            // The community's identity: its founding fingerprint, verified from the genesis
+            // document of its feed. Devices anchor their community trust to it (the vault of a
+            // device-key member derives from it; the stamp scope is built from it).
+            let genesis: Vec<u8> = serde_json::from_value(community_feed["genesis"].clone())
+                .map_err(|_| "community genesis")?;
+            let fingerprint = hex_encode(
+                &csgn::verify_genesis(&genesis)
+                    .map_err(|_| "community genesis")?
+                    .fingerprint(),
+            );
             let artifacts = &account["extension_artifacts"];
             let ca = out.join("ca.der");
             let settings = json!({
@@ -524,6 +679,7 @@ async fn run() -> Result<()> {
                     "passkey_origin": format!("https://vault.{community_name}.{}", fixtures::DOMAIN),
                     "rp_id": format!("{community_name}.{}", fixtures::DOMAIN),
                     "trust_key_ring": community_ring,
+                    "fingerprint": fingerprint,
                     "connect_host": "127.0.0.1",
                     "tls_root_files": [ca],
                 },
@@ -550,6 +706,8 @@ async fn run() -> Result<()> {
         json!({
             "device_settings": device_settings,
             "passthrough_base": format!("https://127.0.0.1:{passthrough_port}"),
+            // A created community's Forum answers at `https://<community host>` (port 443).
+            "forum": forum.is_some(),
             "member_config": member_path,
             "community_config": community_path,
             "root_config": root_path,
@@ -563,6 +721,157 @@ async fn run() -> Result<()> {
         proxy.abort();
     }
     clock_task.abort();
+    if let Some(mut forum) = forum {
+        let _ = forum.kill();
+        let _ = forum.wait();
+    }
     drop(global);
     Ok(())
+}
+
+/// cfrm's own action names: `serve` refuses a throttle table that does not name exactly its
+/// actions (cfrm `src/api.rs`, `actions!`).
+const FORUM_ACTIONS: [&str; 21] = [
+    "settings",
+    "challenge",
+    "enter",
+    "replace",
+    "heartbeat",
+    "depart",
+    "search",
+    "watch",
+    "ciphertext",
+    "room_epoch",
+    "room_issue",
+    "room_list",
+    "room_connect",
+    "room_renew",
+    "room_disconnect",
+    "room_read",
+    "room_order",
+    "room_relay",
+    "room_resume",
+    "room_publish",
+    "room_handover",
+];
+
+/// Start cfrm `serve` for every created community: communities come from the hub's registry
+/// (`/registry/by-host`), each one's keys only from its own signed feed; native accounting
+/// verifies record proofs with the same retained extension artifacts as the ledger. Only
+/// public test values are written; diagnostics go to `service.stderr` in `dir`.
+fn start_forum(
+    bin: &std::path::Path,
+    dir: &std::path::Path,
+    listen: &str,
+    registry: &str,
+    root_der: &[u8],
+) -> Result<std::process::Child> {
+    let account_path = std::env::var_os("CVLD_G5_ACCOUNT_CONFIG").ok_or("G5 configuration")?;
+    let account: serde_json::Value =
+        serde_json::from_slice(&fs::read(account_path).map_err(|_| "G5 configuration")?)
+            .map_err(|_| "G5 configuration decoding")?;
+    let artifacts = &account["extension_artifacts"];
+    let manifest = PathBuf::from(artifacts["manifest_file"].as_str().ok_or("manifest file")?);
+    let directory = manifest.parent().ok_or("artifact directory")?;
+    let execution = &account["update_execution"];
+    let limits = &account["extension_limits"];
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|_| "clock")?
+        .as_millis() as u64;
+    let rate = json!({"burst": 1000, "replenish_ms": 100});
+    let throttle: serde_json::Map<String, serde_json::Value> = FORUM_ACTIONS
+        .iter()
+        .map(|action| ((*action).to_owned(), rate.clone()))
+        .collect();
+    let config = json!({
+        "bind": listen,
+        "admission_action": cmty::ADMISSION_ACTION,
+        "accounting": {
+            "period_key": account["period_key"],
+            // The toy Rulebook's record period (fixtures::accounting).
+            "period_seconds": 86_400,
+            "artifact_directory": directory,
+            "manifest_sha256": artifacts["manifest_sha256"],
+            "executable": execution["executable"],
+            "timeout_ms": execution["timeout_ms"],
+            "max_proof_bytes": execution["max_proof_bytes"],
+            "threads": execution["threads"],
+            "memory_megabytes": execution["memory_megabytes"],
+            "global_burst": limits["global_burst"],
+            "subject_burst": limits["subject_burst"],
+            "replenish_ms": limits["replenish_ms"],
+            "maximum_keys": limits["maximum_keys"],
+        },
+        // A fresh incarnation per start: a restart never reopens earlier volatile state.
+        "incarnation": format!("toy-{}", hex_encode(&cpsd::rand::random::<[u8; 8]>())),
+        "registry": {
+            "url": format!("http://{registry}/registry"),
+            "timeout_ms": 10_000,
+            "recheck_seconds": 5,
+            "sweep_seconds": 60,
+            "maximum_communities": 64,
+        },
+        "trust_roots_der": [root_der],
+        "refresh_seconds": 5,
+        "poll_seconds": 5,
+        "request_seconds": 30,
+        "initial_backoff_seconds": 1,
+        "maximum_backoff_seconds": 10,
+        "maximum_staleness_seconds": 3_600,
+        "maximum_snapshot_age": 3_600,
+        "storage": {"kind": "memory"},
+        "storage_limits": {
+            "records": 65_536,
+            "value_bytes": 1_048_576,
+            "batch": 64,
+            "indexes_per_record": 8,
+            "page": 256,
+            "ttl_ms": 86_400_000,
+        },
+        "maximum_lease_ms": 600_000,
+        "publication_bytes": 262_144,
+        "ciphertext_bytes": 262_144,
+        "candidate_count": 64,
+        "page_publication_bytes": 4_194_304,
+        "room_epoch": {
+            "epoch": 1,
+            "valid_from_ms": now_ms.saturating_sub(3_600_000),
+            "valid_until_ms": now_ms + 30 * 86_400_000,
+        },
+        "room_connections": 64,
+        "room_relay_messages": 256,
+        "room_message_bytes": 65_536,
+        "room_lifetime_ms": 3_600_000,
+        "room_proof_bytes": 8_192,
+        "room_operation_receipts": 256,
+        "request_bytes": 1_048_576,
+        "http_concurrent": 64,
+        "http_anonymous_concurrent": 16,
+        "http_body_timeout_ms": 30_000,
+        "http_request_timeout_ms": 300_000,
+        "source_bucket": {"burst": 10_000, "replenish_ms": 10, "keys": 4_096},
+        "session_bucket": {"burst": 10_000, "replenish_ms": 10, "keys": 4_096},
+        "command_capacity": 256,
+        "maintenance_ms": 1_000,
+        "shutdown_ms": 5_000,
+        "throttle_capacity": 4_096,
+        "throttle": throttle,
+    });
+    // A continued state starts the Forum again with a fresh incarnation (it holds no durable state).
+    fs::create_dir_all(dir).map_err(|_| "forum directory")?;
+    let path = dir.join("config.json");
+    fs::write(&path, serde_json::to_vec(&config).map_err(|_| "encode forum")?)
+        .map_err(|_| "write forum configuration")?;
+    std::process::Command::new(bin)
+        .args(["serve", "--config"])
+        .arg(&path)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(match fs::File::create(dir.join("service.stderr")) {
+            Ok(file) => std::process::Stdio::from(file),
+            Err(_) => std::process::Stdio::null(),
+        })
+        .spawn()
+        .map_err(|_| "cannot start the forum".into())
 }

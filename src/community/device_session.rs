@@ -226,15 +226,174 @@ impl CommunityService {
     /// `csgn::community_fingerprint` of the founding document's key, or for a community
     /// without one, of its id alone. Devices build it the same way from the verified Charter.
     fn stamp_scope(&self) -> Result<cpsd::StampScope> {
-        let founding = match self.genesis.as_deref() {
-            Some(genesis) => Some(
-                csgn::verify_genesis(genesis)
-                    .map_err(Error::Unavailable.redact())?
-                    .fingerprint(),
-            ),
-            None => None,
-        };
+        let founding = self.founding_fingerprint()?;
         let id = cpsd::CommunityId::new(&self.config.community).map_err(Error::Invalid.redact())?;
         Ok(cpsd::StampScope::of_community(id, founding.as_ref()))
     }
+
+    /// The founding key fingerprint of this community's verified genesis, if it has one.
+    fn founding_fingerprint(&self) -> Result<Option<[u8; 32]>> {
+        match self.genesis.as_deref() {
+            Some(genesis) => Ok(Some(
+                csgn::verify_genesis(genesis)
+                    .map_err(Error::Unavailable.redact())?
+                    .fingerprint(),
+            )),
+            None => Ok(None),
+        }
+    }
+
+    /// The genesis stamp check of a device-key member's FIRST publication bind. The member's
+    /// first lineage needs no community passkey: the bind carries `cchr::genesis_stamp`
+    /// evidence whose receipt is this member's first `Created` lineage in this community,
+    /// authored by the session's device key, stamped under the member's pseudonym at the
+    /// current global epoch with a key of the signed stamp ring valid at the receipt time.
+    /// The stamp digest is recorded once in `cvld_stamp_uses`. A passkey session must not send
+    /// evidence. An equal retry of an already bound publication is not re-verified (its stamp
+    /// may have expired since); a different winner is refused by the membership's CAS.
+    pub(super) async fn device_genesis_stamp(
+        &self,
+        authentication: &ckyh::Authentication,
+        bind: &InitialPublicationBind,
+        expires_at: i64,
+        now: u64,
+    ) -> Result<Option<GenesisStampUse>> {
+        let Some(device_key) = authentication.device_key() else {
+            return match bind.evidence {
+                Some(_) => Err(Error::Invalid),
+                None => Ok(None),
+            };
+        };
+        let evidence = bind.evidence.as_deref().ok_or(Error::Invalid)?;
+        let membership = self.facade.membership();
+        let bound = membership
+            .initial_creation(authentication, expires_at)
+            .await
+            .map_err(|error| match error {
+                cmbr::Error::Unavailable => Error::Unavailable,
+                _ => Error::Refused,
+            })?
+            .publication();
+        if bound.is_some() {
+            return Ok(None);
+        }
+        let genesis =
+            cchr::GenesisStampEvidence::from_bytes(evidence).map_err(Error::Invalid.redact())?;
+        let member = membership
+            .resume(authentication)
+            .await
+            .map_err(Error::Refused.redact())?
+            .subject()
+            .to_owned();
+        let global = crate::global_trust::load(&self.db, &self.config, now).await?;
+        let params = cpsd::StampParams::new(
+            self.config
+                .stamp_cohort_seconds
+                .unwrap_or(DEFAULT_STAMP_COHORT_SECONDS),
+        )
+        .map_err(Error::Invalid.redact())?;
+        let (keys, trust) = stamp_trust(&global.status, params)?;
+        let founding = self.founding_fingerprint()?;
+        let verified = cchr::verify_genesis_parts(
+            &self.config.community,
+            founding.as_ref(),
+            &trust,
+            &genesis,
+            &member,
+            now,
+        )
+        .map_err(Error::Refused.redact())?;
+        // The receipt's author is the session's device key (VLD0 = Ed25519).
+        let author = verified.author();
+        if author.kind().bytes() != b"VLD0"
+            || author.value() != &device_key
+            || verified.stamp().epoch() != global.status.epoch
+        {
+            return Err(Error::Refused);
+        }
+        let stamp = verified.into_stamp();
+        let ledger = cpsd::StampLedger::new(
+            crate::stamp_uses::StampUses::new(
+                &self.db,
+                &self.config.community,
+                crate::stamp_uses::DEFAULT_CAPACITY,
+            )?,
+            *self.stamp_scope()?.fingerprint(),
+            keys.into_iter()
+                .filter(|key| key.params() == params)
+                .collect(),
+            params,
+        )
+        .map_err(Error::Refused.redact())?;
+        ledger
+            .prune(now)
+            .await
+            .map_err(Error::Unavailable.redact())?;
+        // One use per digest. The same digest is the same member's same genesis: a retry
+        // after an attempt whose bind failed or whose outcome is unknown.
+        let fresh = match ledger.record(&stamp, now).await {
+            Ok(()) => true,
+            Err(cpsd::Error::StampReplayed) => false,
+            Err(cpsd::Error::StampExpired) => return Err(Error::Refused),
+            Err(_) => return Err(Error::Unavailable),
+        };
+        Ok(Some(GenesisStampUse {
+            ledger,
+            stamp,
+            fresh,
+        }))
+    }
+}
+
+/// A genesis stamp digest recorded for one publication bind.
+pub(super) struct GenesisStampUse {
+    ledger: cpsd::StampLedger<crate::stamp_uses::StampUses>,
+    stamp: cpsd::VerifiedStamp,
+    fresh: bool,
+}
+impl GenesisStampUse {
+    /// The bind was definitively NOT applied: free a digest this bind recorded, so the member
+    /// can retry with the same stamp. Never for an applied or possibly applied bind.
+    pub(super) async fn release(self, now: u64) {
+        if self.fresh {
+            let _ = self.ledger.release(&self.stamp, now).await;
+        }
+    }
+}
+
+/// The wallet's stamp key ring from its signed global status: every recorded key with its
+/// period, or (before rings were recorded) the current key alone, valid from the start.
+fn stamp_trust(
+    status: &cgbl::Status,
+    params: cpsd::StampParams,
+) -> Result<(Vec<cpsd::StampPublicKey>, cchr::StampTrust)> {
+    let key =
+        |bytes: &[u8]| cpsd::StampPublicKey::from_bytes(bytes).map_err(Error::Refused.redact());
+    let ring = if status.stamp_keys.is_empty() {
+        vec![(
+            key(status.stamp_public_key.as_deref().ok_or(Error::Refused)?)?,
+            0,
+            None,
+        )]
+    } else {
+        status
+            .stamp_keys
+            .iter()
+            .map(|period| {
+                Ok((
+                    key(&period.public_key)?,
+                    period.valid_from,
+                    period.valid_until,
+                ))
+            })
+            .collect::<Result<Vec<_>>>()?
+    };
+    let periods = ring
+        .iter()
+        .map(|(key, from, until)| {
+            cchr::StampKeyPeriod::new(key.clone(), *from, *until).map_err(Error::Refused.redact())
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let trust = cchr::StampTrust::new(periods, params).map_err(Error::Refused.redact())?;
+    Ok((ring.into_iter().map(|(key, _, _)| key).collect(), trust))
 }

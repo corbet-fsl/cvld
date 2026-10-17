@@ -24,6 +24,9 @@ enum ServeConfig {
     Root(Box<RootCommunityConfig>),
 }
 
+/// Stack of every runtime worker thread.
+const WORKER_STACK_BYTES: usize = 8 * 1024 * 1024;
+
 fn main() {
     if let Err(error) = start_runtime() {
         eprintln!("{error}");
@@ -32,7 +35,13 @@ fn main() {
 }
 
 fn start_runtime() -> Result<()> {
-    let runtime = tokio::runtime::Runtime::new().map_err(Error::Unavailable.redact())?;
+    // Request handlers such as community creation compose deep futures; the 2 MiB
+    // default worker stack overflowed on POST /v1/community_create.
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .thread_stack_size(WORKER_STACK_BYTES)
+        .build()
+        .map_err(Error::Unavailable.redact())?;
     let deadline = Arc::new(OnceLock::new());
     let result = runtime.block_on(run(deadline.clone()));
     finish_runtime(runtime, result, deadline.as_ref())

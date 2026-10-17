@@ -30,6 +30,12 @@ pub struct InitialRegistrationBegin {
 pub struct InitialPublicationBind {
     pub seed: [u8; 32],
     pub publication: [u8; 32],
+    /// Genesis stamp evidence of the member's first lineage (`cchr::genesis_stamp`
+    /// encoding): required iff the session is a device-key session, refused otherwise.
+    /// Its stamp digest is recorded once; an equal retry of a bound publication is not
+    /// re-verified.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub evidence: Option<Vec<u8>>,
 }
 
 /// Own enrollment provenance only; grants no root creation, signing or use.

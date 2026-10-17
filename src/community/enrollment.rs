@@ -60,7 +60,15 @@ impl CommunityService {
             now = self.initial_time(now, until)?;
             let expires_at = until.try_into().map_err(Error::Unauthorized.redact())?;
             let writing = bind.is_some();
-            let mut state = match bind {
+            // A device-key member's first bind records its genesis stamp before the CAS.
+            let stamp_use = match &bind {
+                Some(bind) => {
+                    self.device_genesis_stamp(&authentication, bind, expires_at, now)
+                        .await?
+                }
+                None => None,
+            };
+            let state = match bind {
                 Some(bind) => {
                     self.facade
                         .membership()
@@ -78,14 +86,20 @@ impl CommunityService {
                         .initial_creation(&authentication, expires_at)
                         .await
                 }
-            }
-            .map_err(|error| {
-                if writing && error == cmbr::Error::Unavailable {
-                    Error::Reconcile
-                } else {
-                    Error::Refused
+            };
+            let mut state = match state {
+                Ok(state) => state,
+                Err(error) if writing && error == cmbr::Error::Unavailable => {
+                    // Possibly durable: the stamp stays recorded.
+                    return Err(Error::Reconcile);
                 }
-            })?;
+                Err(_) => {
+                    if let Some(stamp_use) = stamp_use {
+                        stamp_use.release(now).await;
+                    }
+                    return Err(Error::Refused);
+                }
+            };
             // A bind may already be durable. Any subsequent failed check only
             // withholds the receipt; it cannot establish that no write occurred.
             let result = async {

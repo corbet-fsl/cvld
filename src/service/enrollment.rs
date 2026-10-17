@@ -90,6 +90,10 @@ impl Door {
         ctx: Context,
         request: InitialPublicationBind,
     ) -> Result<InitialCreationResponse> {
+        // Global sessions are passkey sessions; genesis stamp evidence is community-only.
+        if request.evidence.is_some() {
+            return Err(Error::Invalid);
+        }
         let started = std::time::Instant::now();
         let token = ctx.token.as_deref().ok_or(Error::Unauthorized)?;
         // Original Auth -> Global lock ordering, as for holder self-ban.
