@@ -259,18 +259,10 @@ async fn token_creation_claim_admission_registry_and_termination() {
     api.call("handle_reserve", json!({"handle":"gardener_one"}))
         .await
         .unwrap();
-    let subject = f
-        .passport
-        .pseudonym(&cpsd::CommunityId::new("gardenclub").unwrap())
-        .to_hex();
-    api.voucher_redeem(voucher(
-        "gardenclub",
-        &subject,
-        "creator-gate",
-        f.front.clock.now() + 172_800,
-    ))
-    .await
-    .unwrap();
+    // The community asks for a voucher, but not from its founder: her verified
+    // global passport takes the place of the voucher step (L1352).
+    let lobby = api.call("lobby", json!({})).await.unwrap();
+    assert!(!lobby["missing"].to_string().contains("cvch"), "{lobby}");
     let proof = presentation(&f.front, &host, Some(&creator.session), &f.passport).await;
     api.call(
         "credential_issue",
@@ -327,7 +319,10 @@ async fn the_chosen_gates_decide_what_the_lobby_still_asks() {
         .create_with("rosegarden", f.token().await, json!(["legal"]))
         .await
         .unwrap();
-    let mut missing = Vec::new();
+    // A second person, admitted elsewhere on the platform but not the founder.
+    let (_, newcomer, _) = wallet_passport(&f.global).await;
+    let mut founder = Vec::new();
+    let mut other = Vec::new();
     for (address, created) in [("withvoucher", with), ("rosegarden", without)] {
         let host = format!("api.{address}.{DOMAIN}");
         let member = enrol_community(&f.front, &host, &f.passport).await;
@@ -336,10 +331,35 @@ async fn the_chosen_gates_decide_what_the_lobby_still_asks() {
             .await
             .unwrap();
         let lobby = api.call("lobby", json!({})).await.unwrap();
-        missing.push(lobby["missing"].to_string());
+        founder.push(lobby["missing"].to_string());
+        let member = enrol_community(&f.front, &host, &newcomer).await;
+        let api = client(&f.front, &host, Some(&member.session));
+        let lobby = api.call("lobby", json!({})).await.unwrap();
+        other.push(lobby["missing"].to_string());
+        // Naming the creation does not make anyone else a founder: no credential
+        // and no voucher fact for her.
+        let proof = presentation(&f.front, &host, Some(&member.session), &newcomer).await;
+        let attempt = api
+            .call(
+                "credential_issue",
+                json!({"presentation":proof,"devices":[member.signing_key],"creation":created.id}),
+            )
+            .await;
+        assert!(
+            attempt
+                .as_ref()
+                .map_or(true, |issued| issued["credential"].is_null()),
+            "{attempt:?}"
+        );
+        let lobby = api.call("lobby", json!({})).await.unwrap();
+        assert_eq!(lobby["missing"].to_string(), other[other.len() - 1]);
     }
-    assert!(missing[0].contains("cvch"), "{}", missing[0]);
-    assert!(!missing[1].contains("cvch"), "{}", missing[1]);
+    // The founder is never asked for the voucher (her passport stands in for it);
+    // anyone else is, exactly where the creator chose the voucher gate.
+    assert!(!founder[0].contains("cvch"), "{}", founder[0]);
+    assert!(!founder[1].contains("cvch"), "{}", founder[1]);
+    assert!(other[0].contains("cvch"), "{}", other[0]);
+    assert!(!other[1].contains("cvch"), "{}", other[1]);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
