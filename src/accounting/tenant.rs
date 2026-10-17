@@ -4,9 +4,11 @@
 //! incarnation, and kept in a private directory so a restart reopens the same
 //! inputs. A community's account owners never share a key with another
 //! community or with an earlier incarnation of the same address. The one
-//! exception is the certificate issuer: the extension artifacts pin its public
-//! key, so it is platform-wide like the circuits, and every certificate it
-//! signs names its community.
+//! configurable exception is the certificate issuer (`certificate_key_scope`):
+//! by default it is the platform's key; with `community` it is derived per
+//! incarnation. Either way the ledger records it in its issuer key ring, the
+//! signed verifier status publishes that ring, and every certificate binds the
+//! community identity.
 use super::config::{AccountConfig, bounded};
 use crate::error::{Error, Result};
 use cblc::accounting::AccountStatement;
@@ -250,6 +252,10 @@ impl AccountConfig {
             return Err(Error::Invalid);
         }
         keep(&file("operator-seed"), &derive(seed, b"operator")?)?;
+        let own_issuer = self.certificate_key_scope == super::config::CertificateKeyScope::Community;
+        if own_issuer {
+            keep(&file("certificate-seed"), &derive(seed, b"certificate")?)?;
+        }
         keep(&file("rooms.json"), b"[]")?;
 
         // One outcome-deposit epoch per UTC day, each with its own private key
@@ -287,8 +293,11 @@ impl AccountConfig {
         config.ledger_policy_file = text(file("ledger-policy.json"));
         config.extension_policy_file = text(file("extension-policy.json"));
         config.operator_seed_file = text(file("operator-seed"));
-        // The certificate issuer stays the template's: its public key is pinned by
-        // the platform's extension artifacts, so a derived key would never verify.
+        // Platform scope keeps the template's issuer; community scope uses the
+        // incarnation's own. Artifacts pin no issuer key, so both verify.
+        if own_issuer {
+            config.certificate_seed_file = text(file("certificate-seed"));
+        }
         config.activation_statement_file = text(statement);
         config.activation_proof_file = text(proof);
         config.settlement.epoch_file = text(epoch_file);
