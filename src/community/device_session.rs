@@ -100,7 +100,8 @@ impl CommunityService {
     /// JOIN by device key: one passport presentation over this community's challenge, one
     /// confirmation stamp covering `device_join` of exactly this key under the same pseudonym,
     /// and the key's signature over the join message. The digest is recorded once; a retry of
-    /// the same join (same digest, same key) returns the same member.
+    /// the same join (same digest, same key) returns the same member, also after the stamp
+    /// expired (re-confirmed from the applied state, see below).
     pub async fn device_join(&mut self, request: DeviceJoin, now: u64) -> Result<DeviceJoined> {
         self.refresh_global(now).await?;
         self.prune(now);
@@ -112,9 +113,6 @@ impl CommunityService {
         crate::service::publication::expires_at(challenge.until)?;
         if challenge.owner.is_some() || challenge.value.root_board_request().is_some() {
             return Err(Error::Forbidden);
-        }
-        if request.seed == [0; 32] {
-            return Err(Error::Invalid);
         }
         if request.seed == [0; 32] {
             return Err(Error::Invalid);
@@ -173,18 +171,37 @@ impl CommunityService {
             cpsd::PayloadDigest::from_bytes(join_payload(&request.device_key, &request.seed)),
             cpsd::StampSalt::from_bytes(request.salt),
         );
-        let presentation =
-            cpsd::StampPresentation::from_bytes(&request.stamp).map_err(Error::Invalid.redact())?;
-        let verified = cpsd::verify_stamp(
-            &[stamp_key],
-            &params,
-            &ledger.scope(),
-            global.status.epoch,
-            &action,
-            &presentation,
-            now,
-        )
-        .map_err(Error::Refused.redact())?;
+        let verified = cpsd::StampPresentation::from_bytes(&request.stamp)
+            .ok()
+            .and_then(|presentation| {
+                cpsd::verify_stamp(
+                    &[stamp_key],
+                    &params,
+                    &ledger.scope(),
+                    global.status.epoch,
+                    &action,
+                    &presentation,
+                    now,
+                )
+                .ok()
+            });
+        let Some(verified) = verified else {
+            // No stamp that verifies now (its cohort ended, or none was sent): only the SAME
+            // join, already applied, is re-confirmed: this passport's member holds exactly
+            // this key with exactly this seed. Nothing changes and no digest is recorded, so
+            // a device interrupted after its join was applied never needs a second
+            // confirmation. Anything else needs a fresh stamp.
+            return match self
+                .facade
+                .device_join_applied(passport, request.device_key, request.seed, now)
+                .await
+            {
+                Ok(Some(record)) => Ok(DeviceJoined {
+                    user: record.user().to_string(),
+                }),
+                _ => Err(Error::Refused),
+            };
+        };
         if verified.pseudonym().to_hex() != passport.member_id() {
             return Err(Error::Refused);
         }
