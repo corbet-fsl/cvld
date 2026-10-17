@@ -1,7 +1,8 @@
 //! The community's one-use record of stamped actions (cpsd `StampLedger` store), in its OWN
 //! table with its OWN capacity, so stamped actions never compete with login or passport
 //! challenges for `cpsd_challenges` capacity (REVIEW-stamp L3). Key = action digest; a record
-//! lives until its stamp expires (plus the ledger's prune margin).
+//! lives until its stamp expires (plus the ledger's prune margin), or longer when the ledger
+//! retains it (`retaining`, the genesis stamp of a pending first publication).
 use crlt::params;
 
 /// Append after the community migration history.
@@ -21,6 +22,7 @@ pub struct StampUses {
     community: cpsd::CommunityId,
     db: crlt::Community,
     capacity: usize,
+    retain: u64,
 }
 
 impl StampUses {
@@ -37,7 +39,15 @@ impl StampUses {
             community: cpsd::CommunityId::new(community).map_err(Error::Invalid.redact())?,
             db: db.community(community).map_err(Error::Invalid.redact())?,
             capacity,
+            retain: 0,
         })
+    }
+
+    /// Keep each record `seconds` past its stamp's expiry, so an action whose outcome stayed
+    /// unknown can still be recognised as the same one after its stamp expired.
+    pub fn retaining(mut self, seconds: u64) -> Self {
+        self.retain = seconds;
+        self
     }
 }
 
@@ -54,7 +64,12 @@ impl cpsd::ChallengeStore for StampUses {
         &self.community
     }
     async fn reserve(&self, record: cpsd::ChallengeRecord) -> Result<bool, cpsd::Error> {
-        let expires = time(record.expires)?;
+        let expires = time(
+            record
+                .expires
+                .checked_add(self.retain)
+                .ok_or(cpsd::Error::Storage)?,
+        )?;
         let mut tx = self.db.tx().await.map_err(storage)?;
         if !tx
             .query(

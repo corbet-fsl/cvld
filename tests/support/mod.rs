@@ -532,8 +532,28 @@ pub async fn community_unfounded_with_burst(
     public: &GlobalPublic,
     burst: u32,
 ) -> Running {
+    community_unfounded_with(name, public, burst, |_| {}).await
+}
+/// A founded community whose configuration `adjust` changes first.
+pub async fn community_with(
+    name: &str,
+    public: &GlobalPublic,
+    adjust: impl FnOnce(&mut CommunityConfig),
+) -> Running {
+    let running = community_unfounded_with(name, public, 100, adjust).await;
+    active::found(&running, name, public).await;
+    running
+}
+async fn community_unfounded_with(
+    name: &str,
+    public: &GlobalPublic,
+    burst: u32,
+    adjust: impl FnOnce(&mut CommunityConfig),
+) -> Running {
     let dir = tempfile::tempdir().unwrap();
-    let config = community_config(dir.path(), name, public, burst);
+    let mut config = community_config(dir.path(), name, public, burst);
+    adjust(&mut config);
+    write(dir.path(), "config.json", &serde_json::to_vec(&config).unwrap());
     let clock = Arc::new(TestClock(AtomicU64::new(NOW)));
     let door = Door::community(config, clock.clone()).await.unwrap();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

@@ -4,6 +4,7 @@
 //! and the key then opens sessions silently.
 use super::*;
 use crate::device_session::{JOIN_ACTION, join_message, join_payload, message};
+use super::device_session::DEFAULT_STAMP_COHORT_SECONDS;
 use crate::test_support::*;
 use ed25519_dalek::SigningKey;
 use serde_json::{Value, json};
@@ -700,4 +701,145 @@ async fn the_joined_device_key_holds_the_stamped_creation_commitment_and_binds_o
     // The device keys observation names the joined key as the member's credential.
     let keys = member.call("device_keys", json!({})).await.unwrap();
     assert_eq!(keys["keys"], json!([key]));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_expired_genesis_stamp_only_re_confirms_the_same_recorded_pending_genesis() {
+    let global = configured_wallet(100).await;
+    let mut wallet = wallet(&global, 65).await;
+    let public: GlobalPublic = serde_json::from_value(
+        client(&global, WALLET, None)
+            .call("global_public", json!({}))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    // Four pending days: the member's registration deadline lies past the stamp's expiry
+    // (the end of the cohort after issuance).
+    let service = community_with("alpha", &public, |config| config.pending_days = 4).await;
+    let pseudonym = wallet
+        .holder
+        .pseudonym(&cpsd::CommunityId::new("alpha").unwrap())
+        .to_hex();
+    let mut device = keys_device("alpha", &pseudonym).await;
+    let key = device.key();
+    let salt = [21; 32];
+    let scope = community_scope(&service, "alpha").await;
+    let genesis_salt = [22; 32];
+    let genesis = cchr::lineage_genesis_action(&device.receipt, genesis_salt, NOW).unwrap();
+    // ONE stamp, three slots: the join and two candidate geneses (salts 22 and 23).
+    let other_salt = [23; 32];
+    let other = cchr::lineage_genesis_action(&device.receipt, other_salt, NOW).unwrap();
+    stamp(
+        &global,
+        &mut wallet,
+        &[
+            (scope.clone(), join_action(&key, salt)),
+            (scope.clone(), genesis.clone()),
+            (scope.clone(), other.clone()),
+        ],
+    )
+    .await;
+    let body = join_body(&service, &wallet, "alpha", &mut device, salt).await;
+    let joined: crate::api::DeviceJoined = serde_json::from_value(
+        client(&service, HOST, None)
+            .call("device_join", body)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    // The client presents the genesis stamp at the genesis time, so the evidence is the same
+    // before and after the stamp's cohort ended.
+    let evidence = |action: &cpsd::StampAction, salt: [u8; 32]| {
+        cchr::GenesisStampEvidence::new(
+            device.receipt.clone(),
+            &wallet
+                .holder
+                .present_stamp(&mut cpsd::rand::rngs::OsRng, &scope, action, NOW)
+                .unwrap(),
+            salt,
+            NOW,
+        )
+        .to_bytes()
+        .unwrap()
+    };
+    let (good, fresh) = (evidence(&genesis, genesis_salt), evidence(&other, other_salt));
+    let pending = |evidence: &Vec<u8>| crate::api::InitialPublicationBind {
+        seed: SEED,
+        publication: [57; 32],
+        evidence: Some(evidence.clone()),
+    };
+    // Before the stamp expired: both geneses verify. The first one's digest is recorded but
+    // its bind's outcome stays unknown (record kept, nothing bound): a pending genesis. The
+    // second one's record is released again (its bind definitively not applied).
+    let early = open_session(&service, &joined.user, &mut device)
+        .await
+        .unwrap();
+    {
+        let backend = service.door.community_backend().unwrap().lock().await;
+        let (_, authentication) = backend
+            .authenticate_current(&early.token, NOW)
+            .await
+            .unwrap();
+        let expires = (NOW + 300) as i64;
+        let recorded = backend
+            .device_genesis_stamp(&authentication, &pending(&good), expires, NOW)
+            .await
+            .unwrap();
+        assert!(recorded.is_some());
+        backend
+            .device_genesis_stamp(&authentication, &pending(&fresh), expires, NOW)
+            .await
+            .unwrap()
+            .unwrap()
+            .release(NOW)
+            .await;
+    }
+    assert_eq!(stamp_uses(&service).await, 2);
+
+    // Past the stamp's expiry, before the member's registration deadline.
+    let late = (NOW / DEFAULT_STAMP_COHORT_SECONDS + 3) * DEFAULT_STAMP_COHORT_SECONDS;
+    service.clock.set(late);
+    // The community holds the global wallet's current signed status (as it does live).
+    global.clock.set(late);
+    global.door.maintain().await.unwrap();
+    let current: GlobalPublic = serde_json::from_value(
+        client(&global, WALLET, None)
+            .call("global_public", json!({}))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    std::fs::write(service.dir.path().join("global-status"), &current.status).unwrap();
+    std::fs::write(service.dir.path().join("global-ring"), &current.key_ring).unwrap();
+    let session = open_session(&service, &joined.user, &mut device)
+        .await
+        .unwrap();
+    let member = client(&service, HOST, Some(&session.token));
+    let bind = |evidence: &Vec<u8>| {
+        json!({"seed": SEED, "publication": vec![57u8; 32], "evidence": evidence})
+    };
+    // A NEW genesis with the expired stamp is refused: nothing recorded, nothing bound. The
+    // join's record is pruned with its stamp; only the retained pending genesis is left.
+    assert!(
+        member
+            .call("initial_publication_bind", bind(&fresh))
+            .await
+            .is_err()
+    );
+    assert_eq!(stamp_uses(&service).await, 1);
+    let read: crate::api::InitialCreationResponse =
+        serde_json::from_value(member.call("initial_creation", json!({})).await.unwrap()).unwrap();
+    assert_eq!(read.publication, None);
+    // The same recorded pending genesis (same digest) re-confirms idempotently and binds,
+    // without a second record.
+    let bound: crate::api::InitialCreationResponse = serde_json::from_value(
+        member
+            .call("initial_publication_bind", bind(&good))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(bound.publication, Some([57; 32]));
+    assert_eq!(stamp_uses(&service).await, 1);
 }

@@ -265,9 +265,13 @@ impl CommunityService {
     /// evidence whose receipt is this member's first `Created` lineage in this community,
     /// authored by the session's device key, stamped under the member's pseudonym at the
     /// current global epoch with a key of the signed stamp ring valid at the receipt time.
-    /// The stamp digest is recorded once in `cvld_stamp_uses`. A passkey session must not send
+    /// The stamp digest is recorded once in `cvld_stamp_uses` and retained `pending_days` past
+    /// the stamp, so it outlives the member's registration deadline (a member past it cannot
+    /// bind at all). A passkey session must not send
     /// evidence. An equal retry of an already bound publication is not re-verified (its stamp
-    /// may have expired since); a different winner is refused by the membership's CAS.
+    /// may have expired since); a different winner is refused by the membership's CAS. After
+    /// the stamp expired, only the idempotent re-confirm of the SAME already recorded pending
+    /// genesis (same digest) is accepted; an expired stamp never starts a new genesis.
     pub(super) async fn device_genesis_stamp(
         &self,
         authentication: &ckyh::Authentication,
@@ -334,7 +338,8 @@ impl CommunityService {
                 &self.db,
                 &self.config.community,
                 crate::stamp_uses::DEFAULT_CAPACITY,
-            )?,
+            )?
+            .retaining(u64::from(self.config.pending_days) * 86_400),
             *self.stamp_scope()?.fingerprint(),
             keys.into_iter()
                 .filter(|key| key.params() == params)
@@ -351,7 +356,12 @@ impl CommunityService {
         let fresh = match ledger.record(&stamp, now).await {
             Ok(()) => true,
             Err(cpsd::Error::StampReplayed) => false,
-            Err(cpsd::Error::StampExpired) => return Err(Error::Refused),
+            // Expired: only the re-confirm of the same recorded pending genesis.
+            Err(cpsd::Error::StampExpired) => match ledger.recorded(&stamp, now).await {
+                Ok(true) => false,
+                Ok(false) => return Err(Error::Refused),
+                Err(_) => return Err(Error::Unavailable),
+            },
             Err(_) => return Err(Error::Unavailable),
         };
         Ok(Some(GenesisStampUse {
