@@ -43,7 +43,7 @@ fn inputs() -> &'static Inputs {
                 sha256,
             };
         }
-        let cache = Path::new(env!("CARGO_TARGET_TMPDIR")).join("g5-alpha-fixture");
+        let cache = Path::new(env!("CARGO_TARGET_TMPDIR")).join("g5-alpha-in-place");
         if !cache.join("probe.sha256").is_file() {
             generate(&cache);
         }
@@ -56,16 +56,23 @@ fn inputs() -> &'static Inputs {
 }
 fn generate(cache: &Path) {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    // The generated configuration embeds absolute paths below --out, so it is generated in place.
+    // One process generates (the lock directory); concurrent ones wait for the completeness mark.
+    let mark = cache.join("probe.sha256");
     std::fs::create_dir_all(cache.parent().unwrap()).unwrap();
-    let staging = tempfile::Builder::new()
-        .prefix("g5-alpha-")
-        .tempdir_in(cache.parent().unwrap())
-        .unwrap();
+    if std::fs::create_dir(cache.with_extension("lock")).is_err() {
+        let start = std::time::Instant::now();
+        while !mark.is_file() {
+            assert!(start.elapsed().as_secs() < 300, "G5 fixture generation did not finish");
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        return;
+    }
     let mut command = std::process::Command::new("python3");
     command
         .args(["-B", "tools/g5-account-config.py", "--community", "alpha"])
         .args(["--exports", "--now", &support::NOW.to_string(), "--out"])
-        .arg(staging.path())
+        .arg(cache)
         .current_dir(root);
     let retained = std::env::var_os("CVLD_G5_RETAINED").map(PathBuf::from).or_else(|| {
         let home = std::env::var_os("HOME")?;
@@ -87,12 +94,7 @@ fn generate(cache: &Path) {
         .lines()
         .find_map(|l| l.strip_prefix("export CVLD_ALPHA_ACTIVATION_SHA256="))
         .expect("generator exports the probe digest");
-    std::fs::write(staging.path().join("probe.sha256"), sha256).unwrap();
-    // Concurrent test processes race here; the first rename wins and the others use it.
-    let path = staging.keep();
-    if std::fs::rename(&path, cache).is_err() {
-        assert!(cache.join("probe.sha256").is_file());
-    }
+    std::fs::write(mark, sha256).unwrap();
 }
 fn required_file(path: &Path, maximum: usize) -> Vec<u8> {
     assert!(path.is_absolute());
