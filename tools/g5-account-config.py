@@ -9,7 +9,8 @@ policy, activation statement and proof (cut from the retained activation probe),
 fixture seeds (test mode only) and a fresh settlement epoch with its RSA key.
 
 Output: <out>/account-config.json (cvld `AccountConfig`) and
-<out>/activation-probe.json (the retained probe, byte-identical) plus its digest,
+<out>/activation-probe.json (the retained probe, byte-identical) plus its digest and
+<out>/template-ledger-policy.json (hub-created communities: rate window = checkpoint period),
 printed as shell exports with --exports. Production deployments pass real seed
 files (--operator-seed-file/--certificate-seed-file, from sops) and a production
 settlement key; test mode derives the fixture seeds named in the cblc request.
@@ -260,6 +261,14 @@ def main():
         "checkpointPeriodSeconds": request["nativeWrapper"]["checkpointPeriodSeconds"],
     }
     (out / "ledger-policy.json").write_text(json.dumps(ledger))
+    # Hub-created communities prove their own activation against the template's terms, so
+    # their rate window is free: one checkpoint period, which a 600 s account grant covers
+    # (cvld refuses a grant lifetime shorter than the rate window). The static community
+    # keeps the retained probe's policy, which its activation proof binds.
+    template_ledger = dict(ledger, account=dict(policy, rateWindow=ledger["checkpointPeriodSeconds"]))
+    if template_ledger["account"]["abandonAfter"] < template_ledger["account"]["rateWindow"]:
+        fail("the template rate window exceeds abandonAfter")
+    (out / "template-ledger-policy.json").write_text(json.dumps(template_ledger))
     (out / "extension-policy.json").write_text(json.dumps(probe["extension"]))
     (out / "activation-statement.json").write_text(json.dumps(probe["activation"]["account"]))
     (out / "activation-proof").write_bytes(bytes.fromhex(probe["activation"]["proof"]))

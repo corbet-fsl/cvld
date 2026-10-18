@@ -246,6 +246,22 @@ pub fn community_schema(community: &str, version: u32) -> cplc::cshm::Schema {
     serde_json::from_value(json!({"community":community,"version":version,
         "public":[{"id":"restricted","label":"Restricted", "kind":{"type":"yes_no"},"required":false,"filterable":false,"change_preset":"stable","no_contact_details":false}],"private":[]})).unwrap()
 }
+/// The toy's account (session) grant lifetime.
+const SESSION_SECONDS: u64 = 600;
+
+/// A grant lifetime that covers the ledger policy's rate window with room for a join
+/// (cvld refuses a grant shorter than the window): the toy's 600 s for a window of one
+/// checkpoint period, longer for the static probe policy's 1000 s window.
+pub fn grant_seconds(ledger_policy_file: &str) -> u64 {
+    let ledger: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(ledger_policy_file).expect("G5 ledger policy"))
+            .expect("G5 ledger policy decodes");
+    let window = ledger["account"]["rateWindow"]
+        .as_u64()
+        .expect("G5 rate window");
+    SESSION_SECONDS.max(window + 300)
+}
+
 /// The real native accounting operator, when the toy job provides the assembled
 /// G5 configuration (`tools/g5-account-config.py`, retained cblc artifacts).
 /// Its Rulebook carries the period and the daily quota the operator reads.
@@ -286,6 +302,9 @@ pub fn community_with(
         Some((account, rules)) => (Some(account), rules),
         None => (None, community_rules()),
     };
+    let session_seconds = accounting
+        .as_ref()
+        .map_or(SESSION_SECONDS, |account| grant_seconds(&account.ledger_policy_file));
     let config = CommunityConfig {
         stamp_cohort_seconds: None,
         founding_seed: None,
@@ -330,7 +349,7 @@ pub fn community_with(
         pending_days: 2,
         lease_months: 1,
         shutdown_seconds: 30,
-        session_seconds: 600,
+        session_seconds,
         pending_capacity: 1024,
         throttle_burst: burst,
         throttle_interval_ms: 60_000,

@@ -60,7 +60,9 @@ pub(super) struct Prepared {
 pub(super) fn read(files: &HubFiles) -> Result<Prepared> {
     let template = std::fs::read(&files.template_config).map_err(Error::Unavailable.redact())?;
     // The template must parse as a community configuration before any start.
-    serde_json::from_slice::<CommunityConfig>(&template).map_err(Error::Invalid.redact())?;
+    serde_json::from_slice::<CommunityConfig>(&template)
+        .map_err(Error::Invalid.redact())?
+        .check_account_grant(&files.template_config)?;
     let reserved: Vec<String> = match &files.reserved_file {
         Some(path) => {
             serde_json::from_slice(&std::fs::read(path).map_err(Error::Unavailable.redact())?)

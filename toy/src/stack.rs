@@ -329,6 +329,17 @@ async fn run() -> Result<()> {
                 serde_json::from_slice(&fs::read(&template_path).map_err(|_| "template")?)
                     .map_err(|_| "template decodes")?;
             template["accounting"]["tenants_dir"] = tenants.to_string_lossy().as_ref().into();
+            // Created communities prove their own activation, so they take the G5 fixture's
+            // template terms (rate window = checkpoint period) and a grant that covers them.
+            let ledger = std::path::Path::new(
+                template["accounting"]["ledger_policy_file"]
+                    .as_str()
+                    .ok_or("template ledger policy")?,
+            )
+            .with_file_name("template-ledger-policy.json");
+            let ledger = ledger.to_str().ok_or("template ledger path")?.to_owned();
+            template["session_seconds"] = fixtures::grant_seconds(&ledger).into();
+            template["accounting"]["ledger_policy_file"] = ledger.into();
             fs::write(
                 &template_path,
                 serde_json::to_vec(&template).map_err(|_| "encode template")?,
