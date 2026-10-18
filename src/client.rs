@@ -356,6 +356,10 @@ impl<T: SessionTransport> Client<T> {
         sibling.transport.adopt_session(token);
         Ok(info)
     }
+    /// Open an admin session from a device key's signed nonce and one confirmation stamp.
+    pub async fn authenticate_garden(&mut self, request: Value) -> Result<SessionInfo> {
+        self.adopt("garden_session_finish", request).await
+    }
     async fn adopt(&mut self, name: &str, request: Value) -> Result<SessionInfo> {
         let (token, info) = self.trusted(name, request).await?;
         self.transport.adopt_session(token);
