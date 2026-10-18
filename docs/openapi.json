@@ -8840,6 +8840,140 @@
         "x-scope": "community"
       }
     },
+    "/v1/garden_session_finish": {
+      "post": {
+        "operationId": "garden_session_finish",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Opens an ADMIN (garden) session with a registered device key and one confirmation stamp: the\nstamp covers exactly this key and this one-use nonce, so signing in IS the step-up.",
+                "properties": {
+                  "device_key": {
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "nonce": {
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "salt": {
+                    "description": "The stamp action's salt.",
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "signature": {
+                    "description": "The device key's signature over `device_session::garden_message`.",
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "stamp": {
+                    "description": "cpsd stamp presentation encoding.",
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "user": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "nonce",
+                  "user",
+                  "device_key",
+                  "signature",
+                  "stamp",
+                  "salt"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "expires": {
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "role": {
+                      "$ref": "#/components/schemas/Role"
+                    },
+                    "token": {
+                      "type": "string"
+                    },
+                    "user": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "token",
+                    "user",
+                    "role",
+                    "expires"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [],
+        "summary": "Open an admin session on the admin host by the signed nonce of an active device key and one confirmation stamp",
+        "x-client-access": "trusted",
+        "x-effect": "record",
+        "x-lobby": "false",
+        "x-role": "public",
+        "x-scope": "community"
+      }
+    },
     "/v1/gate_withdraw": {
       "post": {
         "operationId": "gate_withdraw",
