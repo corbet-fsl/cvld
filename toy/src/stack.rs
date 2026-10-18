@@ -695,6 +695,9 @@ async fn run() -> Result<()> {
                     "tls_root_files": [ca],
                 },
                 "community_name": community_name,
+                // The rulebook key of the record period: with it and the record circuit the
+                // device proves its per-epoch record in the background (Forum entry, G2).
+                "record_period_key": account["period_key"],
                 "prover": {
                     "worker_executable": std::env::var("CMSG_NATIVE_PROVER_WORKER")
                         .map_err(|_| "set CMSG_NATIVE_PROVER_WORKER")?,
@@ -702,6 +705,17 @@ async fn run() -> Result<()> {
                     "keys_file": artifacts["keys_file"],
                     "srs_g1_file": artifacts["srs_g1_file"],
                     "srs_g2_file": artifacts["srs_g2_file"],
+                    // The extension group is one circuit and one key file for every member
+                    // (update, wave, outcome, record_epoch); the program selects the member,
+                    // and the group's authenticated digests bind all of them.
+                    "record": {
+                        "circuit_file": artifacts["circuit_file"],
+                        "keys_file": artifacts["keys_file"],
+                    },
+                    "wave": {
+                        "circuit_file": artifacts["circuit_file"],
+                        "keys_file": artifacts["keys_file"],
+                    },
                     "timeout_seconds": 300,
                 },
             });
