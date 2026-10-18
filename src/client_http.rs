@@ -37,7 +37,12 @@ impl HttpClient {
             .no_proxy()
             .retry(reqwest::retry::never())
             .redirect(reqwest::redirect::Policy::none())
-            .timeout(std::time::Duration::from_secs(30));
+            .timeout(std::time::Duration::from_secs(30))
+            // The service (hyper) closes a connection that sends no request head for 30 s,
+            // idle keep-alive included. A pooled connection idle longer could be reused
+            // just as the server drops it; that send fails as an unknown outcome
+            // (Reconcile). Idle connections are therefore retired well before.
+            .pool_idle_timeout(std::time::Duration::from_secs(20));
         for der in roots {
             builder = builder.add_root_certificate(
                 reqwest::Certificate::from_der(der).map_err(Error::Invalid.redact())?,
