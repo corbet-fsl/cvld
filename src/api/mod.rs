@@ -304,6 +304,8 @@ actions! {
     device_session_finish(DeviceSessionFinish) -> Session, Public, Community, Record, Trusted, "Open or renew a community session by the signed nonce of an active device key";
     garden_session_finish(GardenSessionFinish) -> Session, Public, Community, Record, Trusted, "Open an admin session on the admin host by the signed nonce of an active device key and one confirmation stamp";
     device_join(DeviceJoin) -> DeviceJoined, Public, Community, Record, Trusted, "Join by passport and one confirmation stamp, binding the member's first device key";
+    device_add(DevicePairing) -> Empty, Public, Community, Record, Trusted, "Register a further device key PENDING by passport and one confirmation stamp (grants nothing until activated)";
+    device_activate(DevicePairing) -> Empty, Public, Community, Record, Trusted, "Activate a pending device key by passport and one confirmation stamp once its lineage revision is published";
     logout(Empty) -> Empty, Authenticated, Both, Check, Forward, "End this ephemeral session";
     session_fork(Empty) -> Session, Member, Global, Record, Trusted, "Fork this live wallet session into a sibling with the same grant and deadline; the family ends together";
     member_role(Empty) -> MemberRole, Authenticated, Community, Check, Forward, "Read the current original local membership role";

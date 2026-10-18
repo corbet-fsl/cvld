@@ -3,7 +3,9 @@
 //! first device key from a passport presentation plus that stamp, with no community passkey,
 //! and the key then opens sessions silently.
 use super::*;
-use crate::device_session::{JOIN_ACTION, join_message, join_payload, message};
+use crate::device_session::{
+    ACTIVATE_ACTION, ADD_ACTION, JOIN_ACTION, join_message, join_payload, message, pairing_payload,
+};
 use super::device_session::DEFAULT_STAMP_COHORT_SECONDS;
 use crate::test_support::*;
 use ed25519_dalek::SigningKey;
@@ -842,4 +844,154 @@ async fn an_expired_genesis_stamp_only_re_confirms_the_same_recorded_pending_gen
     .unwrap();
     assert_eq!(bound.publication, Some([57; 32]));
     assert_eq!(stamp_uses(&service).await, 1);
+}
+
+fn pairing_action(kind: &str, key: &[u8; 32], salt: [u8; 32]) -> cpsd::StampAction {
+    cpsd::StampAction::new(
+        cpsd::ActionKind::new(kind).unwrap(),
+        cpsd::PayloadDigest::from_bytes(pairing_payload(kind, key)),
+        cpsd::StampSalt::from_bytes(salt),
+    )
+}
+
+/// A pairing body (`device_add` or `device_activate`) presented with the wallet's stamp.
+async fn pairing_body(
+    service: &Running,
+    wallet: &Wallet,
+    kind: &str,
+    device: &mut impl Device,
+    salt: [u8; 32],
+) -> Value {
+    let challenge: PresentationChallenge = serde_json::from_value(
+        client(service, HOST, None)
+            .call("presentation_challenge", json!({}))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let feed: TrustFeed = serde_json::from_value(
+        client(service, HOST, None)
+            .call("trust_feed", json!({}))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let expected = cpsd::AuthenticatedCommunity::from_authenticated_origin(
+        cpsd::CommunityId::new("alpha").unwrap(),
+        csgn::KeyRing::from_cbor(&feed.key_ring).unwrap(),
+    );
+    let proof = wallet
+        .holder
+        .present(
+            &mut cpsd::rand::rngs::OsRng,
+            &expected,
+            &challenge.request,
+            NOW,
+        )
+        .unwrap();
+    let key = device.key();
+    let presentation = wallet
+        .holder
+        .present_stamp(
+            &mut cpsd::rand::rngs::OsRng,
+            &scope_of("alpha", feed.genesis.as_deref()),
+            &pairing_action(kind, &key, salt),
+            NOW,
+        )
+        .unwrap()
+        .to_bytes();
+    json!({
+        "passport": {"challenge": challenge.challenge, "proof": proof.to_bytes()},
+        "stamp": presentation,
+        "salt": salt,
+        "device_key": key,
+        "signature": device.sign(&join_message("alpha", &challenge.challenge, &key)).await,
+    })
+}
+
+#[test]
+fn pairing_payloads_separate_steps_and_keys() {
+    let (a, b) = ([1; 32], [2; 32]);
+    assert_ne!(
+        pairing_payload(ADD_ACTION, &a),
+        pairing_payload(ACTIVATE_ACTION, &a)
+    );
+    assert_ne!(pairing_payload(ADD_ACTION, &a), pairing_payload(ADD_ACTION, &b));
+    assert_ne!(pairing_payload(ADD_ACTION, &a), join_payload(&a, &[0; 32]));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_further_device_key_is_pending_until_its_activation_stamp() {
+    let global = configured_wallet(100).await;
+    let mut wallet = wallet(&global, 61).await;
+    let public: GlobalPublic = serde_json::from_value(
+        client(&global, WALLET, None)
+            .call("global_public", json!({}))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let service = community("alpha", &public).await;
+    let mut first = SigningKey::from_bytes(&[71; 32]);
+    let mut second = SigningKey::from_bytes(&[74; 32]);
+    let key = first.verifying_key().to_bytes();
+    let second_key = second.verifying_key().to_bytes();
+    let (join_salt, add_salt, activate_salt) = ([9; 32], [10; 32], [11; 32]);
+    let scope = community_scope(&service, "alpha").await;
+    // One confirmation covers the join and both pairing steps of the second key.
+    stamp(
+        &global,
+        &mut wallet,
+        &[
+            (scope.clone(), join_action(&key, join_salt)),
+            (scope.clone(), pairing_action(ADD_ACTION, &second_key, add_salt)),
+            (
+                scope,
+                pairing_action(ACTIVATE_ACTION, &second_key, activate_salt),
+            ),
+        ],
+    )
+    .await;
+    let body = join_body(&service, &wallet, "alpha", &mut first, join_salt).await;
+    let joined: crate::api::DeviceJoined = serde_json::from_value(
+        client(&service, HOST, None)
+            .call("device_join", body)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let anonymous = client(&service, HOST, None);
+    // Activation before registration is refused and does not burn the stamp.
+    let early = pairing_body(&service, &wallet, ACTIVATE_ACTION, &mut second, activate_salt).await;
+    assert!(anonymous.call("device_activate", early).await.is_err());
+    // The add stamp does not approve the activation step, nor another key's add.
+    let mut mismatched =
+        pairing_body(&service, &wallet, ADD_ACTION, &mut second, add_salt).await;
+    mismatched["salt"] = json!(activate_salt);
+    assert!(anonymous.call("device_add", mismatched).await.is_err());
+    let mut other_key = pairing_body(&service, &wallet, ADD_ACTION, &mut second, add_salt).await;
+    other_key["device_key"] = json!(key);
+    assert!(anonymous.call("device_add", other_key).await.is_err());
+    // Add: PENDING grants nothing, and a retry of the same stamp is idempotent.
+    let add = pairing_body(&service, &wallet, ADD_ACTION, &mut second, add_salt).await;
+    anonymous.call("device_add", add).await.unwrap();
+    let again = pairing_body(&service, &wallet, ADD_ACTION, &mut second, add_salt).await;
+    anonymous.call("device_add", again).await.unwrap();
+    assert!(open_session(&service, &joined.user, &mut second).await.is_err());
+    // Activate: the key now opens a full member session; the first key still does.
+    let activate =
+        pairing_body(&service, &wallet, ACTIVATE_ACTION, &mut second, activate_salt).await;
+    anonymous.call("device_activate", activate).await.unwrap();
+    let session = open_session(&service, &joined.user, &mut second)
+        .await
+        .unwrap();
+    assert_eq!(session.user, joined.user);
+    open_session(&service, &joined.user, &mut first)
+        .await
+        .unwrap();
+    // A stamp-less pairing request is refused.
+    let mut stampless =
+        pairing_body(&service, &wallet, ACTIVATE_ACTION, &mut second, activate_salt).await;
+    stampless["stamp"] = json!(Vec::<u8>::new());
+    assert!(anonymous.call("device_activate", stampless).await.is_err());
 }

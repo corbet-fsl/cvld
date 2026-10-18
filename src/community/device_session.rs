@@ -3,7 +3,7 @@
 //! Renewal is the same exchange. Every refusal after the nonce lookup is the same `Unauthorized`.
 use super::*;
 use crate::device_session::{
-    JOIN_ACTION, NONCE_LEN, NONCE_SECONDS, join_message, join_payload, message,
+    ACTIVATE_ACTION, ADD_ACTION, JOIN_ACTION, NONCE_LEN, NONCE_SECONDS, join_message, join_payload, message, pairing_payload,
 };
 use ed25519_dalek::{Signature, VerifyingKey};
 
@@ -369,6 +369,129 @@ impl CommunityService {
             Err(_) => {
                 if fresh {
                     // Not applied: free the digest so the member can retry with this stamp.
+                    let _ = ledger.release(&verified, now).await;
+                }
+                Err(Error::Refused)
+            }
+        }
+    }
+
+    /// One stamped pairing step (`device_add` registers the key PENDING, `device_activate`
+    /// makes it ACTIVE): the same checks as a join (one-use challenge, key signature, passport,
+    /// stamp covering exactly this action and key under the passport's pseudonym), but a stamp
+    /// that no longer verifies is always refused. The digest is recorded once; a retry with the
+    /// same stamp is idempotent in the membership, and a failed apply frees the digest.
+    pub async fn device_pairing(
+        &mut self,
+        kind: &'static str,
+        request: DevicePairing,
+        now: u64,
+    ) -> Result<Empty> {
+        debug_assert!(kind == ADD_ACTION || kind == ACTIVATE_ACTION);
+        self.refresh_global(now).await?;
+        self.prune(now);
+        let input = request.passport;
+        let challenge = self
+            .challenges
+            .remove(&input.challenge)
+            .ok_or(Error::Refused)?;
+        crate::service::publication::expires_at(challenge.until)?;
+        if challenge.owner.is_some() || challenge.value.root_board_request().is_some() {
+            return Err(Error::Forbidden);
+        }
+        let key =
+            VerifyingKey::from_bytes(&request.device_key).map_err(Error::Unauthorized.redact())?;
+        if key.is_weak() {
+            return Err(Error::Unauthorized);
+        }
+        let signature =
+            Signature::from_slice(&request.signature).map_err(Error::Unauthorized.redact())?;
+        key.verify_strict(
+            &join_message(
+                &self.config.community,
+                &input.challenge,
+                &request.device_key,
+            ),
+            &signature,
+        )
+        .map_err(Error::Unauthorized.redact())?;
+        let proof =
+            cpsd::Presentation::from_bytes(&input.proof).map_err(Error::Invalid.redact())?;
+        let passport = self
+            .facade
+            .verify(&mut cpsd::rand::rngs::OsRng, &challenge.value, &proof, now)
+            .await
+            .map_err(Error::Refused.redact())?;
+        let global = crate::global_trust::load(&self.db, &self.config, now).await?;
+        let stamp_key = cpsd::StampPublicKey::from_bytes(
+            global
+                .status
+                .stamp_public_key
+                .as_deref()
+                .ok_or(Error::Refused)?,
+        )
+        .map_err(Error::Refused.redact())?;
+        let params = cpsd::StampParams::new(
+            self.config
+                .stamp_cohort_seconds
+                .unwrap_or(DEFAULT_STAMP_COHORT_SECONDS),
+        )
+        .map_err(Error::Invalid.redact())?;
+        let ledger = cpsd::StampLedger::new(
+            crate::stamp_uses::StampUses::new(
+                &self.db,
+                &self.config.community,
+                crate::stamp_uses::DEFAULT_CAPACITY,
+            )?,
+            *self.stamp_scope()?.fingerprint(),
+            vec![stamp_key.clone()],
+            params,
+        )
+        .map_err(Error::Refused.redact())?;
+        let action = cpsd::StampAction::new(
+            cpsd::ActionKind::new(kind).map_err(Error::Invalid.redact())?,
+            cpsd::PayloadDigest::from_bytes(pairing_payload(kind, &request.device_key)),
+            cpsd::StampSalt::from_bytes(request.salt),
+        );
+        let verified = cpsd::StampPresentation::from_bytes(&request.stamp)
+            .map_err(Error::Refused.redact())
+            .and_then(|presentation| {
+                cpsd::verify_stamp(
+                    &[stamp_key],
+                    &params,
+                    &ledger.scope(),
+                    global.status.epoch,
+                    &action,
+                    &presentation,
+                    now,
+                )
+                .map_err(Error::Refused.redact())
+            })?;
+        if verified.pseudonym().to_hex() != passport.member_id() {
+            return Err(Error::Refused);
+        }
+        ledger
+            .prune(now)
+            .await
+            .map_err(Error::Unavailable.redact())?;
+        let fresh = match ledger.record(&verified, now).await {
+            Ok(()) => true,
+            Err(cpsd::Error::StampReplayed) => false,
+            Err(_) => return Err(Error::Unavailable),
+        };
+        let applied = if kind == ADD_ACTION {
+            self.facade
+                .add_device_key(passport, request.device_key, now)
+                .await
+        } else {
+            self.facade
+                .activate_device_key(passport, request.device_key, now)
+                .await
+        };
+        match applied {
+            Ok(()) => Ok(Empty {}),
+            Err(_) => {
+                if fresh {
                     let _ = ledger.release(&verified, now).await;
                 }
                 Err(Error::Refused)
