@@ -31,7 +31,7 @@ impl Door {
     /// caller owns secret-file loading; this operation has no HTTP/MCP action.
     pub async fn root_board_purpose(&self, key: cpsd::IssuerKey) -> Result<Arc<RootBoardPurpose>> {
         let community = self.community_backend()?.lock().await;
-        if community.config.community != "root" {
+        if !community.is_root_board() {
             return Err(Error::WrongHost);
         }
         let now = self.inner.clock.now();
@@ -55,7 +55,7 @@ impl Door {
     /// No ordinary source configuration contains the common private key.
     pub async fn attach_root_board_purpose(&self, purpose: Arc<RootBoardPurpose>) -> Result<()> {
         let mut community = self.community_backend()?.lock().await;
-        if community.config.community == "root"
+        if community.is_root_board()
             || community.config.domain != purpose.domain
             || community.root_purpose.is_some()
         {

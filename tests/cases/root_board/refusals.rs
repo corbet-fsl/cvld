@@ -87,13 +87,8 @@ async fn root_constructor_revalidates_deserialized_scope_and_descriptor_bytes() 
         Door::root_board(parsed, global.clock.clone()).await,
         Err(cvld::error::Error::Invalid)
     ));
-    let mut foreign = value;
-    foreign["community"]["community"] = json!("alpha");
-    let parsed: RootCommunityConfig = serde_json::from_value(foreign).unwrap();
-    assert!(matches!(
-        Door::root_board(parsed, global.clock.clone()).await,
-        Err(cvld::error::Error::Invalid)
-    ));
+    // A board is an ordinary community: its name is free, only descriptor and name must agree
+    // (checked above).
     let ordinary: CommunityConfig = community_config(dir.path(), "root", &public, 100);
     assert!(RootCommunityConfig::new(ordinary, String::new()).is_err());
 }

@@ -155,7 +155,7 @@ impl CommunityService {
             }
             match lease.role() {
                 cmbr::Role::Root => {}
-                cmbr::Role::Admin if self.config.community != "root" => {}
+                cmbr::Role::Admin if self.root_board_issuer.is_none() => {}
                 _ => return Err(Error::Forbidden),
             }
             Ok(lease)

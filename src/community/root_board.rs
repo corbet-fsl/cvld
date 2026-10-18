@@ -2,6 +2,11 @@
 use super::*;
 
 impl CommunityService {
+    /// Whether this community is the admin board: decided by its descriptor, never by its name.
+    pub(crate) fn is_root_board(&self) -> bool {
+        self.root_board_issuer.is_some()
+    }
+
     pub(crate) async fn open_root_board(
         db: &crlt::Db,
         config: CommunityConfig,

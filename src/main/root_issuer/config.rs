@@ -31,12 +31,12 @@ pub(super) fn read(path: &str) -> Result<Prepared> {
     bind(&mut binds, root.listen())?;
     let mut names = BTreeSet::new();
     let mut hosts = BTreeSet::new();
-    hosts.insert(host("root", root.domain())?);
-    hosts.insert(host("admin.root", root.domain())?);
+    hosts.insert(host(root.community_name(), root.domain())?);
+    hosts.insert(host(&format!("admin.{}", root.community_name()), root.domain())?);
     let mut sources = Vec::new();
     for path in files.source_configs {
         let source = CommunityConfig::read(&path)?;
-        if source.community == "root"
+        if source.community == root.community_name()
             || source.domain != root.domain()
             || !names.insert(source.community.clone())
         {

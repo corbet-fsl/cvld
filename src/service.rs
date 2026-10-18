@@ -441,7 +441,7 @@ impl Door {
         let member_host = format!("api.{}.{}", config.community, config.domain);
         let root_board_admin_host = root_board
             .as_ref()
-            .map(|_| format!("api.admin.root.{}", config.domain));
+            .map(|_| format!("api.admin.{}.{}", config.community, config.domain));
         let community = match root_board {
             Some(descriptor) => {
                 CommunityService::open_root_board(

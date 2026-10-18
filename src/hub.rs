@@ -21,6 +21,9 @@ use rand::RngCore;
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, sync::Arc};
 use subtle::ConstantTimeEq;
+
+/// The platform Root portal host label (`api.admin.root.<base>`); a platform host, never a community.
+pub const PLATFORM_ROOT_HOST: &str = "root";
 use tokio::sync::RwLock;
 use tower::ServiceExt;
 
@@ -351,11 +354,13 @@ impl Hub {
             .strip_prefix("api.admin.")
             .or_else(|| suffix.strip_prefix("api."));
         let router = match label {
-            Some(address) if address != "root" => match self.doors.read().await.get(address) {
+            // "root" is the platform Root portal host, not a community: community
+            // addresses have at least eight characters, so no community can collide.
+            Some(address) if address != PLATFORM_ROOT_HOST => match self.doors.read().await.get(address) {
                 Some(live) => live.router.clone(),
                 None => return Error::WrongHost.into_response(),
             },
-            // wallet.<base>, api.admin.root.<base> and every other global host.
+            // wallet.<base>, api.admin.<PLATFORM_ROOT_HOST>.<base> and every other global host.
             _ => global,
         };
         match router.oneshot(request).await {

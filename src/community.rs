@@ -194,7 +194,6 @@ impl CommunityService {
                 .bytes()
                 .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
             || ["admin", "api", "www", "mail", "mcp", "wallet"].contains(&config.community.as_str())
-            || (config.community == "root") != root_board.is_some()
             || root_board.as_ref().is_some_and(|descriptor| {
                 descriptor.community().as_bytes() != config.community.as_bytes()
             })
