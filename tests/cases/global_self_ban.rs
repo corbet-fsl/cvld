@@ -1,6 +1,6 @@
 //! Real UV resident passkeys and HTTP prove the permanent holder-only intent.
 #![cfg(feature = "development-gate")]
-mod support;
+use crate::support;
 use cvld::api::*;
 use cvld::service::Clock;
 use serde_json::json;

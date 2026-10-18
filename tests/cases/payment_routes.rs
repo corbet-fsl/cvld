@@ -1,7 +1,7 @@
 //! Actual member/session/policy and paid gate composition; no vendor network.
 #![cfg(feature = "development-gate")]
-mod payment_support;
-mod support;
+use crate::payment_support;
+use crate::support;
 use crpt::facilitator::{DispatchGuard, Exchange, Transport};
 use cvld::{api::*, payments, service::Door};
 use payment_support::{Inert, Reply, Wire};

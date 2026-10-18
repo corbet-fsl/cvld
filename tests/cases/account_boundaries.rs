@@ -1,7 +1,7 @@
 //! Real member/HTTP boundaries; these do not qualify native account acceptance.
 #![cfg(all(feature = "server", not(target_arch = "wasm32")))]
-mod payment_support;
-mod support;
+use crate::payment_support;
+use crate::support;
 use cmty::cplc;
 use cvld::{api::*, service::Door};
 use ed25519_dalek::SigningKey;

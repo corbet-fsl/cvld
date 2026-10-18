@@ -12,13 +12,13 @@ use std::sync::{
 use support::*;
 use webauthn_authenticator_rs::{AuthenticatorBackend as _, softtoken::SoftToken};
 
-#[path = "../../../tests/production_journey/contacts.rs"]
+#[path = "../../../tests/cases/production_journey/contacts.rs"]
 mod contacts;
 #[allow(dead_code)]
-#[path = "../../../tests/production_journey/payment.rs"]
+#[path = "../../../tests/cases/production_journey/payment.rs"]
 mod payment;
 #[allow(dead_code)]
-#[path = "../../../tests/initial_creation/routes.rs"]
+#[path = "../../../tests/cases/initial_creation/routes.rs"]
 mod routes;
 
 const HOST: &str = "api.alpha.example.test";

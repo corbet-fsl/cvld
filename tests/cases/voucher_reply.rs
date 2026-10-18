@@ -1,5 +1,5 @@
 #![cfg(feature = "development-gate")]
-mod support;
+use crate::support;
 use serde_json::json;
 use support::*;
 

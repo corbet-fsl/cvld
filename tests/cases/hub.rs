@@ -1,7 +1,7 @@
 #![cfg(feature = "development-gate")]
 //! Self-service creation end to end over HTTP: blind token, creation, claim of
 //! the first seat, first-admin admission, registry endpoints and termination.
-mod support;
+use crate::support;
 use blind_rsa_signatures::{DefaultRng, KeyPairSha384PSSRandomized as KeyPair};
 use cvld::{
     address::Reserved,

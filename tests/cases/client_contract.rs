@@ -1,5 +1,5 @@
 #![cfg(feature = "development-gate")]
-mod support;
+use crate::support;
 
 use cvld::api::Ceremony;
 use cvld::{
@@ -8,7 +8,7 @@ use cvld::{
 };
 use serde_json::{Value, json};
 use webauthn_authenticator_rs::{AuthenticatorBackend, softtoken::SoftToken};
-#[path = "support/client_faults.rs"]
+#[path = "../support/client_faults.rs"]
 mod client_faults;
 use support::*;
 

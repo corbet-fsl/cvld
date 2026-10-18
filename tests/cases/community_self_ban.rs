@@ -1,6 +1,6 @@
 //! Genuine resident passkeys, blind passports and signed community publications.
 #![cfg(feature = "development-gate")]
-mod support;
+use crate::support;
 use cmty::cplc;
 use cvld::{api::*, service::Clock};
 use ed25519_dalek::{Signer as _, SigningKey};

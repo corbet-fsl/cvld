@@ -1,7 +1,7 @@
 //! Initial enrollment receipts require the actual current original passkey.
 #![cfg(all(feature = "server", not(target_arch = "wasm32")))]
-mod payment_support;
-mod support;
+use crate::payment_support;
+use crate::support;
 use cmty::cplc;
 use cvld::{api::*, service::Door};
 use ed25519_dalek::SigningKey;

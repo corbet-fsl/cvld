@@ -1,5 +1,5 @@
 #![cfg(feature = "server")]
-mod payment_support;
+use crate::payment_support;
 use cvld::payments::{self, *};
 use payment_support::*;
 use std::sync::{Arc, atomic::Ordering};

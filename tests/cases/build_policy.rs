@@ -21,7 +21,7 @@ fn actual_build_script_refuses_development_authority_in_release() {
     ] {
         let mut command = std::process::Command::new(std::env::current_exe().unwrap());
         command
-            .args(["--exact", "build_environment_probe", "--nocapture"])
+            .args(["--exact", "build_policy::build_environment_probe", "--nocapture"])
             .env("CVLD_BUILD_POLICY_PROBE", "1")
             .env("PROFILE", profile)
             .env_remove("CARGO_FEATURE_DEVELOPMENT_GATE");

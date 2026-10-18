@@ -1,6 +1,6 @@
 //! Original payment planning and dispatch boundaries; HTTP is entirely inert.
 #![cfg(feature = "server")]
-mod payment_support;
+use crate::payment_support;
 use crpt::facilitator::{DispatchGuard, Exchange, Transport};
 use cvld::payments::{self, *};
 use payment_support::*;

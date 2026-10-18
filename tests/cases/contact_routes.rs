@@ -1,6 +1,6 @@
 //! Actual HTTP routes refuse absent providers and keep local simulation separate.
 #![cfg(feature = "development-gate")]
-mod support;
+use crate::support;
 use cvld::{api::*, config::Config, service::Door};
 use serde_json::json;
 use support::*;

@@ -1,5 +1,5 @@
 #![cfg(feature = "development-gate")]
-mod support;
+use crate::support;
 use cmty::cplc;
 use cvld::api::*;
 use serde_json::{Value, json};

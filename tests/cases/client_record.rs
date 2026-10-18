@@ -1,7 +1,7 @@
 //! Actual TLS/framing tests, using public bytes from a real Door.
 //! The bytes are NOT a record fixture and fetching them grants no authority.
 #![cfg(all(feature = "development-gate", not(target_arch = "wasm32")))]
-mod support;
+use crate::support;
 use cvld::{
     client::{Client, HttpClient},
     error::Error,

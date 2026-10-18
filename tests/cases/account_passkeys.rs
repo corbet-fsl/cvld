@@ -1,6 +1,6 @@
 //! Actual HTTP management for wallet and operator roles using UV resident keys.
 #![cfg(feature = "development-gate")]
-mod support;
+use crate::support;
 use cvld::api::*;
 use serde_json::{Value, json};
 use support::{

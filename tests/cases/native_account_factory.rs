@@ -6,7 +6,7 @@
 mod cuts;
 #[path = "native_account_factory/fixture.rs"]
 mod fixture;
-mod support;
+use crate::support;
 
 use cvld::{
     api::TrustFeed,

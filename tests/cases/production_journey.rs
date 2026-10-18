@@ -2,8 +2,8 @@
 //! This tests the CVLD boundary through genuine Guard admission, not Forum G2
 //! or Tor transport. Only external provider HTTP is inert.
 #![cfg(all(feature = "server", not(target_arch = "wasm32")))]
-mod payment_support;
-mod support;
+use crate::payment_support;
+use crate::support;
 use cmty::cplc;
 use cvld::{api::*, service::{Clock as _, Door}};
 use ed25519_dalek::{Signer as _, SigningKey};

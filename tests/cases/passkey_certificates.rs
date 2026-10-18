@@ -1,6 +1,6 @@
 //! Real HTTP certificate retrieval through the existing owned community graph.
 #![cfg(feature = "development-gate")]
-mod support;
+use crate::support;
 
 use cvld::{
     api::*,

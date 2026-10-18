@@ -1,6 +1,6 @@
 //! Receipt reads use genuine original resident UV; they never renew membership.
 #![cfg(feature = "development-gate")]
-mod support;
+use crate::support;
 use cvld::api::*;
 use serde_json::{Value, json};
 use support::{

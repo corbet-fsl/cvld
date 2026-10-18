@@ -1,6 +1,6 @@
 //! Production-mode HTTP lifecycle uses only real stored UV passkey ownership.
 #![cfg(all(feature = "server", not(target_arch = "wasm32")))]
-mod support;
+use crate::support;
 use cvld::{api::*, service::Door};
 use serde_json::{Value, json};
 use std::sync::{Arc, atomic::AtomicU64};

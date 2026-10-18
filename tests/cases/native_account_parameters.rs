@@ -1,8 +1,8 @@
 //! Public input capture for a future genuine native-account fixture.
 //! This is not an account checkpoint, grant, proof, or accepted wallet state.
 #![cfg(all(feature = "server", not(target_arch = "wasm32")))]
-mod payment_support;
-mod support;
+use crate::payment_support;
+use crate::support;
 use cmty::cplc;
 use cpsd::rand::{SeedableRng, rngs::StdRng};
 use cvld::{api::*, service::Door};
@@ -21,7 +21,7 @@ mod payment;
 const HOST: &str = "api.alpha.example.test";
 
 fn resolved_source(package: &str) -> &str {
-    let section = include_str!("../Cargo.lock")
+    let section = include_str!("../../Cargo.lock")
         .split("[[package]]")
         .find(|section| {
             section

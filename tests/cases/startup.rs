@@ -1,5 +1,5 @@
 #![cfg(all(feature = "development-gate", unix))]
-mod support;
+use crate::support;
 use cvld::{
     api::GlobalPublic,
     client::HttpClient,

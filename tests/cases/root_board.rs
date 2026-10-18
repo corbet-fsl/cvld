@@ -1,6 +1,6 @@
 #![cfg(feature = "development-gate")]
 
-mod support;
+use crate::support;
 use cvld::{
     api::{GlobalPublic, PresentationChallenge, TrustFeed},
     config::{CommunityConfig, RootCommunityConfig},

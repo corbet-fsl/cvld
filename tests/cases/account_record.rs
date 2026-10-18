@@ -1,7 +1,7 @@
 //! Binary contract and real unconfigured HTTP refusals; no G2 qualification.
 #![cfg(all(feature = "server", not(target_arch = "wasm32")))]
-mod payment_support;
-mod support;
+use crate::payment_support;
+use crate::support;
 use cmty::cplc;
 use cvld::{
     api::*,

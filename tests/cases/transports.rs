@@ -1,5 +1,5 @@
 #![cfg(feature = "development-gate")]
-mod support;
+use crate::support;
 use rmcp::{ServiceExt, model::CallToolRequestParams, transport::TokioChildProcess};
 use serde_json::json;
 use support::*;
