@@ -45,6 +45,13 @@ pub trait Factory: Send + Sync {
     fn forget(&self, seed: [u8; 32]);
 }
 
+/// Receives the end-of-chain statement of an ended community; the platform feed lists it so
+/// every member device deletes its local data. Idempotent per fingerprint.
+pub trait EndedSink: Send + Sync {
+    fn ended<'a>(&'a self, fingerprint: [u8; 32], dissolved: bool, at: u64)
+    -> Boxed<'a, Result<()>>;
+}
+
 pub struct HubParts {
     /// The global service database: holds the registry and the token tables.
     pub global_db: crlt::Db,
@@ -82,6 +89,7 @@ pub struct Hub {
     shell_seconds: u64,
     master: zeroize::Zeroizing<Vec<u8>>,
     doors: RwLock<BTreeMap<String, Live>>,
+    ended_sink: std::sync::OnceLock<Arc<dyn EndedSink>>,
 }
 
 pub fn hex(bytes: &[u8]) -> String {
@@ -183,7 +191,24 @@ impl Hub {
             shell_seconds: parts.shell_seconds.max(MIN_SHELL_SECONDS),
             master: parts.master,
             doors: RwLock::new(BTreeMap::new()),
+            ended_sink: std::sync::OnceLock::new(),
         }))
+    }
+
+    /// Where end-of-chain statements go. Done once, by the launcher.
+    pub fn attach_ended_sink(&self, sink: Arc<dyn EndedSink>) -> Result<()> {
+        self.ended_sink.set(sink).map_err(|_| Error::Forbidden)
+    }
+
+    /// Publish the end-of-chain statement of an ending community (once admitted, it has a
+    /// fingerprint). Repeats are harmless; a failure keeps the community in `ending`.
+    async fn publish_end(&self, entry: &Entry, now: u64) -> Result<()> {
+        let (Some(fingerprint), Some(sink)) = (entry.fingerprint, self.ended_sink.get()) else {
+            return Ok(());
+        };
+        let dissolved = entry.end_reason.as_deref() == Some("dissolved");
+        sink.ended(fingerprint, dissolved, entry.ended_at.unwrap_or(now))
+            .await
     }
 
     pub fn registry(&self) -> &Arc<Registry> {
@@ -311,6 +336,7 @@ impl Hub {
 
     /// Delete the data of an ending community once no hold applies.
     async fn finish(&self, entry: &Entry, now: u64) -> Result<()> {
+        self.publish_end(entry, now).await?;
         if entry.hold_until.is_some_and(|until| until > now) {
             return Ok(());
         }

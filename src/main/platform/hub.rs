@@ -262,6 +262,7 @@ pub(super) async fn open(
     .await?;
     let global = services.first_mut().ok_or(Error::Unavailable)?;
     global.door.attach_hub(Arc::new(hub.clone()))?;
+    hub.attach_ended_sink(Arc::new(global.door.clone()))?;
     global.router = Some(hub.front(&global.door));
     global.hub = Some(hub.clone());
     hub.restore().await?;

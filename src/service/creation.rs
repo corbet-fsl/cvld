@@ -182,3 +182,33 @@ impl Door {
         Ok(())
     }
 }
+
+impl crate::hub::EndedSink for Door {
+    fn ended<'a>(
+        &'a self,
+        fingerprint: [u8; 32],
+        dissolved: bool,
+        at: u64,
+    ) -> Boxed<'a, Result<()>> {
+        Box::pin(async move {
+            let mut global = self.global_backend()?.lock().await;
+            // A platform without a wallet publication has no feed to list the statement in.
+            let Some(wallet) = global.wallet.as_mut() else {
+                return Ok(());
+            };
+            let chain = cgbl::EndedChain {
+                fingerprint,
+                reason_class: if dissolved {
+                    cgbl::EndedReason::Dissolved
+                } else {
+                    cgbl::EndedReason::Banned
+                },
+                ended_at: at,
+            };
+            wallet
+                .record_ended(chain, self.inner.clock.now())
+                .await
+                .map_err(Error::Unavailable.redact())
+        })
+    }
+}
