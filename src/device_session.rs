@@ -52,6 +52,24 @@ pub fn join_payload(device_key: &[u8; 32], seed: &[u8; 32]) -> [u8; 32] {
     hasher.finalize().into()
 }
 
+/// Stamp action kind of stamped pairing step one: register a PENDING device key.
+pub const ADD_ACTION: &str = "device_add";
+/// Stamp action kind of stamped pairing step two: activate the key once its lineage revision
+/// is published.
+pub const ACTIVATE_ACTION: &str = "device_activate";
+
+/// Payload digest of a pairing stamp action (`device_add` or `device_activate`):
+/// SHA-256(action kind || device key), so one stamp approves exactly one step for one key.
+pub fn pairing_payload(action: &str, device_key: &[u8; 32]) -> [u8; 32] {
+    use sha2::Digest as _;
+    let mut hasher = sha2::Sha256::new();
+    hasher.update(b"cvld.device-pairing.v1\0");
+    hasher.update(action.as_bytes());
+    hasher.update([0]);
+    hasher.update(device_key);
+    hasher.finalize().into()
+}
+
 /// Signed message of a device join: domain tag, community, passport challenge id, device key.
 pub fn join_message(community: &str, challenge: &str, device_key: &[u8; 32]) -> Vec<u8> {
     let mut message = b"cvld.device-join.v1\0".to_vec();
