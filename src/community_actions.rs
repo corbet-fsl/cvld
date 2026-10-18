@@ -428,6 +428,12 @@ impl Door {
         let now = self
             .policy_garden_release(&ctx, &community, lease.as_mut())
             .await?;
+        // Zero asks for the earliest allowed time, so a client needs no copy of the notice period.
+        let effective_at = if request.effective_at == 0 {
+            now.saturating_add(community.config.minimum_notice_seconds)
+        } else {
+            request.effective_at
+        };
         match lease.as_mut() {
             Some(lease) => {
                 let mut guard = crate::community::garden::GardenCommit::new(
@@ -441,7 +447,7 @@ impl Door {
                         &request.key,
                         edit,
                         now,
-                        request.effective_at,
+                        effective_at,
                         community.config.minimum_notice_seconds,
                         &mut guard,
                     )
@@ -454,7 +460,7 @@ impl Door {
                         &request.key,
                         edit,
                         now,
-                        request.effective_at,
+                        effective_at,
                         community.config.minimum_notice_seconds,
                     )
                     .await
