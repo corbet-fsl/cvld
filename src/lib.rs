@@ -44,6 +44,8 @@ mod global_trust;
 #[cfg(feature = "server")]
 pub mod hosts;
 #[cfg(feature = "server")]
+pub mod hold;
+#[cfg(feature = "server")]
 pub mod hub;
 #[cfg(feature = "server")]
 mod identity;

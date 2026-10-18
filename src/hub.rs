@@ -92,6 +92,9 @@ pub struct HubParts {
     pub shell_seconds: u64,
     /// Platform charter master secret; per-community seeds derive from it.
     pub master: zeroize::Zeroizing<Vec<u8>>,
+    /// Public X25519 key of the root hold key: a legal hold is only possible
+    /// when it is set, and the held data is then readable by that key alone.
+    pub hold_key: Option<[u8; 32]>,
 }
 
 struct Live {
@@ -111,6 +114,7 @@ pub struct Hub {
     clock: Arc<dyn Clock>,
     shell_seconds: u64,
     master: zeroize::Zeroizing<Vec<u8>>,
+    hold_key: Option<[u8; 32]>,
     doors: RwLock<BTreeMap<String, Live>>,
     ended_sink: std::sync::OnceLock<Arc<dyn EndedSink>>,
 }
@@ -213,6 +217,7 @@ impl Hub {
             clock: parts.clock,
             shell_seconds: parts.shell_seconds.max(MIN_SHELL_SECONDS),
             master: parts.master,
+            hold_key: parts.hold_key,
             doors: RwLock::new(BTreeMap::new()),
             ended_sink: std::sync::OnceLock::new(),
         }))
@@ -304,6 +309,11 @@ impl Hub {
             self.detach(&entry).await;
             self.finish(&entry, now).await?;
         }
+        // A hold interrupted before the data was sealed and purged is finished
+        // again; at the end of the hold the sealed copy goes too (see `finish`).
+        for entry in self.registry.holding(now).await? {
+            self.finish(&entry, now).await?;
+        }
         for entry in self.registry.expired_shells(now).await? {
             let admitted = match self.doors.read().await.get(&entry.address) {
                 Some(live) => live.door.community_active().await.unwrap_or(false),
@@ -336,6 +346,11 @@ impl Hub {
             .await?
             .filter(|entry| entry.state.serves())
             .ok_or(Error::Refused)?;
+        // A hold is only possible when a root hold key is configured: the held
+        // data is never kept in the clear, so there is no fallback.
+        if hold_until.is_some_and(|until| until > now) && self.hold_key.is_none() {
+            return Err(Error::Invalid);
+        }
         let entry = self
             .registry
             .begin_end(entry.id, now, reason, hold_until, block_name)
@@ -357,16 +372,29 @@ impl Hub {
         let _ = self.tokens.release(entry.id).await;
     }
 
-    /// Delete the data of an ending community once no hold applies.
+    /// Delete the data of an ending community. Under a hold the data is first
+    /// sealed to the root hold key (the only copy, ciphertext) and the server
+    /// scope is emptied all the same; the sealed copy goes when the hold ends.
     async fn finish(&self, entry: &Entry, now: u64) -> Result<()> {
         self.publish_end(entry, now).await?;
-        if entry.hold_until.is_some_and(|until| until > now) {
+        if let Some(until) = entry.hold_until.filter(|until| *until > now) {
+            if self.registry.held(entry.id).await?.is_none() {
+                let key = self.hold_key.ok_or(Error::Invalid)?;
+                let dump = purge::dump_scope(&self.community_db, &entry.address).await?;
+                let sealed = crate::hold::seal(&key, &entry.id, &dump)?;
+                self.registry.store_held(entry.id, until, &sealed).await?;
+            }
+            purge::purge_scope(&self.community_db, &entry.address).await?;
+            if let Ok(seed) = seed(&self.master, &entry.id) {
+                self.factory.forget(seed);
+            }
             return Ok(());
         }
         self.provisioner
             .deprovision(&Hostnames::new(&entry.address, &self.base))
             .await?;
         purge::purge_scope(&self.community_db, &entry.address).await?;
+        self.registry.delete_held(entry.id).await?;
         if let Ok(seed) = seed(&self.master, &entry.id) {
             self.factory.forget(seed);
         }

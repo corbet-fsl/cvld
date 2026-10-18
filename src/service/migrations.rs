@@ -87,5 +87,6 @@ pub fn global_migrations() -> Vec<crlt::Migration<'static>> {
             "stamp-issuance",
             cpsd::storage::libsql::STAMP_ISSUANCE_SCHEMA,
         ),
+        crlt::Migration::new(15, "legal-hold", crate::registry::HELD_SCHEMA),
     ]
 }

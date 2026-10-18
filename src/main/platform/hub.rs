@@ -27,6 +27,10 @@ pub(super) struct HubFiles {
     reserved_file: Option<String>,
     /// Lifetime of an unclaimed community shell.
     shell_seconds: u64,
+    /// Raw 32-byte public X25519 key of the root hold key (a PUBLIC key). Without
+    /// it a legal hold is refused; the secret half stays offline with Root.
+    #[serde(default)]
+    hold_public_key_file: Option<String>,
     #[serde(default)]
     per_week: Option<u32>,
     #[serde(default)]
@@ -54,6 +58,7 @@ pub(super) struct Prepared {
     reserved: Reserved,
     shell_seconds: u64,
     limits: Limits,
+    hold_key: Option<[u8; 32]>,
     provisioner: Arc<dyn HostProvisioner>,
 }
 
@@ -101,6 +106,16 @@ pub(super) fn read(files: &HubFiles) -> Result<Prepared> {
             per_week: files.per_week.unwrap_or(defaults.per_week),
             per_year: files.per_year.unwrap_or(defaults.per_year),
         },
+        hold_key: files
+            .hold_public_key_file
+            .as_deref()
+            .map(|path| -> Result<[u8; 32]> {
+                Config::secret(path)?
+                    .as_slice()
+                    .try_into()
+                    .map_err(|_| Error::Invalid)
+            })
+            .transpose()?,
         provisioner,
     })
 }
@@ -258,6 +273,7 @@ pub(super) async fn open(
         clock,
         shell_seconds: prepared.shell_seconds,
         master: prepared.master,
+        hold_key: prepared.hold_key,
     })
     .await?;
     let global = services.first_mut().ok_or(Error::Unavailable)?;

@@ -32,6 +32,16 @@ CREATE TABLE cvld_blocked_names (
     PRIMARY KEY (community_id, address)
 ) WITHOUT ROWID;";
 
+/// Later registry migration: the sealed data of communities under a legal hold.
+/// Migration history is immutable, so this is a separate migration.
+pub const HELD_SCHEMA: &str = "CREATE TABLE cvld_held (
+    community_id TEXT NOT NULL,
+    id BLOB NOT NULL CHECK (length(id) = 16),
+    hold_until INTEGER NOT NULL,
+    sealed BLOB NOT NULL,
+    PRIMARY KEY (community_id, id)
+) WITHOUT ROWID;";
+
 /// Life-cycle state of a registered community.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum State {
@@ -328,6 +338,61 @@ impl Registry {
             seq,
             ..current
         })
+    }
+
+    /// Keep the sealed data of a community under a legal hold until `until`.
+    pub async fn store_held(&self, id: [u8; 16], until: u64, sealed: &[u8]) -> Result<()> {
+        let mut tx = self.scope.tx().await.map_err(db)?;
+        tx.execute("DELETE FROM cvld_held WHERE id = ?1", [id.to_vec()])
+            .await
+            .map_err(db)?;
+        tx.execute(
+            "INSERT INTO cvld_held (id, hold_until, sealed) VALUES (?1, ?2, ?3)",
+            params![id.to_vec(), int(until)?, sealed.to_vec()],
+        )
+        .await
+        .map_err(db)?;
+        tx.commit().await.map_err(db)
+    }
+
+    /// The sealed data kept for a community under a legal hold.
+    pub async fn held(&self, id: [u8; 16]) -> Result<Option<Vec<u8>>> {
+        let rows = self
+            .scope
+            .query("SELECT sealed FROM cvld_held WHERE id = ?1", [id.to_vec()])
+            .await
+            .map_err(db)?;
+        match rows.first() {
+            None => Ok(None),
+            Some(row) => match row.get_value(0).map_err(db)? {
+                Value::Blob(bytes) => Ok(Some(bytes.clone())),
+                _ => Err(Error::Unavailable),
+            },
+        }
+    }
+
+    /// Delete the held data (the hold ended).
+    pub async fn delete_held(&self, id: [u8; 16]) -> Result<()> {
+        let mut tx = self.scope.tx().await.map_err(db)?;
+        tx.execute("DELETE FROM cvld_held WHERE id = ?1", [id.to_vec()])
+            .await
+            .map_err(db)?;
+        tx.commit().await.map_err(db)
+    }
+
+    /// Communities in `ending` under a hold that has not passed yet.
+    pub async fn holding(&self, now: u64) -> Result<Vec<Entry>> {
+        let rows = self
+            .scope
+            .query(
+                &format!(
+                    "SELECT {COLUMNS} FROM cvld_communities WHERE state = 'ending' AND hold_until > ?1"
+                ),
+                [int(now)?],
+            )
+            .await
+            .map_err(db)?;
+        rows.iter().map(entry).collect()
     }
 
     /// Ending to ended: the community's data is gone (or was deleted at hold end).

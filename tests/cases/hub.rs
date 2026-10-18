@@ -58,6 +58,9 @@ struct Fixture {
     member: Member,
     passport: cpsd::Passport,
     key: creation_token::PublicKey,
+    /// Secret half of the root hold key (offline with Root in production).
+    hold_secret: [u8; 32],
+    dir_path: std::path::PathBuf,
     _dir: tempfile::TempDir,
 }
 
@@ -68,6 +71,10 @@ async fn open(db: &std::path::Path) -> crlt::Db {
 }
 
 async fn fixture() -> Fixture {
+    fixture_with(false).await
+}
+
+async fn fixture_with(hold: bool) -> Fixture {
     let global = global(100).await;
     let (member, passport, public) = wallet_passport(&global).await;
     let dir = tempfile::tempdir().unwrap();
@@ -75,6 +82,7 @@ async fn fixture() -> Fixture {
     let issuer = Issuer::from_der(&pair.sk.to_der().unwrap()).unwrap();
     let key = creation_token::public_key(&issuer.public_der().unwrap()).unwrap();
     let provisioner = Arc::new(NoopProvisioner::default());
+    let (hold_secret, hold_public) = cvld::hold::generate();
     let hub = Hub::new(HubParts {
         global_db: open(&global.dir.path().join("global.db")).await,
         community_db: open(&dir.path().join("community.db")).await,
@@ -94,6 +102,7 @@ async fn fixture() -> Fixture {
         clock: global.clock.clone(),
         shell_seconds: 3600,
         master: zeroize::Zeroizing::new(vec![5; 32]),
+        hold_key: hold.then_some(hold_public),
     })
     .await
     .unwrap();
@@ -119,6 +128,8 @@ async fn fixture() -> Fixture {
         member,
         passport,
         key,
+        hold_secret,
+        dir_path: dir.path().to_path_buf(),
         _dir: dir,
     }
 }
@@ -469,4 +480,85 @@ async fn an_interrupted_creation_is_repeated_without_a_second_community_or_count
         f.record(&first.community_host).await.unwrap()["state"],
         "being_created"
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_legal_hold_keeps_only_ciphertext_a_root_key_opens() {
+    let f = fixture_with(true).await;
+    let created = f.create("heldclub1", f.token().await).await.unwrap();
+    let root = enrol(
+        &f.global,
+        ROOT,
+        Some("synthetic-operator-enrolment-capability"),
+    )
+    .await;
+    let root_api = client(&f.front, ROOT, Some(&root.session));
+    // A hold belongs to legal orders only.
+    let until = f.front.clock.now() + 86_400;
+    assert!(
+        root_api
+            .call(
+                "community_terminate",
+                json!({"address":"heldclub1","reason":"terms","hold_until":until}),
+            )
+            .await
+            .is_err()
+    );
+    root_api
+        .call(
+            "community_terminate",
+            json!({"address":"heldclub1","reason":"legal","hold_until":until}),
+        )
+        .await
+        .unwrap();
+    // The server scope is empty; the only copy is ciphertext.
+    let db = open(&f.dir_path.join("community.db")).await;
+    db.migrate(&cvld::service::community_migrations())
+        .await
+        .unwrap();
+    let rows = db
+        .community("heldclub1")
+        .unwrap()
+        .query("SELECT count(*) FROM cvld_genesis", ())
+        .await
+        .unwrap();
+    assert_eq!(rows[0].get_i64(0).unwrap(), 0);
+    let id: [u8; 16] = (0..16)
+        .map(|i| u8::from_str_radix(&created.id[2 * i..2 * i + 2], 16).unwrap())
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap();
+    let sealed = f.hub.registry().held(id).await.unwrap().unwrap();
+    assert!(!sealed.windows(11).any(|w| w == b"cvld_genesi"));
+    let opened = cvld::hold::open(&f.hold_secret, &id, &sealed).unwrap();
+    assert!(String::from_utf8(opened).unwrap().contains("cvld_genesis"));
+    assert!(cvld::hold::open(&[9; 32], &id, &sealed).is_err());
+    // The hold ends: the sealed copy goes.
+    f.front.clock.set(until + 1);
+    f.hub.maintain().await.unwrap();
+    assert!(f.hub.registry().held(id).await.unwrap().is_none());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn without_a_hold_key_a_legal_hold_is_refused_and_nothing_changes() {
+    let f = fixture_with(false).await;
+    f.create("noholdclub", f.token().await).await.unwrap();
+    let root = enrol(
+        &f.global,
+        ROOT,
+        Some("synthetic-operator-enrolment-capability"),
+    )
+    .await;
+    let root_api = client(&f.front, ROOT, Some(&root.session));
+    let until = f.front.clock.now() + 86_400;
+    assert!(
+        root_api
+            .call(
+                "community_terminate",
+                json!({"address":"noholdclub","reason":"legal","hold_until":until}),
+            )
+            .await
+            .is_err()
+    );
+    assert!(f.record(&format!("noholdclub.{DOMAIN}")).await.is_some());
 }
