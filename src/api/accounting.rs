@@ -58,3 +58,55 @@ pub struct AccountCheckpointRequest {
 #[derive(Serialize, ToSchema)]
 #[serde(transparent)]
 pub struct AccountCheckpointResponse(pub Option<cblc::enrollment::EnrollmentPublication>);
+
+/// One anonymous outcome deposit: the Deposit, its native proof and the proof of one
+/// unlinkable settlement-pass token. It names no member and must arrive without any
+/// member session, over its own circuit; the accounting owner verifies everything and
+/// stages the verified facts for the next daily cut.
+#[derive(Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct SettlementStage(pub cblc::settlement::SettlementSubmission);
+
+/// Durable verified staging (or the original applied effect on an exact replay); never
+/// an inbox effect or a published G2 before the daily cut.
+#[derive(Serialize)]
+#[serde(transparent)]
+pub struct SettlementStaged(pub cblc::settlement::SettlementStatus);
+
+/// The owner's canonical schema, projected losslessly (as the accounting crate does for
+/// its own request and response), so OpenAPI and MCP show the exact strict wire.
+fn owner_schema<T: schemars::JsonSchema>() -> utoipa::openapi::RefOr<utoipa::openapi::Schema> {
+    use schemars::{generate::SchemaSettings, transform};
+    let schema = SchemaSettings::draft2020_12()
+        .with(|settings| {
+            settings.meta_schema = None;
+            settings.inline_subschemas = true;
+        })
+        .with_transform(transform::ReplaceConstValue::default())
+        .with_transform(transform::ReplaceUnevaluatedProperties::default())
+        .into_generator()
+        .into_root_schema_for::<T>();
+    let value: serde_json::Value = schema.into();
+    let projected: utoipa::openapi::RefOr<utoipa::openapi::Schema> =
+        serde_json::from_value(value.clone()).expect("owner schema projects to OpenAPI");
+    assert_eq!(
+        serde_json::to_value(&projected).expect("serializable"),
+        value,
+        "owner schema projection must be lossless"
+    );
+    projected
+}
+
+impl utoipa::PartialSchema for SettlementStage {
+    fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::Schema> {
+        owner_schema::<cblc::settlement::SettlementSubmission>()
+    }
+}
+impl ToSchema for SettlementStage {}
+
+impl utoipa::PartialSchema for SettlementStaged {
+    fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::Schema> {
+        owner_schema::<cblc::settlement::SettlementStatus>()
+    }
+}
+impl ToSchema for SettlementStaged {}

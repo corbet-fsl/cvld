@@ -360,6 +360,7 @@ actions! {
     account(AccountRequest) -> AccountResponse, Member, Community, Record, Forward, "Forward this admitted member's original account operation";
     account_enroll(AccountEnrollmentRequest) -> AccountEnrollmentResponse, Member, Community, Record, Forward, "Enroll this member's signed account delegation in the original registry";
     account_checkpoint(AccountCheckpointRequest) -> AccountCheckpointResponse, Public, Community, Record, Forward, "Publish the current common enrollment roster or read an installed historical slot";
+    account_settlement_stage(SettlementStage) -> SettlementStaged, Public, Community, Record, Forward, "Deposit one wave outcome anonymously: no member session, verified and staged for the next daily cut";
     account_record(Empty) -> AccountRecordResource, Public, Community, Check, Forward, "Read the fixed common record resource link";
     pin_set(PinRequest) -> PinResponse, Member, Community, Record, Forward, "Seal an initial profile fingerprint";
     pin_get(Field) -> PinResponse, Member, Community, Check, Forward, "Read a sealed fingerprint";

@@ -16,6 +16,26 @@ impl Door {
             .await
     }
 
+    /// Anonymous ingress: a request that carries any session token is refused, because
+    /// the session would link the outcome to the member who deposits it.
+    pub(crate) async fn account_settlement_stage(
+        &self,
+        ctx: Context,
+        request: SettlementStage,
+    ) -> Result<SettlementStaged> {
+        if !self.is_community_member(&ctx.host) {
+            return Err(Error::WrongHost);
+        }
+        if ctx.token.is_some() {
+            return Err(Error::Unauthorized);
+        }
+        self.community_backend()?
+            .lock()
+            .await
+            .account_settlement_stage(request, ctx.now)
+            .await
+    }
+
     pub(crate) async fn account_enroll(
         &self,
         ctx: Context,

@@ -2,6 +2,7 @@
 use super::*;
 
 mod enrollment;
+mod settlement;
 
 impl CommunityService {
     pub(crate) fn account_runtime(&self) -> Option<Arc<crate::accounting::clock::AccountRuntime>> {
