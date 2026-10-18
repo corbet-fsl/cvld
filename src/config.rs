@@ -277,7 +277,24 @@ impl CommunityConfig {
     }
 
     pub fn read(path: &str) -> Result<Self> {
-        serde_json::from_slice(&std::fs::read(path).map_err(Error::Unavailable.redact())?)
-            .map_err(Error::Invalid.redact())
+        let config: Self =
+            serde_json::from_slice(&std::fs::read(path).map_err(Error::Unavailable.redact())?)
+                .map_err(Error::Invalid.redact())?;
+        config.check_account_grant(path)?;
+        Ok(config)
+    }
+
+    /// Refuse an accounting whose rate window outlasts the account (session) grant, with
+    /// the reason on stderr for the operator; see `AccountConfig::check_grant_lifetime`.
+    pub fn check_account_grant(&self, path: &str) -> Result<()> {
+        match &self.accounting {
+            Some(accounting) => accounting
+                .check_grant_lifetime(self.session_seconds)
+                .map_err(|reason| {
+                    eprintln!("cvld: {path}: {reason}");
+                    Error::Invalid
+                }),
+            None => Ok(()),
+        }
     }
 }

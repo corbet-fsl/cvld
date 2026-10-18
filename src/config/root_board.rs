@@ -41,6 +41,7 @@ impl RootCommunityConfig {
         let config: Self =
             serde_json::from_slice(&std::fs::read(path).map_err(|_| Error::Unavailable)?)
                 .map_err(|_| Error::Invalid)?;
+        config.community.check_account_grant(path)?;
         Self::new(config.community, config.root_board_public_key_file)
     }
 

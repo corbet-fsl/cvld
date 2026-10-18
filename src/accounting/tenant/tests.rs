@@ -314,3 +314,51 @@ fn a_proof_made_for_another_creation_of_the_same_name_is_refused() {
     };
     assert!(template.check_activation(&unset, NOW, &rulebook).is_err());
 }
+
+/// A community configuration with the given accounting and account grant lifetime.
+fn community_with_grant(accounting: &AccountConfig, session_seconds: u64) -> serde_json::Value {
+    serde_json::json!({
+        "listen": "127.0.0.1:9001", "domain": "example.test", "community": "alpha",
+        "database_url": "file:///unused.db", "signing_seed_file": "unused",
+        "rulebook_file": "unused", "schema_file": "unused",
+        "global_key_ring_file": "unused", "global_status_file": "unused",
+        "minimum_global_epoch": 1, "minimum_global_revision": 1, "global_gates": [],
+        "root": {"user": "unused"}, "admin": {"user": "unused"},
+        "pending_days": 2, "lease_months": 1, "shutdown_seconds": 20,
+        "session_seconds": session_seconds, "pending_capacity": 10, "throttle_burst": 10,
+        "throttle_interval_ms": 1000, "publication_seconds": 172800,
+        "signer_max_seconds": 86400, "minimum_notice_seconds": 0,
+        "voucher_provider": "sponsor", "accounting": accounting
+    })
+}
+
+#[test]
+fn a_grant_shorter_than_the_rate_window_is_refused_when_the_configuration_loads() {
+    let dir = tempfile::tempdir().unwrap();
+    let accounting = template(dir.path());
+    // The ledger's rate window is 100 s: a grant of exactly the window is valid.
+    assert_eq!(accounting.check_grant_lifetime(100), Ok(()));
+    assert_eq!(accounting.check_grant_lifetime(3600), Ok(()));
+    let reason = accounting.check_grant_lifetime(99).unwrap_err();
+    assert!(reason.contains("session_seconds = 99"), "{reason}");
+    assert!(reason.contains("rateWindow = 100"), "{reason}");
+    let path = dir.path().join("community.json");
+    let path = path.to_str().unwrap();
+    for (session, valid) in [(99, false), (100, true), (600, true)] {
+        fs::write(path, community_with_grant(&accounting, session).to_string()).unwrap();
+        assert_eq!(
+            crate::config::CommunityConfig::read(path).is_ok(),
+            valid,
+            "session_seconds {session}"
+        );
+    }
+    // An unreadable ledger policy is refused at load, never at the first genesis.
+    let mut missing = accounting.clone();
+    missing.ledger_policy_file = dir.path().join("absent.json").to_string_lossy().into();
+    assert!(missing.check_grant_lifetime(600).unwrap_err().contains("unreadable"));
+    fs::write(path, community_with_grant(&missing, 600).to_string()).unwrap();
+    assert!(matches!(
+        crate::config::CommunityConfig::read(path),
+        Err(Error::Invalid)
+    ));
+}

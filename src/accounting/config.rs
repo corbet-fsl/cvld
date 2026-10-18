@@ -192,6 +192,31 @@ pub(super) fn bounded(path: &str, maximum: usize) -> Result<Vec<u8>> {
     Ok(bytes)
 }
 
+impl AccountConfig {
+    /// The invariant "account grant lifetime >= rate window", checked when a configuration
+    /// loads. A device's enrollment ends with its session grant, while the genesis proof is
+    /// valid until the end of the policy's current rate window and the circuit requires the
+    /// enrollment to cover that end: with a grant shorter than the window, genesis fails
+    /// whenever the window ends after the grant. Returns the operator-facing reason.
+    pub fn check_grant_lifetime(&self, session_seconds: u64) -> std::result::Result<(), String> {
+        let file = &self.ledger_policy_file;
+        let bytes = bounded(file, 1024 * 1024)
+            .map_err(|_| format!("accounting: the ledger policy file {file} is unreadable"))?;
+        let policy: AccountLedgerPolicy = serde_json::from_slice(&bytes)
+            .map_err(|_| format!("accounting: the ledger policy file {file} does not decode"))?;
+        let window = policy.account.rate_window;
+        if session_seconds < window {
+            return Err(format!(
+                "accounting: the account grant lifetime (session_seconds = {session_seconds}) is \
+                 shorter than the rate window (rateWindow = {window} in {file}); a member's \
+                 enrollment ends with its grant but its proof must cover the rate window, so \
+                 session_seconds must be at least rateWindow"
+            ));
+        }
+        Ok(())
+    }
+}
+
 pub(crate) type Service = AccountService<NativeAccountVerifier, Box<dyn Fn() -> u64 + Send>>;
 
 impl AccountConfig {
