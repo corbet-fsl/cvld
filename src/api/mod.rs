@@ -302,6 +302,7 @@ actions! {
     login_finish(LoginFinish) -> Session, Public, Both, Record, Trusted, "Verify user and counter; create an ephemeral session";
     device_session_begin(Empty) -> DeviceSessionChallenge, Public, Community, Record, Forward, "Issue a one-use nonce for opening a session with a device key";
     device_session_finish(DeviceSessionFinish) -> Session, Public, Community, Record, Trusted, "Open or renew a community session by the signed nonce of an active device key";
+    garden_session_finish(GardenSessionFinish) -> Session, Public, Community, Record, Trusted, "Open an admin session on the admin host by the signed nonce of an active device key and one confirmation stamp";
     device_join(DeviceJoin) -> DeviceJoined, Public, Community, Record, Trusted, "Join by passport and one confirmation stamp, binding the member's first device key";
     logout(Empty) -> Empty, Authenticated, Both, Check, Forward, "End this ephemeral session";
     session_fork(Empty) -> Session, Member, Global, Record, Trusted, "Fork this live wallet session into a sibling with the same grant and deadline; the family ends together";

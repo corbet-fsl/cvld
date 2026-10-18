@@ -570,3 +570,19 @@ pub struct DeviceSessionFinish {
     pub device_key: [u8; 32],
     pub signature: Vec<u8>,
 }
+
+/// Opens an ADMIN (garden) session with a registered device key and one confirmation stamp: the
+/// stamp covers exactly this key and this one-use nonce, so signing in IS the step-up.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct GardenSessionFinish {
+    pub nonce: [u8; 32],
+    pub user: String,
+    pub device_key: [u8; 32],
+    /// The device key's signature over `device_session::garden_message`.
+    pub signature: Vec<u8>,
+    /// cpsd stamp presentation encoding.
+    pub stamp: Vec<u8>,
+    /// The stamp action's salt.
+    pub salt: [u8; 32],
+}

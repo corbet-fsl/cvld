@@ -16,6 +16,28 @@ pub fn message(community: &str, nonce: &[u8; NONCE_LEN], issued: u64) -> Vec<u8>
     message
 }
 
+/// Signed message of an admin session: like [`message`] with its own domain tag, so a signature
+/// for a member session never opens an admin session.
+pub fn garden_message(community: &str, nonce: &[u8; NONCE_LEN], issued: u64) -> Vec<u8> {
+    let mut message = message(community, nonce, issued);
+    message.splice(0..b"cvld.device-session.v1\0".len(), b"cvld.garden-session.v1\0".iter().copied());
+    message
+}
+
+/// Stamp action kind of an admin session; the payload digest is [`garden_payload`].
+pub const GARDEN_ACTION: &str = "garden_session";
+
+/// Payload digest of an admin session's stamp action: SHA-256(device key || nonce), so the stamp
+/// covers exactly this key and this one-use attempt.
+pub fn garden_payload(device_key: &[u8; 32], nonce: &[u8; NONCE_LEN]) -> [u8; 32] {
+    use sha2::Digest as _;
+    let mut hasher = sha2::Sha256::new();
+    hasher.update(b"cvld.garden-session.payload.v1\0");
+    hasher.update(device_key);
+    hasher.update(nonce);
+    hasher.finalize().into()
+}
+
 /// Stamp action kind of a device join; the payload digest is [`join_payload`].
 pub const JOIN_ACTION: &str = "device_join";
 

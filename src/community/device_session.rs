@@ -97,6 +97,143 @@ impl CommunityService {
         })
     }
 
+    /// Open an ADMIN session by a registered device key and one confirmation stamp (the step-up
+    /// of the admin portal: no community passkey). The key's member must hold the Admin or Root
+    /// role now; the stamp must verify under this community's scope for exactly this key and
+    /// nonce and belong to that member's pseudonym. Every refusal is the same `Unauthorized`
+    /// once the nonce is spent; the role is rechecked on every request by the garden path.
+    pub async fn garden_session_finish(
+        &mut self,
+        request: GardenSessionFinish,
+        now: u64,
+    ) -> Result<Session> {
+        self.prune(now);
+        if self.sessions.len() >= self.config.pending_capacity {
+            return Err(Error::Throttled);
+        }
+        let issued = self
+            .device_nonces
+            .remove(&request.nonce)
+            .ok_or(Error::Unauthorized)?;
+        if now < issued || now >= issued.saturating_add(NONCE_SECONDS) {
+            return Err(Error::Unauthorized);
+        }
+        let key =
+            VerifyingKey::from_bytes(&request.device_key).map_err(Error::Unauthorized.redact())?;
+        let signature =
+            Signature::from_slice(&request.signature).map_err(Error::Unauthorized.redact())?;
+        key.verify_strict(
+            &crate::device_session::garden_message(&self.config.community, &request.nonce, issued),
+            &signature,
+        )
+        .map_err(Error::Unauthorized.redact())?;
+        let user = ckyh::Uuid::parse_str(&request.user).map_err(Error::Unauthorized.redact())?;
+        let authentication = Arc::new(ckyh::Authentication::from_device_key(
+            self.config.community.clone(),
+            user,
+            request.device_key,
+        ));
+        let expires = now
+            .checked_add(self.config.session_seconds)
+            .ok_or(Error::Invalid)?;
+        crate::service::publication::expires_at(expires)?;
+        // Key active and member live, and the role is Admin or Root right now.
+        let lease = self
+            .garden_lease(&authentication, now, expires)
+            .await
+            .map_err(Error::Unauthorized.redact())?;
+        // One confirmation stamp over this key and nonce, from this member's own pseudonym.
+        let global = crate::global_trust::load(&self.db, &self.config, now).await?;
+        let stamp_key = cpsd::StampPublicKey::from_bytes(
+            global
+                .status
+                .stamp_public_key
+                .as_deref()
+                .ok_or(Error::Unauthorized)?,
+        )
+        .map_err(Error::Unauthorized.redact())?;
+        let params = cpsd::StampParams::new(
+            self.config
+                .stamp_cohort_seconds
+                .unwrap_or(DEFAULT_STAMP_COHORT_SECONDS),
+        )
+        .map_err(Error::Invalid.redact())?;
+        let ledger = cpsd::StampLedger::new(
+            crate::stamp_uses::StampUses::new(
+                &self.db,
+                &self.config.community,
+                crate::stamp_uses::DEFAULT_CAPACITY,
+            )?,
+            *self.stamp_scope()?.fingerprint(),
+            vec![stamp_key.clone()],
+            params,
+        )
+        .map_err(Error::Unauthorized.redact())?;
+        let action = cpsd::StampAction::new(
+            cpsd::ActionKind::new(crate::device_session::GARDEN_ACTION)
+                .map_err(Error::Invalid.redact())?,
+            cpsd::PayloadDigest::from_bytes(crate::device_session::garden_payload(
+                &request.device_key,
+                &request.nonce,
+            )),
+            cpsd::StampSalt::from_bytes(request.salt),
+        );
+        let verified = cpsd::StampPresentation::from_bytes(&request.stamp)
+            .ok()
+            .and_then(|presentation| {
+                cpsd::verify_stamp(
+                    &[stamp_key],
+                    &params,
+                    &ledger.scope(),
+                    global.status.epoch,
+                    &action,
+                    &presentation,
+                    now,
+                )
+                .ok()
+            })
+            .ok_or(Error::Unauthorized)?;
+        if verified.pseudonym().to_hex() != lease.member() {
+            return Err(Error::Unauthorized);
+        }
+        ledger
+            .prune(now)
+            .await
+            .map_err(Error::Unavailable.redact())?;
+        // A stamp covers one attempt: a replay is refused.
+        ledger
+            .record(&verified, now)
+            .await
+            .map_err(Error::Unauthorized.redact())?;
+        let role = garden::public_role(lease.role());
+        let expires = expires.min(lease.valid_until());
+        let id = token();
+        self.sessions.insert(
+            id.clone(),
+            SessionState {
+                authentication: authentication.clone(),
+                authority: session_authority::Owner::default(),
+                garden: true,
+                started: now,
+                grant: Grant {
+                    user,
+                    role,
+                    expires,
+                    credential: authentication.credential_id().clone(),
+                    origin: ckyh::Origin::DeviceKey,
+                    session_id: rand::random(),
+                },
+            },
+        );
+        drop(lease);
+        Ok(Session {
+            token: id,
+            user: request.user,
+            role,
+            expires,
+        })
+    }
+
     /// JOIN by device key: one passport presentation over this community's challenge, one
     /// confirmation stamp covering `device_join` of exactly this key under the same pseudonym,
     /// and the key's signature over the join message. The digest is recorded once; a retry of

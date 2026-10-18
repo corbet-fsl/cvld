@@ -119,6 +119,20 @@ impl Door {
             .device_session_finish(request, ctx.now)
             .await
     }
+    pub(crate) async fn garden_session_finish(
+        &self,
+        ctx: Context,
+        request: GardenSessionFinish,
+    ) -> Result<Session> {
+        if !self.is_garden(&ctx.host) {
+            return Err(Error::WrongHost);
+        }
+        self.community_backend()?
+            .lock()
+            .await
+            .garden_session_finish(request, ctx.now)
+            .await
+    }
     pub(crate) async fn device_join(&self, ctx: Context, request: DeviceJoin) -> Result<DeviceJoined> {
         self.community_backend()?
             .lock()
