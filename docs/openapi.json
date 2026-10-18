@@ -3863,6 +3863,17 @@
             "description": "Passport proof is always fresh when requesting a community credential.",
             "type": "boolean"
           },
+          "role": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LobbyRole",
+                "description": "The member's own community role (`member`, `admin` or `root`) once admitted;\nthe member's device sizes its voucher allowance by it."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "state": {
             "type": "string"
           },
@@ -4056,6 +4067,15 @@
           "level"
         ],
         "type": "object"
+      },
+      "LobbyRole": {
+        "description": "A member's community role, as the member's own lobby shows it.",
+        "enum": [
+          "member",
+          "admin",
+          "root"
+        ],
+        "type": "string"
       },
       "LobbyStep": {
         "additionalProperties": false,
@@ -8313,6 +8333,17 @@
                       "description": "Passport proof is always fresh when requesting a community credential.",
                       "type": "boolean"
                     },
+                    "role": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/LobbyRole",
+                          "description": "The member's own community role (`member`, `admin` or `root`) once admitted;\nthe member's device sizes its voucher allowance by it."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "state": {
                       "type": "string"
                     },
@@ -8743,6 +8774,17 @@
                     "passport_required": {
                       "description": "Passport proof is always fresh when requesting a community credential.",
                       "type": "boolean"
+                    },
+                    "role": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/LobbyRole",
+                          "description": "The member's own community role (`member`, `admin` or `root`) once admitted;\nthe member's device sizes its voucher allowance by it."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "state": {
                       "type": "string"
@@ -12801,6 +12843,17 @@
                     "passport_required": {
                       "description": "Passport proof is always fresh when requesting a community credential.",
                       "type": "boolean"
+                    },
+                    "role": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/LobbyRole",
+                          "description": "The member's own community role (`member`, `admin` or `root`) once admitted;\nthe member's device sizes its voucher allowance by it."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "state": {
                       "type": "string"

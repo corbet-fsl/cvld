@@ -2608,6 +2608,7 @@ export interface components {
             missing: components["schemas"]["LobbyMissing"][];
             /** @description Passport proof is always fresh when requesting a community credential. */
             passport_required: boolean;
+            role?: components["schemas"]["LobbyRole"] | null;
             state: string;
             /** @description Enabled community gates the member can pass now, each with its ordered inputs. */
             steps: components["schemas"]["LobbyDescriptor"][];
@@ -2651,6 +2652,11 @@ export interface components {
             level: components["schemas"]["LobbyLevel"];
             provider?: string | null;
         };
+        /**
+         * @description A member's community role, as the member's own lobby shows it.
+         * @enum {string}
+         */
+        LobbyRole: "member" | "admin" | "root";
         /** @description Headless description of one input the member can supply. */
         LobbyStep: {
             /** @description Plain text suitable for any client. */
@@ -4555,6 +4561,7 @@ export interface operations {
                         missing: components["schemas"]["LobbyMissing"][];
                         /** @description Passport proof is always fresh when requesting a community credential. */
                         passport_required: boolean;
+                        role?: components["schemas"]["LobbyRole"] | null;
                         state: string;
                         /** @description Enabled community gates the member can pass now, each with its ordered inputs. */
                         steps: components["schemas"]["LobbyDescriptor"][];
@@ -4741,6 +4748,7 @@ export interface operations {
                         missing: components["schemas"]["LobbyMissing"][];
                         /** @description Passport proof is always fresh when requesting a community credential. */
                         passport_required: boolean;
+                        role?: components["schemas"]["LobbyRole"] | null;
                         state: string;
                         /** @description Enabled community gates the member can pass now, each with its ordered inputs. */
                         steps: components["schemas"]["LobbyDescriptor"][];
@@ -6546,6 +6554,7 @@ export interface operations {
                         missing: components["schemas"]["LobbyMissing"][];
                         /** @description Passport proof is always fresh when requesting a community credential. */
                         passport_required: boolean;
+                        role?: components["schemas"]["LobbyRole"] | null;
                         state: string;
                         /** @description Enabled community gates the member can pass now, each with its ordered inputs. */
                         steps: components["schemas"]["LobbyDescriptor"][];

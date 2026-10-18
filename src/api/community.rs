@@ -44,6 +44,18 @@ pub struct Lobby {
     pub passport_required: bool,
     /// Announced settings changes not yet in force, soonest first.
     pub upcoming: Vec<LobbyUpcoming>,
+    /// The member's own community role (`member`, `admin` or `root`) once admitted;
+    /// the member's device sizes its voucher allowance by it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub role: Option<LobbyRole>,
+}
+/// A member's community role, as the member's own lobby shows it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum LobbyRole {
+    Member,
+    Admin,
+    Root,
 }
 /// One announced change of a setting's resolved value.
 #[derive(Serialize, Deserialize, ToSchema)]

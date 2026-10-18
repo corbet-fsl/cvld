@@ -1127,6 +1127,21 @@ impl CommunityService {
             .await
             .map_err(Error::Refused.redact())?
             .map(|h| h.display().to_owned());
+        // Only a member with an active role lease has a role. The read takes the member
+        // lease after the policy lock, like every role read; a member held in the lobby
+        // (an ended lease, a restriction) still gets its lobby, without a role.
+        let role = if lobby.enrolment.state() == cmbr::State::Admitted {
+            match self.facade.membership().role(auth).await {
+                Ok(lease) => Some(match lease.role() {
+                    cmbr::Role::Member => LobbyRole::Member,
+                    cmbr::Role::Admin => LobbyRole::Admin,
+                    cmbr::Role::Root => LobbyRole::Root,
+                }),
+                Err(_) => None,
+            }
+        } else {
+            None
+        };
         Ok(Lobby {
             member_id: lobby.enrolment.subject().into(),
             state: serde_json::to_value(lobby.enrolment.state())
@@ -1158,6 +1173,7 @@ impl CommunityService {
                 })
                 .collect(),
             passport_required: true,
+            role,
             upcoming: lobby_upcoming::changes(
                 &policy.rulebook(now).await.map_err(Error::Unavailable.redact())?,
                 &policy
