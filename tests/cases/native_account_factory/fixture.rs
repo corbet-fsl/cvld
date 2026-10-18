@@ -19,8 +19,82 @@ pub(super) struct Fixture {
     _directory: tempfile::TempDir,
     _global: support::Running,
 }
-fn required_file(variable: &str, maximum: usize) -> Vec<u8> {
-    let path = PathBuf::from(std::env::var_os(variable).expect(variable));
+/// The three native-account inputs. An explicit environment variable wins (CI exports all three
+/// from `tools/g5-account-config.py`); otherwise the same reviewed generator runs once per target
+/// directory for community alpha at the suite's fixed NOW and its output is cached under
+/// `CARGO_TARGET_TMPDIR`. The retained artifact root is `CVLD_G5_RETAINED`, else the local journey
+/// capture `~/agents/scratch/e2e/retained/release-artifacts` when present, else the generator's own
+/// CI default (`ARTIFACT_ROOT`, `CI_CACHE_ROOT`, `CARGO_HOME`).
+struct Inputs {
+    config: PathBuf,
+    probe: PathBuf,
+    sha256: String,
+}
+fn inputs() -> &'static Inputs {
+    static INPUTS: std::sync::OnceLock<Inputs> = std::sync::OnceLock::new();
+    INPUTS.get_or_init(|| {
+        let config = std::env::var_os("CVLD_G5_ACCOUNT_CONFIG");
+        let probe = std::env::var_os("CVLD_ALPHA_ACTIVATION_PROBE");
+        let sha256 = std::env::var("CVLD_ALPHA_ACTIVATION_SHA256");
+        if let (Some(config), Some(probe), Ok(sha256)) = (config, probe, sha256) {
+            return Inputs {
+                config: config.into(),
+                probe: probe.into(),
+                sha256,
+            };
+        }
+        let cache = Path::new(env!("CARGO_TARGET_TMPDIR")).join("g5-alpha-fixture");
+        if !cache.join("probe.sha256").is_file() {
+            generate(&cache);
+        }
+        Inputs {
+            config: cache.join("account-config.json"),
+            probe: cache.join("activation-probe.json"),
+            sha256: std::fs::read_to_string(cache.join("probe.sha256")).unwrap(),
+        }
+    })
+}
+fn generate(cache: &Path) {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    std::fs::create_dir_all(cache.parent().unwrap()).unwrap();
+    let staging = tempfile::Builder::new()
+        .prefix("g5-alpha-")
+        .tempdir_in(cache.parent().unwrap())
+        .unwrap();
+    let mut command = std::process::Command::new("python3");
+    command
+        .args(["-B", "tools/g5-account-config.py", "--community", "alpha"])
+        .args(["--exports", "--now", &support::NOW.to_string(), "--out"])
+        .arg(staging.path())
+        .current_dir(root);
+    let retained = std::env::var_os("CVLD_G5_RETAINED").map(PathBuf::from).or_else(|| {
+        let home = std::env::var_os("HOME")?;
+        let local = Path::new(&home).join("agents/scratch/e2e/retained/release-artifacts");
+        local.is_dir().then_some(local)
+    });
+    if let Some(retained) = retained {
+        command.arg("--retained").arg(retained);
+    }
+    let output = command.output().expect("python3 runs the G5 generator");
+    assert!(
+        output.status.success(),
+        "G5 account configuration generator failed (set CVLD_G5_RETAINED or the three CVLD_* variables): {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    // The pin comes from the generator's output, as in CI, written last as the completeness mark.
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let sha256 = stdout
+        .lines()
+        .find_map(|l| l.strip_prefix("export CVLD_ALPHA_ACTIVATION_SHA256="))
+        .expect("generator exports the probe digest");
+    std::fs::write(staging.path().join("probe.sha256"), sha256).unwrap();
+    // Concurrent test processes race here; the first rename wins and the others use it.
+    let path = staging.keep();
+    if std::fs::rename(&path, cache).is_err() {
+        assert!(cache.join("probe.sha256").is_file());
+    }
+}
+fn required_file(path: &Path, maximum: usize) -> Vec<u8> {
     assert!(path.is_absolute());
     let bytes = std::fs::read(path).unwrap();
     assert!(bytes.len() <= maximum);
@@ -50,12 +124,12 @@ impl Fixture {
         // This is operator fixture configuration of the ACTUAL application
         // types and pins. It is not part of a public member/provider DTO.
         let mut account: AccountConfig =
-            serde_json::from_slice(&required_file("CVLD_G5_ACCOUNT_CONFIG", 1024 * 1024))
+            serde_json::from_slice(&required_file(&inputs().config, 1024 * 1024))
                 .expect("explicit native artifact/worker/key configuration required");
-        let probe_bytes = required_file("CVLD_ALPHA_ACTIVATION_PROBE", 4 * 1024 * 1024);
+        let probe_bytes = required_file(&inputs().probe, 4 * 1024 * 1024);
         // The expected retained-byte pin is supplied independently of the
         // downloaded probe. Actual native verification remains mandatory.
-        let expected = std::env::var("CVLD_ALPHA_ACTIVATION_SHA256").unwrap();
+        let expected = inputs().sha256.clone();
         // Canonical base64url SHA-256, using the original encoding owner.
         assert_eq!(expected, czkp::digest(&probe_bytes));
         let probe: Value = serde_json::from_slice(&probe_bytes).unwrap();
