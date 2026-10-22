@@ -4,7 +4,7 @@
 //! A single-use one-hour link needs no sign-off; a multi-use link waits for the
 //! issuer's decision. The first sponsor is bootstrapped with the development link
 //! (nobody earlier could vouch for it); every later step is the product path.
-mod support;
+use crate::support;
 use cvld::service::Clock as _;
 use serde_json::{Value, json};
 use support::*;

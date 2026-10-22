@@ -81,6 +81,8 @@ mod surfaces;
 mod transports;
 #[path = "cases/turso.rs"]
 mod turso;
+#[path = "cases/voucher_journey.rs"]
+mod voucher_journey;
 #[path = "cases/voucher_reply.rs"]
 mod voucher_reply;
 
