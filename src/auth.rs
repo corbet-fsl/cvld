@@ -9,7 +9,7 @@ use subtle::ConstantTimeEq;
 
 mod enrollment;
 mod family;
-pub use family::{DEFAULT_FAMILY_LIMIT, MAX_FAMILY_LIMIT};
+pub use family::SESSION_FAMILY_LIMIT;
 pub(crate) mod global_self_ban;
 mod passkeys;
 mod step_up;
@@ -30,8 +30,6 @@ pub struct Auth {
     step_ups: crate::step_up::StepUps<PendingAuthentication>,
     capacity: usize,
     lifetime: u64,
-    /// Live sessions per family (C6 `session_fork`): the login plus its forks.
-    family_limit: usize,
 }
 
 #[cfg(test)]
@@ -109,7 +107,6 @@ impl Auth {
             step_ups: Default::default(),
             capacity,
             lifetime,
-            family_limit: DEFAULT_FAMILY_LIMIT,
         })
     }
     fn prune(&mut self, now: u64) {

@@ -59,7 +59,6 @@ async fn running() -> Running {
         stamp_limit: None,
         stamp_period_seconds: None,
         stamp_replay_seconds: None,
-        session_family_limit: None,
     });
     let clock = Arc::new(support::TestClock(AtomicU64::new(NOW)));
     let door = Door::global(config, clock.clone()).await.unwrap();

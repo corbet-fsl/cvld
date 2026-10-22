@@ -6,22 +6,14 @@
 //! logout, revocation of the shared credential, or the expiry of any member ends every member.
 use super::*;
 
-/// Live sessions per family when the rulebook names no other: the login plus three forks
-/// (the recovery lease, the creation channel and one spare).
-pub const DEFAULT_FAMILY_LIMIT: usize = 4;
-/// The largest family a rulebook may allow.
-pub const MAX_FAMILY_LIMIT: usize = 8;
+/// Live sessions per family: the login plus three forks. A device start needs the login (the
+/// wallet Door's session), one sibling for the passport's recovery lease, which holds its
+/// session for the device's life, and one for the creation channel lent to the community Door;
+/// the fourth is a spare. It is a property of the protocol, not a setting: no rulebook, root or
+/// admin changes it.
+pub const SESSION_FAMILY_LIMIT: usize = 4;
 
 impl Auth {
-    /// Set the family limit, checked when the configuration loads.
-    pub fn set_family_limit(&mut self, limit: usize) -> Result<()> {
-        if !(1..=MAX_FAMILY_LIMIT).contains(&limit) {
-            return Err(Error::Invalid);
-        }
-        self.family_limit = limit;
-        Ok(())
-    }
-
     /// Fork the live session `parent` into a sibling of the same family. Per-action user
     /// verification (step-ups, stamps) stays per session: the sibling inherits no pending
     /// ceremony of its parent.
@@ -40,7 +32,7 @@ impl Auth {
             .values()
             .filter(|session| session.family == parent.family)
             .count();
-        if members >= self.family_limit {
+        if members >= SESSION_FAMILY_LIMIT {
             return Err(Error::Refused);
         }
         // Clone the whole state so every grant field the parent carries reaches the sibling;

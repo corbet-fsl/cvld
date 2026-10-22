@@ -285,17 +285,7 @@ impl Door {
         let wallet_auth = hosts
             .get(&format!("wallet.{}", config.domain))
             .ok_or(Error::WrongHost)?;
-        let wallet_keys = {
-            let mut wallet_auth = wallet_auth.lock().await;
-            wallet_auth.set_family_limit(
-                config
-                    .wallet
-                    .as_ref()
-                    .and_then(|wallet| wallet.session_family_limit)
-                    .unwrap_or(crate::auth::DEFAULT_FAMILY_LIMIT),
-            )?;
-            wallet_auth.passkeys.clone()
-        };
+        let wallet_keys = wallet_auth.lock().await.passkeys.clone();
         global
             .attach_wallet(&db, &config, wallet_keys, clock.now())
             .await?;

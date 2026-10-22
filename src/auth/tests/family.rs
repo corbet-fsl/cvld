@@ -63,34 +63,17 @@ async fn a_fork_never_renews_and_a_fork_of_a_fork_keeps_the_first_deadline() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn the_family_limit_counts_live_members_and_is_checked_when_set() {
+async fn a_family_holds_the_login_and_three_forks() {
     let (_directory, db) = database().await;
     let (mut auth, parent) = member(&db, 16).await;
-    for limit in [0, MAX_FAMILY_LIMIT + 1] {
-        assert!(matches!(auth.set_family_limit(limit), Err(Error::Invalid)));
-    }
-    assert_eq!(auth.family_limit, DEFAULT_FAMILY_LIMIT);
-    assert_eq!(DEFAULT_FAMILY_LIMIT, 4);
+    assert_eq!(SESSION_FAMILY_LIMIT, 4);
     let second = auth.fork(&parent.token, NOW).await.unwrap();
     let third = auth.fork(&second.token, NOW).await.unwrap();
     let fourth = auth.fork(&parent.token, NOW).await.unwrap();
-    // Default 4: the login and three forks.
+    // The login and three forks: every member is refused a fifth.
     for token in [&parent.token, &second.token, &third.token, &fourth.token] {
         assert!(matches!(auth.fork(token, NOW).await, Err(Error::Refused)));
     }
-    auth.set_family_limit(5).unwrap();
-    auth.fork(&third.token, NOW).await.unwrap();
-    assert!(matches!(
-        auth.fork(&parent.token, NOW).await,
-        Err(Error::Refused)
-    ));
-    let (_other_directory, other_db) = database().await;
-    let (mut single, only) = member(&other_db, 16).await;
-    single.set_family_limit(1).unwrap();
-    assert!(matches!(
-        single.fork(&only.token, NOW).await,
-        Err(Error::Refused)
-    ));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
