@@ -1072,3 +1072,114 @@ async fn after_a_normal_stamp_no_session_issues_an_assertion_free_stamp() {
     let (body, _, _, _) = stamp_request(&global, &mut wallet, 10).await;
     assert!(client.call("stamp_issue", body).await.is_err());
 }
+
+/// C1, C3 and C4 at the wallet host, end to end over HTTP: a wallet registration that fixed the
+/// seed commitment `c` returns the birth session; that session binds the device key K by K's
+/// own signature over (origin, account, credential, c, K), obtains the wallet-signed birth
+/// statement for K's genesis receipt, and binds the first wallet publication with that birth
+/// evidence. Malformed evidence and evidence for another seed commitment are refused.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_birth_session_binds_the_device_and_the_publication_with_birth_evidence() {
+    use crate::api::{
+        BirthStatement, Ceremony, InitialCeremony, InitialCreationResponse, Registered,
+    };
+    use crate::test_support::resident::{Resident, strip_prf};
+    let global = configured_wallet(100).await;
+    let api = client(&global, WALLET, None);
+    let seed = [31u8; 32];
+    let begin: Ceremony =
+        serde_json::from_value(api.call("register_begin", json!({})).await.unwrap()).unwrap();
+    let initial: InitialCeremony = serde_json::from_value(
+        api.call(
+            "global_initial_registration_continue",
+            json!({"ceremony":begin.ceremony,"seed":seed.to_vec()}),
+        )
+        .await
+        .unwrap(),
+    )
+    .unwrap();
+    let mut device = Resident::default();
+    let mut credential = device
+        .ceremony(initial.options, true, &origin_for(WALLET))
+        .await;
+    strip_prf(&mut credential);
+    let registered: Registered = serde_json::from_value(
+        api.call(
+            "register_finish",
+            json!({"ceremony":initial.ceremony,"credential":credential}),
+        )
+        .await
+        .unwrap(),
+    )
+    .unwrap();
+    let session = registered
+        .session
+        .expect("the wallet registration returns its birth session");
+    let user = registered.user;
+    let wallet = client(&global, WALLET, Some(&session.token));
+    let passkeys = wallet.call("passkey_list", json!({})).await.unwrap();
+    let credential: Vec<u8> =
+        serde_json::from_value(passkeys["passkeys"][0]["credential"].clone()).unwrap();
+    let keys = keys_device("wallet", &user).await;
+    let prf = ckmg::passkey::PrfOutput::from_bytes(&[27; 32]).unwrap();
+    let payload = ckmg::wallet_birth_device_payload(
+        &origin_for(WALLET),
+        &user,
+        &credential,
+        &seed,
+        &keys.key,
+    )
+    .unwrap();
+    let signature = ckmg::passkey::sign_device_opened(
+        &prf,
+        "wallet",
+        ckmg::DevicePurpose::WalletBirthDevice,
+        &payload,
+    )
+    .unwrap();
+    wallet
+        .call(
+            "wallet_device_authorize",
+            json!({"key":keys.key,"birth_signature":signature.to_vec()}),
+        )
+        .await
+        .unwrap();
+    let statement: BirthStatement = serde_json::from_value(
+        wallet
+            .call(
+                "wallet_birth_genesis",
+                json!({"digest":keys.receipt.passkey_challenge().unwrap()}),
+            )
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let evidence =
+        cchr::BirthGenesisEvidence::new(keys.receipt.clone(), statement.statement, statement.at)
+            .to_bytes()
+            .unwrap();
+    let bind = |seed: [u8; 32], evidence: &[u8]| json!({"seed":seed.to_vec(),"publication":vec![2u8; 32],"evidence":evidence});
+    assert!(
+        wallet
+            .call("initial_publication_bind", bind(seed, b"not evidence"))
+            .await
+            .is_err()
+    );
+    assert!(
+        wallet
+            .call("initial_publication_bind", bind([32; 32], &evidence))
+            .await
+            .is_err()
+    );
+    for _ in 0..2 {
+        let state: InitialCreationResponse = serde_json::from_value(
+            wallet
+                .call("initial_publication_bind", bind(seed, &evidence))
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(state.seed, seed);
+        assert_eq!(state.publication, Some([2; 32]));
+    }
+}

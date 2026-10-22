@@ -10315,7 +10315,7 @@
                 "description": "Bind the original publication to this session's initial registration.",
                 "properties": {
                   "evidence": {
-                    "description": "Genesis stamp evidence of the member's first lineage (`cchr::genesis_stamp`\nencoding): required iff the session is a device-key session, refused otherwise.\nIts stamp digest is recorded once; an equal retry of a bound publication is not\nre-verified.",
+                    "description": "Community host: genesis stamp evidence of the member's first lineage\n(`cchr::genesis_stamp` encoding), required iff the session is a device-key session,\nrefused otherwise; its stamp digest is recorded once and an equal retry of a bound\npublication is not re-verified. Wallet host: optional birth genesis evidence\n(`cchr::BirthGenesisEvidence`, one-ceremony registration), verified under the wallet\nkey ring for this account and the bound seed commitment.",
                     "items": {
                       "format": "int32",
                       "minimum": 0,
