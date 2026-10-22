@@ -106,6 +106,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/account_settlement_stage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Deposit one wave outcome anonymously: no member session, verified and staged for the next daily cut */
+        post: operations["account_settlement_stage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/community_create": {
         parameters: {
             query?: never;
@@ -3386,6 +3403,87 @@ export interface operations {
                 };
                 content: {
                     "application/octet-stream": string;
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    account_settlement_stage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description A recipient-addressed opaque obligation, delivered without the punished holder.
+                     *     The proof hides the reporter, receipt, conversation and kind of outcome.
+                     */
+                    deposit: {
+                        authorizationNullifier: number[];
+                        community: number[];
+                        /** @description The community identity the hidden certificate binds (never the address). */
+                        identity: number[];
+                        /**
+                         * @description The issuer key that signed the hidden certificate and the exact period of the
+                         *     published ring it names; the relation proves the acceptance time lies inside it.
+                         */
+                        issuerKey: number[];
+                        /** Format: uint64 */
+                        issuerValidFrom: number;
+                        /** Format: uint64 */
+                        issuerValidUntil: number;
+                        nullifier: number[];
+                        obligation: number[];
+                        recipient: number[];
+                        /**
+                         * Format: uint64
+                         * @description Coarse release horizon. The circuit proves acceptance preceded it by the configured delay.
+                         */
+                        releaseEpoch: number;
+                    };
+                    operation: number[];
+                    proof: string;
+                    tokenProof: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        status: "staged";
+                        /** @description Durable verification staging, NOT inbox application or G2 publication. */
+                        value: {
+                            depositDigest: number[];
+                            /** Format: uint64 */
+                            eligibleEpoch: number;
+                        };
+                    } | {
+                        /** @enum {string} */
+                        status: "applied";
+                        value: {
+                            deposit_digest: number[];
+                        };
+                    };
                 };
             };
             /** @description Fixed redacted error category */

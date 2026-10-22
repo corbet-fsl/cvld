@@ -6348,6 +6348,281 @@
         "x-scope": "community"
       }
     },
+    "/v1/account_settlement_stage": {
+      "post": {
+        "operationId": "account_settlement_stage",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Native anonymous ingress inputs. The transport must have no member session\nand use the original separate Tor circuit. Nothing here establishes that\nnetwork property or contains the hidden outcome kind.",
+                "properties": {
+                  "deposit": {
+                    "additionalProperties": false,
+                    "description": "A recipient-addressed opaque obligation, delivered without the punished holder.\nThe proof hides the reporter, receipt, conversation and kind of outcome.",
+                    "properties": {
+                      "authorizationNullifier": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "community": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "identity": {
+                        "description": "The community identity the hidden certificate binds (never the address).",
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "issuerKey": {
+                        "description": "The issuer key that signed the hidden certificate and the exact period of the\npublished ring it names; the relation proves the acceptance time lies inside it.",
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "type": "array"
+                      },
+                      "issuerValidFrom": {
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "issuerValidUntil": {
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "nullifier": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "obligation": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "recipient": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "releaseEpoch": {
+                        "description": "Coarse release horizon. The circuit proves acceptance preceded it by the configured delay.",
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "releaseEpoch",
+                      "community",
+                      "identity",
+                      "issuerKey",
+                      "issuerValidFrom",
+                      "issuerValidUntil",
+                      "recipient",
+                      "nullifier",
+                      "authorizationNullifier",
+                      "obligation"
+                    ],
+                    "type": "object"
+                  },
+                  "operation": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 16,
+                    "minItems": 16,
+                    "type": "array"
+                  },
+                  "proof": {
+                    "type": "string"
+                  },
+                  "tokenProof": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "deposit",
+                  "proof",
+                  "tokenProof",
+                  "operation"
+                ],
+                "title": "SettlementSubmission",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Exact reconciliation of an original durable fact or already-applied effect.",
+                  "oneOf": [
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "status": {
+                          "enum": [
+                            "staged"
+                          ],
+                          "type": "string"
+                        },
+                        "value": {
+                          "additionalProperties": false,
+                          "description": "Durable verification staging, NOT inbox application or G2 publication.",
+                          "properties": {
+                            "depositDigest": {
+                              "items": {
+                                "format": "uint8",
+                                "maximum": 255,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "maxItems": 32,
+                              "minItems": 32,
+                              "type": "array"
+                            },
+                            "eligibleEpoch": {
+                              "format": "uint64",
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "depositDigest",
+                            "eligibleEpoch"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "value"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "status": {
+                          "enum": [
+                            "applied"
+                          ],
+                          "type": "string"
+                        },
+                        "value": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "deposit_digest": {
+                              "items": {
+                                "format": "uint8",
+                                "maximum": 255,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "maxItems": 32,
+                              "minItems": 32,
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "deposit_digest"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "value"
+                      ],
+                      "type": "object"
+                    }
+                  ],
+                  "title": "SettlementStatus"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [],
+        "summary": "Deposit one wave outcome anonymously: no member session, verified and staged for the next daily cut",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-lobby": "false",
+        "x-role": "public",
+        "x-scope": "community"
+      }
+    },
     "/v1/community_create": {
       "post": {
         "operationId": "community_create",
