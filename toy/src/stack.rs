@@ -674,7 +674,7 @@ async fn run() -> Result<()> {
             );
             let artifacts = &account["extension_artifacts"];
             let ca = out.join("ca.der");
-            let settings = json!({
+            let mut settings = json!({
                 "global": {
                     "origin": format!("https://127.0.0.1:{port}"),
                     "scope": "wallet",
@@ -719,6 +719,18 @@ async fn run() -> Result<()> {
                     "timeout_seconds": 300,
                 },
             });
+            // With the owned verifier worker the device also checks a counterpart's wave
+            // and outcome proofs: it then carries the outcome circuit and the group's
+            // manifest, which the community's wave policy pins. Without the worker (the
+            // verifier is a separate binary, `czkp-bb-worker`) the wave stack stays off.
+            if let Ok(verifier) = std::env::var("CMSG_NATIVE_VERIFIER_WORKER") {
+                settings["prover"]["verifier_executable"] = json!(verifier);
+                settings["prover"]["manifest_file"] = artifacts["manifest_file"].clone();
+                settings["prover"]["outcome"] = json!({
+                    "circuit_file": artifacts["circuit_file"],
+                    "keys_file": artifacts["keys_file"],
+                });
+            }
             let path = out.join("device.json");
             fs::write(&path, serde_json::to_vec(&settings).map_err(|_| "encode")?)
                 .map_err(|_| "write device settings")?;
