@@ -325,12 +325,22 @@ impl<T: Transport> Client<T> {
         validate_response(name, &response)?;
         Ok(response)
     }
-    /// Forward only owner-marked shell-safe responses, before any dispatch.
+    /// Forward only owner-marked shell-safe responses, before any dispatch. The wallet's
+    /// birth session bearer in a `register_finish` answer never reaches a shell: it is
+    /// dropped here and only [`Client::finish_registration`] adopts it.
     pub async fn forward(&mut self, name: &str, request: Value) -> Result<Value> {
         forwarding_action(name).ok_or(Error::Invalid)?;
-        self.call(name, request).await
+        let mut response = self.call(name, request).await?;
+        if name == REGISTER_FINISH
+            && let Value::Object(fields) = &mut response
+        {
+            fields.remove("session");
+        }
+        Ok(response)
     }
 }
+
+const REGISTER_FINISH: &str = "register_finish";
 
 impl<T: SessionTransport> Client<T> {
     /// Finish a real passkey login and adopt its session at the same pinned origin.
@@ -358,6 +368,33 @@ impl<T: SessionTransport> Client<T> {
     /// Open an admin session from a device key's signed nonce and one confirmation stamp.
     pub async fn authenticate_garden(&mut self, request: Value) -> Result<SessionInfo> {
         self.adopt("garden_session_finish", request).await
+    }
+    /// Finish a passkey registration (`register_finish`) and adopt the birth session the
+    /// wallet returns with it (C1), at the same pinned origin. Returns the answer without its
+    /// session and the adopted session's public identity, if there was one. The bearer never
+    /// reaches the caller; without a session this client's session is unchanged.
+    pub async fn finish_registration(
+        &mut self,
+        request: Value,
+    ) -> Result<(Value, Option<SessionInfo>)> {
+        let mut response = self.call(REGISTER_FINISH, request).await?;
+        let Value::Object(fields) = &mut response else {
+            return Err(Error::Reconcile);
+        };
+        let Some(session) = fields.remove("session") else {
+            return Ok((response, None));
+        };
+        let Value::Object(mut session) = session else {
+            return Err(Error::Reconcile);
+        };
+        let Some(Value::String(token)) = session.remove("token") else {
+            return Err(Error::Reconcile);
+        };
+        let token = zeroize::Zeroizing::new(token);
+        let info: SessionInfo =
+            serde_json::from_value(Value::Object(session)).map_err(Error::Reconcile.redact())?;
+        self.transport.adopt_session(token);
+        Ok((response, Some(info)))
     }
     async fn adopt(&mut self, name: &str, request: Value) -> Result<SessionInfo> {
         let (token, info) = self.trusted(name, request).await?;

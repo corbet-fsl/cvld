@@ -30,10 +30,12 @@ pub struct InitialRegistrationBegin {
 pub struct InitialPublicationBind {
     pub seed: [u8; 32],
     pub publication: [u8; 32],
-    /// Genesis stamp evidence of the member's first lineage (`cchr::genesis_stamp`
-    /// encoding): required iff the session is a device-key session, refused otherwise.
-    /// Its stamp digest is recorded once; an equal retry of a bound publication is not
-    /// re-verified.
+    /// Community host: genesis stamp evidence of the member's first lineage
+    /// (`cchr::genesis_stamp` encoding), required iff the session is a device-key session,
+    /// refused otherwise; its stamp digest is recorded once and an equal retry of a bound
+    /// publication is not re-verified. Wallet host: optional birth genesis evidence
+    /// (`cchr::BirthGenesisEvidence`, one-ceremony registration), verified under the wallet
+    /// key ring for this account and the bound seed commitment.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub evidence: Option<Vec<u8>>,
 }

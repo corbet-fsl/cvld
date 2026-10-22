@@ -90,10 +90,9 @@ impl Door {
         ctx: Context,
         request: InitialPublicationBind,
     ) -> Result<InitialCreationResponse> {
-        // Global sessions are passkey sessions; genesis stamp evidence is community-only.
-        if request.evidence.is_some() {
-            return Err(Error::Invalid);
-        }
+        // Global sessions are passkey sessions; genesis stamp evidence is community-only. The
+        // only evidence accepted here is the wallet's own birth genesis evidence (C4), checked
+        // below under the wallet key ring.
         let started = std::time::Instant::now();
         let token = ctx.token.as_deref().ok_or(Error::Unauthorized)?;
         // Original Auth -> Global lock ordering, as for holder self-ban.
@@ -116,6 +115,9 @@ impl Door {
         let subject =
             cgbl::Subject::new(grant.user.to_string()).map_err(Error::Invalid.redact())?;
         let global = self.global_backend()?.lock().await;
+        if let Some(evidence) = request.evidence.as_deref() {
+            global.verify_wallet_birth(subject.as_str(), evidence, &request.seed, now)?;
+        }
         let eligibility_clock = || self.inner.clock.now();
         now = global
             .facade
