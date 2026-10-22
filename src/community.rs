@@ -1030,6 +1030,8 @@ impl CommunityService {
                     credential,
                     origin: ckyh::Origin::Passkey,
                     session_id: rand::random(),
+                    // Community sessions never carry the wallet birth grant.
+                    uv_at: None,
                 },
             },
         );

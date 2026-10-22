@@ -7,6 +7,7 @@ use ckyh::{LibsqlStore, Passkeys, PendingAuthentication, PendingRegistration, Uu
 use std::{collections::HashMap, sync::Arc};
 use subtle::ConstantTimeEq;
 
+pub(crate) mod birth;
 mod enrollment;
 mod family;
 pub use family::SESSION_FAMILY_LIMIT;
@@ -69,6 +70,10 @@ pub struct Grant {
     /// a human confirmation look at the origin.
     pub(crate) origin: ckyh::Origin,
     pub(crate) session_id: [u8; 32],
+    /// Time of the user-verifying ceremony that minted this session, when it was one that may
+    /// carry the birth grant: a passkey registration (C1) or a passkey login. A fork copies the
+    /// whole state and so keeps the parent's value; nothing ever renews it. `None` otherwise.
+    pub(crate) uv_at: Option<u64>,
 }
 /// Random opaque bearer capability, without embedded member information.
 pub fn token() -> String {
@@ -201,16 +206,32 @@ impl Auth {
         now: u64,
         clock: &dyn crate::service::Clock,
     ) -> Result<User> {
-        self.register_finish_wallet_live(request, now, clock, None)
+        self.register_finish_inner(request, now, clock, None, false)
             .await
+            .map(|registered| User {
+                user: registered.user,
+            })
     }
+    /// The wallet registration: the stored first passkey and, as the birth session (C1), a
+    /// session of exactly this credential with `uv_at = now` (the finish time).
     pub(crate) async fn register_finish_wallet_live(
         &mut self,
         request: RegisterFinish,
         now: u64,
         clock: &dyn crate::service::Clock,
         mutation: Option<cgbl::WalletMutation>,
-    ) -> Result<User> {
+    ) -> Result<Registered> {
+        self.register_finish_inner(request, now, clock, mutation, true)
+            .await
+    }
+    async fn register_finish_inner(
+        &mut self,
+        request: RegisterFinish,
+        now: u64,
+        clock: &dyn crate::service::Clock,
+        mutation: Option<cgbl::WalletMutation>,
+        mint: bool,
+    ) -> Result<Registered> {
         if mutation
             .as_ref()
             .is_some_and(|owner| !owner.matches(&self.passkeys))
@@ -218,6 +239,10 @@ impl Auth {
             return Err(Error::Unauthorized);
         }
         self.prune(now);
+        // Refused before the ceremony is consumed: a registration never ends without its session.
+        if mint && self.sessions.len() >= self.capacity {
+            return Err(Error::Throttled);
+        }
         let pending = self
             .registrations
             .remove(&request.ceremony)
@@ -233,9 +258,9 @@ impl Auth {
             if !passkeys.list(pending.user)?.is_empty() {
                 return Err(ckyh::Error::DuplicateCredential);
             }
-            passkeys.finish_registration(pending.state, &request.credential, month)
+            passkeys.finish_registration_authenticated(pending.state, &request.credential, month)
         };
-        match mutation {
+        let (record, authentication) = match mutation {
             Some(owner) => owner.execute(operation).await,
             None => tokio::task::spawn_blocking(move || operation(&passkeys))
                 .await
@@ -252,8 +277,14 @@ impl Auth {
         if self.operator.is_some() {
             self.bootstrap = None;
         }
-        Ok(User {
+        let session = if mint {
+            Some(self.birth_session(record.credential_id().clone(), authentication, now)?)
+        } else {
+            None
+        };
+        Ok(Registered {
             user: completed_user.to_string(),
+            session,
         })
     }
     pub async fn login_begin(&mut self, request: LoginStart, now: u64) -> Result<Ceremony> {
@@ -374,6 +405,7 @@ impl Auth {
                     credential,
                     origin: ckyh::Origin::Passkey,
                     session_id,
+                    uv_at: Some(now),
                 },
                 authentication: Arc::new(authentication),
                 family: session_id,

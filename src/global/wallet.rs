@@ -69,11 +69,25 @@ impl GlobalService {
         &mut self,
         session: &WalletSession,
         device: Option<[u8; 32]>,
+        birth: Option<&[u8; 64]>,
         clock: &dyn crate::service::Clock,
     ) -> Result<cgbl::WalletDeviceObservation> {
         let wallet = self.wallet.as_mut().ok_or(Error::Forbidden)?;
-        match device {
-            Some(device) => self
+        match (device, birth) {
+            (Some(device), Some(signature)) => self
+                .facade
+                .authorize_wallet_birth_device(
+                    wallet,
+                    session.member()?,
+                    device,
+                    signature,
+                    session.expires(),
+                    &|| clock.now(),
+                )
+                .await
+                .map_err(Error::Refused.redact()),
+            (None, Some(_)) => Err(Error::Invalid),
+            (Some(device), None) => self
                 .facade
                 .authorize_wallet_device(
                     wallet,
@@ -84,7 +98,7 @@ impl GlobalService {
                 )
                 .await
                 .map_err(Error::Reconcile.redact()),
-            None => self
+            (None, None) => self
                 .facade
                 .wallet_devices(wallet, session.member()?, session.expires(), &|| {
                     clock.now()
@@ -92,6 +106,25 @@ impl GlobalService {
                 .await
                 .map_err(Error::Refused.redact()),
         }
+    }
+    /// The account's BirthStatement (C4); the caller checked the birth grant.
+    pub(crate) async fn wallet_birth_genesis(
+        &mut self,
+        session: &WalletSession,
+        digest: [u8; 32],
+        clock: &dyn crate::service::Clock,
+    ) -> Result<cgbl::WalletBirthStatement> {
+        let wallet = self.wallet.as_mut().ok_or(Error::Forbidden)?;
+        self.facade
+            .wallet_birth_genesis(
+                wallet,
+                session.member()?,
+                digest,
+                session.expires(),
+                &|| clock.now(),
+            )
+            .await
+            .map_err(Error::Refused.redact())
     }
     pub(crate) async fn wallet_mutation(&mut self) -> Result<Option<cgbl::WalletMutation>> {
         match self.wallet.as_mut() {

@@ -1271,7 +1271,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Verify and store the first passkey */
+        /** Verify and store the first passkey; the wallet also returns the birth session */
         post: operations["register_finish"];
         delete?: never;
         options?: never;
@@ -1619,6 +1619,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/wallet_birth_genesis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign the account's one BirthStatement for the wallet genesis receipt digest under the birth grant */
+        post: operations["wallet_birth_genesis"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/wallet_device_authorize": {
         parameters: {
             query?: never;
@@ -1628,7 +1645,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Bind the wallet device to the exact authenticated passkey */
+        /** Bind the wallet device to the exact authenticated passkey (step-up, or the birth signature under the birth grant) */
         post: operations["wallet_device_authorize"];
         delete?: never;
         options?: never;
@@ -3084,6 +3101,13 @@ export interface components {
          * @enum {string}
          */
         SelfBanIntent: "permanent_global_self_ban" | "permanent_community_self_ban";
+        Session: {
+            /** Format: int64 */
+            expires: number;
+            role: components["schemas"]["Role"];
+            token: string;
+            user: string;
+        };
         Setting: {
             /** Format: int64 */
             effective_at: number;
@@ -4426,6 +4450,12 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /**
+                     * @description Wallet birth bind (C3), in place of `step_up`: K's signature (64 bytes, purpose
+                     *     `WalletBirthDevice`) over origin, account, credential, seed commitment and K. Only under
+                     *     the birth grant; refused on community hosts.
+                     */
+                    birth_signature?: number[] | null;
                     key: number[];
                     step_up?: components["schemas"]["StepUpProof"] | null;
                 };
@@ -4592,6 +4622,12 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /**
+                     * @description Wallet birth bind (C3), in place of `step_up`: K's signature (64 bytes, purpose
+                     *     `WalletBirthDevice`) over origin, account, credential, seed commitment and K. Only under
+                     *     the birth grant; refused on community hosts.
+                     */
+                    birth_signature?: number[] | null;
                     key: number[];
                     step_up?: components["schemas"]["StepUpProof"] | null;
                 };
@@ -5786,6 +5822,11 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /**
+                     * @description Birth passport (Q5): the bound birth device K's signature (64 bytes, purpose
+                     *     `WalletBirthPassport`) over the request. Only under the birth grant; first-only.
+                     */
+                    birth_signature?: number[] | null;
                     challenge: number[];
                     request: number[];
                 };
@@ -6409,6 +6450,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        session?: components["schemas"]["Session"] | null;
                         user: string;
                     };
                 };
@@ -6806,7 +6848,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    assertion: components["schemas"]["WebAuthnAssertion"];
+                    assertion?: components["schemas"]["WebAuthnAssertion"] | null;
                     challenge: number[];
                     request: number[];
                 };
@@ -7341,6 +7383,47 @@ export interface operations {
             };
         };
     };
+    wallet_birth_genesis: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    digest: number[];
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: int64 */
+                        at: number;
+                        statement: number[];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
     wallet_device_authorize: {
         parameters: {
             query?: never;
@@ -7351,6 +7434,12 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /**
+                     * @description Wallet birth bind (C3), in place of `step_up`: K's signature (64 bytes, purpose
+                     *     `WalletBirthDevice`) over origin, account, credential, seed commitment and K. Only under
+                     *     the birth grant; refused on community hosts.
+                     */
+                    birth_signature?: number[] | null;
                     key: number[];
                     step_up?: components["schemas"]["StepUpProof"] | null;
                 };

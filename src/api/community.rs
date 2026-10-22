@@ -435,6 +435,11 @@ pub struct DeviceKey {
     /// Required except for Root, whose portal sign-in is the step-up.
     #[serde(default)]
     pub step_up: Option<StepUpProof>,
+    /// Wallet birth bind (C3), in place of `step_up`: K's signature (64 bytes, purpose
+    /// `WalletBirthDevice`) over origin, account, credential, seed commitment and K. Only under
+    /// the birth grant; refused on community hosts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub birth_signature: Option<Vec<u8>>,
 }
 
 /// Make this passkey's pending device key live after its lineage revision is published.

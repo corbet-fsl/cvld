@@ -52,22 +52,81 @@ impl Door {
         .await
     }
     pub(crate) async fn wallet_device_keys(&self, ctx: Context, _: Empty) -> Result<DeviceKeys> {
-        self.wallet_device_observation(ctx, None).await
+        self.wallet_device_observation(ctx, None, None).await
     }
     pub(crate) async fn wallet_device_authorize(
         &self,
         ctx: Context,
         request: DeviceKey,
     ) -> Result<DeviceKeys> {
-        let DeviceKey { key, step_up } = request;
+        let DeviceKey {
+            key,
+            step_up,
+            birth_signature,
+        } = request;
+        // The birth bind (C3): no step-up, the birth grant and K's signature instead.
+        if let Some(signature) = birth_signature {
+            if step_up.is_some() {
+                return Err(Error::Invalid);
+            }
+            let signature: [u8; 64] = signature.try_into().map_err(|_| Error::Invalid)?;
+            return self
+                .wallet_device_observation(ctx, Some(key), Some(signature))
+                .await;
+        }
         self.require_step_up(&ctx, StepUpAction::DeviceAuthorize { key }, step_up)
             .await?;
-        self.wallet_device_observation(ctx, Some(key)).await
+        self.wallet_device_observation(ctx, Some(key), None).await
+    }
+    /// The birth genesis statement (C4): the account's one wallet-signed BirthStatement for the
+    /// device-signed genesis receipt digest `D`, under the birth grant. The same `D` returns the
+    /// same statement; another `D` is refused.
+    pub(crate) async fn wallet_birth_genesis(
+        &self,
+        ctx: Context,
+        request: BirthGenesis,
+    ) -> Result<BirthStatement> {
+        let token = ctx.token.as_deref().ok_or(Error::Unauthorized)?;
+        let authentication = self.auth(&ctx.host)?;
+        let mut auth = authentication.lock().await;
+        let mut session = auth
+            .wallet_session(
+                token,
+                ctx.grant.as_ref().ok_or(Error::Unauthorized)?,
+                ctx.now,
+                self.inner.clock.as_ref(),
+            )
+            .await?;
+        auth.birth_grant(token, self.inner.clock.now()).await?;
+        let mut global = self.global_backend()?.lock().await;
+        session
+            .check(&mut auth, token, ctx.now, self.inner.clock.as_ref())
+            .await?;
+        let statement = global
+            .wallet_birth_genesis(&session, request.digest, self.inner.clock.as_ref())
+            .await?;
+        let finish = async {
+            let completed = session
+                .check(&mut auth, token, ctx.now, self.inner.clock.as_ref())
+                .await?;
+            global.publish_wallet(completed).await?;
+            let completed = session
+                .check(&mut auth, token, completed, self.inner.clock.as_ref())
+                .await?;
+            session.check_sync(&auth, token, completed, self.inner.clock.as_ref())?;
+            Ok(BirthStatement {
+                statement: statement.bytes().to_vec(),
+                at: statement.at(),
+            })
+        }
+        .await;
+        finish.map_err(|_: Error| Error::Reconcile)
     }
     async fn wallet_device_observation(
         &self,
         ctx: Context,
         device: Option<[u8; 32]>,
+        birth: Option<[u8; 64]>,
     ) -> Result<DeviceKeys> {
         let token = ctx.token.as_deref().ok_or(Error::Unauthorized)?;
         let authentication = self.auth(&ctx.host)?;
@@ -80,12 +139,16 @@ impl Door {
                 self.inner.clock.as_ref(),
             )
             .await?;
+        // The birth grant is checked with this Auth held until the bind has committed.
+        if birth.is_some() {
+            auth.birth_grant(token, self.inner.clock.now()).await?;
+        }
         let mut global = self.global_backend()?.lock().await;
         session
             .check(&mut auth, token, ctx.now, self.inner.clock.as_ref())
             .await?;
         let observation = global
-            .wallet_devices(&session, device, self.inner.clock.as_ref())
+            .wallet_devices(&session, device, birth.as_ref(), self.inner.clock.as_ref())
             .await?;
         let finish = async {
             let completed = session
@@ -312,13 +375,17 @@ impl Door {
         &self,
         ctx: Context,
         request: RegisterFinish,
-    ) -> Result<User> {
+    ) -> Result<Registered> {
         let authentication = self.auth(&ctx.host)?;
         let mut auth = authentication.lock().await;
         if auth.role != Role::Member || auth.operator.is_some() {
             return auth
                 .register_finish_live(request, ctx.now, self.inner.clock.as_ref())
-                .await;
+                .await
+                .map(|user| Registered {
+                    user: user.user,
+                    session: None,
+                });
         }
         let mut global = self.global_backend()?.lock().await;
         let mutation = global.wallet_mutation().await?;
