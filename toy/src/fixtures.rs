@@ -149,6 +149,7 @@ pub fn wallet(dir: &Path) -> cvld::config::WalletConfig {
         stamp_limit: None,
         stamp_period_seconds: None,
         stamp_replay_seconds: None,
+        session_family_limit: None,
     }
 }
 pub fn community_rules() -> crbk::Rulebook {

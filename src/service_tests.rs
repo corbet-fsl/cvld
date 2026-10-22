@@ -325,3 +325,62 @@ async fn the_tunnel_header_names_the_source_only_for_a_loopback_peer() {
 }
 
 const SOURCE: std::net::IpAddr = std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED);
+
+#[tokio::test(flavor = "multi_thread")]
+async fn session_fork_serves_the_wallet_only_and_logout_of_a_sibling_ends_the_family() {
+    let service = global(100).await;
+    let member = enrol(&service, WALLET, None).await;
+    let sibling = client(&service, WALLET, Some(&member.session))
+        .call("session_fork", json!({}))
+        .await
+        .unwrap();
+    let token = sibling["token"].as_str().unwrap().to_owned();
+    assert_ne!(token, member.session);
+    // The sibling is authenticated exactly as its parent: whatever the action answers the
+    // parent, it answers the sibling, and never 401.
+    let parent = call_status(
+        &service,
+        WALLET,
+        Some(&member.session),
+        "wallet_device_keys",
+        json!({}),
+    )
+    .await;
+    assert_ne!(parent, 401);
+    assert_eq!(
+        call_status(
+            &service,
+            WALLET,
+            Some(&token),
+            "wallet_device_keys",
+            json!({})
+        )
+        .await,
+        parent
+    );
+    assert_eq!(
+        call_status(&service, WALLET, None, "session_fork", json!({})).await,
+        401
+    );
+    assert_eq!(
+        call_status(&service, WALLET, Some(&token), "logout", json!({})).await,
+        200
+    );
+    for session in [&token, &member.session] {
+        assert_eq!(
+            call_status(
+                &service,
+                WALLET,
+                Some(session),
+                "wallet_device_keys",
+                json!({})
+            )
+            .await,
+            401
+        );
+        assert_eq!(
+            call_status(&service, WALLET, Some(session), "session_fork", json!({})).await,
+            401
+        );
+    }
+}

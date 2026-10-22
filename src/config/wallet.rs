@@ -24,4 +24,8 @@ pub struct WalletConfig {
     /// minutes; 0 disables it).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stamp_replay_seconds: Option<u64>,
+    /// Live wallet sessions per family, the login and its `session_fork` siblings (rulebook
+    /// setting; default 3, at most 8, checked at load).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_family_limit: Option<usize>,
 }

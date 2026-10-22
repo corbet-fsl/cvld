@@ -343,7 +343,29 @@ impl<T: SessionTransport> Client<T> {
     pub async fn authenticate_device(&mut self, request: Value) -> Result<SessionInfo> {
         self.adopt("device_session_finish", request).await
     }
+    /// Fork this live wallet session (C6 `session_fork`) and adopt the sibling's bearer in
+    /// `sibling`, a client of the same origin; this client keeps its own session. The bearer
+    /// never reaches the caller.
+    pub async fn fork_into<U: SessionTransport>(
+        &mut self,
+        sibling: &mut Client<U>,
+    ) -> Result<SessionInfo> {
+        let (token, info) = self
+            .trusted("session_fork", Value::Object(Default::default()))
+            .await?;
+        sibling.transport.adopt_session(token);
+        Ok(info)
+    }
     async fn adopt(&mut self, name: &str, request: Value) -> Result<SessionInfo> {
+        let (token, info) = self.trusted(name, request).await?;
+        self.transport.adopt_session(token);
+        Ok(info)
+    }
+    async fn trusted(
+        &mut self,
+        name: &str,
+        request: Value,
+    ) -> Result<(zeroize::Zeroizing<String>, SessionInfo)> {
         let action = action(name).ok_or(Error::Invalid)?;
         if action.schema()["x-client-access"] != "trusted" {
             return Err(Error::Invalid);
@@ -358,8 +380,7 @@ impl<T: SessionTransport> Client<T> {
         let token = zeroize::Zeroizing::new(token);
         let info =
             serde_json::from_value(Value::Object(fields)).map_err(Error::Reconcile.redact())?;
-        self.transport.adopt_session(token);
-        Ok(info)
+        Ok((token, info))
     }
 }
 

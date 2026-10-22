@@ -304,6 +304,7 @@ actions! {
     device_session_finish(DeviceSessionFinish) -> Session, Public, Community, Record, Trusted, "Open or renew a community session by the signed nonce of an active device key";
     device_join(DeviceJoin) -> DeviceJoined, Public, Community, Record, Trusted, "Join by passport and one confirmation stamp, binding the member's first device key";
     logout(Empty) -> Empty, Authenticated, Both, Check, Forward, "End this ephemeral session";
+    session_fork(Empty) -> Session, Member, Global, Record, Trusted, "Fork this live wallet session into a sibling with the same grant and deadline; the family ends together";
     member_role(Empty) -> MemberRole, Authenticated, Community, Check, Forward, "Read the current original local membership role";
     member_role_set(SetMemberRole) -> Empty, Admin, Community, Record, Forward, lobby 1, "Change a role under current garden membership authority";
     wallet_trust_feed(Empty) -> TrustFeed, Public, Global, Check, Forward, "Read the isolated wallet original trust snapshots";

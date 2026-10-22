@@ -8,6 +8,8 @@ use std::{collections::HashMap, sync::Arc};
 use subtle::ConstantTimeEq;
 
 mod enrollment;
+mod family;
+pub use family::{DEFAULT_FAMILY_LIMIT, MAX_FAMILY_LIMIT};
 pub(crate) mod global_self_ban;
 mod passkeys;
 mod step_up;
@@ -28,6 +30,8 @@ pub struct Auth {
     step_ups: crate::step_up::StepUps<PendingAuthentication>,
     capacity: usize,
     lifetime: u64,
+    /// Live sessions per family (C6 `session_fork`): the login plus its forks.
+    family_limit: usize,
 }
 
 #[cfg(test)]
@@ -44,9 +48,14 @@ struct PendingLogin {
     state: LoginCeremony,
     expires: u64,
 }
+/// A session is one member of a family: the login that opened it and every fork of it share
+/// the family's id, grant and authentication, and end together.
+#[derive(Clone)]
 struct SessionState {
     grant: Grant,
     authentication: Arc<ckyh::Authentication>,
+    /// The `session_id` of the login that opened the family.
+    family: [u8; 32],
 }
 enum LoginCeremony {
     Credential(PendingAuthentication),
@@ -100,13 +109,21 @@ impl Auth {
             step_ups: Default::default(),
             capacity,
             lifetime,
+            family_limit: DEFAULT_FAMILY_LIMIT,
         })
     }
     fn prune(&mut self, now: u64) {
         self.registrations
             .retain(|_, p| p.expires > now && std::time::Instant::now() < p.deadline);
         self.logins.retain(|_, p| p.expires > now);
-        self.sessions.retain(|_, p| p.grant.expires > now);
+        // The expiry of any member ends its whole family.
+        let ended: std::collections::HashSet<[u8; 32]> = self
+            .sessions
+            .values()
+            .filter(|p| p.grant.expires <= now)
+            .map(|p| p.family)
+            .collect();
+        self.sessions.retain(|_, p| !ended.contains(&p.family));
         self.additions.retain(|_, p| p.until > now);
         self.self_bans.retain(|_, p| p.until > now);
         self.step_ups.prune(now);
@@ -349,6 +366,7 @@ impl Auth {
         let user = authentication.member();
         let expires = now + self.lifetime;
         crate::service::publication::expires_at(expires)?;
+        let session_id = rand::random();
         self.sessions.insert(
             token.clone(),
             SessionState {
@@ -358,9 +376,10 @@ impl Auth {
                     expires,
                     credential,
                     origin: ckyh::Origin::Passkey,
-                    session_id: rand::random(),
+                    session_id,
                 },
                 authentication: Arc::new(authentication),
+                family: session_id,
             },
         );
         Ok(Session {
@@ -396,18 +415,22 @@ impl Auth {
         }
         Ok(grant)
     }
+    /// End this session's whole family: the login and every fork of it.
     pub fn logout(&mut self, token: &str) {
-        if let Some(session) = self.sessions.remove(token) {
-            self.additions
-                .retain(|_, p| p.session_id != session.grant.session_id);
-            self.self_bans
-                .retain(|_, p| p.session_id != session.grant.session_id);
+        if let Some(family) = self.sessions.get(token).map(|session| session.family) {
+            self.sessions.retain(|_, session| session.family != family);
+            self.retain_live();
         }
     }
 
     pub(crate) fn logout_account(&mut self, user: Uuid) {
         self.sessions
             .retain(|_, session| session.grant.user != user);
+        self.retain_live();
+    }
+
+    /// Drop pending additions, self-bans and step-ups of sessions that ended.
+    fn retain_live(&mut self) {
         let live: std::collections::HashSet<_> = self
             .sessions
             .values()

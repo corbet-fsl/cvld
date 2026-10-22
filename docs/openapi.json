@@ -1681,6 +1681,979 @@
               "request"
             ],
             "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Member route: a blinded settlement pass, issued under the member's session.",
+            "properties": {
+              "action": {
+                "enum": [
+                  "issueSettlementPass"
+                ],
+                "type": "string"
+              },
+              "authorization": {
+                "additionalProperties": false,
+                "description": "Member-owned root authorization. Eligibility issuers cannot create this proof.",
+                "properties": {
+                  "communityId": {
+                    "type": "string"
+                  },
+                  "devicePublicKey": {
+                    "type": "string"
+                  },
+                  "expiresAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "issuedAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "memberId": {
+                    "type": "string"
+                  },
+                  "rootPublicKey": {
+                    "type": "string"
+                  },
+                  "signature": {
+                    "type": "string"
+                  },
+                  "version": {
+                    "format": "uint32",
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "version",
+                  "communityId",
+                  "memberId",
+                  "rootPublicKey",
+                  "devicePublicKey",
+                  "issuedAt",
+                  "expiresAt",
+                  "signature"
+                ],
+                "type": "object"
+              },
+              "grant": {
+                "additionalProperties": false,
+                "properties": {
+                  "chatPublicKey": {
+                    "type": "string"
+                  },
+                  "communityId": {
+                    "type": "string"
+                  },
+                  "expiresAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "issuedAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "issuerKeyId": {
+                    "type": "string"
+                  },
+                  "memberId": {
+                    "type": "string"
+                  },
+                  "passportPolicyDigest": {
+                    "description": "Opaque digest of the exact authenticated global passport cohort.",
+                    "type": "string"
+                  },
+                  "policyDigest": {
+                    "type": "string"
+                  },
+                  "policyEpoch": {
+                    "description": "Community admission epoch from the same validated credential decision.",
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "pseudonym": {
+                    "description": "Canonical cpsd pseudonym bytes in lowercase hex, authenticated by the issuer.",
+                    "type": "string"
+                  },
+                  "signature": {
+                    "description": "Base64url canonical csgn COSE Sign1, never a detached signature.",
+                    "type": "string"
+                  },
+                  "version": {
+                    "format": "uint32",
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "version",
+                  "issuerKeyId",
+                  "communityId",
+                  "memberId",
+                  "pseudonym",
+                  "chatPublicKey",
+                  "policyDigest",
+                  "policyEpoch",
+                  "passportPolicyDigest",
+                  "issuedAt",
+                  "expiresAt",
+                  "signature"
+                ],
+                "type": "object"
+              },
+              "request": {
+                "additionalProperties": false,
+                "description": "Member-signed blinded issuance request. It reveals no Deposit or recipient.",
+                "properties": {
+                  "blind": {
+                    "additionalProperties": false,
+                    "description": "The authenticated issuer sees only a common context and blinded bytes.",
+                    "properties": {
+                      "blinded": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "type": "array"
+                      },
+                      "context": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "context",
+                      "blinded"
+                    ],
+                    "type": "object"
+                  },
+                  "community": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 32,
+                    "minItems": 32,
+                    "type": "array"
+                  },
+                  "expiresAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "issuedAt": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "operation": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 16,
+                    "minItems": 16,
+                    "type": "array"
+                  },
+                  "owner": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 32,
+                    "minItems": 32,
+                    "type": "array"
+                  },
+                  "signature": {
+                    "description": "Original account chat-key signature, in canonical base64url.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "community",
+                  "owner",
+                  "operation",
+                  "blind",
+                  "issuedAt",
+                  "expiresAt",
+                  "signature"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "action",
+              "grant",
+              "authorization",
+              "request"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Anonymous route, no member session: stage one deposit with its settlement token.",
+            "properties": {
+              "action": {
+                "enum": [
+                  "stageSettlement"
+                ],
+                "type": "string"
+              },
+              "submission": {
+                "additionalProperties": false,
+                "description": "Native anonymous ingress inputs. The transport must have no member session\nand use the original separate Tor circuit. Nothing here establishes that\nnetwork property or contains the hidden outcome kind.",
+                "properties": {
+                  "deposit": {
+                    "additionalProperties": false,
+                    "description": "A recipient-addressed opaque obligation, delivered without the punished holder.\nThe proof hides the reporter, receipt, conversation and kind of outcome.",
+                    "properties": {
+                      "authorizationNullifier": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "community": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "identity": {
+                        "description": "The community identity the hidden certificate binds (never the address).",
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "issuerKey": {
+                        "description": "The issuer key that signed the hidden certificate and the exact period of the\npublished ring it names; the relation proves the acceptance time lies inside it.",
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "type": "array"
+                      },
+                      "issuerValidFrom": {
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "issuerValidUntil": {
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "nullifier": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "obligation": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "recipient": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "releaseEpoch": {
+                        "description": "Coarse release horizon. The circuit proves acceptance preceded it by the configured delay.",
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "releaseEpoch",
+                      "community",
+                      "identity",
+                      "issuerKey",
+                      "issuerValidFrom",
+                      "issuerValidUntil",
+                      "recipient",
+                      "nullifier",
+                      "authorizationNullifier",
+                      "obligation"
+                    ],
+                    "type": "object"
+                  },
+                  "operation": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 16,
+                    "minItems": 16,
+                    "type": "array"
+                  },
+                  "proof": {
+                    "type": "string"
+                  },
+                  "tokenProof": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "deposit",
+                  "proof",
+                  "tokenProof",
+                  "operation"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "action",
+              "submission"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Anonymous route: post the obligation tag of a verified `Post` presentation.\n`expected_binding` is computed by the host from its own request, never taken from\nthe client.",
+            "properties": {
+              "action": {
+                "enum": [
+                  "postObligation"
+                ],
+                "type": "string"
+              },
+              "expected_binding": {
+                "items": {
+                  "format": "uint8",
+                  "maximum": 255,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "maxItems": 32,
+                "minItems": 32,
+                "type": "array"
+              },
+              "presentation": {
+                "additionalProperties": false,
+                "description": "Public inputs of one voucher presentation. The owner never appears: the relation\nproves some member of this epoch qualifies, bound to the relying party's `binding`.\nDeserialization and validation do not authenticate the epoch; the relying ledger\ncompares it with its own current descriptor.",
+                "properties": {
+                  "binding": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 32,
+                    "minItems": 32,
+                    "type": "array"
+                  },
+                  "blindedLeaf": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 32,
+                    "minItems": 32,
+                    "type": "array"
+                  },
+                  "certificate": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "epoch": {
+                    "additionalProperties": false,
+                    "description": "Public descriptor carried inside the original signed Beacon material.\nDeserialization and validation do not authenticate it: the relying owner\nmust obtain these exact bytes through its current verified Charter.",
+                    "properties": {
+                      "community": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "downloadBytes": {
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "downloadDigest": {
+                        "description": "SHA-256 of the complete shuffled, unlabeled ciphertext object.",
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "epoch": {
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "expiresAt": {
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "issuerKey": {
+                        "description": "Record issuer key authenticated by the original common epoch descriptor.",
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "leafCount": {
+                        "format": "uint32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "policyEpoch": {
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "proofScope": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "circuitDigest": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          },
+                          "verifyingKeyDigest": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          }
+                        },
+                        "required": [
+                          "circuitDigest",
+                          "verifyingKeyDigest"
+                        ],
+                        "type": "object"
+                      },
+                      "purpose": {
+                        "enum": [
+                          "cblc.record-epoch.v3"
+                        ],
+                        "type": "string"
+                      },
+                      "root": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "startsAt": {
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "purpose",
+                      "community",
+                      "policyEpoch",
+                      "epoch",
+                      "startsAt",
+                      "expiresAt",
+                      "root",
+                      "issuerKey",
+                      "proofScope",
+                      "leafCount",
+                      "downloadDigest",
+                      "downloadBytes"
+                    ],
+                    "type": "object"
+                  },
+                  "now": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "purpose": {
+                    "description": "What an unlinkable voucher presentation proves about a hidden member of the current epoch.",
+                    "oneOf": [
+                      {
+                        "description": "The member may issue a link of `uses` admissions at its current cap. The proof also\npublishes one nullifier per allowance unit it reserves, exactly `uses` of them and at most ISSUE_UNITS (the circuit pads the\nfixed output with zeros), and\n`signoff_standing` greater than zero proves the member's pool cap reaches that\nthreshold. The relying party compares the threshold with its own rulebook value.",
+                        "properties": {
+                          "kind": {
+                            "enum": [
+                              "issue"
+                            ],
+                            "type": "string"
+                          },
+                          "nullifiers": {
+                            "items": {
+                              "items": {
+                                "format": "uint8",
+                                "maximum": 255,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "maxItems": 32,
+                              "minItems": 32,
+                              "type": "array"
+                            },
+                            "type": "array"
+                          },
+                          "signoffStanding": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "uses": {
+                            "format": "uint32",
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "uses",
+                          "signoffStanding",
+                          "nullifiers"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "description": "The member may post the bond obligation addressed by `tag`.",
+                        "properties": {
+                          "kind": {
+                            "enum": [
+                              "post"
+                            ],
+                            "type": "string"
+                          },
+                          "tag": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "tag"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "epoch",
+                  "blindedLeaf",
+                  "certificate",
+                  "purpose",
+                  "now",
+                  "binding"
+                ],
+                "type": "object"
+              },
+              "proof": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "action",
+              "presentation",
+              "proof",
+              "expected_binding"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Anonymous route: verify an `Issue` presentation against the current voucher epoch\nand spend its allowance units. Same binding rule as `PostObligation`.",
+            "properties": {
+              "action": {
+                "enum": [
+                  "checkVoucherEpoch"
+                ],
+                "type": "string"
+              },
+              "expected_binding": {
+                "items": {
+                  "format": "uint8",
+                  "maximum": 255,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "maxItems": 32,
+                "minItems": 32,
+                "type": "array"
+              },
+              "presentation": {
+                "additionalProperties": false,
+                "description": "Public inputs of one voucher presentation. The owner never appears: the relation\nproves some member of this epoch qualifies, bound to the relying party's `binding`.\nDeserialization and validation do not authenticate the epoch; the relying ledger\ncompares it with its own current descriptor.",
+                "properties": {
+                  "binding": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 32,
+                    "minItems": 32,
+                    "type": "array"
+                  },
+                  "blindedLeaf": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 32,
+                    "minItems": 32,
+                    "type": "array"
+                  },
+                  "certificate": {
+                    "items": {
+                      "format": "uint8",
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "epoch": {
+                    "additionalProperties": false,
+                    "description": "Public descriptor carried inside the original signed Beacon material.\nDeserialization and validation do not authenticate it: the relying owner\nmust obtain these exact bytes through its current verified Charter.",
+                    "properties": {
+                      "community": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "downloadBytes": {
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "downloadDigest": {
+                        "description": "SHA-256 of the complete shuffled, unlabeled ciphertext object.",
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "epoch": {
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "expiresAt": {
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "issuerKey": {
+                        "description": "Record issuer key authenticated by the original common epoch descriptor.",
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "leafCount": {
+                        "format": "uint32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "policyEpoch": {
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "proofScope": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "circuitDigest": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          },
+                          "verifyingKeyDigest": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          }
+                        },
+                        "required": [
+                          "circuitDigest",
+                          "verifyingKeyDigest"
+                        ],
+                        "type": "object"
+                      },
+                      "purpose": {
+                        "enum": [
+                          "cblc.record-epoch.v3"
+                        ],
+                        "type": "string"
+                      },
+                      "root": {
+                        "items": {
+                          "format": "uint8",
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 32,
+                        "minItems": 32,
+                        "type": "array"
+                      },
+                      "startsAt": {
+                        "format": "uint64",
+                        "minimum": 0,
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "purpose",
+                      "community",
+                      "policyEpoch",
+                      "epoch",
+                      "startsAt",
+                      "expiresAt",
+                      "root",
+                      "issuerKey",
+                      "proofScope",
+                      "leafCount",
+                      "downloadDigest",
+                      "downloadBytes"
+                    ],
+                    "type": "object"
+                  },
+                  "now": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "purpose": {
+                    "description": "What an unlinkable voucher presentation proves about a hidden member of the current epoch.",
+                    "oneOf": [
+                      {
+                        "description": "The member may issue a link of `uses` admissions at its current cap. The proof also\npublishes one nullifier per allowance unit it reserves, exactly `uses` of them and at most ISSUE_UNITS (the circuit pads the\nfixed output with zeros), and\n`signoff_standing` greater than zero proves the member's pool cap reaches that\nthreshold. The relying party compares the threshold with its own rulebook value.",
+                        "properties": {
+                          "kind": {
+                            "enum": [
+                              "issue"
+                            ],
+                            "type": "string"
+                          },
+                          "nullifiers": {
+                            "items": {
+                              "items": {
+                                "format": "uint8",
+                                "maximum": 255,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "maxItems": 32,
+                              "minItems": 32,
+                              "type": "array"
+                            },
+                            "type": "array"
+                          },
+                          "signoffStanding": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "uses": {
+                            "format": "uint32",
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "uses",
+                          "signoffStanding",
+                          "nullifiers"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "description": "The member may post the bond obligation addressed by `tag`.",
+                        "properties": {
+                          "kind": {
+                            "enum": [
+                              "post"
+                            ],
+                            "type": "string"
+                          },
+                          "tag": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "tag"
+                        ],
+                        "type": "object"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "epoch",
+                  "blindedLeaf",
+                  "certificate",
+                  "purpose",
+                  "now",
+                  "binding"
+                ],
+                "type": "object"
+              },
+              "proof": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "action",
+              "presentation",
+              "proof",
+              "expected_binding"
+            ],
+            "type": "object"
           }
         ],
         "title": "AccountServiceRequest"
@@ -3360,6 +4333,168 @@
             "required": [
               "action",
               "value"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "The blinded settlement pass, ready for the member to unblind.",
+            "properties": {
+              "action": {
+                "enum": [
+                  "settlementPass"
+                ],
+                "type": "string"
+              },
+              "value": {
+                "additionalProperties": false,
+                "properties": {
+                  "pass": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "pass"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "action",
+              "value"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Durable staging result of an anonymous deposit; a replay is an error, not a status.",
+            "properties": {
+              "action": {
+                "enum": [
+                  "settlement"
+                ],
+                "type": "string"
+              },
+              "value": {
+                "description": "Exact reconciliation of an original durable fact or already-applied effect.",
+                "oneOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "status": {
+                        "enum": [
+                          "staged"
+                        ],
+                        "type": "string"
+                      },
+                      "value": {
+                        "additionalProperties": false,
+                        "description": "Durable verification staging, NOT inbox application or G2 publication.",
+                        "properties": {
+                          "depositDigest": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          },
+                          "eligibleEpoch": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "depositDigest",
+                          "eligibleEpoch"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "value"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "status": {
+                        "enum": [
+                          "applied"
+                        ],
+                        "type": "string"
+                      },
+                      "value": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "deposit_digest": {
+                            "items": {
+                              "format": "uint8",
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 32,
+                            "minItems": 32,
+                            "type": "array"
+                          }
+                        },
+                        "required": [
+                          "deposit_digest"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "value"
+                    ],
+                    "type": "object"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "action",
+              "value"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "The obligation tag is now waiting in the bond mailbox.",
+            "properties": {
+              "action": {
+                "enum": [
+                  "posted"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "action"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "The issue presentation verified and its slices are spent.",
+            "properties": {
+              "action": {
+                "enum": [
+                  "voucherEpoch"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "action"
             ],
             "type": "object"
           }
@@ -11678,6 +12813,87 @@
         "x-lobby": "true",
         "x-role": "admin",
         "x-scope": "community"
+      }
+    },
+    "/v1/session_fork": {
+      "post": {
+        "operationId": "session_fork",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "expires": {
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "role": {
+                      "$ref": "#/components/schemas/Role"
+                    },
+                    "token": {
+                      "type": "string"
+                    },
+                    "user": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "token",
+                    "user",
+                    "role",
+                    "expires"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "summary": "Fork this live wallet session into a sibling with the same grant and deadline; the family ends together",
+        "x-client-access": "trusted",
+        "x-effect": "record",
+        "x-lobby": "false",
+        "x-role": "member",
+        "x-scope": "global"
       }
     },
     "/v1/setting_list": {

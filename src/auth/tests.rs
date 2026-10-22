@@ -9,6 +9,8 @@ const BOOTSTRAP: &str = "synthetic-operator-enrolment-capability";
 
 #[path = "tests/enrollment.rs"]
 mod enrollment;
+#[path = "tests/family.rs"]
+mod family;
 #[path = "tests/global_self_ban.rs"]
 mod global_self_ban;
 #[path = "tests/passkey_management.rs"]

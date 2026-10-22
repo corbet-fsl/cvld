@@ -1279,6 +1279,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/session_fork": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Fork this live wallet session into a sibling with the same grant and deadline; the family ends together */
+        post: operations["session_fork"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/setting_list": {
         parameters: {
             query?: never;
@@ -2046,6 +2063,230 @@ export interface components {
                 requestId?: number[] | null;
                 signature: string;
             };
+        } | {
+            /** @enum {string} */
+            action: "issueSettlementPass";
+            /** @description Member-owned root authorization. Eligibility issuers cannot create this proof. */
+            authorization: {
+                communityId: string;
+                devicePublicKey: string;
+                /** Format: uint64 */
+                expiresAt: number;
+                /** Format: uint64 */
+                issuedAt: number;
+                memberId: string;
+                rootPublicKey: string;
+                signature: string;
+                /** Format: uint32 */
+                version: number;
+            };
+            grant: {
+                chatPublicKey: string;
+                communityId: string;
+                /** Format: uint64 */
+                expiresAt: number;
+                /** Format: uint64 */
+                issuedAt: number;
+                issuerKeyId: string;
+                memberId: string;
+                /** @description Opaque digest of the exact authenticated global passport cohort. */
+                passportPolicyDigest: string;
+                policyDigest: string;
+                /**
+                 * Format: uint64
+                 * @description Community admission epoch from the same validated credential decision.
+                 */
+                policyEpoch: number;
+                /** @description Canonical cpsd pseudonym bytes in lowercase hex, authenticated by the issuer. */
+                pseudonym: string;
+                /** @description Base64url canonical csgn COSE Sign1, never a detached signature. */
+                signature: string;
+                /** Format: uint32 */
+                version: number;
+            };
+            /** @description Member-signed blinded issuance request. It reveals no Deposit or recipient. */
+            request: {
+                /** @description The authenticated issuer sees only a common context and blinded bytes. */
+                blind: {
+                    blinded: number[];
+                    context: number[];
+                };
+                community: number[];
+                /** Format: uint64 */
+                expiresAt: number;
+                /** Format: uint64 */
+                issuedAt: number;
+                operation: number[];
+                owner: number[];
+                /** @description Original account chat-key signature, in canonical base64url. */
+                signature: string;
+            };
+        } | {
+            /** @enum {string} */
+            action: "stageSettlement";
+            /**
+             * @description Native anonymous ingress inputs. The transport must have no member session
+             *     and use the original separate Tor circuit. Nothing here establishes that
+             *     network property or contains the hidden outcome kind.
+             */
+            submission: {
+                /**
+                 * @description A recipient-addressed opaque obligation, delivered without the punished holder.
+                 *     The proof hides the reporter, receipt, conversation and kind of outcome.
+                 */
+                deposit: {
+                    authorizationNullifier: number[];
+                    community: number[];
+                    /** @description The community identity the hidden certificate binds (never the address). */
+                    identity: number[];
+                    /**
+                     * @description The issuer key that signed the hidden certificate and the exact period of the
+                     *     published ring it names; the relation proves the acceptance time lies inside it.
+                     */
+                    issuerKey: number[];
+                    /** Format: uint64 */
+                    issuerValidFrom: number;
+                    /** Format: uint64 */
+                    issuerValidUntil: number;
+                    nullifier: number[];
+                    obligation: number[];
+                    recipient: number[];
+                    /**
+                     * Format: uint64
+                     * @description Coarse release horizon. The circuit proves acceptance preceded it by the configured delay.
+                     */
+                    releaseEpoch: number;
+                };
+                operation: number[];
+                proof: string;
+                tokenProof: string;
+            };
+        } | {
+            /** @enum {string} */
+            action: "postObligation";
+            expected_binding: number[];
+            /**
+             * @description Public inputs of one voucher presentation. The owner never appears: the relation
+             *     proves some member of this epoch qualifies, bound to the relying party's `binding`.
+             *     Deserialization and validation do not authenticate the epoch; the relying ledger
+             *     compares it with its own current descriptor.
+             */
+            presentation: {
+                binding: number[];
+                blindedLeaf: number[];
+                certificate: number[];
+                /**
+                 * @description Public descriptor carried inside the original signed Beacon material.
+                 *     Deserialization and validation do not authenticate it: the relying owner
+                 *     must obtain these exact bytes through its current verified Charter.
+                 */
+                epoch: {
+                    community: number[];
+                    /** Format: uint64 */
+                    downloadBytes: number;
+                    /** @description SHA-256 of the complete shuffled, unlabeled ciphertext object. */
+                    downloadDigest: number[];
+                    /** Format: uint64 */
+                    epoch: number;
+                    /** Format: uint64 */
+                    expiresAt: number;
+                    /** @description Record issuer key authenticated by the original common epoch descriptor. */
+                    issuerKey: number[];
+                    /** Format: uint32 */
+                    leafCount: number;
+                    /** Format: uint64 */
+                    policyEpoch: number;
+                    proofScope: {
+                        circuitDigest: number[];
+                        verifyingKeyDigest: number[];
+                    };
+                    /** @enum {string} */
+                    purpose: "cblc.record-epoch.v3";
+                    root: number[];
+                    /** Format: uint64 */
+                    startsAt: number;
+                };
+                /** Format: uint64 */
+                now: number;
+                /** @description What an unlinkable voucher presentation proves about a hidden member of the current epoch. */
+                purpose: {
+                    /** @enum {string} */
+                    kind: "issue";
+                    nullifiers: number[][];
+                    /** Format: uint64 */
+                    signoffStanding: number;
+                    /** Format: uint32 */
+                    uses: number;
+                } | {
+                    /** @enum {string} */
+                    kind: "post";
+                    tag: number[];
+                };
+            };
+            proof: string;
+        } | {
+            /** @enum {string} */
+            action: "checkVoucherEpoch";
+            expected_binding: number[];
+            /**
+             * @description Public inputs of one voucher presentation. The owner never appears: the relation
+             *     proves some member of this epoch qualifies, bound to the relying party's `binding`.
+             *     Deserialization and validation do not authenticate the epoch; the relying ledger
+             *     compares it with its own current descriptor.
+             */
+            presentation: {
+                binding: number[];
+                blindedLeaf: number[];
+                certificate: number[];
+                /**
+                 * @description Public descriptor carried inside the original signed Beacon material.
+                 *     Deserialization and validation do not authenticate it: the relying owner
+                 *     must obtain these exact bytes through its current verified Charter.
+                 */
+                epoch: {
+                    community: number[];
+                    /** Format: uint64 */
+                    downloadBytes: number;
+                    /** @description SHA-256 of the complete shuffled, unlabeled ciphertext object. */
+                    downloadDigest: number[];
+                    /** Format: uint64 */
+                    epoch: number;
+                    /** Format: uint64 */
+                    expiresAt: number;
+                    /** @description Record issuer key authenticated by the original common epoch descriptor. */
+                    issuerKey: number[];
+                    /** Format: uint32 */
+                    leafCount: number;
+                    /** Format: uint64 */
+                    policyEpoch: number;
+                    proofScope: {
+                        circuitDigest: number[];
+                        verifyingKeyDigest: number[];
+                    };
+                    /** @enum {string} */
+                    purpose: "cblc.record-epoch.v3";
+                    root: number[];
+                    /** Format: uint64 */
+                    startsAt: number;
+                };
+                /** Format: uint64 */
+                now: number;
+                /** @description What an unlinkable voucher presentation proves about a hidden member of the current epoch. */
+                purpose: {
+                    /** @enum {string} */
+                    kind: "issue";
+                    nullifiers: number[][];
+                    /** Format: uint64 */
+                    signoffStanding: number;
+                    /** Format: uint32 */
+                    uses: number;
+                } | {
+                    /** @enum {string} */
+                    kind: "post";
+                    tag: number[];
+                };
+            };
+            proof: string;
         };
         /** AccountServiceResponse */
         AccountServiceResponse: {
@@ -2446,6 +2687,38 @@ export interface components {
                 requestDigest: number[];
                 signature: string;
             };
+        } | {
+            /** @enum {string} */
+            action: "settlementPass";
+            value: {
+                pass: string;
+            };
+        } | {
+            /** @enum {string} */
+            action: "settlement";
+            /** @description Exact reconciliation of an original durable fact or already-applied effect. */
+            value: {
+                /** @enum {string} */
+                status: "staged";
+                /** @description Durable verification staging, NOT inbox application or G2 publication. */
+                value: {
+                    depositDigest: number[];
+                    /** Format: uint64 */
+                    eligibleEpoch: number;
+                };
+            } | {
+                /** @enum {string} */
+                status: "applied";
+                value: {
+                    deposit_digest: number[];
+                };
+            };
+        } | {
+            /** @enum {string} */
+            action: "posted";
+        } | {
+            /** @enum {string} */
+            action: "voucherEpoch";
         };
         /** @description A creator device's genesis statement and proof for exactly this community. */
         AccountingActivation: {
@@ -6034,6 +6307,47 @@ export interface operations {
                         schema: number[];
                         schema_versions: number[];
                         settings: number[];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    session_fork: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: int64 */
+                        expires: number;
+                        role: components["schemas"]["Role"];
+                        token: string;
+                        user: string;
                     };
                 };
             };

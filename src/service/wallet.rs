@@ -325,6 +325,16 @@ impl Door {
         auth.register_finish_wallet_live(request, ctx.now, self.inner.clock.as_ref(), mutation)
             .await
     }
+    /// C6: a sibling of the caller's live wallet session (same grant, same deadline, fresh
+    /// session id). The wallet holds no passkey mutation for it: nothing is stored.
+    pub(crate) async fn session_fork(&self, ctx: Context, _: Empty) -> Result<Session> {
+        let token = ctx.token.as_deref().ok_or(Error::Unauthorized)?;
+        self.auth(&ctx.host)?
+            .lock()
+            .await
+            .fork(token, ctx.now)
+            .await
+    }
     pub(crate) async fn wallet_login_finish(
         &self,
         ctx: Context,
