@@ -45,7 +45,7 @@ pub(super) async fn anchor(
     )
 }
 
-async fn passport(global: &Running) -> (cpsd::OpaqueHolder, GlobalPublic) {
+pub(super) async fn passport(global: &Running) -> (cpsd::OpaqueHolder, GlobalPublic) {
     let member = enrol(global, WALLET, None).await;
     let client = client(global, WALLET, Some(&member.session));
     client.call("development_gate", json!({})).await.unwrap();
@@ -111,10 +111,19 @@ async fn presentation(
 }
 
 async fn root(public: &GlobalPublic, issuer: &cpsd::IssuerKey) -> (Running, Arc<ReleaseClock>) {
+    root_as(public, issuer, "adminboard").await.unwrap()
+}
+
+/// The admin board under an arbitrary community name; the name alone grants no board role.
+pub(super) async fn root_as(
+    public: &GlobalPublic,
+    issuer: &cpsd::IssuerKey,
+    name: &str,
+) -> crate::error::Result<(Running, Arc<ReleaseClock>)> {
     let directory = tempfile::tempdir().unwrap();
     let descriptor = cpsd::RootBoardPublicKey::from_authenticated_beacon(
         issuer.public_key().clone(),
-        cpsd::CommunityId::new("root").unwrap(),
+        cpsd::CommunityId::new(name).unwrap(),
         1,
         NOW / cpsd::ROOT_BOARD_COHORT_SECONDS * cpsd::ROOT_BOARD_COHORT_SECONDS,
     )
@@ -122,7 +131,7 @@ async fn root(public: &GlobalPublic, issuer: &cpsd::IssuerKey) -> (Running, Arc<
     let path = directory.path().join("root-public");
     std::fs::write(&path, descriptor.to_bytes()).unwrap();
     let config = RootCommunityConfig::new(
-        community_config(directory.path(), "root", public, 100),
+        community_config(directory.path(), name, public, 100),
         path.to_str().unwrap().into(),
     )
     .unwrap();
@@ -132,12 +141,12 @@ async fn root(public: &GlobalPublic, issuer: &cpsd::IssuerKey) -> (Running, Arc<
         samples: AtomicUsize::new(0),
         advance_at: AtomicUsize::new(0),
     });
-    let door = Door::root_board(config, observer.clone()).await.unwrap();
+    let door = Door::root_board(config, observer.clone()).await?;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}", listener.local_addr().unwrap());
     let router = crate::api::router(door.clone());
     let task = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
-    (
+    Ok((
         Running {
             base,
             door,
@@ -146,7 +155,7 @@ async fn root(public: &GlobalPublic, issuer: &cpsd::IssuerKey) -> (Running, Arc<
             dir: directory,
         },
         observer,
-    )
+    ))
 }
 
 pub(crate) async fn world() -> World {

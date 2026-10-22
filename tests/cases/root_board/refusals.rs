@@ -14,7 +14,7 @@ async fn root_registration_refuses_an_otherwise_valid_ordinary_passport_proof() 
     )
     .unwrap();
     let expected = cpsd::AuthenticatedCommunity::from_authenticated_origin(
-        cpsd::CommunityId::new("root").unwrap(),
+        cpsd::CommunityId::new(BOARD).unwrap(),
         csgn::KeyRing::from_cbor(&feed.key_ring).unwrap(),
     );
     let request = expected
@@ -35,7 +35,7 @@ async fn root_registration_refuses_an_otherwise_valid_ordinary_passport_proof() 
     .unwrap();
     assert_eq!(
         pseudonym,
-        passport.pseudonym(&cpsd::CommunityId::new("root").unwrap())
+        passport.pseudonym(&cpsd::CommunityId::new(BOARD).unwrap())
     );
     let body = json!({"passport": {"challenge": challenge.challenge, "proof": proof.to_bytes()}});
     assert_eq!(
@@ -74,7 +74,7 @@ async fn root_constructor_revalidates_deserialized_scope_and_descriptor_bytes() 
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("root-public");
     std::fs::write(&path, b"not a canonical public descriptor").unwrap();
-    let config = community_config(dir.path(), "root", &public, 100);
+    let config = community_config(dir.path(), BOARD, &public, 100);
     let value = json!({"community": config, "root_board_public_key_file": path});
     let parsed: RootCommunityConfig = serde_json::from_value(value.clone()).unwrap();
     assert!(matches!(
@@ -89,6 +89,6 @@ async fn root_constructor_revalidates_deserialized_scope_and_descriptor_bytes() 
     ));
     // A board is an ordinary community: its name is free, only descriptor and name must agree
     // (checked above).
-    let ordinary: CommunityConfig = community_config(dir.path(), "root", &public, 100);
+    let ordinary: CommunityConfig = community_config(dir.path(), BOARD, &public, 100);
     assert!(RootCommunityConfig::new(ordinary, String::new()).is_err());
 }

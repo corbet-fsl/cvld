@@ -16,7 +16,7 @@ async fn final_http_clock_change_withholds_the_real_answer_and_keeps_the_context
         )
         .unwrap();
         let source = anchor(&world.source, SOURCE, "alpha").await;
-        let root = anchor(&world.root, ROOT_MEMBER, "root").await;
+        let root = anchor(&world.root, ROOT_MEMBER, "adminboard").await;
         let request = world
             .holder
             .begin_root_board_issuance(

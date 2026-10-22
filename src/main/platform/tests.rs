@@ -180,7 +180,7 @@ fn root_board(dir: &std::path::Path, listen: &str, domain: &str, shutdown: u64) 
     std::fs::write(&key_file, key.to_secret_bytes()).unwrap();
     json!({"root_board": {
         "root_board_config": write(dir, "root.json", &json!({
-            "community": community("root", listen, domain, shutdown),
+            "community": community("adminboard", listen, domain, shutdown),
             "root_board_public_key_file": "unused",
         })),
         "purpose_key_file": key_file.to_str().unwrap(),
@@ -225,7 +225,12 @@ fn the_root_board_joins_the_composition_under_the_same_refusal_rules() {
     let reserved = platform(
         dir.path(),
         global(),
-        &[community("root", "127.0.0.1:9001", "example.test", 20)],
+        &[community(
+            "adminboard",
+            "127.0.0.1:9001",
+            "example.test",
+            20,
+        )],
         root_board(dir.path(), "127.0.0.1:9003", "example.test", 15),
     );
     assert!(matches!(refused(&reserved), Some(Error::Invalid)));

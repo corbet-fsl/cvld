@@ -12,7 +12,29 @@ use fixture::*;
 
 const SOURCE: &str = "api.alpha.example.test";
 const GARDEN: &str = "api.admin.alpha.example.test";
-const ROOT_MEMBER: &str = "api.root.example.test";
+const ROOT_MEMBER: &str = "api.adminboard.example.test";
+
+/// The admin board is an ordinary community: any ordinary name works (every other test here uses
+/// `adminboard`), and a platform host label such as `root` is refused for it like for everyone.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_admin_board_takes_no_platform_host_label_as_its_name() {
+    let global = global(100).await;
+    let (_holder, public) = passport(&global).await;
+    let issuer = cpsd::IssuerKey::generate(
+        &mut cpsd::rand::rngs::OsRng,
+        cpsd::KeyId::new("linked-root").unwrap(),
+        vec![cpsd::GateId::new("root-board").unwrap()],
+    )
+    .unwrap();
+    for label in crate::hub::PLATFORM_HOST_LABELS {
+        let opened = root_as(&public, &issuer, label).await;
+        assert!(
+            matches!(opened.err(), Some(crate::error::Error::Invalid)),
+            "{label}"
+        );
+    }
+    assert!(root_as(&public, &issuer, "boardroom").await.is_ok());
+}
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn linked_garden_issues_real_joint_credential_and_burns_exact_context() {
@@ -26,7 +48,7 @@ async fn linked_garden_issues_real_joint_credential_and_burns_exact_context() {
     )
     .unwrap();
     let source = anchor(&world.source, SOURCE, "alpha").await;
-    let root = anchor(&world.root, ROOT_MEMBER, "root").await;
+    let root = anchor(&world.root, ROOT_MEMBER, "adminboard").await;
     let request = world
         .holder
         .begin_root_board_issuance(

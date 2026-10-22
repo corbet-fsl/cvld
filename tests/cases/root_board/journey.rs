@@ -54,7 +54,7 @@ pub(super) async fn root_presentation(
     .unwrap();
     let public = feed(board, MEMBER_HOST).await;
     let expected = cpsd::AuthenticatedCommunity::from_authenticated_origin(
-        cpsd::CommunityId::new("root").unwrap(),
+        cpsd::CommunityId::new(BOARD).unwrap(),
         csgn::KeyRing::from_cbor(&public.key_ring).unwrap(),
     );
     let proof = holder
@@ -86,7 +86,7 @@ async fn actual_joint_http_registration_voucher_and_renewal_remain_ordinary_memb
     .unwrap();
     let configured = cpsd::RootBoardPublicKey::from_authenticated_beacon(
         issuer.public_key().clone(),
-        cpsd::CommunityId::new("root").unwrap(),
+        cpsd::CommunityId::new(BOARD).unwrap(),
         1,
         NOW / cpsd::ROOT_BOARD_COHORT_SECONDS * cpsd::ROOT_BOARD_COHORT_SECONDS,
     )
@@ -115,7 +115,7 @@ async fn actual_joint_http_registration_voucher_and_renewal_remain_ordinary_memb
     // The root member door never receives this signer, source proof or issuer key.
     let mut fixture_signer = csgn::PersistentSigner::create(
         csgn::MemoryStore::default(),
-        "root",
+        BOARD,
         csgn::SecretKey::from_seed(&mut [73; 32]),
         NOW - 1,
         86_400,
@@ -132,7 +132,7 @@ async fn actual_joint_http_registration_voucher_and_renewal_remain_ordinary_memb
         .await
         .unwrap();
     let fixture_anchor = cpsd::AuthenticatedCommunity::from_authenticated_origin(
-        cpsd::CommunityId::new("root").unwrap(),
+        cpsd::CommunityId::new(BOARD).unwrap(),
         fixture_signer.key_ring().unwrap().clone(),
     );
     let request = holder
@@ -172,13 +172,13 @@ async fn actual_joint_http_registration_voucher_and_renewal_remain_ordinary_memb
     let member = finish_enrol(&board, MEMBER_HOST, start).await;
     let client = client(&board, MEMBER_HOST, Some(&member.session));
     let member_id = holder
-        .pseudonym(&cpsd::CommunityId::new("root").unwrap())
+        .pseudonym(&cpsd::CommunityId::new(BOARD).unwrap())
         .to_hex();
     client
         .call("handle_reserve", json!({"handle":"root_member"}))
         .await
         .unwrap();
-    let receipt = voucher("root", &member_id, "root-door-voucher", NOW + 172_800);
+    let receipt = voucher(BOARD, &member_id, "root-door-voucher", NOW + 172_800);
     client.voucher_redeem(receipt.clone()).await.unwrap();
     assert!(client.voucher_redeem(receipt).await.is_err());
     // An ordinary member (voucher/ordinary passport, no root-board credential)
@@ -193,7 +193,7 @@ async fn actual_joint_http_registration_voucher_and_renewal_remain_ordinary_memb
     .unwrap();
     let board_feed = feed(&board, MEMBER_HOST).await;
     let board_anchor = cpsd::AuthenticatedCommunity::from_authenticated_origin(
-        cpsd::CommunityId::new("root").unwrap(),
+        cpsd::CommunityId::new(BOARD).unwrap(),
         csgn::KeyRing::from_cbor(&board_feed.key_ring).unwrap(),
     );
     assert!(
@@ -208,7 +208,7 @@ async fn actual_joint_http_registration_voucher_and_renewal_remain_ordinary_memb
     );
     // The first member of the board is its Root, founded by the one-use Global Root
     // creation entitlement; the second pass is an ordinary renewal.
-    let mut creation = active::creation_invitation(&board, "root", &public, &member).await;
+    let mut creation = active::creation_invitation(&board, BOARD, &public, &member).await;
     for _ in 0..2 {
         let proof = root_presentation(&board, &holder, Some(&member.session)).await;
         let body = json!({"presentation":proof,"devices":[member.signing_key]});
@@ -230,7 +230,7 @@ async fn actual_joint_http_registration_voucher_and_renewal_remain_ordinary_memb
         let verified = ring.verify(&cose, csgn::Kind::Credential, NOW).unwrap();
         assert!(verified.valid_until() <= current.expires_at());
         let claims: cmty::cplc::Credential = serde_json::from_slice(verified.payload()).unwrap();
-        assert_eq!(claims.community, "root");
+        assert_eq!(claims.community, BOARD);
         assert_eq!(claims.member, member_id);
         assert_eq!(claims.gates.len(), 1);
         assert_eq!(claims.gates[0].gate, "cvch");
@@ -256,7 +256,7 @@ async fn actual_joint_http_registration_voucher_and_renewal_remain_ordinary_memb
             MEMBER_HOST,
             Some(&member.session),
             "schema_check",
-            json!({"schema":community_schema("root", 2)})
+            json!({"schema":community_schema(BOARD, 2)})
         )
         .await,
         403

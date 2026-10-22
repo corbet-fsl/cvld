@@ -30,9 +30,9 @@ pub const PLATFORM_WALLET_HOST: &str = "wallet";
 /// host grammar itself (`api.`, `admin.`) and of the other platform hosts. This is the one table
 /// of reserved community names: [`Hub::dispatch`] routes by it, and community creation
 /// (`Hub::check_address`) and `CommunityService::open` refuse these labels, so they cannot drift.
-/// The name `root` is reserved like any other platform host: no ordinary community may carry it
-/// (a namespace rule, not behaviour keyed to a name). Only the operator-configured admin board
-/// is exempt in `CommunityService::open`, see there.
+/// The name `root` is reserved like any other platform host: no community may carry it, the admin
+/// board included (a namespace rule, not behaviour keyed to a name: the board is an ordinary
+/// community whose Root seat comes from its public descriptor).
 pub const PLATFORM_HOST_LABELS: [&str; 7] = [
     PLATFORM_ROOT_HOST,
     PLATFORM_WALLET_HOST,

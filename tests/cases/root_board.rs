@@ -10,8 +10,10 @@ use serde_json::{Value, json};
 use std::sync::{Arc, atomic::AtomicU64};
 use support::*;
 
-const ROOT: &str = "api.admin.root.example.test";
-const MEMBER_HOST: &str = "api.root.example.test";
+const BOARD_ADMIN: &str = "api.admin.adminboard.example.test";
+/// The admin board is an ordinary community: any ordinary name works, and "root" is not one of them.
+const BOARD: &str = "adminboard";
+const MEMBER_HOST: &str = "api.adminboard.example.test";
 
 fn public_descriptor(community: &str) -> cpsd::RootBoardPublicKey {
     // The service receives only this purpose-specific public descriptor. No
@@ -34,7 +36,7 @@ fn public_descriptor(community: &str) -> cpsd::RootBoardPublicKey {
 }
 
 async fn root_board(public: &GlobalPublic) -> (Running, cpsd::RootBoardPublicKey) {
-    let descriptor = public_descriptor("root");
+    let descriptor = public_descriptor(BOARD);
     (root_with_descriptor(public, &descriptor).await, descriptor)
 }
 
@@ -43,7 +45,7 @@ async fn root_with_descriptor(
     descriptor: &cpsd::RootBoardPublicKey,
 ) -> Running {
     let dir = tempfile::tempdir().unwrap();
-    let config = community_config(dir.path(), "root", public, 100);
+    let config = community_config(dir.path(), BOARD, public, 100);
     let descriptor_path = dir.path().join("root-public");
     std::fs::write(&descriptor_path, descriptor.to_bytes()).unwrap();
     let config =
@@ -94,7 +96,7 @@ fn descriptor(feed: &TrustFeed, now: u64) -> cpsd::RootBoardPublicKey {
         .verify(&feed.manifest, csgn::Kind::SettingsSnapshot, now)
         .unwrap();
     let manifest: cmty::cplc::TrustManifest = serde_json::from_slice(manifest.payload()).unwrap();
-    assert_eq!(manifest.community, "root");
+    assert_eq!(manifest.community, BOARD);
     assert_eq!(manifest.revision, feed.revision);
     assert_eq!(manifest.policy_epoch, feed.policy_epoch);
     assert_eq!(manifest.key_ring, feed.key_ring);
@@ -102,12 +104,12 @@ fn descriptor(feed: &TrustFeed, now: u64) -> cpsd::RootBoardPublicKey {
         manifest.root_board_revision,
         Some(publication["revision"].as_u64().unwrap())
     );
-    assert_eq!(publication["community"], "root");
+    assert_eq!(publication["community"], BOARD);
     assert_eq!(publication["policy_epoch"], feed.policy_epoch);
     let bytes: Vec<u8> = serde_json::from_value(publication["descriptor"].clone()).unwrap();
     let descriptor = cpsd::RootBoardPublicKey::from_bytes(&bytes).unwrap();
     assert_eq!(descriptor.policy_epoch(), feed.policy_epoch);
-    assert_eq!(descriptor.community().as_bytes(), b"root");
+    assert_eq!(descriptor.community().as_bytes(), BOARD.as_bytes());
     assert!(now >= descriptor.cohort_start());
     assert!(now < descriptor.expires_at());
     assert!(verified.valid_until() <= descriptor.expires_at());
@@ -123,7 +125,7 @@ async fn admit_opaque(
     root: bool,
     creation: Option<&str>,
 ) {
-    let scope = if root { "root" } else { "alpha" };
+    let scope = if root { BOARD } else { "alpha" };
     let subject = holder
         .pseudonym(&cpsd::CommunityId::new(scope).unwrap())
         .to_hex();
@@ -184,7 +186,7 @@ async fn root_operator_admin_authority_is_local_to_the_explicit_root_board() {
     .unwrap();
     let configured = cpsd::RootBoardPublicKey::from_authenticated_beacon(
         issuer.public_key().clone(),
-        cpsd::CommunityId::new("root").unwrap(),
+        cpsd::CommunityId::new(BOARD).unwrap(),
         1,
         NOW / cpsd::ROOT_BOARD_COHORT_SECONDS * cpsd::ROOT_BOARD_COHORT_SECONDS,
     )
@@ -202,14 +204,19 @@ async fn root_operator_admin_authority_is_local_to_the_explicit_root_board() {
             .is_none()
     );
 
-    // The ordinary constructor cannot infer root trust from a community name.
+    // The ordinary constructor cannot infer root trust from a community name: "root" is a reserved
+    // platform host label for every community, and the board's own name opens as an ordinary
+    // community without any board role.
     let dir = tempfile::tempdir().unwrap();
     let config = community_config(dir.path(), "root", &public, 100);
     assert!(Door::community(config, board.clock.clone()).await.is_err());
+    let dir = tempfile::tempdir().unwrap();
+    let config = community_config(dir.path(), BOARD, &public, 100);
+    assert!(Door::community(config, board.clock.clone()).await.is_ok());
     assert_eq!(
         call_status(
             &board,
-            ROOT,
+            BOARD_ADMIN,
             None,
             "register_begin",
             json!({
@@ -299,7 +306,7 @@ async fn root_operator_admin_authority_is_local_to_the_explicit_root_board() {
     .unwrap();
     let root_feed = feed(&board, MEMBER_HOST).await;
     let root_anchor = cpsd::AuthenticatedCommunity::from_authenticated_origin(
-        cpsd::CommunityId::new("root").unwrap(),
+        cpsd::CommunityId::new(BOARD).unwrap(),
         csgn::KeyRing::from_cbor(&root_feed.key_ring).unwrap(),
     );
     let request = holder
@@ -338,7 +345,7 @@ async fn root_operator_admin_authority_is_local_to_the_explicit_root_board() {
     let mut root = finish_enrol(&board, MEMBER_HOST, begin).await;
     // The board is founded by the same Global Root creation as every community:
     // its first Root redeems the one-use entitlement with the root-board credential.
-    let creation = active::creation_invitation(&board, "root", &public, &root)
+    let creation = active::creation_invitation(&board, BOARD, &public, &root)
         .await
         .unwrap();
     admit_opaque(
@@ -353,21 +360,21 @@ async fn root_operator_admin_authority_is_local_to_the_explicit_root_board() {
     .await;
     root.session = login(
         &board,
-        ROOT,
+        BOARD_ADMIN,
         &mut root.authenticator,
         &root.user,
         &root.credential,
     )
     .await;
-    let schema = json!({"schema": community_schema("root", 2)});
+    let schema = json!({"schema": community_schema(BOARD, 2)});
     assert_eq!(
-        call_status(&board, ROOT, None, "schema_check", schema.clone()).await,
+        call_status(&board, BOARD_ADMIN, None, "schema_check", schema.clone()).await,
         401
     );
     assert_eq!(
         call_status(
             &board,
-            ROOT,
+            BOARD_ADMIN,
             Some(&root.session),
             "schema_check",
             schema.clone()
@@ -400,7 +407,7 @@ async fn root_operator_admin_authority_is_local_to_the_explicit_root_board() {
     assert_eq!(
         call_status(
             &board,
-            ROOT,
+            BOARD_ADMIN,
             Some(&source_root.session),
             "schema_check",
             schema.clone()
@@ -420,16 +427,16 @@ async fn root_operator_admin_authority_is_local_to_the_explicit_root_board() {
         401
     );
     assert_eq!(
-        call_status(&board, ROOT, Some(&root.session), "lobby", json!({})).await,
+        call_status(&board, BOARD_ADMIN, Some(&root.session), "lobby", json!({})).await,
         403
     );
     for host in [
         "api.admin.alpha.example.test",
-        "api.admin.root.example.test.evil.test",
-        "api.admin.root.example.test:443",
-        "api.admin.root.example.test.",
+        "api.admin.adminboard.example.test.evil.test",
+        "api.admin.adminboard.example.test:443",
+        "api.admin.adminboard.example.test.",
         "alias.example.test",
-        "api.root.example.test.evil.test",
+        "api.adminboard.example.test.evil.test",
     ] {
         assert_eq!(
             call_status(
@@ -459,12 +466,19 @@ async fn root_operator_admin_authority_is_local_to_the_explicit_root_board() {
         403
     );
     assert_eq!(
-        call_status(&board, ROOT, Some(&root.session), "setting_set", setting).await,
+        call_status(
+            &board,
+            BOARD_ADMIN,
+            Some(&root.session),
+            "setting_set",
+            setting
+        )
+        .await,
         200
     );
 
     let changed: TrustFeed = serde_json::from_value(
-        client(&board, ROOT, Some(&root.session))
+        client(&board, BOARD_ADMIN, Some(&root.session))
             .call("schema_set", schema)
             .await
             .unwrap(),
@@ -480,7 +494,7 @@ async fn root_operator_admin_authority_is_local_to_the_explicit_root_board() {
             &csgn::KeyRing::from_cbor(&changed.key_ring).unwrap(),
             &changed.schema,
             cmty::cplc::SnapshotExpectation {
-                community: "root",
+                community: BOARD,
                 kind: cmty::cplc::SnapshotKind::Schema,
                 minimum_revision: 1,
                 policy_epoch: changed.policy_epoch,
@@ -517,7 +531,7 @@ async fn root_operator_admin_authority_is_local_to_the_explicit_root_board() {
     );
     std::fs::write(
         board.dir.path().join("root-public"),
-        public_descriptor("root").to_bytes(),
+        public_descriptor(BOARD).to_bytes(),
     )
     .unwrap();
     let config =

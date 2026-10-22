@@ -41,14 +41,14 @@ impl Fixture {
         .unwrap();
         let descriptor = cpsd::RootBoardPublicKey::from_authenticated_beacon(
             key.public_key().clone(),
-            cpsd::CommunityId::new("root").unwrap(),
+            cpsd::CommunityId::new("adminboard").unwrap(),
             1,
             support::NOW / cpsd::ROOT_BOARD_COHORT_SECONDS * cpsd::ROOT_BOARD_COHORT_SECONDS,
         )
         .unwrap();
         let public_file = root_dir.join("root-public");
         std::fs::write(&public_file, descriptor.to_bytes()).unwrap();
-        let mut root = support::community_config(&root_dir, "root", &public, 100);
+        let mut root = support::community_config(&root_dir, "adminboard", &public, 100);
         root.shutdown_seconds = 11;
         let root = RootCommunityConfig::new(root, public_file.to_str().unwrap().into()).unwrap();
         let root_file = write(&root_dir.join("root.json"), &root);
@@ -131,7 +131,7 @@ async fn conflicting_identity_domain_and_bind_refuse_during_configuration() {
     let fixture = Fixture::new().await;
     let original = std::fs::read(&fixture.source).unwrap();
     for (field, value) in [
-        ("community", "root"),
+        ("community", "adminboard"),
         ("domain", "other.test"),
         ("listen", "127.0.0.1:0"),
         ("listen", "0.0.0.0:0"),
