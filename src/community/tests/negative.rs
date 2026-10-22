@@ -111,7 +111,8 @@ async fn configuration_limits_precede_storage_and_valid_state_reopens() {
         ("community", json!("Upper")),
         ("community", json!("under_score")),
         ("community", json!("é")),
-        ("community", json!("root")),
+        // "root" is not listed any more (17.6): the admin board is decided by its descriptor, not by the
+        // name; the hub still routes the label "root" to the platform Root host (hub.rs PLATFORM_ROOT_HOST).
         ("community", json!("admin")),
         ("community", json!("api")),
         ("community", json!("www")),

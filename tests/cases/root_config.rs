@@ -150,15 +150,27 @@ fn optional_credentials_remain_optional() {
 fn trusted_constructor_and_file_reader_require_root_scope_and_public_path() {
     let directory = tempfile::tempdir().unwrap();
     let file = directory.path().join("root.json");
-    for (name, descriptor) in [("alpha", "fixture/root-public"), ("root", "")] {
+    // The public descriptor path is required whatever the community is called (17.6: the board is
+    // decided by its descriptor, not by the name "root").
+    for name in ["alpha", "root"] {
         let mut value = community();
         value["community"] = json!(name);
         let config: CommunityConfig = serde_json::from_value(value.clone()).unwrap();
-        assert!(RootCommunityConfig::new(config, descriptor.into()).is_err());
-        let value = json!({"community": value, "root_board_public_key_file": descriptor});
+        assert!(RootCommunityConfig::new(config, String::new()).is_err());
+        let value = json!({"community": value, "root_board_public_key_file": ""});
         std::fs::write(&file, serde_json::to_vec(&value).unwrap()).unwrap();
         assert!(RootCommunityConfig::read(file.to_str().unwrap()).is_err());
     }
+    // A board community may carry any name; only the descriptor path decides.
+    let mut value = community();
+    value["community"] = json!("alpha");
+    let config: CommunityConfig = serde_json::from_value(value.clone()).unwrap();
+    assert_eq!(
+        RootCommunityConfig::new(config, "fixture/root-public".into())
+            .unwrap()
+            .community_name(),
+        "alpha"
+    );
 }
 
 #[test]
