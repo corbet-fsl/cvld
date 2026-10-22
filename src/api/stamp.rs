@@ -29,13 +29,15 @@ pub struct WebAuthnAssertion {
 }
 
 /// One stamp request: the challenge, the cpsd request and the assertion whose WebAuthn
-/// challenge is exactly the request's confirmation challenge.
+/// challenge is exactly the request's confirmation challenge. Without an assertion only the
+/// account's first stamp, under the birth grant (C5).
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct StampIssue {
     pub challenge: Vec<u8>,
     pub request: Vec<u8>,
-    pub assertion: WebAuthnAssertion,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub assertion: Option<WebAuthnAssertion>,
 }
 
 /// Join a community by device key: a passport presentation over a challenge of this

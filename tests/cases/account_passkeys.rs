@@ -35,7 +35,7 @@ async fn register_account(
     service: &Running,
     host: &str,
     body: serde_json::Value,
-) -> (Resident, User, Vec<u8>) {
+) -> (Resident, Registered, Vec<u8>) {
     let public = client(service, host, None);
     let begin: Ceremony =
         serde_json::from_value(public.call("register_begin", body).await.unwrap()).unwrap();
@@ -47,7 +47,7 @@ async fn register_account(
     let credential: ckyh::RegisterPublicKeyCredential =
         serde_json::from_value(response.clone()).unwrap();
     let original_id = credential.raw_id.as_ref().to_vec();
-    let user: User = serde_json::from_value(
+    let user: Registered = serde_json::from_value(
         public
             .call(
                 "register_finish",
@@ -78,7 +78,7 @@ async fn manage(
     other_host: &str,
     role: Role,
     mut original: Resident,
-    user: User,
+    user: Registered,
     original_id: Vec<u8>,
 ) {
     let first = discover(service, host, &mut original).await;

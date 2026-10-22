@@ -130,7 +130,10 @@ struct Wallet {
 }
 
 async fn wallet(global: &Running, seed: u8) -> Wallet {
-    let member = enrol(global, WALLET, None).await;
+    wallet_of(global, enrol(global, WALLET, None).await, seed).await
+}
+
+async fn wallet_of(global: &Running, member: Member, seed: u8) -> Wallet {
     let client = client(global, WALLET, Some(&member.session));
     client.call("development_gate", json!({})).await.unwrap();
     let public: GlobalPublic =
@@ -994,4 +997,78 @@ async fn a_further_device_key_is_pending_until_its_activation_stamp() {
         pairing_body(&service, &wallet, ACTIVATE_ACTION, &mut second, activate_salt).await;
     stampless["stamp"] = json!(Vec::<u8>::new());
     assert!(anonymous.call("device_activate", stampless).await.is_err());
+}
+
+/// One stamp request of `wallet` over a fresh stamp challenge.
+async fn stamp_request(
+    global: &Running,
+    wallet: &mut Wallet,
+    key_seed: u8,
+) -> (Value, crate::api::StampChallenge, cpsd::StampIssuanceRequest, cpsd::IssuanceChallenge) {
+    let client = client(global, WALLET, Some(&wallet.member.session));
+    let reserved: crate::api::StampChallenge =
+        serde_json::from_value(client.call("stamp_challenge", json!({})).await.unwrap()).unwrap();
+    let challenge = cpsd::IssuanceChallenge::from_bytes(reserved.challenge.clone().try_into().unwrap());
+    let key = cpsd::StampPublicKey::from_bytes(&reserved.key).unwrap();
+    let request = wallet
+        .holder
+        .begin_stamp(
+            &mut cpsd::rand::rngs::OsRng,
+            &key,
+            &challenge,
+            &[(scope("alpha"), join_action(&[key_seed; 32], [key_seed; 32]))],
+            NOW,
+        )
+        .unwrap();
+    let body = json!({"challenge":challenge.to_bytes().to_vec(),"request":request.to_bytes()});
+    (body, reserved, request, challenge)
+}
+
+/// C5: the registration's own session issues the account's first stamp with no assertion;
+/// the same request again is the same stamp, any later assertion-free request is refused, and
+/// the normal confirmed path keeps working.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_birth_session_issues_the_first_stamp_without_an_assertion_once() {
+    let global = configured_wallet(100).await;
+    let (mut member, birth) = enrol_registered(&global, WALLET, None).await;
+    member.session = birth.expect("the wallet registration returns its birth session");
+    let mut wallet = wallet_of(&global, member, 64).await;
+    let client = client(&global, WALLET, Some(&wallet.member.session));
+    let (body, _, _, _) = stamp_request(&global, &mut wallet, 7).await;
+    let issued = client.call("stamp_issue", body.clone()).await.unwrap();
+    assert_eq!(client.call("stamp_issue", body).await.unwrap(), issued);
+    let blind: Bytes = serde_json::from_value(issued).unwrap();
+    wallet
+        .holder
+        .finish_stamp(&cpsd::BlindStamp::from_bytes(&blind.bytes).unwrap(), NOW)
+        .unwrap();
+    // The birth item is closed: another assertion-free request is refused...
+    let (body, reserved, request, challenge) = stamp_request(&global, &mut wallet, 8).await;
+    assert!(client.call("stamp_issue", body).await.is_err());
+    // ...while the same request with its user verification is issued normally.
+    let assertion = confirm(
+        &mut wallet,
+        &reserved.options,
+        request.confirmation_challenge(&challenge),
+    )
+    .await;
+    client
+        .call(
+            "stamp_issue",
+            json!({"challenge":challenge.to_bytes().to_vec(),"request":request.to_bytes(),"assertion":assertion}),
+        )
+        .await
+        .unwrap();
+}
+
+/// The review condition at the host: after a normal stamp, no assertion-free stamp, even from
+/// a fresh wallet login that otherwise holds the birth grant.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn after_a_normal_stamp_no_session_issues_an_assertion_free_stamp() {
+    let global = configured_wallet(100).await;
+    let mut wallet = wallet(&global, 65).await;
+    stamp(&global, &mut wallet, &[(scope("alpha"), join_action(&[9; 32], [9; 32]))]).await;
+    let client = client(&global, WALLET, Some(&wallet.member.session));
+    let (body, _, _, _) = stamp_request(&global, &mut wallet, 10).await;
+    assert!(client.call("stamp_issue", body).await.is_err());
 }

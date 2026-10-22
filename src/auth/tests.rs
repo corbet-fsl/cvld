@@ -7,6 +7,8 @@ const NOW: u64 = 1_800_000_000;
 const ORIGIN: &str = "https://auth.example.test";
 const BOOTSTRAP: &str = "synthetic-operator-enrolment-capability";
 
+#[path = "tests/birth.rs"]
+mod birth;
 #[path = "tests/enrollment.rs"]
 mod enrollment;
 #[path = "tests/family.rs"]
