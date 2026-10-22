@@ -6,8 +6,9 @@
 //! logout, revocation of the shared credential, or the expiry of any member ends every member.
 use super::*;
 
-/// Live sessions per family (the login plus its forks) when the rulebook names no other.
-pub const DEFAULT_FAMILY_LIMIT: usize = 3;
+/// Live sessions per family when the rulebook names no other: the login plus three forks
+/// (the recovery lease, the creation channel and one spare).
+pub const DEFAULT_FAMILY_LIMIT: usize = 4;
 /// The largest family a rulebook may allow.
 pub const MAX_FAMILY_LIMIT: usize = 8;
 

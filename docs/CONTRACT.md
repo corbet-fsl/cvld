@@ -392,8 +392,8 @@ releases membership under NO RETURN.
 `session_fork` on a live wallet session returns a sibling: the same account, credential, role,
 authentication and deadline under a fresh session id and bearer. A fork never renews; its
 deadline is its parent's. The login and its forks form one family of at most
-`wallet.session_family_limit` live sessions (rulebook setting, default 3, 1 to 8, checked at
-load). Logout of any member, revocation of the shared credential, or the expiry of any member
+`wallet.session_family_limit` live sessions (rulebook setting, default 4 = the login and three
+forks, 1 to 8, checked at load). Logout of any member, revocation of the shared credential, or the expiry of any member
 ends the whole family. Per-action user verification (step-ups, stamps) stays per session. The
 fork adds no authority, because the parent's bearer can already do everything the sibling can;
 it exists because a device's recovery lease holds its session exclusively.

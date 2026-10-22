@@ -70,13 +70,15 @@ async fn the_family_limit_counts_live_members_and_is_checked_when_set() {
         assert!(matches!(auth.set_family_limit(limit), Err(Error::Invalid)));
     }
     assert_eq!(auth.family_limit, DEFAULT_FAMILY_LIMIT);
+    assert_eq!(DEFAULT_FAMILY_LIMIT, 4);
     let second = auth.fork(&parent.token, NOW).await.unwrap();
     let third = auth.fork(&second.token, NOW).await.unwrap();
-    // Default 3: the login and two forks.
-    for token in [&parent.token, &second.token, &third.token] {
+    let fourth = auth.fork(&parent.token, NOW).await.unwrap();
+    // Default 4: the login and three forks.
+    for token in [&parent.token, &second.token, &third.token, &fourth.token] {
         assert!(matches!(auth.fork(token, NOW).await, Err(Error::Refused)));
     }
-    auth.set_family_limit(4).unwrap();
+    auth.set_family_limit(5).unwrap();
     auth.fork(&third.token, NOW).await.unwrap();
     assert!(matches!(
         auth.fork(&parent.token, NOW).await,
