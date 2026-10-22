@@ -168,6 +168,46 @@ impl Fixture {
     }
 }
 
+/// `root` and every other platform host label are reserved community names (one table in
+/// hub.rs): creation refuses them with the token untouched, and the hub routes each of them to
+/// the global door, so a community can never shadow a platform host.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn platform_host_labels_are_reserved_and_routed_to_the_global_door() {
+    let f = fixture().await;
+    let token = f.token().await;
+    for label in cvld::hub::PLATFORM_HOST_LABELS {
+        assert!(f.create(label, token.clone()).await.is_err(), "{label}");
+    }
+    assert!(cvld::hub::PLATFORM_HOST_LABELS.contains(&"root"));
+    let global = || axum::Router::new().fallback(|| async { "global" });
+    let answer = |host: String| {
+        let hub = f.hub.clone();
+        async move {
+            let request = axum::http::Request::builder()
+                .uri("/")
+                .header(axum::http::header::HOST, host)
+                .body(axum::body::Body::empty())
+                .unwrap();
+            let response = hub.dispatch(global(), request).await;
+            let status = response.status();
+            let body = axum::body::to_bytes(response.into_body(), 1024).await.unwrap();
+            (status, body)
+        }
+    };
+    for label in cvld::hub::PLATFORM_HOST_LABELS {
+        for host in [
+            format!("api.{label}.{DOMAIN}"),
+            format!("api.admin.{label}.{DOMAIN}"),
+        ] {
+            let (status, body) = answer(host.clone()).await;
+            assert_eq!((status.as_u16(), &body[..]), (200, &b"global"[..]), "{host}");
+        }
+    }
+    // An ordinary label without a door is not the global door's.
+    let (status, _) = answer(format!("api.nobodyhere.{DOMAIN}")).await;
+    assert_eq!(status.as_u16(), 421);
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn token_creation_claim_admission_registry_and_termination() {
     let f = fixture().await;

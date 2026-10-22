@@ -193,7 +193,11 @@ impl CommunityService {
                 .community
                 .bytes()
                 .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
-            || ["admin", "api", "www", "mail", "mcp", "wallet"].contains(&config.community.as_str())
+            // Platform host labels (`root`, `wallet`, ...) are never community names. The one
+            // exception is the operator-configured admin board (it carries a public descriptor and
+            // cannot be created by a member): the layers below still key its Root seat to the name
+            // `root` (cmty Community::new_selected, cmbr first-admin role), so it keeps that label.
+            || (root_board.is_none() && crate::hub::is_platform_host_label(&config.community))
             || root_board.as_ref().is_some_and(|descriptor| {
                 descriptor.community().as_bytes() != config.community.as_bytes()
             })

@@ -2,8 +2,9 @@
 //!
 //! An address is the permanent subdomain label `<address>.<base>` of a community.
 //! Rule: `^[a-z0-9]{8,30}$`, not reserved, not offensive. Every name shorter than
-//! eight characters is reserved by length alone; the Root-maintained list is a
-//! setting handed in by the caller. Uniqueness among live communities is a
+//! eight characters is reserved by length alone (which covers every platform host label,
+//! see `hub::PLATFORM_HOST_LABELS`, that the hub also refuses by name); the Root-maintained
+//! list is a setting handed in by the caller. Uniqueness among live communities is a
 //! registry matter and is checked by the server, not here.
 use rustrict::CensorStr;
 

@@ -111,8 +111,9 @@ async fn configuration_limits_precede_storage_and_valid_state_reopens() {
         ("community", json!("Upper")),
         ("community", json!("under_score")),
         ("community", json!("é")),
-        // "root" is not listed any more (17.6): the admin board is decided by its descriptor, not by the
-        // name; the hub still routes the label "root" to the platform Root host (hub.rs PLATFORM_ROOT_HOST).
+        // Platform host labels, "root" included, are reserved community names (hub.rs
+        // PLATFORM_HOST_LABELS); the loop below covers every one of them.
+        ("community", json!("root")),
         ("community", json!("admin")),
         ("community", json!("api")),
         ("community", json!("www")),
@@ -131,6 +132,18 @@ async fn configuration_limits_precede_storage_and_valid_state_reopens() {
                 .await,
             Err(Error::Invalid)
         ));
+    }
+    for label in crate::hub::PLATFORM_HOST_LABELS {
+        let mut config = base.clone();
+        config["community"] = json!(label);
+        assert!(
+            matches!(
+                CommunityService::open(&db, serde_json::from_value(config).unwrap(), clock.clone())
+                    .await,
+                Err(Error::Invalid)
+            ),
+            "{label}"
+        );
     }
     let original = CommunityService::open(
         &db,

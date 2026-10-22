@@ -24,6 +24,29 @@ use subtle::ConstantTimeEq;
 
 /// The platform Root portal host label (`api.admin.root.<base>`); a platform host, never a community.
 pub const PLATFORM_ROOT_HOST: &str = "root";
+/// The platform wallet host label (`wallet.<base>`); a platform host, never a community.
+pub const PLATFORM_WALLET_HOST: &str = "wallet";
+/// Every label the hub hands to the global door instead of a community door, and the words of the
+/// host grammar itself (`api.`, `admin.`) and of the other platform hosts. This is the one table
+/// of reserved community names: [`Hub::dispatch`] routes by it, and community creation
+/// (`Hub::check_address`) and `CommunityService::open` refuse these labels, so they cannot drift.
+/// The name `root` is reserved like any other platform host: no ordinary community may carry it
+/// (a namespace rule, not behaviour keyed to a name). Only the operator-configured admin board
+/// is exempt in `CommunityService::open`, see there.
+pub const PLATFORM_HOST_LABELS: [&str; 7] = [
+    PLATFORM_ROOT_HOST,
+    PLATFORM_WALLET_HOST,
+    "admin",
+    "api",
+    "www",
+    "mail",
+    "mcp",
+];
+
+/// Whether `label` is a platform host label and therefore never a community name.
+pub fn is_platform_host_label(label: &str) -> bool {
+    PLATFORM_HOST_LABELS.contains(&label)
+}
 use tokio::sync::RwLock;
 use tower::ServiceExt;
 
@@ -350,6 +373,15 @@ impl Hub {
         self.registry.finish_end(entry.id).await
     }
 
+    /// The one gate for a community address: the platform host labels (never a community, whatever
+    /// their length), then syntax, the Root-maintained list and the offensive-name filter.
+    fn check_address(&self, address: &str) -> Result<()> {
+        if is_platform_host_label(address) {
+            return Err(Error::Invalid);
+        }
+        crate::address::validate(address, &self.reserved).map_err(|_| Error::Invalid)
+    }
+
     /// Route one request by Host to the global door or a community door.
     pub async fn dispatch(
         self: &Arc<Self>,
@@ -380,9 +412,9 @@ impl Hub {
             .strip_prefix("api.admin.")
             .or_else(|| suffix.strip_prefix("api."));
         let router = match label {
-            // "root" is the platform Root portal host, not a community: community
-            // addresses have at least eight characters, so no community can collide.
-            Some(address) if address != PLATFORM_ROOT_HOST => match self.doors.read().await.get(address) {
+            // Platform host labels (`root`, `wallet`, ...) are never communities: creation refuses
+            // them (PLATFORM_HOST_LABELS), so the global door answers them.
+            Some(address) if !is_platform_host_label(address) => match self.doors.read().await.get(address) {
                 Some(live) => live.router.clone(),
                 None => return Error::WrongHost.into_response(),
             },
@@ -503,8 +535,7 @@ impl CommunityHub for Arc<Hub> {
         Box::pin(async move {
             let hub = self;
             // 1. Validate address and token before anything is created.
-            crate::address::validate(&request.address, &hub.reserved)
-                .map_err(|_| Error::Invalid)?;
+            hub.check_address(&request.address)?;
             let plan = CreationPlan {
                 display_name: request.display_name,
                 gates: request.gates,
@@ -617,8 +648,7 @@ impl CommunityHub for Arc<Hub> {
         now: u64,
     ) -> Boxed<'a, Result<api::CommunityTerms>> {
         Box::pin(async move {
-            crate::address::validate(&request.address, &self.reserved)
-                .map_err(|_| Error::Invalid)?;
+            self.check_address(&request.address)?;
             Ok(api::CommunityTerms {
                 accounting: self
                     .factory
