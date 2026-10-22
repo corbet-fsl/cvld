@@ -5,10 +5,9 @@ async fn actual_registry_settlement_paid_gate_and_signed_community_credential_ro
     let global = global(200).await;
     let (_, passport, public) = wallet_passport(&global).await;
     let wire = Wire::new(Reply::Success);
-    let service = configured(
+    let service = configured_founded(
         &public,
         payments::transport::AnyTransport(Arc::new(Inert(wire.clone()))),
-        true,
     )
     .await;
     let member = enrol_community(&service, HOST, &passport).await;
