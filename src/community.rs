@@ -1111,7 +1111,7 @@ impl CommunityService {
         let lobby = self
             .facade
             .membership()
-            .lobby(auth, &*policy, &snapshot, &gates)
+            .lobby(auth, &*policy, &snapshot, &gates, now)
             .await
             .map_err(Error::Refused.redact())?;
         let steps = self
