@@ -51,13 +51,18 @@ impl cmty::AccountSession for Lease {
         self.expires
     }
 
+    /// Evaluated at `observed` (commit authorities evaluate at the observed time):
+    /// the live clock must not lie before it, and only the session's own end in
+    /// (observed, now] refuses; a plain later second does not.
     fn check(&self, observed: u64) -> cmty::Result<()> {
         if observed < self.started
             || observed >= self.expires
             || !self.active.load(Ordering::Acquire)
-            || self.runtime.observe().map_err(|_| cmty::Error::Time)? != observed
-            || !self.active.load(Ordering::Acquire)
         {
+            return Err(cmty::Error::Membership);
+        }
+        let now = self.runtime.observe().map_err(|_| cmty::Error::Time)?;
+        if now < observed || now >= self.expires || !self.active.load(Ordering::Acquire) {
             return Err(cmty::Error::Membership);
         }
         Ok(())
