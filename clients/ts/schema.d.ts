@@ -412,6 +412,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/device_activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Activate a pending device key by passport and one confirmation stamp once its lineage revision is published */
+        post: operations["device_activate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/device_add": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Register a further device key PENDING by passport and one confirmation stamp (grants nothing until activated) */
+        post: operations["device_add"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/device_approve": {
         parameters: {
             query?: never;
@@ -4143,6 +4177,92 @@ export interface operations {
                         credential?: number[] | null;
                         lobby: components["schemas"]["Lobby"];
                     };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    device_activate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    device_key: number[];
+                    passport: components["schemas"]["PresentationInput"];
+                    /** @description The stamp action's salt. */
+                    salt: number[];
+                    signature: number[];
+                    /** @description cpsd stamp presentation encoding. */
+                    stamp: number[];
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+    };
+    device_add: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    device_key: number[];
+                    passport: components["schemas"]["PresentationInput"];
+                    /** @description The stamp action's salt. */
+                    salt: number[];
+                    signature: number[];
+                    /** @description cpsd stamp presentation encoding. */
+                    stamp: number[];
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Fixed redacted error category */
