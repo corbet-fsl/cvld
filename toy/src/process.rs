@@ -300,9 +300,18 @@ pub fn port() -> String {
         .unwrap()
         .to_string()
 }
-pub fn clock(path: &Path, now: u64) {
-    let date = chrono::DateTime::from_timestamp(now as i64, 0).unwrap();
+/// Write a libfaketime offset (`+0`, `-120s`, ...) as the services' clock: with
+/// `FAKETIME_NO_CACHE` they follow the wall clock plus that offset, to the nanosecond. An empty
+/// or absolute (`@...`, a date) value is refused: only a moving clock keeps the services at
+/// the devices' time.
+pub fn clock_offset(path: &Path, offset: &str) {
+    let offset = offset.trim();
+    let offset = if offset.is_empty() { "+0" } else { offset };
+    assert!(
+        offset.starts_with(['+', '-']) && !offset.contains(' '),
+        "FAKETIME must be a plain offset for the toy stack, not {offset:?}"
+    );
     let tmp = path.with_extension("next");
-    fs::write(&tmp, date.format("%Y-%m-%d %H:%M:%S").to_string()).unwrap();
+    fs::write(&tmp, offset).unwrap();
     fs::rename(tmp, path).unwrap();
 }

@@ -259,19 +259,12 @@ async fn run() -> Result<()> {
         .map_err(|_| "clock")?
         .as_secs();
     let clock = dir.path().join("clock");
-    process::clock(&clock, now);
-    // The services read this file as their clock. A long-running stack keeps real time
-    // moving (a frozen server clock makes every ceremony look expired to a later client).
-    let ticking = clock.clone();
-    let clock_task = tokio::spawn(async move {
-        loop {
-            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-            if let Ok(elapsed) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
-            {
-                process::clock(&ticking, elapsed.as_secs());
-            }
-        }
-    });
+    // The services read this file as their clock: the same offset from the wall clock as
+    // this process (none, or a harness's continued saved state), so they run exactly at the
+    // devices' time. A frozen time re-written by a ticker lagged the devices by up to a
+    // second and more on a loaded host, and the client's freshness checks saw the server
+    // answer from before its own request.
+    process::clock_offset(&clock, &std::env::var("FAKETIME").unwrap_or_default());
     let global_dir = dir.path().join("global");
     let alpha_dir = dir.path().join("alpha");
     let resume = saved.is_some();
@@ -757,7 +750,6 @@ async fn run() -> Result<()> {
     for proxy in proxies {
         proxy.abort();
     }
-    clock_task.abort();
     if let Some(mut forum) = forum {
         let _ = forum.kill();
         let _ = forum.wait();
