@@ -5,7 +5,8 @@
 use super::device_session::DEFAULT_STAMP_COHORT_SECONDS;
 use super::*;
 use crate::device_session::{
-    ACTIVATE_ACTION, ADD_ACTION, JOIN_ACTION, join_message, join_payload, message, pairing_payload,
+    ACTIVATE_ACTION, ADD_ACTION, JOIN_ACTION, join_message, join_payload, message, pairing_message,
+    pairing_payload,
 };
 use crate::test_support::*;
 use ed25519_dalek::SigningKey;
@@ -944,7 +945,7 @@ async fn pairing_body(
         "stamp": presentation,
         "salt": salt,
         "device_key": key,
-        "signature": device.sign(&join_message("alpha", &challenge.challenge, &key)).await,
+        "signature": device.sign(&pairing_message(kind, "alpha", &challenge.challenge, &key)).await,
     })
 }
 
@@ -1006,6 +1007,22 @@ async fn a_further_device_key_is_pending_until_its_activation_stamp() {
     )
     .unwrap();
     let anonymous = client(&service, HOST, None);
+    // The proof of possession is the pairing message of THIS step: a join signature or the
+    // other step's signature over the same challenge is refused.
+    for (kind, salt, endpoint, wrong) in [
+        (ADD_ACTION, add_salt, "device_add", JOIN_ACTION),
+        (ADD_ACTION, add_salt, "device_add", ACTIVATE_ACTION),
+    ] {
+        let mut body = pairing_body(&service, &wallet, kind, &mut second, salt).await;
+        let challenge = body["passport"]["challenge"].as_str().unwrap().to_owned();
+        let message = if wrong == JOIN_ACTION {
+            join_message("alpha", &challenge, &second_key)
+        } else {
+            pairing_message(wrong, "alpha", &challenge, &second_key)
+        };
+        body["signature"] = json!(second.sign(&message).await);
+        assert!(anonymous.call(endpoint, body).await.is_err());
+    }
     // Activation before registration is refused and does not burn the stamp.
     let early = pairing_body(
         &service,
@@ -1033,6 +1050,16 @@ async fn a_further_device_key_is_pending_until_its_activation_stamp() {
             .await
             .is_err()
     );
+    // An add signature does not activate the registered key.
+    let mut wrong_step =
+        pairing_body(&service, &wallet, ACTIVATE_ACTION, &mut second, activate_salt).await;
+    let challenge = wrong_step["passport"]["challenge"].as_str().unwrap().to_owned();
+    wrong_step["signature"] = json!(
+        second
+            .sign(&pairing_message(ADD_ACTION, "alpha", &challenge, &second_key))
+            .await
+    );
+    assert!(anonymous.call("device_activate", wrong_step).await.is_err());
     // Activate: the key now opens a full member session; the first key still does.
     let activate = pairing_body(
         &service,
@@ -1268,4 +1295,25 @@ async fn the_birth_session_binds_the_device_and_the_publication_with_birth_evide
         assert_eq!(state.seed, seed);
         assert_eq!(state.publication, Some([2; 32]));
     }
+}
+
+#[test]
+fn the_pairing_message_is_the_one_the_guest_signs() {
+    let key = [5u8; 32];
+    for (kind, step) in [
+        (ADD_ACTION, ckmg::PairingStep::Add),
+        (ACTIVATE_ACTION, ckmg::PairingStep::Activate),
+    ] {
+        assert_eq!(
+            pairing_message(kind, "alpha", "challenge", &key),
+            ckmg::PairingPossession::new("alpha", step, "challenge", &key)
+                .unwrap()
+                .message()
+        );
+    }
+    let add = pairing_message(ADD_ACTION, "alpha", "challenge", &key);
+    assert_ne!(add, pairing_message(ACTIVATE_ACTION, "alpha", "challenge", &key));
+    assert_ne!(add, join_message("alpha", "challenge", &key));
+    assert_ne!(add, pairing_message("other", "alpha", "challenge", &key));
+    assert!(add.starts_with(crate::device_session::POSSESSION_TAG));
 }

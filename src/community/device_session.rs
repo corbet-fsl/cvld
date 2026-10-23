@@ -4,7 +4,7 @@
 use super::*;
 use crate::device_session::{
     ACTIVATE_ACTION, ADD_ACTION, JOIN_ACTION, NONCE_LEN, NONCE_SECONDS, join_message, join_payload,
-    message, pairing_payload,
+    message, pairing_message, pairing_payload,
 };
 use ed25519_dalek::{Signature, VerifyingKey};
 
@@ -420,7 +420,8 @@ impl CommunityService {
         let signature = Signature::from_slice(&request.signature)
             .map_err(Error::Unauthorized.redact_at("community/device_session.rs:23"))?;
         key.verify_strict(
-            &join_message(
+            &pairing_message(
+                kind,
                 &self.config.community,
                 &input.challenge,
                 &request.device_key,

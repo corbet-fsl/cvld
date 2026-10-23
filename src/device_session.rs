@@ -84,5 +84,35 @@ pub fn join_message(community: &str, challenge: &str, device_key: &[u8; 32]) -> 
     message
 }
 
+/// Domain tag of a pairing step's proof of possession; the tag of ckmg's
+/// `DevicePurpose::PairingPossession`, so a join, session or salt signature is never one.
+pub const POSSESSION_TAG: &[u8] = b"cvld.device-pairing-possession.v1\0";
+
+/// Signed message of a pairing step's proof of possession by the NEW key: domain tag, step
+/// (`device_add` = 1, `device_activate` = 2), community, challenge and device key. It is
+/// exactly `ckmg::PairingPossession::message`, which the pairing guest signs; the step is in
+/// the message, so an add signature is no activate signature and neither is a join signature.
+/// An unknown `kind` yields a message no honest device signs.
+pub fn pairing_message(
+    kind: &str,
+    community: &str,
+    challenge: &str,
+    device_key: &[u8; 32],
+) -> Vec<u8> {
+    let step: u8 = match kind {
+        ADD_ACTION => 1,
+        ACTIVATE_ACTION => 2,
+        _ => 0,
+    };
+    let mut message = POSSESSION_TAG.to_vec();
+    message.push(step);
+    message.extend_from_slice(&(community.len() as u16).to_be_bytes());
+    message.extend_from_slice(community.as_bytes());
+    message.extend_from_slice(&(challenge.len() as u16).to_be_bytes());
+    message.extend_from_slice(challenge.as_bytes());
+    message.extend_from_slice(device_key);
+    message
+}
+
 // The stamp scope of a community is `cpsd::StampScope::of_community` over
 // `csgn::community_fingerprint`; server and device both build it there.

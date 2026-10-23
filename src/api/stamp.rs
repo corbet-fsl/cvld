@@ -69,7 +69,8 @@ pub struct DeviceJoined {
 /// Stamped pairing step (`device_add` or `device_activate`): a passport presentation over a
 /// challenge of this community, a stamp presentation covering the action kind with payload
 /// [`crate::device_session::pairing_payload`] of exactly `device_key`, and the device key's
-/// signature over [`crate::device_session::join_message`] (proof of possession).
+/// signature over [`crate::device_session::pairing_message`] of that step (proof of
+/// possession).
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct DevicePairing {
