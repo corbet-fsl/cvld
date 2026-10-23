@@ -118,8 +118,10 @@ pub struct RegisterFinish {
 pub struct User {
     pub user: String,
 }
-/// A finished registration. On the wallet host it carries the birth session (C1): a session of
-/// exactly the new passkey, minted by its UV-required creation, that holds the birth grant.
+/// A finished wallet registration (`wallet_register_finish`, trusted, never forwarded): it
+/// carries the birth session (C1), a session of exactly the new passkey, minted by its
+/// UV-required creation, that holds the birth grant. The forwarded `register_finish` answers
+/// [`User`] only and mints no session.
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Registered {
@@ -313,7 +315,8 @@ macro_rules! actions {
 
 actions! {
     register_begin(RegisterStart) -> Ceremony, Public, Both, Record, Forward, "Begin UV-required passkey registration";
-    register_finish(RegisterFinish) -> Registered, Public, Both, Record, Forward, "Verify and store the first passkey; the wallet also returns the birth session";
+    register_finish(RegisterFinish) -> User, Public, Both, Record, Forward, "Verify and store the first passkey";
+    wallet_register_finish(RegisterFinish) -> Registered, Public, Global, Record, Trusted, "Verify and store the wallet's first passkey and return its birth session (C1); never forwarded to a shell";
     global_initial_registration_continue(GlobalInitialRegistrationContinue) -> InitialCeremony, Public, Global, Record, Forward, "Bind creation provenance to the retained first wallet registration";
     initial_registration_begin(InitialRegistrationBegin) -> InitialCeremony, Public, Community, Record, Forward, "Begin first community registration with original creation provenance";
     creation_token_key(Empty) -> CreationTokenKey, Public, Global, Check, Forward, "Read the public key that verifies creation tokens";

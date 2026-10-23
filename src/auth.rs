@@ -212,16 +212,17 @@ impl Auth {
                 user: registered.user,
             })
     }
-    /// The wallet registration: the stored first passkey and, as the birth session (C1), a
-    /// session of exactly this credential with `uv_at = now` (the finish time).
+    /// The wallet registration: the stored first passkey and, with `mint`, as the birth
+    /// session (C1) a session of exactly this credential with `uv_at = now` (the finish time).
     pub(crate) async fn register_finish_wallet_live(
         &mut self,
         request: RegisterFinish,
         now: u64,
         clock: &dyn crate::service::Clock,
         mutation: Option<cgbl::WalletMutation>,
+        mint: bool,
     ) -> Result<Registered> {
-        self.register_finish_inner(request, now, clock, mutation, true)
+        self.register_finish_inner(request, now, clock, mutation, mint)
             .await
     }
     async fn register_finish_inner(

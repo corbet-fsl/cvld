@@ -371,10 +371,25 @@ impl Door {
 }
 
 impl Door {
+    /// The trusted wallet registration finish (C1): the stored first passkey and its birth
+    /// session. Only the Foyer client adopts the bearer (`Client::finish_registration`); the
+    /// action is never forwarded to a shell.
     pub(crate) async fn wallet_register_finish(
         &self,
         ctx: Context,
         request: RegisterFinish,
+    ) -> Result<Registered> {
+        if self.inner.scope != Scope::Global {
+            return Err(Error::WrongHost);
+        }
+        self.wallet_register(ctx, request, true).await
+    }
+    /// The wallet registration finish; `mint` = return the birth session.
+    pub(crate) async fn wallet_register(
+        &self,
+        ctx: Context,
+        request: RegisterFinish,
+        mint: bool,
     ) -> Result<Registered> {
         let authentication = self.auth(&ctx.host)?;
         let mut auth = authentication.lock().await;
@@ -389,8 +404,14 @@ impl Door {
         }
         let mut global = self.global_backend()?.lock().await;
         let mutation = global.wallet_mutation().await?;
-        auth.register_finish_wallet_live(request, ctx.now, self.inner.clock.as_ref(), mutation)
-            .await
+        auth.register_finish_wallet_live(
+            request,
+            ctx.now,
+            self.inner.clock.as_ref(),
+            mutation,
+            mint,
+        )
+        .await
     }
     /// C6: a sibling of the caller's live wallet session (same grant, same deadline, fresh
     /// session id). The wallet holds no passkey mutation for it: nothing is stored.

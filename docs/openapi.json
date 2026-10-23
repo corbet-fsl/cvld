@@ -13825,18 +13825,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": false,
-                  "description": "A finished registration. On the wallet host it carries the birth session (C1): a session of\nexactly the new passkey, minted by its UV-required creation, that holds the birth grant.",
                   "properties": {
-                    "session": {
-                      "oneOf": [
-                        {
-                          "$ref": "#/components/schemas/Session"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
                     "user": {
                       "type": "string"
                     }
@@ -13882,7 +13871,7 @@
           }
         },
         "security": [],
-        "summary": "Verify and store the first passkey; the wallet also returns the birth session",
+        "summary": "Verify and store the first passkey",
         "x-client-access": "forward",
         "x-effect": "record",
         "x-lobby": "false",
@@ -16508,6 +16497,93 @@
         "x-effect": "check",
         "x-lobby": "false",
         "x-role": "member",
+        "x-scope": "global"
+      }
+    },
+    "/v1/wallet_register_finish": {
+      "post": {
+        "operationId": "wallet_register_finish",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "ceremony": {
+                    "type": "string"
+                  },
+                  "credential": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "ceremony",
+                  "credential"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "A finished wallet registration (`wallet_register_finish`, trusted, never forwarded): it\ncarries the birth session (C1), a session of exactly the new passkey, minted by its\nUV-required creation, that holds the birth grant. The forwarded `register_finish` answers\n[`User`] only and mints no session.",
+                  "properties": {
+                    "session": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/Session"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "user": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "user"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [],
+        "summary": "Verify and store the wallet's first passkey and return its birth session (C1); never forwarded to a shell",
+        "x-client-access": "trusted",
+        "x-effect": "record",
+        "x-lobby": "false",
+        "x-role": "public",
         "x-scope": "global"
       }
     },

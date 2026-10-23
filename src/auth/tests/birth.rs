@@ -25,7 +25,7 @@ async fn born(auth: &mut Auth, device: &mut Resident) -> Session {
     let finish = registration(device, begin).await;
     let clock = TestClock(AtomicU64::new(NOW));
     let registered = auth
-        .register_finish_wallet_live(finish, NOW, &clock, None)
+        .register_finish_wallet_live(finish, NOW, &clock, None, true)
         .await
         .unwrap();
     let session = registered.session.expect("the wallet registration mints a session");
@@ -148,7 +148,7 @@ async fn only_the_wallet_member_auth_mints_and_grants() {
     let finish = registration(&mut other, begin).await;
     assert!(matches!(
         wallet
-            .register_finish_wallet_live(finish, NOW, &clock, None)
+            .register_finish_wallet_live(finish, NOW, &clock, None, true)
             .await,
         Err(Error::Throttled)
     ));

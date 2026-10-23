@@ -209,10 +209,17 @@ pub async fn enrol_registered(
         )
         .unwrap();
     let credential_id = credential.raw_id.as_ref().to_vec();
+    // The wallet's birth session comes only from the trusted finish; the forwarded one never
+    // carries a session.
+    let finish = if host == WALLET {
+        "wallet_register_finish"
+    } else {
+        "register_finish"
+    };
     let user: Registered = serde_json::from_value(
         client
             .call(
-                "register_finish",
+                finish,
                 json!({"ceremony":start.ceremony,"credential":credential}),
             )
             .await

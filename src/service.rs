@@ -862,32 +862,33 @@ impl Door {
         &self,
         ctx: Context,
         request: RegisterFinish,
-    ) -> Result<Registered> {
+    ) -> Result<User> {
         if self.is_garden(&ctx.host) {
             return Err(Error::Forbidden);
         }
-        let plain = |user: User| Registered {
-            user: user.user,
-            session: None,
-        };
         if self.inner.member_host.as_deref() == Some(ctx.host.as_str()) {
             return self
                 .community_backend()?
                 .lock()
                 .await
                 .register_finish(request, ctx.now)
-                .await
-                .map(plain);
+                .await;
         }
         if self.inner.scope == Scope::Global {
-            return self.wallet_register_finish(ctx, request).await;
+            // The forwarded finish mints no birth session: only the trusted
+            // `wallet_register_finish` returns one, so no shell ever holds its bearer.
+            return self
+                .wallet_register(ctx, request, false)
+                .await
+                .map(|registered| User {
+                    user: registered.user,
+                });
         }
         self.auth(&ctx.host)?
             .lock()
             .await
             .register_finish_live(request, ctx.now, self.inner.clock.as_ref())
             .await
-            .map(plain)
     }
     pub(crate) async fn login_begin(&self, ctx: Context, request: LoginStart) -> Result<Ceremony> {
         if self.is_membership_host(&ctx.host) {

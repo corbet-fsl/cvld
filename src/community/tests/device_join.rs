@@ -1105,7 +1105,7 @@ async fn the_birth_session_binds_the_device_and_the_publication_with_birth_evide
     strip_prf(&mut credential);
     let registered: Registered = serde_json::from_value(
         api.call(
-            "register_finish",
+            "wallet_register_finish",
             json!({"ceremony":initial.ceremony,"credential":credential}),
         )
         .await

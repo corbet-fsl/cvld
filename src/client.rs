@@ -325,22 +325,16 @@ impl<T: Transport> Client<T> {
         validate_response(name, &response)?;
         Ok(response)
     }
-    /// Forward only owner-marked shell-safe responses, before any dispatch. The wallet's
-    /// birth session bearer in a `register_finish` answer never reaches a shell: it is
-    /// dropped here and only [`Client::finish_registration`] adopts it.
+    /// Forward only owner-marked shell-safe responses, before any dispatch. No forwarded
+    /// action returns a session: the wallet's birth session comes only from the trusted
+    /// `wallet_register_finish`, which only [`Client::finish_registration`] calls.
     pub async fn forward(&mut self, name: &str, request: Value) -> Result<Value> {
         forwarding_action(name).ok_or(Error::Invalid)?;
-        let mut response = self.call(name, request).await?;
-        if name == REGISTER_FINISH
-            && let Value::Object(fields) = &mut response
-        {
-            fields.remove("session");
-        }
-        Ok(response)
+        self.call(name, request).await
     }
 }
 
-const REGISTER_FINISH: &str = "register_finish";
+const WALLET_REGISTER_FINISH: &str = "wallet_register_finish";
 
 impl<T: SessionTransport> Client<T> {
     /// Finish a real passkey login and adopt its session at the same pinned origin.
@@ -369,15 +363,19 @@ impl<T: SessionTransport> Client<T> {
     pub async fn authenticate_garden(&mut self, request: Value) -> Result<SessionInfo> {
         self.adopt("garden_session_finish", request).await
     }
-    /// Finish a passkey registration (`register_finish`) and adopt the birth session the
-    /// wallet returns with it (C1), at the same pinned origin. Returns the answer without its
+    /// Finish a wallet passkey registration (the trusted `wallet_register_finish`) and adopt
+    /// the birth session the wallet returns with it (C1), at the same pinned origin. Returns the answer without its
     /// session and the adopted session's public identity, if there was one. The bearer never
     /// reaches the caller; without a session this client's session is unchanged.
     pub async fn finish_registration(
         &mut self,
         request: Value,
     ) -> Result<(Value, Option<SessionInfo>)> {
-        let mut response = self.call(REGISTER_FINISH, request).await?;
+        let action = action(WALLET_REGISTER_FINISH).ok_or(Error::Invalid)?;
+        if action.schema()["x-client-access"] != "trusted" {
+            return Err(Error::Invalid);
+        }
+        let mut response = self.call(WALLET_REGISTER_FINISH, request).await?;
         let Value::Object(fields) = &mut response else {
             return Err(Error::Reconcile);
         };

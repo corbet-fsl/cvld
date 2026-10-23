@@ -1271,7 +1271,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Verify and store the first passkey; the wallet also returns the birth session */
+        /** Verify and store the first passkey */
         post: operations["register_finish"];
         delete?: never;
         options?: never;
@@ -1664,6 +1664,23 @@ export interface paths {
         put?: never;
         /** Read this wallet member's current public device bindings */
         post: operations["wallet_device_keys"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/wallet_register_finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify and store the wallet's first passkey and return its birth session (C1); never forwarded to a shell */
+        post: operations["wallet_register_finish"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6532,7 +6549,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        session?: components["schemas"]["Session"] | null;
                         user: string;
                     };
                 };
@@ -7607,6 +7623,49 @@ export interface operations {
                     "application/json": {
                         error: components["schemas"]["Error"];
                         reason?: components["schemas"]["RefusalReason"] | null;
+                    };
+                };
+            };
+        };
+    };
+    wallet_register_finish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    ceremony: string;
+                    credential: {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        session?: components["schemas"]["Session"] | null;
+                        user: string;
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
                     };
                 };
             };
