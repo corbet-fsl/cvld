@@ -384,3 +384,71 @@ async fn session_fork_serves_the_wallet_only_and_logout_of_a_sibling_ends_the_fa
         );
     }
 }
+
+/// The trusted `wallet_register_finish` (the only finish that mints the birth session) serves
+/// the wallet's member host only: every community host and the global door's root host refuse
+/// it as the wrong host before any ceremony state is read, and the forwarding catalog never
+/// offers it, while the forwarded `register_finish` describes no session.
+#[tokio::test(flavor = "multi_thread")]
+async fn wallet_register_finish_serves_the_wallet_host_only_and_is_never_forwarded() {
+    use webauthn_authenticator_rs::{AuthenticatorBackend as _, softtoken::SoftToken};
+    let trusted = crate::client::action("wallet_register_finish").unwrap();
+    assert_eq!(trusted.schema()["x-client-access"], "trusted");
+    assert_eq!(trusted.schema()["x-scope"], "global");
+    assert!(crate::client::forwarding_action("wallet_register_finish").is_none());
+    let forwarded = crate::client::forwarding_action("register_finish").unwrap();
+    let schema = serde_json::to_string(forwarded.schema()).unwrap();
+    assert!(!schema.contains("Registered") && !schema.contains("Session"));
+
+    let service = global(100).await;
+    let wallet = client(&service, WALLET, None);
+    let start: crate::api::Ceremony = serde_json::from_value(
+        wallet
+            .call("register_begin", json!({"bootstrap":null,"passport":null}))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let challenge: ckyh::CreationChallengeResponse =
+        serde_json::from_value(start.options).unwrap();
+    let mut authenticator = SoftToken::new(true).unwrap().0;
+    let credential = authenticator
+        .perform_register(
+            ckyh::Url::parse(&origin_for(WALLET)).unwrap(),
+            {
+                let mut options = challenge.public_key;
+                options
+                    .authenticator_selection
+                    .as_mut()
+                    .unwrap()
+                    .require_resident_key = false;
+                options
+            },
+            300_000,
+        )
+        .unwrap();
+    let body = json!({"ceremony":start.ceremony,"credential":credential});
+    assert_eq!(
+        call_status(&service, ROOT, None, "wallet_register_finish", body.clone()).await,
+        421
+    );
+    let public: GlobalPublic =
+        serde_json::from_value(wallet.call("global_public", json!({})).await.unwrap()).unwrap();
+    let alpha = community("alpha", &public).await;
+    for host in ["api.alpha.example.test", "api.admin.alpha.example.test", WALLET] {
+        assert_eq!(
+            call_status(&alpha, host, None, "wallet_register_finish", body.clone()).await,
+            421
+        );
+    }
+    // The refusals consumed nothing: the same ceremony finishes on the wallet host and holds
+    // the birth session.
+    let registered: crate::api::Registered = serde_json::from_value(
+        wallet
+            .call("wallet_register_finish", body)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    assert!(registered.session.is_some());
+}

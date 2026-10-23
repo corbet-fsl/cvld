@@ -379,8 +379,18 @@ impl Door {
         ctx: Context,
         request: RegisterFinish,
     ) -> Result<Registered> {
+        // Only the wallet's own member host holds a birth grant: the root and operator hosts
+        // of the global door, and every community door, refuse before any ceremony state is
+        // touched.
         if self.inner.scope != Scope::Global {
             return Err(Error::WrongHost);
+        }
+        {
+            let authentication = self.auth(&ctx.host)?;
+            let auth = authentication.lock().await;
+            if auth.role != Role::Member || auth.operator.is_some() {
+                return Err(Error::WrongHost);
+            }
         }
         self.wallet_register(ctx, request, true).await
     }
