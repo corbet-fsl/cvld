@@ -142,10 +142,16 @@ Removing the last passkey permanently releases membership under NO RETURN.
 
 ## Current limits
 
-Production global gate providers are not configured by this door yet; the only
-interactive global gate adapter in this build is the development feature. The
+Production global gate providers (phone and mailbox, `src/contact_gates`) are
+enabled only through an explicit `contacts` configuration; without it none is
+configured, and the `development-gate` feature adds a separate development gate.
+Their readiness is not claimed: independent review and execution evidence remain
+necessary (`src/contact_gates/README.md`). The
 community voucher gate is real and requires a configured sponsor public key.
-Legal-order/self-ban authority integration remains unconfigured. The mandatory legal veto still runs on every community gate check.
+Self-ban is implemented for the global account (`global_self_ban_finish`) and for a
+community membership (`community_self_ban_finish`): a fresh passkey ceremony ends it
+permanently. Legal-order authority integration remains unconfigured: the community
+verifier refuses every legal order (`CommunityAuthority::verify_legal`). The mandatory legal veto still runs on every community gate check.
 
 Pin changes use cmbr's sealed cblc interface and remain disabled in the facade
 integration. Initial v2 pins and reads work. Credentials
