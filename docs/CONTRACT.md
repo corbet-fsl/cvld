@@ -91,7 +91,7 @@ Crow runs stable Rust formatting, strict Clippy, real libSQL/WebAuthn/
 blind-passport HTTP tests, CLI and official MCP-client process round trips,
 surface parity, default release tests and a negative release-feature build.
 OpenAPI and the TypeScript client are regenerated and compared with committed
-output. No Cargo command runs on the workstation. The remote Turso probe is
+output. The remote Turso probe is
 explicitly ignored, and automated verification does not invoke the toy Turso
 scenario. Running either requires separate operator authorization and a supplied
 disposable database; configured credentials alone do not enable them in CI.

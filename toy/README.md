@@ -19,8 +19,7 @@ Holder-side cryptography uses `cpsd`; the test sponsor uses `cvch` and
 Build and validate through the repository CI jobs. The Linux build environment
 requires current stable Rust, Python 3.11+ (for manifest preparation only), a C
 compiler, OpenSSL development headers and
-[libfaketime](https://github.com/wolfcw/libfaketime). Do not run Cargo on the
-workstation. The repository verification job builds the harness and runs its
+[libfaketime](https://github.com/wolfcw/libfaketime). The repository verification job builds the harness and runs its
 scenarios.
 
 To run the demo explicitly, use these commands from the repository root on the CI
