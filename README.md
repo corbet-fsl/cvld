@@ -4,8 +4,13 @@ The permanent door of the cmtymeet trust stack. One Rust library and binary,
 FSL-1.1-ALv2. The JavaScript/AnonCreds prototype is preserved at annotated tag
 `js-prototype-0.1.0-alpha.0`. This package is not published to any registry.
 
-The door composes the global `cgbl` and community `cmty` facades. Separate
-processes and databases preserve their information boundary. The API registry
+The door composes the global `cgbl` and community `cmty` facades. `cvld serve global`
+and `cvld serve community` are separate processes, each owning its own database.
+`cvld serve platform` serves the global service with its explicitly linked communities
+in one trusted process, and `cvld serve root-issuer` the linked root and source
+communities in one process; there each service keeps its own configuration and
+database, and a community is a separate scope of the community database
+([hosting](docs/COMMUNITY-CREATION.md)). The API registry
 owns actions, roles and check/record classification; HTTP, OpenAPI, MCP and CLI
 are projections of that registry.
 
