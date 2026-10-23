@@ -75,7 +75,7 @@ impl ServerHandler for Mcp {
         };
         Ok(match result {
             Ok(value) => CallToolResult::structured(value),
-            Err(error) => CallToolResult::structured_error(json!({"error": error})),
+            Err(error) => CallToolResult::structured_error(json!(crate::error::ErrorBody::from(error))),
         }
         .into())
     }

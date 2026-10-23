@@ -3075,6 +3075,12 @@ export interface components {
             challenge: string;
             proof: number[];
         };
+        /**
+         * @description Typed reason of a `refused` error. The only reason a client may act on
+         *     without reconciling: nothing was written, so it may prepare a fresh request.
+         * @enum {string}
+         */
+        RefusalReason: "expired";
         /** @enum {string} */
         Role: "member" | "admin" | "root";
         /**
@@ -3227,6 +3233,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -3265,6 +3272,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -3308,6 +3316,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -3343,6 +3352,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -3382,6 +3392,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -3413,6 +3424,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -3494,6 +3506,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -3555,6 +3568,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -3597,6 +3611,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -3632,6 +3647,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -3678,6 +3694,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -3718,6 +3735,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -3758,6 +3776,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -3800,6 +3819,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -3845,6 +3865,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -3884,6 +3905,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -3926,6 +3948,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -3977,6 +4000,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -4020,6 +4044,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -4074,6 +4099,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -4121,6 +4147,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -4163,6 +4190,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -4202,6 +4230,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -4239,6 +4268,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -4285,6 +4315,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -4328,6 +4359,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -4371,6 +4403,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -4411,6 +4444,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -4451,6 +4485,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -4490,6 +4525,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -4540,6 +4576,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -4577,6 +4614,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -4617,6 +4655,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -4657,6 +4696,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -4699,6 +4739,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -4745,6 +4786,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -4796,6 +4838,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -4838,6 +4881,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -4886,6 +4930,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -4925,6 +4970,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -4971,6 +5017,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -5011,6 +5058,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -5048,6 +5096,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -5087,6 +5136,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -5138,6 +5188,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -5178,6 +5229,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -5228,6 +5280,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -5276,6 +5329,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -5325,6 +5379,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -5367,6 +5422,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -5405,6 +5461,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -5451,6 +5508,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -5486,6 +5544,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -5524,6 +5583,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -5563,6 +5623,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -5620,6 +5681,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -5659,6 +5721,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -5696,6 +5759,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -5734,6 +5798,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -5771,6 +5836,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -5811,6 +5877,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -5852,6 +5919,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -5894,6 +5962,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -5933,6 +6002,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -5986,6 +6056,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -6040,6 +6111,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -6081,6 +6153,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -6122,6 +6195,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -6161,6 +6235,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -6201,6 +6276,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -6238,6 +6314,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -6298,6 +6375,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -6336,6 +6414,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -6379,6 +6458,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -6421,6 +6501,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -6465,6 +6546,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -6506,6 +6588,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -6545,6 +6628,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -6604,6 +6688,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -6645,6 +6730,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -6682,6 +6768,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -6746,6 +6833,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -6791,6 +6879,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -6832,6 +6921,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -6877,6 +6967,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -6921,6 +7012,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -6978,6 +7070,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -7031,6 +7124,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -7072,6 +7166,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -7119,6 +7214,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -7172,6 +7268,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -7213,6 +7310,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -7254,6 +7352,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -7296,6 +7395,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -7336,6 +7436,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -7376,6 +7477,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -7413,6 +7515,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -7457,6 +7560,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -7514,6 +7618,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };

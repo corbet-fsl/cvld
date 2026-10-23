@@ -135,6 +135,8 @@ impl CommunityService {
                 .map_err(|error| match error {
                     cmty::Error::Reconcile => Error::Reconcile,
                     cmty::Error::AccountUnavailable => Error::Unavailable,
+                    // Certain and pre-commit: 409 refused with the reason expired.
+                    cmty::Error::AccountExpired => Error::Expired,
                     _ => Error::Refused,
                 })?;
             let result = async {

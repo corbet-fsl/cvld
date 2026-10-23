@@ -5492,6 +5492,13 @@
         ],
         "type": "object"
       },
+      "RefusalReason": {
+        "description": "Typed reason of a `refused` error. The only reason a client may act on\nwithout reconciling: nothing was written, so it may prepare a fresh request.",
+        "enum": [
+          "expired"
+        ],
+        "type": "string"
+      },
       "Role": {
         "enum": [
           "member",
@@ -5972,6 +5979,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -6049,6 +6067,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -6153,6 +6182,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -6212,6 +6252,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -6284,6 +6335,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -6328,6 +6390,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -6602,6 +6675,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -6734,6 +6818,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -6818,6 +6913,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -6877,6 +6983,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -6962,6 +7079,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -7034,6 +7162,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -7110,6 +7249,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -7187,6 +7337,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -7268,6 +7429,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -7349,6 +7521,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -7430,6 +7613,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -7542,6 +7736,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -7629,6 +7834,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -7758,6 +7974,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -7866,6 +8093,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -7949,6 +8187,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -8036,6 +8285,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -8109,6 +8369,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -8210,6 +8481,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -8316,6 +8598,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -8418,6 +8711,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -8515,6 +8819,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -8616,6 +8931,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -8706,6 +9032,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -8831,6 +9168,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -8903,6 +9251,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -9004,6 +9363,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -9105,6 +9475,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -9185,6 +9566,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -9298,6 +9690,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -9432,6 +9835,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -9522,6 +9936,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -9629,6 +10054,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -9715,6 +10151,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -9796,6 +10243,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -9868,6 +10326,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -9936,6 +10405,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -10011,6 +10491,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -10139,6 +10630,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -10229,6 +10731,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -10354,6 +10867,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -10461,6 +10985,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -10581,6 +11116,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -10671,6 +11217,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -10737,6 +11294,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -10827,6 +11395,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -10882,6 +11461,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -10953,6 +11543,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -11025,6 +11626,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -11184,6 +11796,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -11263,6 +11886,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -11333,6 +11967,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -11416,6 +12061,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -11488,6 +12144,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -11582,6 +12249,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -11671,6 +12349,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -11764,6 +12453,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -11840,6 +12540,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -11967,6 +12678,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -12118,6 +12840,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -12207,6 +12940,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -12299,6 +13043,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -12378,6 +13133,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -12461,6 +13227,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -12531,6 +13308,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -12723,6 +13511,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -12799,6 +13598,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -12888,6 +13698,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -12964,6 +13785,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -13052,6 +13884,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -13142,6 +13985,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -13215,6 +14069,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -13403,6 +14268,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -13484,6 +14360,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -13554,6 +14441,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -13756,6 +14654,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -13845,6 +14754,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -13944,6 +14864,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -14029,6 +14960,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -14118,6 +15060,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -14294,6 +15247,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -14404,6 +15368,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -14488,6 +15463,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -14594,6 +15580,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -14731,6 +15728,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -14812,6 +15820,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -14893,6 +15912,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -14976,6 +16006,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -15055,6 +16096,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -15152,6 +16204,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -15228,6 +16291,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -15317,6 +16391,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -15493,6 +16578,17 @@
                   "properties": {
                     "error": {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [

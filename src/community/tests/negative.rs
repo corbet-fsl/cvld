@@ -906,7 +906,7 @@ async fn a_verified_legal_veto_after_authentication_prevents_credential_issuance
     assert!(!community.challenges.contains_key(&challenge_id));
     let error = result.err().unwrap();
     assert_eq!(
-        serde_json::to_value(crate::error::ErrorBody { error }).unwrap(),
+        serde_json::to_value(crate::error::ErrorBody::from(error)).unwrap(),
         json!({"error":"forbidden"})
     );
 }
