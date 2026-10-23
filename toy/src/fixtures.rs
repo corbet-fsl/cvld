@@ -15,6 +15,15 @@ pub const ALPHA: &str = "api.alpha.toy.localhost";
 /// The Root operator host and its page origin host.
 pub const ROOT_ADMIN: &str = "api.admin.root.toy.localhost";
 pub const ROOT_ORIGIN: &str = "admin.root.toy.localhost";
+/// One token back per this many milliseconds in each (source, action) bucket of the toy
+/// services. Every toy device reaches them from the one loopback source, while deployed
+/// devices each have their own (examples/*.json: one token per 1000 ms per source). A
+/// member device observes its lease (lobby, device keys, initial creation) about once a
+/// second in the background (measured: 3-5 lobby reads/s for three devices, 2026-10-23),
+/// so the toy refills at the deployed per-source rate times the devices a journey runs at
+/// once (up to 8). At one token per minute the lobby bucket ran dry after ~8.5 minutes of
+/// stack uptime and the next Vault check failed with 429.
+const THROTTLE_INTERVAL_MS: u64 = 1000 / 8;
 fn write(dir: &Path, name: &str, bytes: &[u8]) -> String {
     let path = dir.join(name);
     std::fs::write(&path, bytes).unwrap();
@@ -79,7 +88,7 @@ pub async fn global(dir: &Path, listen: String, burst: u32, now: u64) {
         session_seconds: 600,
         pending_capacity: 1024,
         throttle_burst: burst,
-        throttle_interval_ms: 60_000,
+        throttle_interval_ms: THROTTLE_INTERVAL_MS,
         publication_seconds: 172800,
         signer_max_seconds: 86_400 * 100,
         development: true,
@@ -352,7 +361,7 @@ pub fn community_with(
         session_seconds,
         pending_capacity: 1024,
         throttle_burst: burst,
-        throttle_interval_ms: 60_000,
+        throttle_interval_ms: THROTTLE_INTERVAL_MS,
         publication_seconds: 2 * 86_400,
         signer_max_seconds: 10 * 366 * 86_400,
         minimum_notice_seconds: 0,
