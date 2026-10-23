@@ -4971,7 +4971,8 @@
           "throttled",
           "refused",
           "unavailable",
-          "reconcile"
+          "reconcile",
+          "clock"
         ],
         "type": "string"
       },
@@ -10743,6 +10744,18 @@
                       "minimum": 0,
                       "type": "integer"
                     },
+                    "nonce": {
+                      "description": "The bind request's nonce, echoed; absent on reads and nonce-less binds.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
                     "publication": {
                       "items": {
                         "format": "int32",
@@ -10839,6 +10852,18 @@
                       "null"
                     ]
                   },
+                  "nonce": {
+                    "description": "A fresh client nonce of this one bind. The answer echoes it, so the client accepts\nonly the answer to this request (never an earlier one replayed) without ordering its\nown clock against the server's. Never stored; an equal retry carries a new nonce.",
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  },
                   "publication": {
                     "items": {
                       "format": "int32",
@@ -10878,6 +10903,18 @@
                       "format": "int64",
                       "minimum": 0,
                       "type": "integer"
+                    },
+                    "nonce": {
+                      "description": "The bind request's nonce, echoed; absent on reads and nonce-less binds.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     },
                     "publication": {
                       "items": {

@@ -38,6 +38,11 @@ pub struct InitialPublicationBind {
     /// key ring for this account and the bound seed commitment.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub evidence: Option<Vec<u8>>,
+    /// A fresh client nonce of this one bind. The answer echoes it, so the client accepts
+    /// only the answer to this request (never an earlier one replayed) without ordering its
+    /// own clock against the server's. Never stored; an equal retry carries a new nonce.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub nonce: Option<[u8; 32]>,
 }
 
 /// Own enrollment provenance only; grants no root creation, signing or use.
@@ -47,6 +52,9 @@ pub struct InitialCreationResponse {
     pub seed: [u8; 32],
     pub publication: Option<[u8; 32]>,
     pub checked_at: u64,
+    /// The bind request's nonce, echoed; absent on reads and nonce-less binds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub nonce: Option<[u8; 32]>,
 }
 
 /// Continue the retained wallet ceremony after its genuine UUID is known.

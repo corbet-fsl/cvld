@@ -212,6 +212,7 @@ async fn leaf_expiry_after_actual_bind_returns_reconcile_and_fresh_uv_reads_the_
                 seed: SEED,
                 publication: PUBLICATION,
                 evidence: None,
+                nonce: None,
             }),
             NOW,
         )
@@ -254,6 +255,7 @@ async fn cancelled_bind_waiting_for_the_original_member_lease_leaves_no_publicat
             seed: SEED,
             publication: PUBLICATION,
             evidence: None,
+            nonce: None,
         }),
         NOW,
     );
@@ -278,6 +280,7 @@ async fn cancelled_bind_waiting_for_the_original_member_lease_leaves_no_publicat
                     seed: SEED,
                     publication: PUBLICATION,
                     evidence: Some(vec![1]),
+                    nonce: None,
                 }),
                 NOW,
             )
@@ -291,6 +294,7 @@ async fn cancelled_bind_waiting_for_the_original_member_lease_leaves_no_publicat
                 seed: SEED,
                 publication: PUBLICATION,
                 evidence: None,
+                nonce: None,
             }),
             NOW,
         )
@@ -314,6 +318,7 @@ async fn leaf_completion_floor_withholds_lost_bind_reply_but_exact_receipt_recov
                 seed: SEED,
                 publication: PUBLICATION,
                 evidence: None,
+                nonce: None,
             }),
             NOW,
         )
@@ -350,6 +355,7 @@ async fn session_expiry_after_a_real_owner_wait_refuses_before_binding() {
                 seed: SEED,
                 publication: PUBLICATION,
                 evidence: None,
+                nonce: None,
             }),
             NOW,
         );

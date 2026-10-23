@@ -80,6 +80,7 @@ impl Auth {
                 seed: state.seed(),
                 publication: state.publication(),
                 checked_at,
+                nonce: None,
             })
         }
         .await;

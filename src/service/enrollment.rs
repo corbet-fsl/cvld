@@ -64,23 +64,28 @@ impl Door {
     pub(crate) async fn initial_publication_bind(
         &self,
         ctx: Context,
-        request: InitialPublicationBind,
+        mut request: InitialPublicationBind,
     ) -> Result<InitialCreationResponse> {
-        if self.inner.scope == Scope::Global {
-            return self.global_initial_publication_bind(ctx, request).await;
-        }
-        if !self.is_community_member(&ctx.host) {
-            return Err(Error::WrongHost);
-        }
-        self.community_backend()?
-            .lock()
-            .await
-            .initial_creation(
-                ctx.token.as_deref().ok_or(Error::Unauthorized)?,
-                Some(request),
-                ctx.now,
-            )
-            .await
+        // The nonce binds only this answer to its request; it is never stored or compared.
+        let nonce = request.nonce.take();
+        let mut response = if self.inner.scope == Scope::Global {
+            self.global_initial_publication_bind(ctx, request).await?
+        } else {
+            if !self.is_community_member(&ctx.host) {
+                return Err(Error::WrongHost);
+            }
+            self.community_backend()?
+                .lock()
+                .await
+                .initial_creation(
+                    ctx.token.as_deref().ok_or(Error::Unauthorized)?,
+                    Some(request),
+                    ctx.now,
+                )
+                .await?
+        };
+        response.nonce = nonce;
+        Ok(response)
     }
 }
 

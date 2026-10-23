@@ -2975,7 +2975,7 @@ export interface components {
             version: number;
         };
         /** @enum {string} */
-        Error: "invalid" | "unauthorized" | "forbidden" | "held_in_lobby" | "wrong_host" | "throttled" | "refused" | "unavailable" | "reconcile";
+        Error: "invalid" | "unauthorized" | "forbidden" | "held_in_lobby" | "wrong_host" | "throttled" | "refused" | "unavailable" | "reconcile" | "clock";
         Lobby: {
             handle?: string | null;
             member_id: string;
@@ -5269,6 +5269,8 @@ export interface operations {
                     "application/json": {
                         /** Format: int64 */
                         checked_at: number;
+                        /** @description The bind request's nonce, echoed; absent on reads and nonce-less binds. */
+                        nonce?: number[] | null;
                         publication?: number[] | null;
                         seed: number[];
                     };
@@ -5307,6 +5309,12 @@ export interface operations {
                      *     key ring for this account and the bound seed commitment.
                      */
                     evidence?: number[] | null;
+                    /**
+                     * @description A fresh client nonce of this one bind. The answer echoes it, so the client accepts
+                     *     only the answer to this request (never an earlier one replayed) without ordering its
+                     *     own clock against the server's. Never stored; an equal retry carries a new nonce.
+                     */
+                    nonce?: number[] | null;
                     publication: number[];
                     seed: number[];
                 };
@@ -5322,6 +5330,8 @@ export interface operations {
                     "application/json": {
                         /** Format: int64 */
                         checked_at: number;
+                        /** @description The bind request's nonce, echoed; absent on reads and nonce-less binds. */
+                        nonce?: number[] | null;
                         publication?: number[] | null;
                         seed: number[];
                     };

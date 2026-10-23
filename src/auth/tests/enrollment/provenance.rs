@@ -17,6 +17,7 @@ async fn actual_current_key_queries_and_equal_cas_retries_preserve_the_first_pub
                     seed: [1; 32],
                     publication: [publication; 32],
                     evidence: None,
+                    nonce: None,
                 }),
                 NOW,
                 &clock,
@@ -33,6 +34,7 @@ async fn actual_current_key_queries_and_equal_cas_retries_preserve_the_first_pub
                     seed: [seed; 32],
                     publication: [publication; 32],
                     evidence: None,
+                    nonce: None,
                 }),
                 NOW,
                 &clock
@@ -95,6 +97,7 @@ async fn actual_committed_publication_with_expired_reply_is_reconcile_and_fresh_
                 seed: [1; 32],
                 publication: [2; 32],
                 evidence: None,
+                nonce: None,
             }),
             NOW,
             &clock
@@ -175,6 +178,7 @@ async fn an_added_same_user_key_cannot_read_or_bind_the_original_keys_creation()
                 seed: [1; 32],
                 publication: [2; 32],
                 evidence: None,
+                nonce: None,
             }),
             NOW,
             &clock

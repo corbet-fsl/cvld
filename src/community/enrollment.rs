@@ -133,6 +133,7 @@ impl CommunityService {
                     seed: state.seed(),
                     publication: state.publication(),
                     checked_at: now,
+                    nonce: None,
                 })
             }
             .await;

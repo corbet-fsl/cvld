@@ -773,6 +773,7 @@ async fn an_expired_genesis_stamp_only_re_confirms_the_same_recorded_pending_gen
         seed: SEED,
         publication: [57; 32],
         evidence: Some(evidence.clone()),
+        nonce: None,
     };
     // Before the stamp expired: both geneses verify. The first one's digest is recorded but
     // its bind's outcome stays unknown (record kept, nothing bound): a pending genesis. The
