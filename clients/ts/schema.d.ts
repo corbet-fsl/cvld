@@ -438,7 +438,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Activate a pending device key by passport and one confirmation stamp once its lineage revision is published */
+        /** Activate the pending device key the pairing stamp approved, by passport and the key's possession signature, once its lineage revision is published; no stamp */
         post: operations["device_activate"];
         delete?: never;
         options?: never;
@@ -455,7 +455,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Register a further device key PENDING by passport and one confirmation stamp (grants nothing until activated) */
+        /** Register a further device key PENDING by passport and the community's one pairing stamp slot (grants nothing until activated) */
         post: operations["device_add"];
         delete?: never;
         options?: never;
@@ -4374,11 +4374,7 @@ export interface operations {
                 "application/json": {
                     device_key: number[];
                     passport: components["schemas"]["PresentationInput"];
-                    /** @description The stamp action's salt. */
-                    salt: number[];
                     signature: number[];
-                    /** @description cpsd stamp presentation encoding. */
-                    stamp: number[];
                 };
             };
         };
@@ -4418,8 +4414,12 @@ export interface operations {
                 "application/json": {
                     device_key: number[];
                     passport: components["schemas"]["PresentationInput"];
+                    /** @description Digest of the lineage revision planned for the key, when known at stamp time. */
+                    revision?: number[] | null;
                     /** @description The stamp action's salt. */
                     salt: number[];
+                    /** @description This community's own opaque pairing session value (never shared across communities). */
+                    session: number[];
                     signature: number[];
                     /** @description cpsd stamp presentation encoding. */
                     stamp: number[];

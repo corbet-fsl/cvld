@@ -55,21 +55,52 @@ pub fn join_payload(device_key: &[u8; 32], seed: &[u8; 32]) -> [u8; 32] {
     hasher.finalize().into()
 }
 
-/// Stamp action kind of stamped pairing step one: register a PENDING device key.
+/// Pairing step one (API action `device_add`): register the key PENDING, with the pairing
+/// stamp's approval. It is the step number 1 of [`pairing_message`].
 pub const ADD_ACTION: &str = "device_add";
-/// Stamp action kind of stamped pairing step two: activate the key once its lineage revision
-/// is published.
+/// Pairing step two (API action `device_activate`): activate the PENDING key once its lineage
+/// revision is published. It needs no stamp, and is the step number 2 of [`pairing_message`].
 pub const ACTIVATE_ACTION: &str = "device_activate";
+/// Stamp action kind of the ONE pairing stamp slot per community, presented once at
+/// `device_add`; the payload digest is [`pair_payload`]. All slots of a stamp come from one
+/// user verification, so separate add, activate and revision digests would carry no extra
+/// approval: the one digest covers the whole pairing and `device_activate` needs no stamp.
+pub const PAIR_ACTION: &str = "device_pair";
 
-/// Payload digest of a pairing stamp action (`device_add` or `device_activate`):
-/// SHA-256(action kind || device key), so one stamp approves exactly one step for one key.
-pub fn pairing_payload(action: &str, device_key: &[u8; 32]) -> [u8; 32] {
+/// Payload digest of a community's pairing stamp slot: SHA-256 over the domain tag, then
+/// length-prefixed `community`, the member's `member_id` (pseudonym), the NEW `device_key`, the
+/// community's own opaque pairing `session` value, and the planned lineage `revision` (a flag
+/// byte, then its 32-byte digest when planned). The stamp therefore approves exactly this key
+/// for this member in this community within this pairing, and, when the host knows the
+/// revision at stamp time, the revision that will carry the key too.
+///
+/// `session` is one value PER community: a value shared across communities would link a
+/// member's memberships. When no revision is planned yet the digest still commits to the key,
+/// which is what activation needs: the key alone decides what the server may activate, and the
+/// revision only decides what the lineage publishes, which its own evidence checks.
+pub fn pair_payload(
+    community: &str,
+    member_id: &str,
+    device_key: &[u8; 32],
+    session: &[u8; 32],
+    revision: Option<&[u8; 32]>,
+) -> [u8; 32] {
     use sha2::Digest as _;
     let mut hasher = sha2::Sha256::new();
-    hasher.update(b"cvld.device-pairing.v1\0");
-    hasher.update(action.as_bytes());
-    hasher.update([0]);
+    hasher.update(b"cvld.device-pair.v1\0");
+    for text in [community, member_id] {
+        hasher.update((text.len() as u16).to_be_bytes());
+        hasher.update(text.as_bytes());
+    }
     hasher.update(device_key);
+    hasher.update(session);
+    match revision {
+        Some(revision) => {
+            hasher.update([1]);
+            hasher.update(revision);
+        }
+        None => hasher.update([0]),
+    }
     hasher.finalize().into()
 }
 

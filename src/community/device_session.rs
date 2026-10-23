@@ -3,8 +3,8 @@
 //! Renewal is the same exchange. Every refusal after the nonce lookup is the same `Unauthorized`.
 use super::*;
 use crate::device_session::{
-    ACTIVATE_ACTION, ADD_ACTION, JOIN_ACTION, NONCE_LEN, NONCE_SECONDS, join_message, join_payload,
-    message, pairing_message, pairing_payload,
+    ACTIVATE_ACTION, ADD_ACTION, JOIN_ACTION, NONCE_LEN, NONCE_SECONDS, PAIR_ACTION, join_message,
+    join_payload, message, pair_payload, pairing_message,
 };
 use ed25519_dalek::{Signature, VerifyingKey};
 
@@ -389,21 +389,19 @@ impl CommunityService {
         }
     }
 
-    /// One stamped pairing step (`device_add` registers the key PENDING, `device_activate`
-    /// makes it ACTIVE): the same checks as a join (one-use challenge, key signature, passport,
-    /// stamp covering exactly this action and key under the passport's pseudonym), but a stamp
-    /// that no longer verifies is always refused. The digest is recorded once; a retry with the
-    /// same stamp is idempotent in the membership, and a failed apply frees the digest.
-    pub async fn device_pairing(
+    /// The checks both pairing steps share: the one-use challenge, the NEW key's possession
+    /// signature over the step's own message, and the passport. Returns the verified passport.
+    async fn pairing_passport(
         &mut self,
-        kind: &'static str,
-        request: DevicePairing,
+        step: &'static str,
+        input: crate::api::PresentationInput,
+        device_key: &[u8; 32],
+        signature: &[u8],
         now: u64,
-    ) -> Result<Empty> {
-        debug_assert!(kind == ADD_ACTION || kind == ACTIVATE_ACTION);
+    ) -> Result<cmty::VerifiedPassport> {
+        debug_assert!(step == ADD_ACTION || step == ACTIVATE_ACTION);
         self.refresh_global(now).await?;
         self.prune(now);
-        let input = request.passport;
         let challenge = self
             .challenges
             .remove(&input.challenge)
@@ -412,30 +410,43 @@ impl CommunityService {
         if challenge.owner.is_some() || challenge.value.root_board_request().is_some() {
             return Err(Error::Forbidden);
         }
-        let key = VerifyingKey::from_bytes(&request.device_key)
+        let key = VerifyingKey::from_bytes(device_key)
             .map_err(Error::Unauthorized.redact_at("community/device_session.rs:22"))?;
         if key.is_weak() {
             return Err(Error::Unauthorized);
         }
-        let signature = Signature::from_slice(&request.signature)
+        let signature = Signature::from_slice(signature)
             .map_err(Error::Unauthorized.redact_at("community/device_session.rs:23"))?;
         key.verify_strict(
-            &pairing_message(
-                kind,
-                &self.config.community,
-                &input.challenge,
-                &request.device_key,
-            ),
+            &pairing_message(step, &self.config.community, &input.challenge, device_key),
             &signature,
         )
         .map_err(Error::Unauthorized.redact_at("community/device_session.rs:24"))?;
         let proof =
             cpsd::Presentation::from_bytes(&input.proof).map_err(Error::Invalid.redact())?;
-        let passport = self
-            .facade
+        self.facade
             .verify(&mut cpsd::rand::rngs::OsRng, &challenge.value, &proof, now)
             .await
-            .map_err(Error::Refused.redact_at("community/device_session.rs:25"))?;
+            .map_err(Error::Refused.redact_at("community/device_session.rs:25"))
+    }
+
+    /// Pairing step one, `device_add`: the same checks as a join (one-use challenge, the new
+    /// key's possession signature of the Add step, passport) plus the community's ONE pairing
+    /// stamp slot (`device_pair`, [`pair_payload`]) under the passport's pseudonym; a stamp
+    /// that no longer verifies is always refused. The digest is recorded once; a retry with the
+    /// same stamp is idempotent only for a live PENDING key (the membership decides), and a
+    /// failed apply frees the digest. The PENDING key it registers carries the approval and
+    /// expires after `PAIRING_PENDING_SECONDS`; `device_activate` needs no further stamp.
+    pub async fn device_add(&mut self, request: DeviceAdd, now: u64) -> Result<Empty> {
+        let passport = self
+            .pairing_passport(
+                ADD_ACTION,
+                request.passport,
+                &request.device_key,
+                &request.signature,
+                now,
+            )
+            .await?;
         let global = crate::global_trust::load(&self.db, &self.config, now).await?;
         let stamp_key = cpsd::StampPublicKey::from_bytes(
             global
@@ -463,8 +474,14 @@ impl CommunityService {
         )
         .map_err(Error::Refused.redact_at("community/device_session.rs:27"))?;
         let action = cpsd::StampAction::new(
-            cpsd::ActionKind::new(kind).map_err(Error::Invalid.redact())?,
-            cpsd::PayloadDigest::from_bytes(pairing_payload(kind, &request.device_key)),
+            cpsd::ActionKind::new(PAIR_ACTION).map_err(Error::Invalid.redact())?,
+            cpsd::PayloadDigest::from_bytes(pair_payload(
+                &self.config.community,
+                passport.member_id(),
+                &request.device_key,
+                &request.session,
+                request.revision.as_ref(),
+            )),
             cpsd::StampSalt::from_bytes(request.salt),
         );
         let verified = cpsd::StampPresentation::from_bytes(&request.stamp)
@@ -493,16 +510,11 @@ impl CommunityService {
             Err(cpsd::Error::StampReplayed) => false,
             Err(_) => return Err(Error::Unavailable),
         };
-        let applied = if kind == ADD_ACTION {
-            self.facade
-                .add_device_key(passport, request.device_key, now)
-                .await
-        } else {
-            self.facade
-                .activate_device_key(passport, request.device_key, now)
-                .await
-        };
-        match applied {
+        match self
+            .facade
+            .add_device_key(passport, request.device_key, now)
+            .await
+        {
             Ok(()) => Ok(Empty {}),
             Err(_) => {
                 if fresh {
@@ -511,6 +523,28 @@ impl CommunityService {
                 Err(Error::Refused)
             }
         }
+    }
+
+    /// Pairing step two, `device_activate`: no stamp. The new key's possession signature of
+    /// the Activate step over a fresh one-use challenge and the passport; the membership then
+    /// activates only the live PENDING key that `device_add` registered for this community,
+    /// pseudonym and key (an expired one is removed and refused). A replayed request fails at
+    /// the consumed challenge.
+    pub async fn device_activate(&mut self, request: DeviceActivate, now: u64) -> Result<Empty> {
+        let passport = self
+            .pairing_passport(
+                ACTIVATE_ACTION,
+                request.passport,
+                &request.device_key,
+                &request.signature,
+                now,
+            )
+            .await?;
+        self.facade
+            .activate_device_key(passport, request.device_key, now)
+            .await
+            .map_err(Error::Refused.redact())?;
+        Ok(Empty {})
     }
 
     /// The stamp scope of this community (`cpsd::StampScope::of_community`): the

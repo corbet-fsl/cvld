@@ -47,7 +47,10 @@ impl Fixture {
         .unwrap();
         let migrations: Vec<_> = cmbr::SCHEMAS
             .iter()
-            .chain([&("device-registry", cmbr::DEVICE_REGISTRY_SCHEMA)])
+            .chain([
+                &("device-registry", cmbr::DEVICE_REGISTRY_SCHEMA),
+                &("device-pairing", cmbr::DEVICE_PAIRING_SCHEMA),
+            ])
             .enumerate()
             .map(|(index, (name, sql))| crlt::Migration::new(index as u32 + 1, name, sql))
             .collect();

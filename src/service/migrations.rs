@@ -41,6 +41,7 @@ pub fn community_migrations() -> Vec<crlt::Migration<'static>> {
         ("cmbr-device-pending", cmbr::DEVICE_PENDING_SCHEMA),
         ("device-registry", crate::device_registry::SCHEMA),
         ("stamp-uses", crate::stamp_uses::SCHEMA),
+        ("cmbr-device-pairing", cmbr::DEVICE_PAIRING_SCHEMA),
     ]);
     schemas
         .iter()

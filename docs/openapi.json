@@ -8551,7 +8551,7 @@
             "application/json": {
               "schema": {
                 "additionalProperties": false,
-                "description": "Stamped pairing step (`device_add` or `device_activate`): a passport presentation over a\nchallenge of this community, a stamp presentation covering the action kind with payload\n[`crate::device_session::pairing_payload`] of exactly `device_key`, and the device key's\nsignature over [`crate::device_session::join_message`] (proof of possession).",
+                "description": "Pairing step two: a passport presentation over a challenge of this community and the new\nkey's signature over [`crate::device_session::pairing_message`] of step `device_activate`\n(proof of possession). No stamp: the PENDING key that `device_add` registered for the same\ncommunity, pseudonym and key is the approval, and it expires after\n[`cmty::cmbr::PAIRING_PENDING_SECONDS`].",
                 "properties": {
                   "device_key": {
                     "items": {
@@ -8564,25 +8564,7 @@
                   "passport": {
                     "$ref": "#/components/schemas/PresentationInput"
                   },
-                  "salt": {
-                    "description": "The stamp action's salt.",
-                    "items": {
-                      "format": "int32",
-                      "minimum": 0,
-                      "type": "integer"
-                    },
-                    "type": "array"
-                  },
                   "signature": {
-                    "items": {
-                      "format": "int32",
-                      "minimum": 0,
-                      "type": "integer"
-                    },
-                    "type": "array"
-                  },
-                  "stamp": {
-                    "description": "cpsd stamp presentation encoding.",
                     "items": {
                       "format": "int32",
                       "minimum": 0,
@@ -8593,8 +8575,6 @@
                 },
                 "required": [
                   "passport",
-                  "stamp",
-                  "salt",
                   "device_key",
                   "signature"
                 ],
@@ -8648,7 +8628,7 @@
           }
         },
         "security": [],
-        "summary": "Activate a pending device key by passport and one confirmation stamp once its lineage revision is published",
+        "summary": "Activate the pending device key the pairing stamp approved, by passport and the key's possession signature, once its lineage revision is published; no stamp",
         "x-client-access": "trusted",
         "x-effect": "record",
         "x-lobby": "false",
@@ -8664,7 +8644,7 @@
             "application/json": {
               "schema": {
                 "additionalProperties": false,
-                "description": "Stamped pairing step (`device_add` or `device_activate`): a passport presentation over a\nchallenge of this community, a stamp presentation covering the action kind with payload\n[`crate::device_session::pairing_payload`] of exactly `device_key`, and the device key's\nsignature over [`crate::device_session::join_message`] (proof of possession).",
+                "description": "Pairing step one: a passport presentation over a challenge of this community, the\ncommunity's ONE pairing stamp slot (`device_pair`, payload\n[`crate::device_session::pair_payload`] of exactly this community, the passport's\npseudonym, `device_key`, `session` and `revision`) and the new key's signature over\n[`crate::device_session::pairing_message`] of step `device_add` (proof of possession). The\nserver registers the key PENDING and keeps the approval with it; activation needs no stamp.",
                 "properties": {
                   "device_key": {
                     "items": {
@@ -8677,8 +8657,29 @@
                   "passport": {
                     "$ref": "#/components/schemas/PresentationInput"
                   },
+                  "revision": {
+                    "description": "Digest of the lineage revision planned for the key, when known at stamp time.",
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ]
+                  },
                   "salt": {
                     "description": "The stamp action's salt.",
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "session": {
+                    "description": "This community's own opaque pairing session value (never shared across communities).",
                     "items": {
                       "format": "int32",
                       "minimum": 0,
@@ -8709,6 +8710,7 @@
                   "stamp",
                   "salt",
                   "device_key",
+                  "session",
                   "signature"
                 ],
                 "type": "object"
@@ -8761,7 +8763,7 @@
           }
         },
         "security": [],
-        "summary": "Register a further device key PENDING by passport and one confirmation stamp (grants nothing until activated)",
+        "summary": "Register a further device key PENDING by passport and the community's one pairing stamp slot (grants nothing until activated)",
         "x-client-access": "trusted",
         "x-effect": "record",
         "x-lobby": "false",
