@@ -53,7 +53,7 @@ async fn member(service: &Running, host: &str, passport: &cpsd::Passport) -> Mem
         .await;
     strip_prf(&mut credential);
     let id: ckyh::RegisterPublicKeyCredential = serde_json::from_value(credential.clone()).unwrap();
-    let user: Registered = serde_json::from_value(
+    let user: User = serde_json::from_value(
         api.call(
             "register_finish",
             json!({"ceremony":begin.ceremony,"credential":credential}),

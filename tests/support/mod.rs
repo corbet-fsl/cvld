@@ -170,15 +170,6 @@ pub async fn enrol(service: &Running, host: &str, bootstrap: Option<&str>) -> Me
     enrol_raw(service, host, bootstrap).await
 }
 pub async fn enrol_raw(service: &Running, host: &str, bootstrap: Option<&str>) -> Member {
-    enrol_registered(service, host, bootstrap).await.0
-}
-/// Enrol and also return the session the registration itself minted (the wallet's birth
-/// session), when there is one. The member's `session` is a separate login.
-pub async fn enrol_registered(
-    service: &Running,
-    host: &str,
-    bootstrap: Option<&str>,
-) -> (Member, Option<String>) {
     let client = client(service, host, None);
     let start: Ceremony = serde_json::from_value(
         client
@@ -209,7 +200,7 @@ pub async fn enrol_registered(
         )
         .unwrap();
     let credential_id = credential.raw_id.as_ref().to_vec();
-    let user: Registered = serde_json::from_value(
+    let user: User = serde_json::from_value(
         client
             .call(
                 "register_finish",
@@ -227,17 +218,13 @@ pub async fn enrol_registered(
         &credential_id,
     )
     .await;
-    let registered = user.session.map(|session| session.token);
-    (
-        Member {
-            authenticator,
-            user: user.user,
-            credential: credential_id,
-            session,
-            signing_key: SigningKey::from_bytes(&[13; 32]).verifying_key().to_bytes(),
-        },
-        registered,
-    )
+    Member {
+        authenticator,
+        user: user.user,
+        credential: credential_id,
+        session,
+        signing_key: SigningKey::from_bytes(&[13; 32]).verifying_key().to_bytes(),
+    }
 }
 pub async fn login(
     service: &Running,
@@ -691,7 +678,7 @@ pub async fn finish_enrol(service: &Running, host: &str, start: Ceremony) -> Mem
         )
         .unwrap();
     let credential_id = credential.raw_id.as_ref().to_vec();
-    let user: Registered = serde_json::from_value(
+    let user: User = serde_json::from_value(
         client(service, host, None)
             .call(
                 "register_finish",

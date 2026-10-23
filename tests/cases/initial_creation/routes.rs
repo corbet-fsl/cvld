@@ -56,7 +56,7 @@ pub(super) async fn fixture_with(seed: Option<[u8; 32]>) -> Fixture {
         .unwrap();
     let credential_id = credential.raw_id.as_ref().to_vec();
     let request = json!({"ceremony":start.ceremony,"credential":credential});
-    let user: Registered =
+    let user: User =
         serde_json::from_value(api.call("register_finish", request.clone()).await.unwrap())
             .unwrap();
     assert_eq!(

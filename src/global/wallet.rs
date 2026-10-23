@@ -69,25 +69,11 @@ impl GlobalService {
         &mut self,
         session: &WalletSession,
         device: Option<[u8; 32]>,
-        birth: Option<&[u8; 64]>,
         clock: &dyn crate::service::Clock,
     ) -> Result<cgbl::WalletDeviceObservation> {
         let wallet = self.wallet.as_mut().ok_or(Error::Forbidden)?;
-        match (device, birth) {
-            (Some(device), Some(signature)) => self
-                .facade
-                .authorize_wallet_birth_device(
-                    wallet,
-                    session.member()?,
-                    device,
-                    signature,
-                    session.expires(),
-                    &|| clock.now(),
-                )
-                .await
-                .map_err(Error::Refused.redact()),
-            (None, Some(_)) => Err(Error::Invalid),
-            (Some(device), None) => self
+        match device {
+            Some(device) => self
                 .facade
                 .authorize_wallet_device(
                     wallet,
@@ -98,7 +84,7 @@ impl GlobalService {
                 )
                 .await
                 .map_err(Error::Reconcile.redact()),
-            (None, None) => self
+            None => self
                 .facade
                 .wallet_devices(wallet, session.member()?, session.expires(), &|| {
                     clock.now()
@@ -106,52 +92,6 @@ impl GlobalService {
                 .await
                 .map_err(Error::Refused.redact()),
         }
-    }
-    /// Birth genesis evidence (C4) for the account's first wallet publication: decoded,
-    /// verified offline under the wallet key ring as of its statement time, bound to
-    /// `account`, and naming the registration's seed commitment `seed`. Grants nothing.
-    pub(crate) fn verify_wallet_birth(
-        &self,
-        account: &str,
-        evidence: &[u8],
-        seed: &[u8; 32],
-        now: u64,
-    ) -> Result<()> {
-        let wallet = self.wallet.as_ref().ok_or(Error::Invalid)?;
-        let ring = wallet.key_ring().map_err(Error::Unavailable.redact())?;
-        let evidence =
-            cchr::BirthGenesisEvidence::from_bytes(evidence).map_err(Error::Invalid.redact())?;
-        let verified = cchr::verify_birth_genesis(
-            ring,
-            &evidence,
-            &cchr::wallet_fingerprint(None),
-            account,
-            now,
-        )
-        .map_err(Error::Refused.redact())?;
-        if verified.statement().commitment() != seed {
-            return Err(Error::Refused);
-        }
-        Ok(())
-    }
-    /// The account's BirthStatement (C4); the caller checked the birth grant.
-    pub(crate) async fn wallet_birth_genesis(
-        &mut self,
-        session: &WalletSession,
-        digest: [u8; 32],
-        clock: &dyn crate::service::Clock,
-    ) -> Result<cgbl::WalletBirthStatement> {
-        let wallet = self.wallet.as_mut().ok_or(Error::Forbidden)?;
-        self.facade
-            .wallet_birth_genesis(
-                wallet,
-                session.member()?,
-                digest,
-                session.expires(),
-                &|| clock.now(),
-            )
-            .await
-            .map_err(Error::Refused.redact())
     }
     pub(crate) async fn wallet_mutation(&mut self) -> Result<Option<cgbl::WalletMutation>> {
         match self.wallet.as_mut() {

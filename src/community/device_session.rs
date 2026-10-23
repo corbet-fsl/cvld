@@ -86,8 +86,6 @@ impl CommunityService {
                     credential: authentication.credential_id().clone(),
                     origin: ckyh::Origin::DeviceKey,
                     session_id: rand::random(),
-                    // Community sessions never carry the wallet birth grant.
-                    uv_at: None,
                 },
             },
         );
@@ -224,8 +222,6 @@ impl CommunityService {
                     credential: authentication.credential_id().clone(),
                     origin: ckyh::Origin::DeviceKey,
                     session_id: rand::random(),
-                    // Admin (garden) sessions never carry the wallet birth grant.
-                    uv_at: None,
                 },
             },
         );

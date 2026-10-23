@@ -667,15 +667,7 @@ impl Door {
         ctx: Context,
         request: DeviceKey,
     ) -> Result<DeviceKeys> {
-        let DeviceKey {
-            key,
-            step_up,
-            birth_signature,
-        } = request;
-        // The birth bind exists only for the wallet.
-        if birth_signature.is_some() {
-            return Err(Error::Invalid);
-        }
+        let DeviceKey { key, step_up } = request;
         self.require_step_up(&ctx, StepUpAction::DeviceAuthorize { key }, step_up)
             .await?;
         let mut community = self.community_backend()?.lock().await;
@@ -711,15 +703,7 @@ impl Door {
         ctx: Context,
         request: DeviceKey,
     ) -> Result<DeviceKeys> {
-        let DeviceKey {
-            key,
-            step_up,
-            birth_signature,
-        } = request;
-        // The birth bind exists only for the wallet.
-        if birth_signature.is_some() {
-            return Err(Error::Invalid);
-        }
+        let DeviceKey { key, step_up } = request;
         self.require_step_up(&ctx, StepUpAction::DeviceAuthorize { key }, step_up)
             .await?;
         let community = self.community_backend()?.lock().await;

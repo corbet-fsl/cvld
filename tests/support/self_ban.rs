@@ -50,7 +50,7 @@ pub async fn wallet(service: &Running, host: &str, bootstrap: Option<&str>) -> W
     strip_prf(&mut credential);
     let id: ckyh::RegisterPublicKeyCredential = serde_json::from_value(credential.clone()).unwrap();
     let id = id.raw_id.as_ref().to_vec();
-    let user: Registered = serde_json::from_value(
+    let user: User = serde_json::from_value(
         api.call(
             "register_finish",
             json!({"ceremony":begin.ceremony,"credential":credential}),

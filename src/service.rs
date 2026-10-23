@@ -862,22 +862,17 @@ impl Door {
         &self,
         ctx: Context,
         request: RegisterFinish,
-    ) -> Result<Registered> {
+    ) -> Result<User> {
         if self.is_garden(&ctx.host) {
             return Err(Error::Forbidden);
         }
-        let plain = |user: User| Registered {
-            user: user.user,
-            session: None,
-        };
         if self.inner.member_host.as_deref() == Some(ctx.host.as_str()) {
             return self
                 .community_backend()?
                 .lock()
                 .await
                 .register_finish(request, ctx.now)
-                .await
-                .map(plain);
+                .await;
         }
         if self.inner.scope == Scope::Global {
             return self.wallet_register_finish(ctx, request).await;
@@ -887,7 +882,6 @@ impl Door {
             .await
             .register_finish_live(request, ctx.now, self.inner.clock.as_ref())
             .await
-            .map(plain)
     }
     pub(crate) async fn login_begin(&self, ctx: Context, request: LoginStart) -> Result<Ceremony> {
         if self.is_membership_host(&ctx.host) {
@@ -1042,37 +1036,14 @@ impl Door {
                 bytes: blind.to_bytes(),
             });
         }
-        // The birth stamp (C5): no assertion, the birth grant instead. This Auth stays locked
-        // until the stamp is issued; cgbl writes the first-only item with the budget charge.
-        let Some(assertion) = request.assertion else {
-            let token = ctx.token.as_deref().ok_or(Error::Unauthorized)?;
-            let authentication = self.auth(&ctx.host)?;
-            let mut auth = authentication.lock().await;
-            auth.birth_grant(token, self.inner.clock.now()).await?;
-            let global = self.global_backend()?.lock().await;
-            let blind = global
-                .facade
-                .issue_birth_stamp(
-                    &mut cpsd::rand::rngs::OsRng,
-                    &ctx.global_session()?,
-                    &stamp_request,
-                    &challenge,
-                    ctx.now,
-                )
-                .await
-                .map_err(Error::Refused.redact())?;
-            return Ok(Bytes {
-                bytes: blind.to_bytes(),
-            });
-        };
         let confirmation = stamp_request.confirmation_challenge(&challenge);
         let descriptor = self.wallet_credential(&ctx).await?;
         let assertion = ckyh::lineage::Assertion {
-            credential_id: assertion.credential_id,
-            client_data_json: assertion.client_data_json,
-            authenticator_data: assertion.authenticator_data,
-            signature: assertion.signature,
-            user_handle: assertion.user_handle,
+            credential_id: request.assertion.credential_id,
+            client_data_json: request.assertion.client_data_json,
+            authenticator_data: request.assertion.authenticator_data,
+            signature: request.assertion.signature,
+            user_handle: request.assertion.user_handle,
         };
         ckyh::lineage::verify(&descriptor, &assertion, confirmation)
             .map_err(Error::Unauthorized.redact())?;
@@ -1104,36 +1075,8 @@ impl Door {
                 .try_into()
                 .map_err(Error::Invalid.redact())?,
         );
-        let birth_signature = request
-            .birth_signature
-            .map(|signature| <[u8; 64]>::try_from(signature).map_err(|_| Error::Invalid))
-            .transpose()?;
         let request =
             cpsd::IssuanceRequest::from_bytes(&request.request).map_err(Error::Invalid.redact())?;
-        // The birth passport (Q5): bound to the birth device K, first-only, under the birth
-        // grant; this Auth stays locked until it is issued.
-        if let Some(signature) = birth_signature {
-            let token = ctx.token.as_deref().ok_or(Error::Unauthorized)?;
-            let authentication = self.auth(&ctx.host)?;
-            let mut auth = authentication.lock().await;
-            auth.birth_grant(token, self.inner.clock.now()).await?;
-            let global = self.global_backend()?.lock().await;
-            let passport = global
-                .facade
-                .issue_birth_passport(
-                    &mut cpsd::rand::rngs::OsRng,
-                    &ctx.global_session()?,
-                    &challenge,
-                    &request,
-                    &signature,
-                    ctx.now,
-                )
-                .await
-                .map_err(Error::Refused.redact())?;
-            return Ok(Bytes {
-                bytes: passport.to_bytes(),
-            });
-        }
         let global = self.global_backend()?.lock().await;
         let passport = global
             .facade

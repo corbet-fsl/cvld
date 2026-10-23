@@ -5508,32 +5508,6 @@
         ],
         "type": "string"
       },
-      "Session": {
-        "additionalProperties": false,
-        "properties": {
-          "expires": {
-            "format": "int64",
-            "minimum": 0,
-            "type": "integer"
-          },
-          "role": {
-            "$ref": "#/components/schemas/Role"
-          },
-          "token": {
-            "type": "string"
-          },
-          "user": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "token",
-          "user",
-          "role",
-          "expires"
-        ],
-        "type": "object"
-      },
       "Setting": {
         "additionalProperties": false,
         "properties": {
@@ -8576,18 +8550,6 @@
                 "additionalProperties": false,
                 "description": "Bind one actual lineage device key to the current passkey.",
                 "properties": {
-                  "birth_signature": {
-                    "description": "Wallet birth bind (C3), in place of `step_up`: K's signature (64 bytes, purpose\n`WalletBirthDevice`) over origin, account, credential, seed commitment and K. Only under\nthe birth grant; refused on community hosts.",
-                    "items": {
-                      "format": "int32",
-                      "minimum": 0,
-                      "type": "integer"
-                    },
-                    "type": [
-                      "array",
-                      "null"
-                    ]
-                  },
                   "key": {
                     "items": {
                       "format": "int32",
@@ -8976,18 +8938,6 @@
                 "additionalProperties": false,
                 "description": "Bind one actual lineage device key to the current passkey.",
                 "properties": {
-                  "birth_signature": {
-                    "description": "Wallet birth bind (C3), in place of `step_up`: K's signature (64 bytes, purpose\n`WalletBirthDevice`) over origin, account, credential, seed commitment and K. Only under\nthe birth grant; refused on community hosts.",
-                    "items": {
-                      "format": "int32",
-                      "minimum": 0,
-                      "type": "integer"
-                    },
-                    "type": [
-                      "array",
-                      "null"
-                    ]
-                  },
                   "key": {
                     "items": {
                       "format": "int32",
@@ -10315,7 +10265,7 @@
                 "description": "Bind the original publication to this session's initial registration.",
                 "properties": {
                   "evidence": {
-                    "description": "Community host: genesis stamp evidence of the member's first lineage\n(`cchr::genesis_stamp` encoding), required iff the session is a device-key session,\nrefused otherwise; its stamp digest is recorded once and an equal retry of a bound\npublication is not re-verified. Wallet host: optional birth genesis evidence\n(`cchr::BirthGenesisEvidence`, one-ceremony registration), verified under the wallet\nkey ring for this account and the bound seed commitment.",
+                    "description": "Genesis stamp evidence of the member's first lineage (`cchr::genesis_stamp`\nencoding): required iff the session is a device-key session, refused otherwise.\nIts stamp digest is recorded once; an equal retry of a bound publication is not\nre-verified.",
                     "items": {
                       "format": "int32",
                       "minimum": 0,
@@ -11572,18 +11522,6 @@
               "schema": {
                 "additionalProperties": false,
                 "properties": {
-                  "birth_signature": {
-                    "description": "Birth passport (Q5): the bound birth device K's signature (64 bytes, purpose\n`WalletBirthPassport`) over the request. Only under the birth grant; first-only.",
-                    "items": {
-                      "format": "int32",
-                      "minimum": 0,
-                      "type": "integer"
-                    },
-                    "type": [
-                      "array",
-                      "null"
-                    ]
-                  },
                   "challenge": {
                     "items": {
                       "format": "int32",
@@ -13004,18 +12942,7 @@
               "application/json": {
                 "schema": {
                   "additionalProperties": false,
-                  "description": "A finished registration. On the wallet host it carries the birth session (C1): a session of\nexactly the new passkey, minted by its UV-required creation, that holds the birth grant.",
                   "properties": {
-                    "session": {
-                      "oneOf": [
-                        {
-                          "$ref": "#/components/schemas/Session"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
                     "user": {
                       "type": "string"
                     }
@@ -13050,7 +12977,7 @@
           }
         },
         "security": [],
-        "summary": "Verify and store the first passkey; the wallet also returns the birth session",
+        "summary": "Verify and store the first passkey",
         "x-client-access": "forward",
         "x-effect": "record",
         "x-lobby": "false",
@@ -13951,17 +13878,10 @@
             "application/json": {
               "schema": {
                 "additionalProperties": false,
-                "description": "One stamp request: the challenge, the cpsd request and the assertion whose WebAuthn\nchallenge is exactly the request's confirmation challenge. Without an assertion only the\naccount's first stamp, under the birth grant (C5).",
+                "description": "One stamp request: the challenge, the cpsd request and the assertion whose WebAuthn\nchallenge is exactly the request's confirmation challenge.",
                 "properties": {
                   "assertion": {
-                    "oneOf": [
-                      {
-                        "$ref": "#/components/schemas/WebAuthnAssertion"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
+                    "$ref": "#/components/schemas/WebAuthnAssertion"
                   },
                   "challenge": {
                     "items": {
@@ -13982,7 +13902,8 @@
                 },
                 "required": [
                   "challenge",
-                  "request"
+                  "request",
+                  "assertion"
                 ],
                 "type": "object"
               }
@@ -15155,99 +15076,6 @@
         "x-scope": "community"
       }
     },
-    "/v1/wallet_birth_genesis": {
-      "post": {
-        "operationId": "wallet_birth_genesis",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "additionalProperties": false,
-                "description": "The birth genesis request (C4): `digest` is the passkey challenge D of the device-signed\nwallet genesis receipt (`Receipt::passkey_challenge`).",
-                "properties": {
-                  "digest": {
-                    "items": {
-                      "format": "int32",
-                      "minimum": 0,
-                      "type": "integer"
-                    },
-                    "type": "array"
-                  }
-                },
-                "required": [
-                  "digest"
-                ],
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "description": "The wallet-signed BirthStatement (COSE bytes) and its day-rounded time `at`, as carried in\n`cchr::BirthGenesisEvidence`.",
-                  "properties": {
-                    "at": {
-                      "format": "int64",
-                      "minimum": 0,
-                      "type": "integer"
-                    },
-                    "statement": {
-                      "items": {
-                        "format": "int32",
-                        "minimum": 0,
-                        "type": "integer"
-                      },
-                      "type": "array"
-                    }
-                  },
-                  "required": [
-                    "statement",
-                    "at"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Success"
-          },
-          "default": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "error": {
-                      "$ref": "#/components/schemas/Error"
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Fixed redacted error category"
-          }
-        },
-        "security": [
-          {
-            "session": []
-          }
-        ],
-        "summary": "Sign the account's one BirthStatement for the wallet genesis receipt digest under the birth grant",
-        "x-client-access": "forward",
-        "x-effect": "record",
-        "x-lobby": "false",
-        "x-role": "member",
-        "x-scope": "global"
-      }
-    },
     "/v1/wallet_device_authorize": {
       "post": {
         "operationId": "wallet_device_authorize",
@@ -15258,18 +15086,6 @@
                 "additionalProperties": false,
                 "description": "Bind one actual lineage device key to the current passkey.",
                 "properties": {
-                  "birth_signature": {
-                    "description": "Wallet birth bind (C3), in place of `step_up`: K's signature (64 bytes, purpose\n`WalletBirthDevice`) over origin, account, credential, seed commitment and K. Only under\nthe birth grant; refused on community hosts.",
-                    "items": {
-                      "format": "int32",
-                      "minimum": 0,
-                      "type": "integer"
-                    },
-                    "type": [
-                      "array",
-                      "null"
-                    ]
-                  },
                   "key": {
                     "items": {
                       "format": "int32",
@@ -15353,7 +15169,7 @@
             "session": []
           }
         ],
-        "summary": "Bind the wallet device to the exact authenticated passkey (step-up, or the birth signature under the birth grant)",
+        "summary": "Bind the wallet device to the exact authenticated passkey",
         "x-client-access": "forward",
         "x-effect": "record",
         "x-lobby": "false",

@@ -118,30 +118,6 @@ pub struct RegisterFinish {
 pub struct User {
     pub user: String,
 }
-/// A finished registration. On the wallet host it carries the birth session (C1): a session of
-/// exactly the new passkey, minted by its UV-required creation, that holds the birth grant.
-#[derive(Serialize, Deserialize, ToSchema)]
-#[serde(deny_unknown_fields)]
-pub struct Registered {
-    pub user: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub session: Option<Session>,
-}
-/// The birth genesis request (C4): `digest` is the passkey challenge D of the device-signed
-/// wallet genesis receipt (`Receipt::passkey_challenge`).
-#[derive(Serialize, Deserialize, ToSchema)]
-#[serde(deny_unknown_fields)]
-pub struct BirthGenesis {
-    pub digest: [u8; 32],
-}
-/// The wallet-signed BirthStatement (COSE bytes) and its day-rounded time `at`, as carried in
-/// `cchr::BirthGenesisEvidence`.
-#[derive(Serialize, Deserialize, ToSchema)]
-#[serde(deny_unknown_fields)]
-pub struct BirthStatement {
-    pub statement: Vec<u8>,
-    pub at: u64,
-}
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PresentationInput {
@@ -179,10 +155,6 @@ pub struct Bytes {
 pub struct PassportIssue {
     pub challenge: Vec<u8>,
     pub request: Vec<u8>,
-    /// Birth passport (Q5): the bound birth device K's signature (64 bytes, purpose
-    /// `WalletBirthPassport`) over the request. Only under the birth grant; first-only.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub birth_signature: Option<Vec<u8>>,
 }
 #[derive(Clone, Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
@@ -313,7 +285,7 @@ macro_rules! actions {
 
 actions! {
     register_begin(RegisterStart) -> Ceremony, Public, Both, Record, Forward, "Begin UV-required passkey registration";
-    register_finish(RegisterFinish) -> Registered, Public, Both, Record, Forward, "Verify and store the first passkey; the wallet also returns the birth session";
+    register_finish(RegisterFinish) -> User, Public, Both, Record, Forward, "Verify and store the first passkey";
     global_initial_registration_continue(GlobalInitialRegistrationContinue) -> InitialCeremony, Public, Global, Record, Forward, "Bind creation provenance to the retained first wallet registration";
     initial_registration_begin(InitialRegistrationBegin) -> InitialCeremony, Public, Community, Record, Forward, "Begin first community registration with original creation provenance";
     creation_token_key(Empty) -> CreationTokenKey, Public, Global, Check, Forward, "Read the public key that verifies creation tokens";
@@ -341,8 +313,7 @@ actions! {
     wallet_trust_feed(Empty) -> TrustFeed, Public, Global, Check, Forward, "Read the isolated wallet original trust snapshots";
     wallet_trust_changes(Since) -> Announcement, Public, Global, Check, Forward, "Read the isolated wallet whole-view revision hint";
     wallet_device_keys(Empty) -> DeviceKeys, Member, Global, Check, Forward, "Read this wallet member's current public device bindings";
-    wallet_device_authorize(DeviceKey) -> DeviceKeys, Member, Global, Record, Forward, "Bind the wallet device to the exact authenticated passkey (step-up, or the birth signature under the birth grant)";
-    wallet_birth_genesis(BirthGenesis) -> BirthStatement, Member, Global, Record, Forward, "Sign the account's one BirthStatement for the wallet genesis receipt digest under the birth grant";
+    wallet_device_authorize(DeviceKey) -> DeviceKeys, Member, Global, Record, Forward, "Bind the wallet device to the exact authenticated passkey";
     global_public(Empty) -> GlobalPublic, Public, Global, Check, Forward, "Read authenticated global issuer material";
     contact_plan(ContactPlan) -> ContactPreview, Member, Global, Check, Forward, "Preview enabled contact verification costs without dispatch";
     contact_check(ContactCheck) -> ContactPreview, Member, Global, Check, Forward, "Preview one check of this RAM-held contact session";
