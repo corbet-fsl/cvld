@@ -912,3 +912,32 @@ async fn a_verified_legal_veto_after_authentication_prevents_credential_issuance
         json!({"error":"forbidden"})
     );
 }
+
+/// Every newly created community's charter settings project into Forum's settings: the
+/// mechanics are code constants and the room-pass quota carries its product default.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_new_community_has_valid_forum_settings() {
+    let global = global(100).await;
+    let public = public(&global).await;
+    let dir = tempfile::tempdir().unwrap();
+    let base = community_config(dir.path(), "alpha", &public, 100);
+    let db = crlt::Db::open(crlt::Config::new(&base.database_url, ""))
+        .await
+        .unwrap();
+    let clock = Arc::new(TestClock(AtomicU64::new(NOW)));
+    let service = CommunityService::open(&db, base, clock).await.unwrap();
+    let snapshot = service
+        .facade
+        .policy()
+        .lock()
+        .await
+        .settings(NOW)
+        .await
+        .unwrap();
+    let forum = crbk::ForumSettings::from_snapshot(&snapshot).unwrap();
+    assert_eq!(
+        forum.room_passes_per_epoch,
+        crbk::FORUM_ROOM_PASSES_PER_EPOCH_DEFAULT
+    );
+    assert_eq!(forum.lease_ms, crbk::FORUM_LEASE_MS);
+}

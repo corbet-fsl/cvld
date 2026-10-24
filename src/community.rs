@@ -309,6 +309,8 @@ impl CommunityService {
                 // Every platform tunable is defined in a new community's rulebook, so the
                 // feed it publishes carries the standing and voucher parameters devices read.
                 crbk::define_platform_settings(&mut rulebook).map_err(Error::Invalid.redact())?;
+                // Forum's policy quota (the technical mechanics are code constants).
+                crbk::define_forum_settings(&mut rulebook).map_err(Error::Invalid.redact())?;
                 policy
                     .schedule_rules(
                         None,
@@ -359,6 +361,15 @@ impl CommunityService {
                     .await
                     .map_err(Error::Refused.redact_at("community.rs:15"))?;
             }
+            // Creation and load alike: refuse a community whose settings do not project
+            // into Forum's (a charter without a valid room-pass quota).
+            crbk::ForumSettings::from_snapshot(
+                &policy
+                    .settings(now)
+                    .await
+                    .map_err(Error::Unavailable.redact_at("community.rs:forum"))?,
+            )
+            .map_err(Error::Invalid.redact())?;
             Ok::<_, Error>(policy)
         })
         .await?;
