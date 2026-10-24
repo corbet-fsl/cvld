@@ -223,221 +223,221 @@ impl CommunityService {
         // Each stage is boxed so its poll frame stays small: the same code runs in the browser,
         // whose stack is small, and unboxed it overflowed a default test stack.
         let signer = Box::pin(async {
-        let signer_store =
-            csgn::LibsqlStore::new(db.community(scope).map_err(Error::Invalid.redact())?);
-        let saved = signer_store
-            .load(scope)
-            .await
-            .map_err(Error::Unavailable.redact_at("community.rs:2"))?;
-        let mut seed = match &config.founding_seed {
-            Some(seed) => **seed,
-            None => Config::seed(&config.signing_seed_file)?,
-        };
-        let secret = csgn::SecretKey::from_seed(&mut seed);
-        if global.signing_keys.contains(&secret.public_key())
-            || saved.as_ref().is_some_and(|saved| {
-                saved
-                    .state
-                    .key_ring()
-                    .keys()
-                    .iter()
-                    .any(|key| global.signing_keys.contains(&key.public_key()))
-            })
-        {
-            return Err(Error::Invalid);
-        }
-        let signer = if saved.is_some() {
-            // cplc signs at UTC-day precision; recovery must use the same clock domain.
-            csgn::PersistentSigner::open(signer_store, scope, secret, cplc::day(now))
+            let signer_store =
+                csgn::LibsqlStore::new(db.community(scope).map_err(Error::Invalid.redact())?);
+            let saved = signer_store
+                .load(scope)
                 .await
-                .map_err(Error::Unavailable.redact_at("community.rs:3"))?
-        } else {
-            // A new incarnation: the founding key signs its own genesis document
-            // before anything else is signed, and the document is kept for the feed.
-            let mut created = csgn::PersistentSigner::create(
-                signer_store,
-                scope,
-                secret,
-                cplc::day(now),
-                config.signer_max_seconds,
-            )
-            .await
-            .map_err(Error::Unavailable.redact_at("community.rs:4"))?;
-            let document = created
-                .genesis()
+                .map_err(Error::Unavailable.redact_at("community.rs:2"))?;
+            let mut seed = match &config.founding_seed {
+                Some(seed) => **seed,
+                None => Config::seed(&config.signing_seed_file)?,
+            };
+            let secret = csgn::SecretKey::from_seed(&mut seed);
+            if global.signing_keys.contains(&secret.public_key())
+                || saved.as_ref().is_some_and(|saved| {
+                    saved
+                        .state
+                        .key_ring()
+                        .keys()
+                        .iter()
+                        .any(|key| global.signing_keys.contains(&key.public_key()))
+                })
+            {
+                return Err(Error::Invalid);
+            }
+            let signer = if saved.is_some() {
+                // cplc signs at UTC-day precision; recovery must use the same clock domain.
+                csgn::PersistentSigner::open(signer_store, scope, secret, cplc::day(now))
+                    .await
+                    .map_err(Error::Unavailable.redact_at("community.rs:3"))?
+            } else {
+                // A new incarnation: the founding key signs its own genesis document
+                // before anything else is signed, and the document is kept for the feed.
+                let mut created = csgn::PersistentSigner::create(
+                    signer_store,
+                    scope,
+                    secret,
+                    cplc::day(now),
+                    config.signer_max_seconds,
+                )
                 .await
-                .map_err(Error::Unavailable.redact_at("community.rs:5"))?;
-            crate::genesis_store::store(db, scope, &document).await?;
-            created
-        };
+                .map_err(Error::Unavailable.redact_at("community.rs:4"))?;
+                let document = created
+                    .genesis()
+                    .await
+                    .map_err(Error::Unavailable.redact_at("community.rs:5"))?;
+                crate::genesis_store::store(db, scope, &document).await?;
+                created
+            };
             Ok::<_, Error>(signer)
         })
         .await?;
         let policy = Box::pin(async {
-        let rules = Rules::new(crbk::LibsqlStore::new(db.clone()));
-        let policy_store = cplc::LibsqlStore::new(db, scope)
-            .map_err(Error::Unavailable.redact_at("community.rs:6"))?;
-        let exists = policy_store
-            .load()
-            .await
-            .map_err(Error::Unavailable.redact_at("community.rs:7"))?
-            .is_some();
-        let mut policy = if exists {
-            cplc::Policy::open(rules.clone(), policy_store, signer).await
-        } else {
-            cplc::Policy::create(
-                rules.clone(),
-                policy_store,
-                signer,
-                cplc::Config {
-                    credential_action: cmty::ADMISSION_ACTION.into(),
-                    snapshot_validity: config.publication_seconds,
-                },
-            )
-            .await
-        }
-        .map_err(Error::Unavailable.redact_at("community.rs:8"))?;
-        if !exists {
-            let mut rulebook: crbk::Rulebook = serde_json::from_slice(
-                &std::fs::read(&config.rulebook_file)
-                    .map_err(Error::Unavailable.redact_at("community.rs:9"))?,
-            )
-            .map_err(Error::Invalid.redact())?;
-            if let Some(plan) = &config.creation {
-                plan.apply(&mut rulebook)?;
-            }
-            // Every platform tunable is defined in a new community's rulebook, so the
-            // feed it publishes carries the standing and voucher parameters devices read.
-            crbk::define_platform_settings(&mut rulebook).map_err(Error::Invalid.redact())?;
-            policy
-                .schedule_rules(
-                    None,
-                    crbk::Change {
-                        rulebook,
-                        announced_at: now as i64,
-                        effective_at: now as i64,
-                        notice_seconds: 0,
-                        policy_epoch: 1,
+            let rules = Rules::new(crbk::LibsqlStore::new(db.clone()));
+            let policy_store = cplc::LibsqlStore::new(db, scope)
+                .map_err(Error::Unavailable.redact_at("community.rs:6"))?;
+            let exists = policy_store
+                .load()
+                .await
+                .map_err(Error::Unavailable.redact_at("community.rs:7"))?
+                .is_some();
+            let mut policy = if exists {
+                cplc::Policy::open(rules.clone(), policy_store, signer).await
+            } else {
+                cplc::Policy::create(
+                    rules.clone(),
+                    policy_store,
+                    signer,
+                    cplc::Config {
+                        credential_action: cmty::ADMISSION_ACTION.into(),
+                        snapshot_validity: config.publication_seconds,
                     },
                 )
                 .await
-                .map_err(Error::Refused.redact_at("community.rs:10"))?;
-            let mut schema: cplc::cshm::Schema = serde_json::from_slice(
-                &std::fs::read(&config.schema_file)
-                    .map_err(Error::Unavailable.redact_at("community.rs:11"))?,
-            )
-            .map_err(Error::Invalid.redact())?;
-            // A hub-created community starts from the template's schema, which names
-            // the template; the new community's own schema names the community.
-            if config.creation.is_some() {
-                schema.community = scope.clone();
             }
-            policy
-                .set_schema(schema)
-                .await
-                .map_err(Error::Refused.redact_at("community.rs:12"))?;
-            policy
-                .set_communities(BTreeSet::from([scope.clone()]))
-                .await
-                .map_err(Error::Refused.redact_at("community.rs:13"))?;
-        }
-        if let Some(descriptor) = &root_board {
-            if descriptor.issuer().to_bytes() == status.issuer_public_key {
-                return Err(Error::Invalid);
-            }
-            let descriptor = root_descriptor(
-                descriptor.issuer(),
-                scope,
+            .map_err(Error::Unavailable.redact_at("community.rs:8"))?;
+            if !exists {
+                let mut rulebook: crbk::Rulebook = serde_json::from_slice(
+                    &std::fs::read(&config.rulebook_file)
+                        .map_err(Error::Unavailable.redact_at("community.rs:9"))?,
+                )
+                .map_err(Error::Invalid.redact())?;
+                if let Some(plan) = &config.creation {
+                    plan.apply(&mut rulebook)?;
+                }
+                // Every platform tunable is defined in a new community's rulebook, so the
+                // feed it publishes carries the standing and voucher parameters devices read.
+                crbk::define_platform_settings(&mut rulebook).map_err(Error::Invalid.redact())?;
                 policy
-                    .epoch(now)
+                    .schedule_rules(
+                        None,
+                        crbk::Change {
+                            rulebook,
+                            announced_at: now as i64,
+                            effective_at: now as i64,
+                            notice_seconds: 0,
+                            policy_epoch: 1,
+                        },
+                    )
                     .await
-                    .map_err(Error::Unavailable.redact_at("community.rs:14"))?,
-                now,
-            )?;
-            policy
-                .publish_root_board(&descriptor, now)
-                .await
-                .map_err(Error::Refused.redact_at("community.rs:15"))?;
-        }
+                    .map_err(Error::Refused.redact_at("community.rs:10"))?;
+                let mut schema: cplc::cshm::Schema = serde_json::from_slice(
+                    &std::fs::read(&config.schema_file)
+                        .map_err(Error::Unavailable.redact_at("community.rs:11"))?,
+                )
+                .map_err(Error::Invalid.redact())?;
+                // A hub-created community starts from the template's schema, which names
+                // the template; the new community's own schema names the community.
+                if config.creation.is_some() {
+                    schema.community = scope.clone();
+                }
+                policy
+                    .set_schema(schema)
+                    .await
+                    .map_err(Error::Refused.redact_at("community.rs:12"))?;
+                policy
+                    .set_communities(BTreeSet::from([scope.clone()]))
+                    .await
+                    .map_err(Error::Refused.redact_at("community.rs:13"))?;
+            }
+            if let Some(descriptor) = &root_board {
+                if descriptor.issuer().to_bytes() == status.issuer_public_key {
+                    return Err(Error::Invalid);
+                }
+                let descriptor = root_descriptor(
+                    descriptor.issuer(),
+                    scope,
+                    policy
+                        .epoch(now)
+                        .await
+                        .map_err(Error::Unavailable.redact_at("community.rs:14"))?,
+                    now,
+                )?;
+                policy
+                    .publish_root_board(&descriptor, now)
+                    .await
+                    .map_err(Error::Refused.redact_at("community.rs:15"))?;
+            }
             Ok::<_, Error>(policy)
         })
         .await?;
         let account_parts = Box::pin(async {
             Ok::<_, Error>({
-        if let Some(account) = config.accounting.clone() {
-            // Capture these from the SAME exclusively held Policy as its ring
-            // and original transition history. No file supplies period/quota or
-            // effective authority; CMTY rechecks all three under the writer.
-            let observed = clock.now();
-            let period = policy
-                .record_epoch_settings(&account.period_key, observed)
-                .await
-                .map_err(Error::Invalid.redact())?;
-            let quota = policy
-                .outcome_quota_settings(&account.settlement.quota_key, observed)
-                .await
-                .map_err(Error::Invalid.redact())?;
-            if period.period_seconds != 86_400 {
-                return Err(Error::Invalid);
-            }
-            let settlement = crate::accounting::settlement::Target {
-                policy_epoch: policy
-                    .epoch(observed)
-                    .await
-                    .map_err(Error::Invalid.redact())?,
-                period_seconds: period.period_seconds,
-                quota: quota.quota,
-            };
-            let ring = policy
-                .key_ring()
-                .map_err(Error::Unavailable.redact_at("community.rs:16"))?
-                .clone();
-            let transitions = policy
-                .key_transitions()
-                .map_err(Error::Unavailable.redact_at("community.rs:17"))?;
-            let keys = cblc::accounting_ledger::AdmissionKeyReconciliation {
-                target: cblc::accounting_ledger::AdmissionKeyState {
-                    revision: transitions.last().map_or(0, |value| value.revision),
-                    policy_keys: ring,
-                },
-                transitions: transitions
-                    .iter()
-                    .map(|value| (value.revision, value.proof.clone()))
-                    .collect(),
-            };
-            let account_db = db.clone();
-            let account_community = config.community.clone();
-            let account_clock = clock.clone();
-            let runtime = tokio::runtime::Handle::current();
-            // Native proof verification and every synchronous CRLT call remain
-            // off the async executor. The original CGTS worker then owns/drops
-            // this ONE service; no second ledger or database is created.
-            // Certificates bind the community identity: the founding key's
-            // fingerprint (`csgn::community_fingerprint`), never the address alone.
-            let identity = match crate::genesis_store::load(db, &scope).await? {
-                Some(genesis) => csgn::verify_genesis(&genesis)
-                    .map_err(Error::Unavailable.redact_at("community.rs:18"))?
-                    .fingerprint(),
-                None => csgn::community_fingerprint(config.community.as_bytes(), None),
-            };
-            let (service, enrollment, observed, settlement) = construction
-                .build(
-                    account,
-                    account_db,
-                    account_community,
-                    identity,
-                    crate::accounting::settlement::Owners {
-                        admission: keys,
-                        settlement,
-                    },
-                    account_clock,
-                    runtime,
-                )
-                .await?;
-            Some((service, enrollment, observed, settlement))
-        } else {
-            None
-            }
+                if let Some(account) = config.accounting.clone() {
+                    // Capture these from the SAME exclusively held Policy as its ring
+                    // and original transition history. No file supplies period/quota or
+                    // effective authority; CMTY rechecks all three under the writer.
+                    let observed = clock.now();
+                    let period = policy
+                        .record_epoch_settings(&account.period_key, observed)
+                        .await
+                        .map_err(Error::Invalid.redact())?;
+                    let quota = policy
+                        .outcome_quota_settings(&account.settlement.quota_key, observed)
+                        .await
+                        .map_err(Error::Invalid.redact())?;
+                    if period.period_seconds != 86_400 {
+                        return Err(Error::Invalid);
+                    }
+                    let settlement = crate::accounting::settlement::Target {
+                        policy_epoch: policy
+                            .epoch(observed)
+                            .await
+                            .map_err(Error::Invalid.redact())?,
+                        period_seconds: period.period_seconds,
+                        quota: quota.quota,
+                    };
+                    let ring = policy
+                        .key_ring()
+                        .map_err(Error::Unavailable.redact_at("community.rs:16"))?
+                        .clone();
+                    let transitions = policy
+                        .key_transitions()
+                        .map_err(Error::Unavailable.redact_at("community.rs:17"))?;
+                    let keys = cblc::accounting_ledger::AdmissionKeyReconciliation {
+                        target: cblc::accounting_ledger::AdmissionKeyState {
+                            revision: transitions.last().map_or(0, |value| value.revision),
+                            policy_keys: ring,
+                        },
+                        transitions: transitions
+                            .iter()
+                            .map(|value| (value.revision, value.proof.clone()))
+                            .collect(),
+                    };
+                    let account_db = db.clone();
+                    let account_community = config.community.clone();
+                    let account_clock = clock.clone();
+                    let runtime = tokio::runtime::Handle::current();
+                    // Native proof verification and every synchronous CRLT call remain
+                    // off the async executor. The original CGTS worker then owns/drops
+                    // this ONE service; no second ledger or database is created.
+                    // Certificates bind the community identity: the founding key's
+                    // fingerprint (`csgn::community_fingerprint`), never the address alone.
+                    let identity = match crate::genesis_store::load(db, &scope).await? {
+                        Some(genesis) => csgn::verify_genesis(&genesis)
+                            .map_err(Error::Unavailable.redact_at("community.rs:18"))?
+                            .fingerprint(),
+                        None => csgn::community_fingerprint(config.community.as_bytes(), None),
+                    };
+                    let (service, enrollment, observed, settlement) = construction
+                        .build(
+                            account,
+                            account_db,
+                            account_community,
+                            identity,
+                            crate::accounting::settlement::Owners {
+                                admission: keys,
+                                settlement,
+                            },
+                            account_clock,
+                            runtime,
+                        )
+                        .await?;
+                    Some((service, enrollment, observed, settlement))
+                } else {
+                    None
+                }
             })
         })
         .await?;
