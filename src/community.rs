@@ -220,6 +220,9 @@ impl CommunityService {
         let status = global.status;
         let status_until = global.valid_until;
         let scope = &config.community;
+        // Each stage is boxed so its poll frame stays small: the same code runs in the browser,
+        // whose stack is small, and unboxed it overflowed a default test stack.
+        let signer = Box::pin(async {
         let signer_store =
             csgn::LibsqlStore::new(db.community(scope).map_err(Error::Invalid.redact())?);
         let saved = signer_store
@@ -267,6 +270,10 @@ impl CommunityService {
             crate::genesis_store::store(db, scope, &document).await?;
             created
         };
+            Ok::<_, Error>(signer)
+        })
+        .await?;
+        let policy = Box::pin(async {
         let rules = Rules::new(crbk::LibsqlStore::new(db.clone()));
         let policy_store = cplc::LibsqlStore::new(db, scope)
             .map_err(Error::Unavailable.redact_at("community.rs:6"))?;
@@ -352,7 +359,12 @@ impl CommunityService {
                 .await
                 .map_err(Error::Refused.redact_at("community.rs:15"))?;
         }
-        let account_parts = if let Some(account) = config.accounting.clone() {
+            Ok::<_, Error>(policy)
+        })
+        .await?;
+        let account_parts = Box::pin(async {
+            Ok::<_, Error>({
+        if let Some(account) = config.accounting.clone() {
             // Capture these from the SAME exclusively held Policy as its ring
             // and original transition history. No file supplies period/quota or
             // effective authority; CMTY rechecks all three under the writer.
@@ -425,7 +437,10 @@ impl CommunityService {
             Some((service, enrollment, observed, settlement))
         } else {
             None
-        };
+            }
+            })
+        })
+        .await?;
         let owner_clock: Arc<dyn Clock> = match &account_parts {
             Some((_, _, observed, _)) => observed.clone(),
             None => clock.clone(),

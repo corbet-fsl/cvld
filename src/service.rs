@@ -396,8 +396,14 @@ impl Door {
         clock: Arc<dyn Clock>,
         construction: NativeConstruction,
     ) -> Result<Self> {
-        Self::community_with_optional_payment_transport(config, clock, None, None, construction)
-            .await
+        Box::pin(Self::community_with_optional_payment_transport(
+            config,
+            clock,
+            None,
+            None,
+            construction,
+        ))
+        .await
     }
     /// Trusted host injection replaces only x402 protocol transport. It does
     /// not bypass real account, cost, policy, session or mode configuration.
@@ -406,13 +412,13 @@ impl Door {
         clock: Arc<dyn Clock>,
         transport: crate::payments::transport::AnyTransport,
     ) -> Result<Self> {
-        Self::community_with_optional_payment_transport(
+        Box::pin(Self::community_with_optional_payment_transport(
             config,
             clock,
             Some(transport),
             None,
             NativeConstruction::new(),
-        )
+        ))
         .await
     }
     async fn community_with_optional_payment_transport(
@@ -452,25 +458,25 @@ impl Door {
             .map(|_| format!("api.admin.{}.{}", config.community, config.domain));
         let community = match root_board {
             Some(descriptor) => {
-                CommunityService::open_root_board(
+                Box::pin(CommunityService::open_root_board(
                     &db,
                     config,
                     clock.clone(),
                     descriptor,
                     transport,
                     construction.clone(),
-                )
+                ))
                 .await?
             }
             None => {
-                CommunityService::open_selected(
+                Box::pin(CommunityService::open_selected(
                     &db,
                     config,
                     clock.clone(),
                     transport,
                     None,
                     construction.clone(),
-                )
+                ))
                 .await?
             }
         };
