@@ -213,5 +213,8 @@ pub async fn found(running: &Running, name: &str, public: &GlobalPublic) {
     )
     .await
     .unwrap();
-    FOUNDERS.lock().unwrap().insert(running.base.clone(), founder);
+    FOUNDERS
+        .lock()
+        .unwrap()
+        .insert(running.base.clone(), founder);
 }

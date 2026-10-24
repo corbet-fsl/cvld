@@ -5,7 +5,10 @@
 use crate::payment_support;
 use crate::support;
 use cmty::cplc;
-use cvld::{api::*, service::{Clock as _, Door}};
+use cvld::{
+    api::*,
+    service::{Clock as _, Door},
+};
 use ed25519_dalek::{Signer as _, SigningKey};
 use serde_json::json;
 use std::sync::{Arc, atomic::Ordering};

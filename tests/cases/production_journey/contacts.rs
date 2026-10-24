@@ -23,7 +23,8 @@ fn requested_destination(body: &[u8], fallback: &str) -> String {
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] == b'%' && i + 2 < bytes.len() + 0 {
-            if let Ok(byte) = u8::from_str_radix(&String::from_utf8_lossy(&bytes[i + 1..i + 3]), 16) {
+            if let Ok(byte) = u8::from_str_radix(&String::from_utf8_lossy(&bytes[i + 1..i + 3]), 16)
+            {
                 out.push(byte);
                 i += 3;
                 continue;
@@ -277,10 +278,7 @@ pub(super) async fn wallet_with_contacts(
 ) -> (Member, cpsd::Passport, GlobalPublic) {
     let member = enrol(service, WALLET, None).await;
     let api = client(service, WALLET, Some(&member.session));
-    for (option, destination, gate) in [
-        ("phone", phone, "cphn"),
-        ("mailbox", mailbox, "cmbx"),
-    ] {
+    for (option, destination, gate) in [("phone", phone, "cphn"), ("mailbox", mailbox, "cmbx")] {
         let preview = api
             .call("contact_plan", plan(option, destination, 10))
             .await

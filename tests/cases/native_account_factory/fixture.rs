@@ -63,7 +63,10 @@ fn generate(cache: &Path) {
     if std::fs::create_dir(cache.with_extension("lock")).is_err() {
         let start = std::time::Instant::now();
         while !mark.is_file() {
-            assert!(start.elapsed().as_secs() < 300, "G5 fixture generation did not finish");
+            assert!(
+                start.elapsed().as_secs() < 300,
+                "G5 fixture generation did not finish"
+            );
             std::thread::sleep(std::time::Duration::from_millis(100));
         }
         return;
@@ -74,11 +77,13 @@ fn generate(cache: &Path) {
         .args(["--exports", "--now", &support::NOW.to_string(), "--out"])
         .arg(cache)
         .current_dir(root);
-    let retained = std::env::var_os("CVLD_G5_RETAINED").map(PathBuf::from).or_else(|| {
-        let home = std::env::var_os("HOME")?;
-        let local = Path::new(&home).join("agents/scratch/e2e/retained/release-artifacts");
-        local.is_dir().then_some(local)
-    });
+    let retained = std::env::var_os("CVLD_G5_RETAINED")
+        .map(PathBuf::from)
+        .or_else(|| {
+            let home = std::env::var_os("HOME")?;
+            let local = Path::new(&home).join("agents/scratch/e2e/retained/release-artifacts");
+            local.is_dir().then_some(local)
+        });
     if let Some(retained) = retained {
         command.arg("--retained").arg(retained);
     }

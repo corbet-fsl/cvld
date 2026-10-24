@@ -5,11 +5,11 @@
 //! `client_browser` is the wasm-only browser suite and stays its own target.
 
 #[cfg(all(feature = "server", not(target_arch = "wasm32")))]
-#[path = "support/mod.rs"]
-mod support;
-#[cfg(all(feature = "server", not(target_arch = "wasm32")))]
 #[path = "payment_support/mod.rs"]
 mod payment_support;
+#[cfg(all(feature = "server", not(target_arch = "wasm32")))]
+#[path = "support/mod.rs"]
+mod support;
 
 #[path = "cases/account_boundaries.rs"]
 mod account_boundaries;
@@ -94,8 +94,15 @@ fn every_case_file_is_wired_into_this_binary() {
     for entry in std::fs::read_dir(here.join("cases")).expect("tests/cases") {
         let path = entry.expect("entry").path();
         if path.extension().is_some_and(|e| e == "rs") {
-            let name = path.file_name().expect("name").to_string_lossy().into_owned();
-            assert!(hub.contains(&format!("#[path = \"cases/{name}\"]")), "tests/cases/{name} is not wired into tests/cvld.rs");
+            let name = path
+                .file_name()
+                .expect("name")
+                .to_string_lossy()
+                .into_owned();
+            assert!(
+                hub.contains(&format!("#[path = \"cases/{name}\"]")),
+                "tests/cases/{name} is not wired into tests/cvld.rs"
+            );
         }
     }
 }

@@ -201,7 +201,9 @@ async fn platform_host_labels_are_reserved_and_routed_to_the_global_door() {
                 .unwrap();
             let response = hub.dispatch(global(), request).await;
             let status = response.status();
-            let body = axum::body::to_bytes(response.into_body(), 1024).await.unwrap();
+            let body = axum::body::to_bytes(response.into_body(), 1024)
+                .await
+                .unwrap();
             (status, body)
         }
     };
@@ -211,7 +213,11 @@ async fn platform_host_labels_are_reserved_and_routed_to_the_global_door() {
             format!("api.admin.{label}.{DOMAIN}"),
         ] {
             let (status, body) = answer(host.clone()).await;
-            assert_eq!((status.as_u16(), &body[..]), (200, &b"global"[..]), "{host}");
+            assert_eq!(
+                (status.as_u16(), &body[..]),
+                (200, &b"global"[..]),
+                "{host}"
+            );
         }
     }
     // An ordinary label without a door is not the global door's.
