@@ -913,8 +913,8 @@ async fn a_verified_legal_veto_after_authentication_prevents_credential_issuance
     );
 }
 
-/// Every newly created community's charter settings project into Forum's settings: the
-/// mechanics are code constants and the room-pass quota carries its product default.
+/// A newly created community's charter settings project into Forum's settings once the
+/// deployment supplies the quota (fixture test value): the mechanics are code constants.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_new_community_has_valid_forum_settings() {
     let global = global(100).await;
@@ -935,9 +935,6 @@ async fn a_new_community_has_valid_forum_settings() {
         .await
         .unwrap();
     let forum = crbk::ForumSettings::from_snapshot(&snapshot).unwrap();
-    assert_eq!(
-        forum.room_passes_per_epoch,
-        crbk::FORUM_ROOM_PASSES_PER_EPOCH_DEFAULT
-    );
+    assert_eq!(forum.room_passes_per_epoch, 4);
     assert_eq!(forum.lease_ms, crbk::FORUM_LEASE_MS);
 }

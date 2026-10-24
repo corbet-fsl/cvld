@@ -361,15 +361,6 @@ impl CommunityService {
                     .await
                     .map_err(Error::Refused.redact_at("community.rs:15"))?;
             }
-            // Creation and load alike: refuse a community whose settings do not project
-            // into Forum's (a charter without a valid room-pass quota).
-            crbk::ForumSettings::from_snapshot(
-                &policy
-                    .settings(now)
-                    .await
-                    .map_err(Error::Unavailable.redact_at("community.rs:forum"))?,
-            )
-            .map_err(Error::Invalid.redact())?;
             Ok::<_, Error>(policy)
         })
         .await?;
