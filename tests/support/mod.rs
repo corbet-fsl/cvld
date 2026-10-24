@@ -376,18 +376,6 @@ use ed25519_dalek::SigningKey;
 pub fn community_rules() -> crbk::Rulebook {
     let mut rules = crbk::Rulebook::default();
     crbk::define_membership_settings(&mut rules).unwrap();
-    // TEST VALUE (not a product default; the alpha value is the owner's decision): Forum's
-    // room-pass quota k, supplied at the Platform layer as a deployment would.
-    crbk::define_forum_settings(&mut rules).unwrap();
-    rules
-        .set_platform(
-            crbk::FORUM_ROOM_PASSES_PER_EPOCH,
-            Some(crbk::PlatformValue {
-                value: json!(4),
-                force: false,
-            }),
-        )
-        .unwrap();
     for (level, gate, provider) in [
         (
             crbk::GateLevel::Global,
