@@ -2975,7 +2975,7 @@ export interface components {
             version: number;
         };
         /** @enum {string} */
-        Error: "invalid" | "unauthorized" | "forbidden" | "held_in_lobby" | "wrong_host" | "throttled" | "refused" | "unavailable" | "reconcile" | "clock";
+        Error: "invalid" | "unauthorized" | "forbidden" | "held_in_lobby" | "wrong_host" | "throttled" | "refused" | "unavailable" | "reconcile";
         Lobby: {
             handle?: string | null;
             member_id: string;

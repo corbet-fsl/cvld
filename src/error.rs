@@ -36,10 +36,6 @@ pub enum Error {
     #[error("operation refused: request window elapsed")]
     #[serde(skip)]
     Expired,
-    /// Client side only, never a server answer: the device clock differs from the server's
-    /// time by more than the clock-skew tolerance. The user checks the device time.
-    #[error("the device clock differs from the server's; check the device time")]
-    Clock,
 }
 
 /// Typed reason of a `refused` error. The only reason a client may act on
@@ -98,7 +94,7 @@ impl Error {
     /// The owner's original status for this redacted error category.
     pub fn http_status(self) -> u16 {
         match self {
-            Self::Invalid | Self::Clock => 400,
+            Self::Invalid => 400,
             Self::Unauthorized => 401,
             Self::Forbidden | Self::HeldInLobby => 403,
             Self::WrongHost => 421,

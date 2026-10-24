@@ -4971,8 +4971,7 @@
           "throttled",
           "refused",
           "unavailable",
-          "reconcile",
-          "clock"
+          "reconcile"
         ],
         "type": "string"
       },
