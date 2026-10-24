@@ -217,6 +217,32 @@ impl AccountConfig {
     }
 }
 
+impl AccountConfig {
+    /// The invariant "rate window >= 2 x the genesis proof window", checked when a
+    /// configuration loads. A genesis must finish inside the rate window it started in
+    /// (the circuit pins its horizon to that window's end); with a shorter window an
+    /// attempt that starts in the last proof window of one cannot finish, and the single
+    /// re-prepare starts at the beginning of the next window, which must be long enough
+    /// to hold one whole proof window. Returns the operator-facing reason.
+    pub fn check_rate_window(&self) -> std::result::Result<(), String> {
+        let file = &self.ledger_policy_file;
+        let bytes = bounded(file, 1024 * 1024)
+            .map_err(|_| format!("accounting: the ledger policy file {file} is unreadable"))?;
+        let policy: AccountLedgerPolicy = serde_json::from_slice(&bytes)
+            .map_err(|_| format!("accounting: the ledger policy file {file} does not decode"))?;
+        let window = policy.account.rate_window;
+        let minimum = 2 * cblc::accounting::GENESIS_PROOF_WINDOW_SECONDS;
+        if window < minimum {
+            return Err(format!(
+                "accounting: the rate window (rateWindow = {window} in {file}) is shorter than \
+                 twice the genesis proof window ({minimum} s): a genesis that starts late in a \
+                 rate window could never finish, so rateWindow must be at least {minimum}"
+            ));
+        }
+        Ok(())
+    }
+}
+
 pub(crate) type Service = AccountService<NativeAccountVerifier, Box<dyn Fn() -> u64 + Send>>;
 
 impl AccountConfig {

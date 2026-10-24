@@ -276,15 +276,15 @@ def main():
     }
     (out / "ledger-policy.json").write_text(json.dumps(ledger))
     # Hub-created communities prove their own activation against the template's terms, so
-    # their rate window is free: one checkpoint period, which a 600 s account grant covers
-    # (cvld refuses a grant lifetime shorter than the rate window). The static community
+    # their rate window is free: two checkpoint periods (cvld refuses a rate window shorter than
+    # twice the genesis proof window, and a grant lifetime shorter than the rate window). The static community
     # keeps the retained probe's policy, which its activation proof binds.
     # Only the omega probe feeds that template (toy stack, CVLD_G5_ACCOUNT_CONFIG mode; checkpoint
     # period 300 s). The alpha request has a 86400 s checkpoint period against abandonAfter 100, a
     # template the account policy would refuse (abandon_after >= rate_window, cwlt account/policy.rs),
     # and nothing consumes it there, so no template is derived or checked for alpha.
     if args.community == "omega":
-        template_ledger = dict(ledger, account=dict(policy, rateWindow=ledger["checkpointPeriodSeconds"]))
+        template_ledger = dict(ledger, account=dict(policy, rateWindow=2 * ledger["checkpointPeriodSeconds"]))
         if template_ledger["account"]["abandonAfter"] < template_ledger["account"]["rateWindow"]:
             fail("the template rate window exceeds abandonAfter")
         (out / "template-ledger-policy.json").write_text(json.dumps(template_ledger))

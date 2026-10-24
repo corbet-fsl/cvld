@@ -16,8 +16,8 @@ fn ledger(from: u64) -> serde_json::Value {
             "initialCredit": 20, "maximumAvailable": 100, "outgoingReservation": 5,
             "incomingReservation": 5, "policyRevision": 1, "policyValidFrom": from,
             "policyValidUntil": from + 10 * 365 * 86_400, "newcomerPeriod": 100,
-            "rateWindow": 100, "newcomerAdmissions": 2, "maximumAdmissions": 10,
-            "refillPeriod": 100, "refillUnits": 2, "abandonAfter": 200
+            "rateWindow": 400, "newcomerAdmissions": 2, "maximumAdmissions": 10,
+            "refillPeriod": 100, "refillUnits": 2, "abandonAfter": 800
         },
         "maxAuthorizationSeconds": 100,
         "maxProofBytes": 4194304,
@@ -336,15 +336,15 @@ fn community_with_grant(accounting: &AccountConfig, session_seconds: u64) -> ser
 fn a_grant_shorter_than_the_rate_window_is_refused_when_the_configuration_loads() {
     let dir = tempfile::tempdir().unwrap();
     let accounting = template(dir.path());
-    // The ledger's rate window is 100 s: a grant of exactly the window is valid.
-    assert_eq!(accounting.check_grant_lifetime(100), Ok(()));
+    // The ledger's rate window is 400 s: a grant of exactly the window is valid.
+    assert_eq!(accounting.check_grant_lifetime(400), Ok(()));
     assert_eq!(accounting.check_grant_lifetime(3600), Ok(()));
-    let reason = accounting.check_grant_lifetime(99).unwrap_err();
-    assert!(reason.contains("session_seconds = 99"), "{reason}");
-    assert!(reason.contains("rateWindow = 100"), "{reason}");
+    let reason = accounting.check_grant_lifetime(399).unwrap_err();
+    assert!(reason.contains("session_seconds = 399"), "{reason}");
+    assert!(reason.contains("rateWindow = 400"), "{reason}");
     let path = dir.path().join("community.json");
     let path = path.to_str().unwrap();
-    for (session, valid) in [(99, false), (100, true), (600, true)] {
+    for (session, valid) in [(399, false), (400, true), (600, true)] {
         fs::write(path, community_with_grant(&accounting, session).to_string()).unwrap();
         assert_eq!(
             crate::config::CommunityConfig::read(path).is_ok(),
@@ -355,10 +355,47 @@ fn a_grant_shorter_than_the_rate_window_is_refused_when_the_configuration_loads(
     // An unreadable ledger policy is refused at load, never at the first genesis.
     let mut missing = accounting.clone();
     missing.ledger_policy_file = dir.path().join("absent.json").to_string_lossy().into();
-    assert!(missing.check_grant_lifetime(600).unwrap_err().contains("unreadable"));
+    assert!(
+        missing
+            .check_grant_lifetime(600)
+            .unwrap_err()
+            .contains("unreadable")
+    );
     fs::write(path, community_with_grant(&missing, 600).to_string()).unwrap();
     assert!(matches!(
         crate::config::CommunityConfig::read(path),
         Err(Error::Invalid)
     ));
+}
+
+#[test]
+fn a_rate_window_shorter_than_two_genesis_proof_windows_fails_when_the_configuration_loads() {
+    let minimum = 2 * cblc::accounting::GENESIS_PROOF_WINDOW_SECONDS;
+    let dir = tempfile::tempdir().unwrap();
+    let accounting = template(dir.path());
+    assert_eq!(accounting.check_rate_window(), Ok(()));
+    let path = dir.path().join("community.json");
+    let path = path.to_str().unwrap();
+    for (window, valid) in [(minimum - 1, false), (minimum, true), (86_400, true)] {
+        let mut value = ledger(0);
+        value["account"]["rateWindow"] = window.into();
+        value["account"]["abandonAfter"] = (2 * window).into();
+        fs::write(dir.path().join("ledger.json"), value.to_string()).unwrap();
+        let reason = accounting.check_rate_window();
+        assert_eq!(reason.is_ok(), valid, "rateWindow {window}: {reason:?}");
+        if !valid {
+            let reason = reason.unwrap_err();
+            assert!(
+                reason.contains(&format!("rateWindow = {window}")),
+                "{reason}"
+            );
+            assert!(reason.contains(&minimum.to_string()), "{reason}");
+        }
+        fs::write(path, community_with_grant(&accounting, 86_400).to_string()).unwrap();
+        assert_eq!(
+            crate::config::CommunityConfig::read(path).is_ok(),
+            valid,
+            "rateWindow {window}"
+        );
+    }
 }

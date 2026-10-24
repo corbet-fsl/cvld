@@ -284,12 +284,14 @@ impl CommunityConfig {
         Ok(config)
     }
 
-    /// Refuse an accounting whose rate window outlasts the account (session) grant, with
+    /// Refuse an accounting whose rate window is shorter than two genesis proof windows or
+    /// outlasts the account (session) grant, with
     /// the reason on stderr for the operator; see `AccountConfig::check_grant_lifetime`.
     pub fn check_account_grant(&self, path: &str) -> Result<()> {
         match &self.accounting {
             Some(accounting) => accounting
-                .check_grant_lifetime(self.session_seconds)
+                .check_rate_window()
+                .and_then(|()| accounting.check_grant_lifetime(self.session_seconds))
                 .map_err(|reason| {
                     eprintln!("cvld: {path}: {reason}");
                     Error::Invalid
