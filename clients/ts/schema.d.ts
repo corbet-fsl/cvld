@@ -7548,6 +7548,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
@@ -7676,6 +7677,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
                     };
                 };
             };
