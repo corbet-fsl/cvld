@@ -111,6 +111,22 @@ impl Error {
         }
     }
 
+    /// Like `redact_at` for a failed membership call: a transient condition (busy row, failed
+    /// storage or infrastructure) is `Unavailable` (503, the device retries) and never the
+    /// permanent category of the call site; every other failure keeps `self`.
+    #[cfg(feature = "server")]
+    pub fn redact_membership_at(
+        self,
+        site: &'static str,
+    ) -> impl FnOnce(cmty::cmbr::Error) -> Self {
+        move |cause| match cause {
+            cmty::cmbr::Error::Unavailable | cmty::cmbr::Error::Busy => {
+                Self::Unavailable.redact_at(site)(cause)
+            }
+            _ => self.redact_at(site)(cause),
+        }
+    }
+
     /// Like `redact_at` for a refusal that has no dropped cause (a missing entry, an absent
     /// value): under the development gate it prints `cause: <site> -> <Error> (none)`.
     #[allow(unused_variables)]
@@ -168,6 +184,22 @@ mod tests {
         assert!(
             serde_json::from_value::<ErrorBody>(serde_json::json!({"error": "expired"})).is_err()
         );
+    }
+
+    /// A transient membership condition (busy store, failed infrastructure) is never reported as
+    /// the permanent category of its call site: it stays 503 so the device retries.
+    #[cfg(feature = "server")]
+    #[test]
+    fn a_transient_membership_failure_stays_unavailable() {
+        for transient in [cmty::cmbr::Error::Unavailable, cmty::cmbr::Error::Busy] {
+            let err = Error::Unauthorized.redact_membership_at("probe")(transient);
+            assert_eq!(err, Error::Unavailable);
+            assert_eq!(err.http_status(), 503);
+        }
+        let err = Error::Unauthorized.redact_membership_at("probe")(cmty::cmbr::Error::Transition);
+        assert_eq!(err, Error::Unauthorized);
+        let err = Error::Refused.redact_membership_at("probe")(cmty::cmbr::Error::Identity);
+        assert_eq!(err, Error::Refused);
     }
 
     #[derive(Debug)]

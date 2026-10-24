@@ -820,7 +820,7 @@ impl Door {
             .membership()
             .current_device_keys(auth)
             .await
-            .map_err(Error::Refused.redact_at("community_actions.rs:25"))?;
+            .map_err(Error::Refused.redact_membership_at("community_actions.rs:25"))?;
         Ok(DeviceKeys { keys })
     }
 
@@ -831,7 +831,7 @@ impl Door {
             .membership()
             .current_device_keys(ctx.member()?)
             .await
-            .map_err(Error::Refused.redact_at("community_actions.rs:26"))?;
+            .map_err(Error::Refused.redact_membership_at("community_actions.rs:26"))?;
         Ok(DeviceKeys { keys })
     }
 

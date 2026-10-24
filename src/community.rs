@@ -759,13 +759,13 @@ impl CommunityService {
                 .membership()
                 .device_session_is_active(&session.authentication)
                 .await
-                .map_err(Error::Unauthorized.redact_at("community.rs:36"))?
+                .map_err(Error::Unauthorized.redact_membership_at("community.rs:36"))?
         } else {
             self.facade
                 .membership()
                 .session_is_active(&session.authentication, &session.grant.credential)
                 .await
-                .map_err(Error::Unauthorized.redact_at("community.rs:37"))?
+                .map_err(Error::Unauthorized.redact_membership_at("community.rs:37"))?
         };
         if !live {
             return Err(Error::Unauthorized);
