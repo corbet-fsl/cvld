@@ -91,6 +91,26 @@ impl Error {
         move |_| self
     }
 
+    /// Like `redact`, and under the development gate (toy and test services only) writes the
+    /// error kind of the dropped cause and the call site to stderr. A default build contains
+    /// no such print: the operator keeps no identifier or timing logs. Only the variant name
+    /// is printed, never fields, keys, tokens or payloads.
+    #[allow(unused_variables)]
+    pub fn redact_at<T: std::fmt::Debug>(self, site: &'static str) -> impl FnOnce(T) -> Self {
+        move |cause| {
+            #[cfg(feature = "development-gate")]
+            {
+                let text = format!("{cause:?}");
+                let kind: String = text
+                    .chars()
+                    .take_while(|c| c.is_alphanumeric() || *c == '_' || *c == ':')
+                    .collect();
+                eprintln!("cause: {site} -> {self:?} ({kind})");
+            }
+            self
+        }
+    }
+
     /// The owner's original status for this redacted error category.
     pub fn http_status(self) -> u16 {
         match self {
@@ -138,6 +158,41 @@ mod tests {
         assert_eq!(body.error(), None);
         assert!(
             serde_json::from_value::<ErrorBody>(serde_json::json!({"error": "expired"})).is_err()
+        );
+    }
+
+    #[derive(Debug)]
+    #[allow(dead_code)]
+    struct Secret {
+        token: String,
+    }
+
+    /// The child half of `cause_print_only_under_the_development_gate`.
+    #[test]
+    fn cause_print_child() {
+        if std::env::var_os("CVLD_CAUSE_CHILD").is_none() {
+            return;
+        }
+        let _ = Error::Unauthorized.redact_at("probe")(Secret {
+            token: "hunter2-secret".into(),
+        });
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn cause_print_only_under_the_development_gate() {
+        let out = std::process::Command::new(std::env::current_exe().expect("test binary"))
+            .args(["--exact", "error::tests::cause_print_child", "--nocapture"])
+            .env("CVLD_CAUSE_CHILD", "1")
+            .output()
+            .expect("run the child test");
+        assert!(out.status.success());
+        let err = String::from_utf8_lossy(&out.stderr);
+        assert!(!err.contains("hunter2"), "a field value was printed: {err}");
+        assert_eq!(
+            err.contains("cause: probe -> Unauthorized (Secret)"),
+            cfg!(feature = "development-gate"),
+            "the cause print must exist exactly in a development-gate build: {err}"
         );
     }
 }

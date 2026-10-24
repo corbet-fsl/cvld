@@ -26,11 +26,7 @@ pub struct StampUses {
 }
 
 impl StampUses {
-    pub fn new(
-        db: &crlt::Db,
-        community: &str,
-        capacity: usize,
-    ) -> crate::error::Result<Self> {
+    pub fn new(db: &crlt::Db, community: &str, capacity: usize) -> crate::error::Result<Self> {
         use crate::error::Error;
         if capacity == 0 {
             return Err(Error::Invalid);

@@ -40,16 +40,17 @@ impl CommunityService {
         if now < issued || now >= issued.saturating_add(NONCE_SECONDS) {
             return Err(Error::Unauthorized);
         }
-        let key =
-            VerifyingKey::from_bytes(&request.device_key).map_err(Error::Unauthorized.redact())?;
-        let signature =
-            Signature::from_slice(&request.signature).map_err(Error::Unauthorized.redact())?;
+        let key = VerifyingKey::from_bytes(&request.device_key)
+            .map_err(Error::Unauthorized.redact_at("community/device_session.rs:1"))?;
+        let signature = Signature::from_slice(&request.signature)
+            .map_err(Error::Unauthorized.redact_at("community/device_session.rs:2"))?;
         key.verify_strict(
             &message(&self.config.community, &request.nonce, issued),
             &signature,
         )
-        .map_err(Error::Unauthorized.redact())?;
-        let user = ckyh::Uuid::parse_str(&request.user).map_err(Error::Unauthorized.redact())?;
+        .map_err(Error::Unauthorized.redact_at("community/device_session.rs:3"))?;
+        let user = ckyh::Uuid::parse_str(&request.user)
+            .map_err(Error::Unauthorized.redact_at("community/device_session.rs:4"))?;
         let member = user.to_string();
         // The membership checks that the key is ACTIVE for this member in this community and
         // that the member is live and unrestricted; it rechecks both on every request.
@@ -63,7 +64,7 @@ impl CommunityService {
             .membership()
             .device_session_is_active(&authentication)
             .await
-            .map_err(Error::Unauthorized.redact())?
+            .map_err(Error::Unauthorized.redact_at("community/device_session.rs:5"))?
         {
             return Err(Error::Unauthorized);
         }
@@ -121,16 +122,17 @@ impl CommunityService {
         if now < issued || now >= issued.saturating_add(NONCE_SECONDS) {
             return Err(Error::Unauthorized);
         }
-        let key =
-            VerifyingKey::from_bytes(&request.device_key).map_err(Error::Unauthorized.redact())?;
-        let signature =
-            Signature::from_slice(&request.signature).map_err(Error::Unauthorized.redact())?;
+        let key = VerifyingKey::from_bytes(&request.device_key)
+            .map_err(Error::Unauthorized.redact_at("community/device_session.rs:6"))?;
+        let signature = Signature::from_slice(&request.signature)
+            .map_err(Error::Unauthorized.redact_at("community/device_session.rs:7"))?;
         key.verify_strict(
             &crate::device_session::garden_message(&self.config.community, &request.nonce, issued),
             &signature,
         )
-        .map_err(Error::Unauthorized.redact())?;
-        let user = ckyh::Uuid::parse_str(&request.user).map_err(Error::Unauthorized.redact())?;
+        .map_err(Error::Unauthorized.redact_at("community/device_session.rs:8"))?;
+        let user = ckyh::Uuid::parse_str(&request.user)
+            .map_err(Error::Unauthorized.redact_at("community/device_session.rs:9"))?;
         let authentication = Arc::new(ckyh::Authentication::from_device_key(
             self.config.community.clone(),
             user,
@@ -144,7 +146,7 @@ impl CommunityService {
         let lease = self
             .garden_lease(&authentication, now, expires)
             .await
-            .map_err(Error::Unauthorized.redact())?;
+            .map_err(Error::Unauthorized.redact_at("community/device_session.rs:10"))?;
         // One confirmation stamp over this key and nonce, from this member's own pseudonym.
         let global = crate::global_trust::load(&self.db, &self.config, now).await?;
         let stamp_key = cpsd::StampPublicKey::from_bytes(
@@ -154,7 +156,7 @@ impl CommunityService {
                 .as_deref()
                 .ok_or(Error::Unauthorized)?,
         )
-        .map_err(Error::Unauthorized.redact())?;
+        .map_err(Error::Unauthorized.redact_at("community/device_session.rs:11"))?;
         let params = cpsd::StampParams::new(
             self.config
                 .stamp_cohort_seconds
@@ -171,7 +173,7 @@ impl CommunityService {
             vec![stamp_key.clone()],
             params,
         )
-        .map_err(Error::Unauthorized.redact())?;
+        .map_err(Error::Unauthorized.redact_at("community/device_session.rs:12"))?;
         let action = cpsd::StampAction::new(
             cpsd::ActionKind::new(crate::device_session::GARDEN_ACTION)
                 .map_err(Error::Invalid.redact())?,
@@ -202,12 +204,12 @@ impl CommunityService {
         ledger
             .prune(now)
             .await
-            .map_err(Error::Unavailable.redact())?;
+            .map_err(Error::Unavailable.redact_at("community/device_session.rs:13"))?;
         // A stamp covers one attempt: a replay is refused.
         ledger
             .record(&verified, now)
             .await
-            .map_err(Error::Unauthorized.redact())?;
+            .map_err(Error::Unauthorized.redact_at("community/device_session.rs:14"))?;
         let role = garden::public_role(lease.role());
         let expires = expires.min(lease.valid_until());
         let id = token();
@@ -259,13 +261,13 @@ impl CommunityService {
         if request.seed == [0; 32] {
             return Err(Error::Invalid);
         }
-        let key =
-            VerifyingKey::from_bytes(&request.device_key).map_err(Error::Unauthorized.redact())?;
+        let key = VerifyingKey::from_bytes(&request.device_key)
+            .map_err(Error::Unauthorized.redact_at("community/device_session.rs:15"))?;
         if key.is_weak() {
             return Err(Error::Unauthorized);
         }
-        let signature =
-            Signature::from_slice(&request.signature).map_err(Error::Unauthorized.redact())?;
+        let signature = Signature::from_slice(&request.signature)
+            .map_err(Error::Unauthorized.redact_at("community/device_session.rs:16"))?;
         key.verify_strict(
             &join_message(
                 &self.config.community,
@@ -274,14 +276,14 @@ impl CommunityService {
             ),
             &signature,
         )
-        .map_err(Error::Unauthorized.redact())?;
+        .map_err(Error::Unauthorized.redact_at("community/device_session.rs:17"))?;
         let proof =
             cpsd::Presentation::from_bytes(&input.proof).map_err(Error::Invalid.redact())?;
         let passport = self
             .facade
             .verify(&mut cpsd::rand::rngs::OsRng, &challenge.value, &proof, now)
             .await
-            .map_err(Error::Refused.redact())?;
+            .map_err(Error::Refused.redact_at("community/device_session.rs:18"))?;
         let global = crate::global_trust::load(&self.db, &self.config, now).await?;
         let stamp_key = cpsd::StampPublicKey::from_bytes(
             global
@@ -290,7 +292,7 @@ impl CommunityService {
                 .as_deref()
                 .ok_or(Error::Refused)?,
         )
-        .map_err(Error::Refused.redact())?;
+        .map_err(Error::Refused.redact_at("community/device_session.rs:19"))?;
         let params = cpsd::StampParams::new(
             self.config
                 .stamp_cohort_seconds
@@ -307,7 +309,7 @@ impl CommunityService {
             vec![stamp_key.clone()],
             params,
         )
-        .map_err(Error::Refused.redact())?;
+        .map_err(Error::Refused.redact_at("community/device_session.rs:20"))?;
         let action = cpsd::StampAction::new(
             cpsd::ActionKind::new(JOIN_ACTION).map_err(Error::Invalid.redact())?,
             cpsd::PayloadDigest::from_bytes(join_payload(&request.device_key, &request.seed)),
@@ -350,7 +352,7 @@ impl CommunityService {
         ledger
             .prune(now)
             .await
-            .map_err(Error::Unavailable.redact())?;
+            .map_err(Error::Unavailable.redact_at("community/device_session.rs:21"))?;
         // One use per digest; the same digest is the same join, which is idempotent below.
         let fresh = match ledger.record(&verified, now).await {
             Ok(()) => true,
@@ -404,13 +406,13 @@ impl CommunityService {
         if challenge.owner.is_some() || challenge.value.root_board_request().is_some() {
             return Err(Error::Forbidden);
         }
-        let key =
-            VerifyingKey::from_bytes(&request.device_key).map_err(Error::Unauthorized.redact())?;
+        let key = VerifyingKey::from_bytes(&request.device_key)
+            .map_err(Error::Unauthorized.redact_at("community/device_session.rs:22"))?;
         if key.is_weak() {
             return Err(Error::Unauthorized);
         }
-        let signature =
-            Signature::from_slice(&request.signature).map_err(Error::Unauthorized.redact())?;
+        let signature = Signature::from_slice(&request.signature)
+            .map_err(Error::Unauthorized.redact_at("community/device_session.rs:23"))?;
         key.verify_strict(
             &join_message(
                 &self.config.community,
@@ -419,14 +421,14 @@ impl CommunityService {
             ),
             &signature,
         )
-        .map_err(Error::Unauthorized.redact())?;
+        .map_err(Error::Unauthorized.redact_at("community/device_session.rs:24"))?;
         let proof =
             cpsd::Presentation::from_bytes(&input.proof).map_err(Error::Invalid.redact())?;
         let passport = self
             .facade
             .verify(&mut cpsd::rand::rngs::OsRng, &challenge.value, &proof, now)
             .await
-            .map_err(Error::Refused.redact())?;
+            .map_err(Error::Refused.redact_at("community/device_session.rs:25"))?;
         let global = crate::global_trust::load(&self.db, &self.config, now).await?;
         let stamp_key = cpsd::StampPublicKey::from_bytes(
             global
@@ -435,7 +437,7 @@ impl CommunityService {
                 .as_deref()
                 .ok_or(Error::Refused)?,
         )
-        .map_err(Error::Refused.redact())?;
+        .map_err(Error::Refused.redact_at("community/device_session.rs:26"))?;
         let params = cpsd::StampParams::new(
             self.config
                 .stamp_cohort_seconds
@@ -452,14 +454,14 @@ impl CommunityService {
             vec![stamp_key.clone()],
             params,
         )
-        .map_err(Error::Refused.redact())?;
+        .map_err(Error::Refused.redact_at("community/device_session.rs:27"))?;
         let action = cpsd::StampAction::new(
             cpsd::ActionKind::new(kind).map_err(Error::Invalid.redact())?,
             cpsd::PayloadDigest::from_bytes(pairing_payload(kind, &request.device_key)),
             cpsd::StampSalt::from_bytes(request.salt),
         );
         let verified = cpsd::StampPresentation::from_bytes(&request.stamp)
-            .map_err(Error::Refused.redact())
+            .map_err(Error::Refused.redact_at("community/device_session.rs:28"))
             .and_then(|presentation| {
                 cpsd::verify_stamp(
                     &[stamp_key],
@@ -470,7 +472,7 @@ impl CommunityService {
                     &presentation,
                     now,
                 )
-                .map_err(Error::Refused.redact())
+                .map_err(Error::Refused.redact_at("community/device_session.rs:29"))
             })?;
         if verified.pseudonym().to_hex() != passport.member_id() {
             return Err(Error::Refused);
@@ -478,7 +480,7 @@ impl CommunityService {
         ledger
             .prune(now)
             .await
-            .map_err(Error::Unavailable.redact())?;
+            .map_err(Error::Unavailable.redact_at("community/device_session.rs:30"))?;
         let fresh = match ledger.record(&verified, now).await {
             Ok(()) => true,
             Err(cpsd::Error::StampReplayed) => false,
@@ -518,7 +520,7 @@ impl CommunityService {
         match self.genesis.as_deref() {
             Some(genesis) => Ok(Some(
                 csgn::verify_genesis(genesis)
-                    .map_err(Error::Unavailable.redact())?
+                    .map_err(Error::Unavailable.redact_at("community/device_session.rs:31"))?
                     .fingerprint(),
             )),
             None => Ok(None),
@@ -568,7 +570,7 @@ impl CommunityService {
         let member = membership
             .resume(authentication)
             .await
-            .map_err(Error::Refused.redact())?
+            .map_err(Error::Refused.redact_at("community/device_session.rs:32"))?
             .subject()
             .to_owned();
         let global = crate::global_trust::load(&self.db, &self.config, now).await?;
@@ -588,7 +590,7 @@ impl CommunityService {
             &member,
             now,
         )
-        .map_err(Error::Refused.redact())?;
+        .map_err(Error::Refused.redact_at("community/device_session.rs:33"))?;
         // The receipt's author is the session's device key (VLD0 = Ed25519).
         let author = verified.author();
         if author.kind().bytes() != b"VLD0"
@@ -611,11 +613,11 @@ impl CommunityService {
                 .collect(),
             params,
         )
-        .map_err(Error::Refused.redact())?;
+        .map_err(Error::Refused.redact_at("community/device_session.rs:34"))?;
         ledger
             .prune(now)
             .await
-            .map_err(Error::Unavailable.redact())?;
+            .map_err(Error::Unavailable.redact_at("community/device_session.rs:35"))?;
         // One use per digest. The same digest is the same member's same genesis: a retry
         // after an attempt whose bind failed or whose outcome is unknown.
         let fresh = match ledger.record(&stamp, now).await {
@@ -659,8 +661,10 @@ fn stamp_trust(
     status: &cgbl::Status,
     params: cpsd::StampParams,
 ) -> Result<(Vec<cpsd::StampPublicKey>, cchr::StampTrust)> {
-    let key =
-        |bytes: &[u8]| cpsd::StampPublicKey::from_bytes(bytes).map_err(Error::Refused.redact());
+    let key = |bytes: &[u8]| {
+        cpsd::StampPublicKey::from_bytes(bytes)
+            .map_err(Error::Refused.redact_at("community/device_session.rs:36"))
+    };
     let ring = if status.stamp_keys.is_empty() {
         vec![(
             key(status.stamp_public_key.as_deref().ok_or(Error::Refused)?)?,
@@ -683,9 +687,11 @@ fn stamp_trust(
     let periods = ring
         .iter()
         .map(|(key, from, until)| {
-            cchr::StampKeyPeriod::new(key.clone(), *from, *until).map_err(Error::Refused.redact())
+            cchr::StampKeyPeriod::new(key.clone(), *from, *until)
+                .map_err(Error::Refused.redact_at("community/device_session.rs:37"))
         })
         .collect::<Result<Vec<_>>>()?;
-    let trust = cchr::StampTrust::new(periods, params).map_err(Error::Refused.redact())?;
+    let trust = cchr::StampTrust::new(periods, params)
+        .map_err(Error::Refused.redact_at("community/device_session.rs:38"))?;
     Ok((ring.into_iter().map(|(key, _, _)| key).collect(), trust))
 }

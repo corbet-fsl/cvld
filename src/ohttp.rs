@@ -35,7 +35,8 @@ pub(crate) fn via(_: &axum::extract::Request) -> bool {
 }
 
 /// The hosting hub of a multi-tenant global door, filled once by the launcher.
-pub(crate) type HubSlot = std::sync::Arc<std::sync::OnceLock<std::sync::Arc<dyn crate::service::CommunityHub>>>;
+pub(crate) type HubSlot =
+    std::sync::Arc<std::sync::OnceLock<std::sync::Arc<dyn crate::service::CommunityHub>>>;
 
 /// Authorities the gateway serves: the door's own configured host, plus (global door) every
 /// community the hub reports as live. Everything else is refused uniformly.
@@ -111,7 +112,10 @@ pub(crate) async fn build(
         replay::DatabaseReplay::start(db.community(scope).map_err(Error::Unavailable.redact())?)
             .await?;
     Ok(Some(std::sync::Arc::new(Gateway {
-        authorities: std::sync::Arc::new(Live { own: config.authority.clone(), hub }),
+        authorities: std::sync::Arc::new(Live {
+            own: config.authority.clone(),
+            hub,
+        }),
         keys,
         replay: std::sync::Arc::new(replay),
         mutating: std::sync::Arc::new(mutating),
@@ -304,7 +308,6 @@ mod tests {
         assert!(!own_only.accepts(b"api.example.test").await);
     }
 
-
     const FAR: u64 = 4_000_000_000;
 
     #[tokio::test]
@@ -412,7 +415,12 @@ mod tests {
         std::fs::write(&ikm, [5u8; 32]).unwrap();
         let ikm = ikm.to_str().unwrap();
         let hosts = vec!["api.example.test".to_owned()];
-        assert!(build(None, &hosts, &db, "ohttp", None).await.unwrap().is_none());
+        assert!(
+            build(None, &hosts, &db, "ohttp", None)
+                .await
+                .unwrap()
+                .is_none()
+        );
         let started = build(
             Some(&config("api.example.test", 1, ikm)),
             &hosts,
@@ -451,7 +459,12 @@ mod tests {
             keys: Vec::new(),
             relay_secret_file: None,
         };
-        assert!(build(None, &[], &db, "ohttp", None).await.unwrap().is_none());
+        assert!(
+            build(None, &[], &db, "ohttp", None)
+                .await
+                .unwrap()
+                .is_none()
+        );
         assert!(build(Some(&config), &[], &db, "ohttp", None).await.is_err());
     }
 }

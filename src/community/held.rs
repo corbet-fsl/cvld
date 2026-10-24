@@ -27,11 +27,7 @@ pub(super) fn is_held(missing: &[LobbyMissing]) -> bool {
 
 impl CommunityService {
     /// Refuse a held member. Errors of the check itself are not hidden.
-    pub(crate) async fn refuse_if_held(
-        &self,
-        auth: &ckyh::Authentication,
-        now: u64,
-    ) -> Result<()> {
+    pub(crate) async fn refuse_if_held(&self, auth: &ckyh::Authentication, now: u64) -> Result<()> {
         let lobby = self.lobby(auth, now).await?;
         if is_held(&lobby.missing) {
             return Err(Error::HeldInLobby);
@@ -74,7 +70,10 @@ mod tests {
         }]));
         assert!(is_held(&[gates(&[LobbyLevel::Community], 1)]));
         assert!(!is_held(&[gates(&[LobbyLevel::Global], 1)]));
-        assert!(!is_held(&[gates(&[LobbyLevel::Community, LobbyLevel::Global], 1)]));
+        assert!(!is_held(&[gates(
+            &[LobbyLevel::Community, LobbyLevel::Global],
+            1
+        )]));
         assert!(!is_held(&[gates(&[LobbyLevel::Community], 0)]));
     }
 
@@ -113,6 +112,11 @@ mod tests {
             assert!(!action.lobby, "{held} must be held by default");
         }
         // Admin actions never lock an admin out of the portal.
-        assert!(ACTIONS.iter().filter(|a| a.access == Access::Admin).all(|a| a.lobby));
+        assert!(
+            ACTIONS
+                .iter()
+                .filter(|a| a.access == Access::Admin)
+                .all(|a| a.lobby)
+        );
     }
 }

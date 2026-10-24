@@ -71,8 +71,12 @@ pub trait Factory: Send + Sync {
 /// Receives the end-of-chain statement of an ended community; the platform feed lists it so
 /// every member device deletes its local data. Idempotent per fingerprint.
 pub trait EndedSink: Send + Sync {
-    fn ended<'a>(&'a self, fingerprint: [u8; 32], dissolved: bool, at: u64)
-    -> Boxed<'a, Result<()>>;
+    fn ended<'a>(
+        &'a self,
+        fingerprint: [u8; 32],
+        dissolved: bool,
+        at: u64,
+    ) -> Boxed<'a, Result<()>>;
 }
 
 pub struct HubParts {
@@ -442,10 +446,12 @@ impl Hub {
         let router = match label {
             // Platform host labels (`root`, `wallet`, ...) are never communities: creation refuses
             // them (PLATFORM_HOST_LABELS), so the global door answers them.
-            Some(address) if !is_platform_host_label(address) => match self.doors.read().await.get(address) {
-                Some(live) => live.router.clone(),
-                None => return Error::WrongHost.into_response(),
-            },
+            Some(address) if !is_platform_host_label(address) => {
+                match self.doors.read().await.get(address) {
+                    Some(live) => live.router.clone(),
+                    None => return Error::WrongHost.into_response(),
+                }
+            }
             // wallet.<base>, api.admin.<PLATFORM_ROOT_HOST>.<base> and every other global host.
             _ => global,
         };

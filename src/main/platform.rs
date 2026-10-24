@@ -187,7 +187,10 @@ fn read(path: &str) -> Result<Prepared> {
             // The root board owns the reserved scopes; no community may take them.
             let mut hosts = BTreeSet::new();
             hosts.insert(host(root.community_name(), root.domain())?);
-            hosts.insert(host(&format!("admin.{}", root.community_name()), root.domain())?);
+            hosts.insert(host(
+                &format!("admin.{}", root.community_name()),
+                root.domain(),
+            )?);
             for community in &communities {
                 for scope in [
                     community.community.clone(),

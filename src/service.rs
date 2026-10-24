@@ -163,7 +163,7 @@ impl Context {
             self.subject()?,
             self.grant.as_ref().ok_or(Error::Unauthorized)?.session_id,
         )
-        .map_err(Error::Unauthorized.redact())
+        .map_err(Error::Unauthorized.redact_at("service.rs:1"))
     }
     pub fn subject(&self) -> Result<cgbl::Subject> {
         cgbl::Subject::new(
@@ -220,7 +220,7 @@ impl Door {
         database.max_connections = 2;
         let db = crlt::Db::open(database)
             .await
-            .map_err(Error::Unavailable.redact())?;
+            .map_err(Error::Unavailable.redact_at("service.rs:2"))?;
         let now = clock.now();
         let mut global =
             GlobalService::open_with_transport(&db, &config, now, clock.clone(), transport).await?;
@@ -249,7 +249,7 @@ impl Door {
             };
             let passkeys = ckyh::Passkeys::new(
                 ckyh::LibsqlStore::new(&db, scope, tokio::runtime::Handle::current())
-                    .map_err(Error::Unavailable.redact())?,
+                    .map_err(Error::Unavailable.redact_at("service.rs:3"))?,
                 scope,
                 host.strip_prefix("api.admin.").unwrap_or(&host),
                 &origins,
@@ -361,11 +361,11 @@ impl Door {
             .facade
             .prune_challenges(now, 100)
             .await
-            .map_err(Error::Unavailable.redact())?;
+            .map_err(Error::Unavailable.redact_at("service.rs:4"))?;
         let fresh = global
             .facade
             .key_ring()
-            .map_err(Error::Unavailable.redact())?
+            .map_err(Error::Unavailable.redact_at("service.rs:5"))?
             .verify(&global.public.status, csgn::Kind::SettingsSnapshot, now)
             .map(|s| s.valid_until() > now + global.publication_seconds / 2)
             .unwrap_or(false);
@@ -444,7 +444,7 @@ impl Door {
         database.max_connections = 2;
         let db = crlt::Db::open(database)
             .await
-            .map_err(Error::Unavailable.redact())?;
+            .map_err(Error::Unavailable.redact_at("service.rs:6"))?;
         let mut hosts = BTreeMap::new();
         let member_host = format!("api.{}.{}", config.community, config.domain);
         let root_board_admin_host = root_board
@@ -500,7 +500,7 @@ impl Door {
             for (host, role, scope, operator) in operators {
                 let passkeys = ckyh::Passkeys::new(
                     ckyh::LibsqlStore::new(&db, scope, tokio::runtime::Handle::current())
-                        .map_err(Error::Unavailable.redact())?,
+                        .map_err(Error::Unavailable.redact_at("service.rs:7"))?,
                     scope,
                     host.strip_prefix("api.admin.").unwrap_or(&host),
                     &garden::operator_origins(&host)?,
@@ -988,7 +988,7 @@ impl Door {
                 ctx.now + 60,
             )
             .await
-            .map_err(Error::Refused.redact())?;
+            .map_err(Error::Refused.redact_at("service.rs:8"))?;
         Ok(Bytes {
             bytes: challenge.to_bytes().to_vec(),
         })
@@ -1003,10 +1003,10 @@ impl Door {
                 ctx.now,
             )
             .await
-            .map_err(Error::Refused.redact())?;
+            .map_err(Error::Refused.redact_at("service.rs:9"))?;
         drop(global);
         let options = serde_json::to_value(self.wallet_credential(&ctx).await?.request([0; 32]))
-            .map_err(Error::Unavailable.redact())?;
+            .map_err(Error::Unavailable.redact_at("service.rs:10"))?;
         Ok(StampChallenge {
             challenge: challenge.to_bytes().to_vec(),
             key: key.to_bytes(),
@@ -1024,8 +1024,8 @@ impl Door {
             passkeys.registered_public_credential(user, &credential)
         })
         .await
-        .map_err(Error::Unavailable.redact())?
-        .map_err(Error::Unauthorized.redact())
+        .map_err(Error::Unavailable.redact_at("service.rs:11"))?
+        .map_err(Error::Unauthorized.redact_at("service.rs:12"))
     }
     /// The one human confirmation of a stamp: a user-verifying assertion of THIS session's
     /// wallet passkey whose WebAuthn challenge is exactly the request's confirmation challenge.
@@ -1048,7 +1048,7 @@ impl Door {
             .facade
             .replay_stamp(&ctx.global_session()?, &stamp_request, ctx.now)
             .await
-            .map_err(Error::Refused.redact())?
+            .map_err(Error::Refused.redact_at("service.rs:13"))?
         {
             return Ok(Bytes {
                 bytes: blind.to_bytes(),
@@ -1072,7 +1072,7 @@ impl Door {
                     ctx.now,
                 )
                 .await
-                .map_err(Error::Refused.redact())?;
+                .map_err(Error::Refused.redact_at("service.rs:14"))?;
             return Ok(Bytes {
                 bytes: blind.to_bytes(),
             });
@@ -1087,7 +1087,7 @@ impl Door {
             user_handle: assertion.user_handle,
         };
         ckyh::lineage::verify(&descriptor, &assertion, confirmation)
-            .map_err(Error::Unauthorized.redact())?;
+            .map_err(Error::Unauthorized.redact_at("service.rs:15"))?;
         let global = self.global_backend()?.lock().await;
         let blind = global
             .facade
@@ -1100,7 +1100,7 @@ impl Door {
                 ctx.now,
             )
             .await
-            .map_err(Error::Refused.redact())?;
+            .map_err(Error::Refused.redact_at("service.rs:16"))?;
         Ok(Bytes {
             bytes: blind.to_bytes(),
         })
@@ -1141,7 +1141,7 @@ impl Door {
                     ctx.now,
                 )
                 .await
-                .map_err(Error::Refused.redact())?;
+                .map_err(Error::Refused.redact_at("service.rs:17"))?;
             return Ok(Bytes {
                 bytes: passport.to_bytes(),
             });
@@ -1164,7 +1164,7 @@ impl Door {
                 },
             )
             .await
-            .map_err(Error::Refused.redact())?;
+            .map_err(Error::Refused.redact_at("service.rs:18"))?;
         Ok(Bytes {
             bytes: passport.to_bytes(),
         })
@@ -1184,7 +1184,7 @@ impl Door {
                 &check,
             )
             .await
-            .map_err(Error::Refused.redact())?;
+            .map_err(Error::Refused.redact_at("service.rs:19"))?;
         Ok(Empty {})
     }
 }

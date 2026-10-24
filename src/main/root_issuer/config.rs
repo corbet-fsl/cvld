@@ -32,7 +32,10 @@ pub(super) fn read(path: &str) -> Result<Prepared> {
     let mut names = BTreeSet::new();
     let mut hosts = BTreeSet::new();
     hosts.insert(host(root.community_name(), root.domain())?);
-    hosts.insert(host(&format!("admin.{}", root.community_name()), root.domain())?);
+    hosts.insert(host(
+        &format!("admin.{}", root.community_name()),
+        root.domain(),
+    )?);
     let mut sources = Vec::new();
     for path in files.source_configs {
         let source = CommunityConfig::read(&path)?;

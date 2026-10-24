@@ -69,10 +69,20 @@ mod tests {
         let out = changes(&book(7), &pending).unwrap();
         assert_eq!(out.len(), 2);
         assert_eq!(out[0].key, "waves.waiting_period_days");
-        assert_eq!((out[0].from.as_i64(), out[0].to.as_i64()), (Some(7), Some(14)));
+        assert_eq!(
+            (out[0].from.as_i64(), out[0].to.as_i64()),
+            (Some(7), Some(14))
+        );
         assert_eq!(out[0].effective_at, 1_000);
-        assert_eq!((out[1].from.as_i64(), out[1].to.as_i64()), (Some(14), Some(21)));
-        assert!(changes(&book(7), &[revision(2, 7, 1_000)]).unwrap().is_empty());
+        assert_eq!(
+            (out[1].from.as_i64(), out[1].to.as_i64()),
+            (Some(14), Some(21))
+        );
+        assert!(
+            changes(&book(7), &[revision(2, 7, 1_000)])
+                .unwrap()
+                .is_empty()
+        );
         assert!(changes(&book(7), &[]).unwrap().is_empty());
     }
 }

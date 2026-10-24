@@ -40,9 +40,9 @@ impl Door {
                 .as_ref()
                 .ok_or(Error::Forbidden)?
                 .key_ring()
-                .map_err(Error::Refused.redact())?
+                .map_err(Error::Refused.redact_at("service/wallet.rs:1"))?
                 .verify(issued.bytes(), csgn::Kind::Credential, returned_at)
-                .map_err(Error::Refused.redact())?;
+                .map_err(Error::Refused.redact_at("service/wallet.rs:2"))?;
             // No await follows the same-session/current-key/lifetime check.
             Ok(PasskeyCertificateResponse {
                 bytes: issued.into_bytes(),
@@ -192,14 +192,14 @@ impl Door {
         wallet
             .trust_feed(now)
             .await
-            .map_err(Error::Unavailable.redact())?;
+            .map_err(Error::Unavailable.redact_at("service/wallet.rs:3"))?;
         let completed = self.inner.clock.now();
         if completed < now {
             return Err(Error::Unavailable);
         }
         let feed = wallet
             .published_feed(completed)
-            .map_err(Error::Unavailable.redact())?;
+            .map_err(Error::Unavailable.redact_at("service/wallet.rs:4"))?;
         Ok(TrustFeed {
             revision: feed.revision,
             policy_epoch: feed.policy_epoch,
@@ -237,14 +237,14 @@ impl Door {
         let notice = wallet
             .trust_changes(request.revision, now)
             .await
-            .map_err(Error::Unavailable.redact())?;
+            .map_err(Error::Unavailable.redact_at("service/wallet.rs:5"))?;
         let completed = self.inner.clock.now();
         if completed < now {
             return Err(Error::Unavailable);
         }
         wallet
             .published_feed(completed)
-            .map_err(Error::Unavailable.redact())?;
+            .map_err(Error::Unavailable.redact_at("service/wallet.rs:6"))?;
         Ok(Announcement {
             revision: notice.revision,
             policy_epoch: notice.policy_epoch,

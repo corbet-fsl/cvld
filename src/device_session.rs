@@ -20,7 +20,10 @@ pub fn message(community: &str, nonce: &[u8; NONCE_LEN], issued: u64) -> Vec<u8>
 /// for a member session never opens an admin session.
 pub fn garden_message(community: &str, nonce: &[u8; NONCE_LEN], issued: u64) -> Vec<u8> {
     let mut message = message(community, nonce, issued);
-    message.splice(0..b"cvld.device-session.v1\0".len(), b"cvld.garden-session.v1\0".iter().copied());
+    message.splice(
+        0..b"cvld.device-session.v1\0".len(),
+        b"cvld.garden-session.v1\0".iter().copied(),
+    );
     message
 }
 

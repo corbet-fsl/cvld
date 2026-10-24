@@ -252,7 +252,8 @@ impl AccountConfig {
             return Err(Error::Invalid);
         }
         keep(&file("operator-seed"), &derive(seed, b"operator")?)?;
-        let own_issuer = self.certificate_key_scope == super::config::CertificateKeyScope::Community;
+        let own_issuer =
+            self.certificate_key_scope == super::config::CertificateKeyScope::Community;
         if own_issuer {
             keep(&file("certificate-seed"), &derive(seed, b"certificate")?)?;
         }

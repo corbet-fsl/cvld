@@ -192,7 +192,7 @@ impl Door {
             .membership()
             .reserve_handle(ctx.member()?, &request.handle, &reserved)
             .await
-            .map_err(Error::Refused.redact())?;
+            .map_err(Error::Refused.redact_at("community_actions.rs:1"))?;
         community.lobby(ctx.member()?, ctx.now).await
     }
     pub(crate) async fn voucher_redeem(
@@ -325,7 +325,7 @@ impl Door {
         let policy = community.facade.policy().lock().await;
         let schema = policy
             .schema()
-            .map_err(Error::Unavailable.redact())?
+            .map_err(Error::Unavailable.redact_at("community_actions.rs:2"))?
             .ok_or(Error::Unavailable)?;
         if !schema
             .public
@@ -341,7 +341,7 @@ impl Door {
             .membership()
             .pin(ctx.member()?, &request.field, &request.pin)
             .await
-            .map_err(Error::Refused.redact())?;
+            .map_err(Error::Refused.redact_at("community_actions.rs:3"))?;
         Ok(pin_response(Some(pin)))
     }
     pub(crate) async fn pin_change(&self, ctx: Context, request: PinChange) -> Result<PinResponse> {
@@ -366,7 +366,7 @@ impl Door {
             .membership()
             .get_pin(ctx.member()?, &request.field)
             .await
-            .map_err(Error::Refused.redact())?;
+            .map_err(Error::Refused.redact_at("community_actions.rs:4"))?;
         Ok(pin_response(pin))
     }
     pub(crate) async fn setting_list(&self, ctx: Context, _: Empty) -> Result<SettingList> {
@@ -500,19 +500,19 @@ impl Door {
                         community.config.minimum_notice_seconds,
                     )
                     .await
-                    .map_err(Error::Refused.redact())?;
+                    .map_err(Error::Refused.redact_at("community_actions.rs:5"))?;
             }
         }
         let completed = self
             .policy_garden_release(&ctx, &community, lease.as_mut())
             .await
-            .map_err(Error::Reconcile.redact())?;
+            .map_err(Error::Reconcile.redact_at("community_actions.rs:6"))?;
         drop(lease);
         drop(policy);
         community
             .refresh(completed)
             .await
-            .map_err(Error::Reconcile.redact())?;
+            .map_err(Error::Reconcile.redact_at("community_actions.rs:7"))?;
         Ok(community.public.clone())
     }
     pub(crate) async fn schema_check(
@@ -527,14 +527,15 @@ impl Door {
             .await?;
         let old = policy
             .schema()
-            .map_err(Error::Unavailable.redact())?
+            .map_err(Error::Unavailable.redact_at("community_actions.rs:8"))?
             .ok_or(Error::Unavailable)?;
         let changes =
             cplc::cshm::classify_changes(old, &request.schema).map_err(Error::Invalid.redact())?;
         self.policy_garden_release(&ctx, &community, lease.as_mut())
             .await?;
         Ok(SchemaChanges {
-            changes: serde_json::to_value(changes).map_err(Error::Unavailable.redact())?,
+            changes: serde_json::to_value(changes)
+                .map_err(Error::Unavailable.redact_at("community_actions.rs:9"))?,
         })
     }
     pub(crate) async fn schema_set(
@@ -564,19 +565,19 @@ impl Door {
                 policy
                     .set_schema(request.schema)
                     .await
-                    .map_err(Error::Refused.redact())?;
+                    .map_err(Error::Refused.redact_at("community_actions.rs:10"))?;
             }
         }
         let completed = self
             .policy_garden_release(&ctx, &community, lease.as_mut())
             .await
-            .map_err(Error::Reconcile.redact())?;
+            .map_err(Error::Reconcile.redact_at("community_actions.rs:11"))?;
         drop(lease);
         drop(policy);
         community
             .refresh(completed)
             .await
-            .map_err(Error::Reconcile.redact())?;
+            .map_err(Error::Reconcile.redact_at("community_actions.rs:12"))?;
         Ok(community.public.clone())
     }
     pub(crate) async fn trust_feed(&self, _: Context, _: Empty) -> Result<TrustFeed> {
@@ -612,7 +613,7 @@ impl Door {
             .membership()
             .passkeys(authentication)
             .await
-            .map_err(Error::Refused.redact())?;
+            .map_err(Error::Refused.redact_at("community_actions.rs:13"))?;
         Ok(PasskeyList::from_records(
             records,
             authentication.credential_id(),
@@ -693,12 +694,12 @@ impl Door {
             .membership()
             .authorize_device_key(auth, key)
             .await
-            .map_err(Error::Refused.redact())?;
+            .map_err(Error::Refused.redact_at("community_actions.rs:14"))?;
         if community
             .facade
             .flush_revocations(ctx.now)
             .await
-            .map_err(Error::Unavailable.redact())?
+            .map_err(Error::Unavailable.redact_at("community_actions.rs:15"))?
             > 0
         {
             community.refresh(ctx.now).await?;
@@ -708,7 +709,7 @@ impl Door {
             .membership()
             .current_device_keys(auth)
             .await
-            .map_err(Error::Refused.redact())?;
+            .map_err(Error::Refused.redact_at("community_actions.rs:16"))?;
         Ok(DeviceKeys { keys })
     }
 
@@ -736,11 +737,11 @@ impl Door {
         membership
             .authorize_pending_device_key(auth, key)
             .await
-            .map_err(Error::Refused.redact())?;
+            .map_err(Error::Refused.redact_at("community_actions.rs:17"))?;
         let keys = membership
             .current_device_keys(auth)
             .await
-            .map_err(Error::Refused.redact())?;
+            .map_err(Error::Refused.redact_at("community_actions.rs:18"))?;
         Ok(DeviceKeys { keys })
     }
 
@@ -760,11 +761,11 @@ impl Door {
         membership
             .approve_pending_device_key(auth, key)
             .await
-            .map_err(Error::Refused.redact())?;
+            .map_err(Error::Refused.redact_at("community_actions.rs:19"))?;
         let keys = membership
             .current_device_keys(auth)
             .await
-            .map_err(Error::Refused.redact())?;
+            .map_err(Error::Refused.redact_at("community_actions.rs:20"))?;
         Ok(DeviceKeys { keys })
     }
 
@@ -780,11 +781,11 @@ impl Door {
         membership
             .confirm_device_key(auth, request.key)
             .await
-            .map_err(Error::Refused.redact())?;
+            .map_err(Error::Refused.redact_at("community_actions.rs:21"))?;
         let keys = membership
             .current_device_keys(auth)
             .await
-            .map_err(Error::Refused.redact())?;
+            .map_err(Error::Refused.redact_at("community_actions.rs:22"))?;
         Ok(DeviceKeys { keys })
     }
 
@@ -804,12 +805,12 @@ impl Door {
             .membership()
             .revoke_device_key(auth, key)
             .await
-            .map_err(Error::Refused.redact())?;
+            .map_err(Error::Refused.redact_at("community_actions.rs:23"))?;
         if community
             .facade
             .flush_revocations(ctx.now)
             .await
-            .map_err(Error::Unavailable.redact())?
+            .map_err(Error::Unavailable.redact_at("community_actions.rs:24"))?
             > 0
         {
             community.refresh(ctx.now).await?;
@@ -819,7 +820,7 @@ impl Door {
             .membership()
             .current_device_keys(auth)
             .await
-            .map_err(Error::Refused.redact())?;
+            .map_err(Error::Refused.redact_at("community_actions.rs:25"))?;
         Ok(DeviceKeys { keys })
     }
 
@@ -830,7 +831,7 @@ impl Door {
             .membership()
             .current_device_keys(ctx.member()?)
             .await
-            .map_err(Error::Refused.redact())?;
+            .map_err(Error::Refused.redact_at("community_actions.rs:26"))?;
         Ok(DeviceKeys { keys })
     }
 
@@ -878,13 +879,13 @@ impl Door {
             .membership()
             .revoke_passkey(ctx.human_member()?, credential.clone())
             .await
-            .map_err(Error::Refused.redact())?;
+            .map_err(Error::Refused.redact_at("community_actions.rs:27"))?;
         community.revoke_sessions(&credential);
         community
             .facade
             .flush_revocations(ctx.now)
             .await
-            .map_err(Error::Unavailable.redact())?;
+            .map_err(Error::Unavailable.redact_at("community_actions.rs:28"))?;
         community.refresh(ctx.now).await?;
         Ok(Empty {})
     }

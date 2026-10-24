@@ -39,9 +39,15 @@ async fn fixture() -> (Running, Member, GlobalPublic) {
     let member = enrol_community(&service, HOST, &passport).await;
     // The fixture member is a passkey member; give it the registered device key a join binds.
     let community = service.door.community_backend().unwrap().lock().await;
-    device_registry::put(&community.db, "alpha", &member.user, &joined(), State::Active)
-        .await
-        .unwrap();
+    device_registry::put(
+        &community.db,
+        "alpha",
+        &member.user,
+        &joined(),
+        State::Active,
+    )
+    .await
+    .unwrap();
     drop(community);
     (service, member, public)
 }
@@ -267,7 +273,17 @@ async fn a_device_session_is_a_full_member_session_except_for_human_confirmation
     );
     // Human confirmations stay passkey-only until the confirmation stamp exists.
     let action = json!({"kind":"device_authorize","key":joined()});
-    assert!(device.call("step_up_begin", json!({"action": action})).await.is_err());
-    assert!(passkey.call("step_up_begin", json!({"action": action})).await.is_ok());
+    assert!(
+        device
+            .call("step_up_begin", json!({"action": action}))
+            .await
+            .is_err()
+    );
+    assert!(
+        passkey
+            .call("step_up_begin", json!({"action": action}))
+            .await
+            .is_ok()
+    );
     assert!(device.call("passkey_list", json!({})).await.is_err());
 }

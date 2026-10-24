@@ -29,11 +29,9 @@ pub mod config;
 pub mod contact_gates;
 #[cfg(feature = "client")]
 pub mod creation_token;
-pub mod device_session;
 #[cfg(feature = "server")]
 mod device_registry;
-#[cfg(feature = "server")]
-mod stamp_uses;
+pub mod device_session;
 pub mod error;
 #[cfg(feature = "server")]
 mod genesis_store;
@@ -42,9 +40,9 @@ mod global;
 #[cfg(feature = "server")]
 mod global_trust;
 #[cfg(feature = "server")]
-pub mod hosts;
-#[cfg(feature = "server")]
 pub mod hold;
+#[cfg(feature = "server")]
+pub mod hosts;
 #[cfg(feature = "server")]
 pub mod hub;
 #[cfg(feature = "server")]
@@ -61,6 +59,8 @@ pub mod purge;
 pub mod registry;
 #[cfg(feature = "server")]
 pub mod service;
+#[cfg(feature = "server")]
+mod stamp_uses;
 #[cfg(feature = "server")]
 mod step_up;
 

@@ -69,7 +69,10 @@ mod tests {
         let (secret, public) = generate();
         let sealed = seal(&public, b"community-1", b"held rows").unwrap();
         assert!(!sealed.windows(9).any(|w| w == b"held rows"));
-        assert_eq!(open(&secret, b"community-1", &sealed).unwrap(), b"held rows");
+        assert_eq!(
+            open(&secret, b"community-1", &sealed).unwrap(),
+            b"held rows"
+        );
         // Another community, another key, or a flipped bit never opens.
         assert!(open(&secret, b"community-2", &sealed).is_err());
         let (other, _) = generate();
