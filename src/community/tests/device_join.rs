@@ -81,9 +81,12 @@ impl ckmg::Authority for KeysAuthority {
 }
 
 /// The member's first community lineage made by Keys on the device: the `Created` receipt and
-/// the device key that signed it, which also joins and opens the member's sessions.
+/// the device key that signed it, which also joins and opens the member's sessions. Device
+/// signatures are typed: the join and the session are signed the way a device-key member
+/// signs them before activation, by its enrollment candidate (the same PRF-derived key).
 struct KeysDevice {
-    keys: ckmg::Keys<KeysStore, KeysClock, ckmg::SystemEntropy, KeysAuthority>,
+    _keys: ckmg::Keys<KeysStore, KeysClock, ckmg::SystemEntropy, KeysAuthority>,
+    candidate: ckmg::UnenrolledCreation,
     key: [u8; 32],
     receipt: ckmg::Receipt,
 }
@@ -92,9 +95,9 @@ impl Device for KeysDevice {
         self.key
     }
     async fn sign(&mut self, message: &[u8]) -> Vec<u8> {
-        self.keys
-            .sign_device_ed25519(message, NOW + 600)
-            .await
+        let format = ckmg::DeviceFormat::of(message).unwrap();
+        self.candidate
+            .sign_device(format, &message[format.tag().len()..])
             .unwrap()
             .to_vec()
     }
@@ -121,7 +124,24 @@ async fn keys_device(community: &str, member: &str) -> KeysDevice {
     keys.unlock(&prf, community).await.unwrap();
     let key = *keys.device_public_key().await.unwrap().value();
     assert_eq!(*receipt.attested_lineage().unwrap().1.value(), key);
-    KeysDevice { keys, key, receipt }
+    let candidate = ckmg::EnrollmentSeed::new(
+        ckmg::Binding::new(community, member).unwrap(),
+        &mut ckmg::SystemEntropy,
+    )
+    .unwrap()
+    .seal(
+        &prf,
+        ckmg::DeviceInfo::new("fixture", &[7; 16]).unwrap(),
+        &mut KeysClock,
+        &mut ckmg::SystemEntropy,
+    )
+    .unwrap();
+    KeysDevice {
+        _keys: keys,
+        candidate,
+        key,
+        receipt,
+    }
 }
 
 struct Wallet {
@@ -1174,10 +1194,10 @@ async fn the_birth_session_binds_the_device_and_the_publication_with_birth_evide
         &keys.key,
     )
     .unwrap();
-    let signature = ckmg::passkey::sign_device_opened(
+    let signature = ckmg::passkey::sign_device_birth(
         &prf,
         "wallet",
-        ckmg::DevicePurpose::WalletBirthDevice,
+        ckmg::DeviceFormat::WalletBirthDevice,
         &payload,
     )
     .unwrap();
