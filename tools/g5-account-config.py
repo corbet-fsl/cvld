@@ -10,7 +10,7 @@ fixture seeds (test mode only) and a fresh settlement epoch with its RSA key.
 
 Output: <out>/account-config.json (cvld `AccountConfig`) and
 <out>/activation-probe.json (the retained probe, byte-identical) plus its digest and
-<out>/template-ledger-policy.json (hub-created communities: rate window = checkpoint period),
+<out>/template-ledger-policy.json (hub-created communities: rate window = 2 checkpoint periods, admission counts doubled),
 printed as shell exports with --exports. Production deployments pass real seed
 files (--operator-seed-file/--certificate-seed-file, from sops) and a production
 settlement key; test mode derives the fixture seeds named in the cblc request.
@@ -284,7 +284,11 @@ def main():
     # template the account policy would refuse (abandon_after >= rate_window, cwlt account/policy.rs),
     # and nothing consumes it there, so no template is derived or checked for alpha.
     if args.community == "omega":
-        template_ledger = dict(ledger, account=dict(policy, rateWindow=2 * ledger["checkpointPeriodSeconds"]))
+        # Admission counts are per rate window: they scale with it, so the genesis rate per hour is unchanged.
+        period = ledger["checkpointPeriodSeconds"]
+        template_ledger = dict(ledger, account=dict(policy, rateWindow=2 * period,
+            newcomerAdmissions=2 * policy["newcomerAdmissions"],
+            maximumAdmissions=2 * policy["maximumAdmissions"]))
         if template_ledger["account"]["abandonAfter"] < template_ledger["account"]["rateWindow"]:
             fail("the template rate window exceeds abandonAfter")
         (out / "template-ledger-policy.json").write_text(json.dumps(template_ledger))
