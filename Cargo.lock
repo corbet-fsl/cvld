@@ -1444,7 +1444,7 @@ dependencies = [
 [[package]]
 name = "ckmg"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-foss/ckmg.git?branch=main#5101d21c93c700228ea91ced598ef61bcfccb327"
+source = "git+https://git.corbet.ch/corbet-foss/ckmg.git?branch=main#f57af1967fec868fdb9885d917c884d380c33833"
 dependencies = [
  "blake3",
  "cdht",
@@ -6665,7 +6665,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix 1.1.5",
  "windows-sys 0.61.2",
