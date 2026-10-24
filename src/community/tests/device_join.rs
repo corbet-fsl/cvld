@@ -1108,9 +1108,20 @@ async fn the_birth_session_issues_the_first_stamp_without_an_assertion_once() {
     let issued = client.call("stamp_issue", body.clone()).await.unwrap();
     assert_eq!(client.call("stamp_issue", body).await.unwrap(), issued);
     let blind: Bytes = serde_json::from_value(issued).unwrap();
+    // The device expects the epoch of the signed global status, not one from the reply.
+    let public: GlobalPublic =
+        serde_json::from_value(client.call("global_public", json!({})).await.unwrap()).unwrap();
+    let epoch = cchr::global_stamp_trust(&public.key_ring, &public.status, NOW)
+        .unwrap()
+        .epoch()
+        .unwrap();
     wallet
         .holder
-        .finish_stamp(&cpsd::BlindStamp::from_bytes(&blind.bytes).unwrap(), NOW)
+        .finish_stamp(
+            &cpsd::BlindStamp::from_bytes(&blind.bytes).unwrap(),
+            epoch,
+            NOW,
+        )
         .unwrap();
     // The birth item is closed: another assertion-free request is refused...
     let (body, reserved, request, challenge) = stamp_request(&global, &mut wallet, 8).await;
