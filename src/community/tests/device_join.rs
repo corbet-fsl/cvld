@@ -2,11 +2,11 @@
 //! user verification of its passkey over the exact request; the community binds the member's
 //! first device key from a passport presentation plus that stamp, with no community passkey,
 //! and the key then opens sessions silently.
+use super::device_session::DEFAULT_STAMP_COHORT_SECONDS;
 use super::*;
 use crate::device_session::{
     ACTIVATE_ACTION, ADD_ACTION, JOIN_ACTION, join_message, join_payload, message, pairing_payload,
 };
-use super::device_session::DEFAULT_STAMP_COHORT_SECONDS;
 use crate::test_support::*;
 use ed25519_dalek::SigningKey;
 use serde_json::{Value, json};
@@ -526,7 +526,10 @@ async fn a_stamp_needs_the_exact_user_verification_and_the_members_own_passport(
     let issued = client.call("stamp_issue", body.clone()).await.unwrap();
     assert_eq!(client.call("stamp_issue", body).await.unwrap(), issued);
     let unverified = json!({"challenge":challenge.to_bytes().to_vec(),"request":request.to_bytes(),"assertion":wrong});
-    assert_eq!(client.call("stamp_issue", unverified).await.unwrap(), issued);
+    assert_eq!(
+        client.call("stamp_issue", unverified).await.unwrap(),
+        issued
+    );
     // A different request is never a replay: it needs its own confirmation.
     assert!(
         client
@@ -768,7 +771,10 @@ async fn an_expired_genesis_stamp_only_re_confirms_the_same_recorded_pending_gen
         .to_bytes()
         .unwrap()
     };
-    let (good, fresh) = (evidence(&genesis, genesis_salt), evidence(&other, other_salt));
+    let (good, fresh) = (
+        evidence(&genesis, genesis_salt),
+        evidence(&other, other_salt),
+    );
     let pending = |evidence: &Vec<u8>| crate::api::InitialPublicationBind {
         seed: SEED,
         publication: [57; 32],
@@ -822,9 +828,7 @@ async fn an_expired_genesis_stamp_only_re_confirms_the_same_recorded_pending_gen
         .await
         .unwrap();
     let member = client(&service, HOST, Some(&session.token));
-    let bind = |evidence: &Vec<u8>| {
-        json!({"seed": SEED, "publication": vec![57u8; 32], "evidence": evidence})
-    };
+    let bind = |evidence: &Vec<u8>| json!({"seed": SEED, "publication": vec![57u8; 32], "evidence": evidence});
     // A NEW genesis with the expired stamp is refused: nothing recorded, nothing bound. The
     // join's record is pruned with its stamp; only the retained pending genesis is left.
     assert!(
@@ -920,7 +924,10 @@ fn pairing_payloads_separate_steps_and_keys() {
         pairing_payload(ADD_ACTION, &a),
         pairing_payload(ACTIVATE_ACTION, &a)
     );
-    assert_ne!(pairing_payload(ADD_ACTION, &a), pairing_payload(ADD_ACTION, &b));
+    assert_ne!(
+        pairing_payload(ADD_ACTION, &a),
+        pairing_payload(ADD_ACTION, &b)
+    );
     assert_ne!(pairing_payload(ADD_ACTION, &a), join_payload(&a, &[0; 32]));
 }
 
@@ -948,7 +955,10 @@ async fn a_further_device_key_is_pending_until_its_activation_stamp() {
         &mut wallet,
         &[
             (scope.clone(), join_action(&key, join_salt)),
-            (scope.clone(), pairing_action(ADD_ACTION, &second_key, add_salt)),
+            (
+                scope.clone(),
+                pairing_action(ADD_ACTION, &second_key, add_salt),
+            ),
             (
                 scope,
                 pairing_action(ACTIVATE_ACTION, &second_key, activate_salt),
@@ -966,11 +976,17 @@ async fn a_further_device_key_is_pending_until_its_activation_stamp() {
     .unwrap();
     let anonymous = client(&service, HOST, None);
     // Activation before registration is refused and does not burn the stamp.
-    let early = pairing_body(&service, &wallet, ACTIVATE_ACTION, &mut second, activate_salt).await;
+    let early = pairing_body(
+        &service,
+        &wallet,
+        ACTIVATE_ACTION,
+        &mut second,
+        activate_salt,
+    )
+    .await;
     assert!(anonymous.call("device_activate", early).await.is_err());
     // The add stamp does not approve the activation step, nor another key's add.
-    let mut mismatched =
-        pairing_body(&service, &wallet, ADD_ACTION, &mut second, add_salt).await;
+    let mut mismatched = pairing_body(&service, &wallet, ADD_ACTION, &mut second, add_salt).await;
     mismatched["salt"] = json!(activate_salt);
     assert!(anonymous.call("device_add", mismatched).await.is_err());
     let mut other_key = pairing_body(&service, &wallet, ADD_ACTION, &mut second, add_salt).await;
@@ -981,10 +997,20 @@ async fn a_further_device_key_is_pending_until_its_activation_stamp() {
     anonymous.call("device_add", add).await.unwrap();
     let again = pairing_body(&service, &wallet, ADD_ACTION, &mut second, add_salt).await;
     anonymous.call("device_add", again).await.unwrap();
-    assert!(open_session(&service, &joined.user, &mut second).await.is_err());
+    assert!(
+        open_session(&service, &joined.user, &mut second)
+            .await
+            .is_err()
+    );
     // Activate: the key now opens a full member session; the first key still does.
-    let activate =
-        pairing_body(&service, &wallet, ACTIVATE_ACTION, &mut second, activate_salt).await;
+    let activate = pairing_body(
+        &service,
+        &wallet,
+        ACTIVATE_ACTION,
+        &mut second,
+        activate_salt,
+    )
+    .await;
     anonymous.call("device_activate", activate).await.unwrap();
     let session = open_session(&service, &joined.user, &mut second)
         .await
@@ -994,8 +1020,14 @@ async fn a_further_device_key_is_pending_until_its_activation_stamp() {
         .await
         .unwrap();
     // A stamp-less pairing request is refused.
-    let mut stampless =
-        pairing_body(&service, &wallet, ACTIVATE_ACTION, &mut second, activate_salt).await;
+    let mut stampless = pairing_body(
+        &service,
+        &wallet,
+        ACTIVATE_ACTION,
+        &mut second,
+        activate_salt,
+    )
+    .await;
     stampless["stamp"] = json!(Vec::<u8>::new());
     assert!(anonymous.call("device_activate", stampless).await.is_err());
 }
@@ -1005,11 +1037,17 @@ async fn stamp_request(
     global: &Running,
     wallet: &mut Wallet,
     key_seed: u8,
-) -> (Value, crate::api::StampChallenge, cpsd::StampIssuanceRequest, cpsd::IssuanceChallenge) {
+) -> (
+    Value,
+    crate::api::StampChallenge,
+    cpsd::StampIssuanceRequest,
+    cpsd::IssuanceChallenge,
+) {
     let client = client(global, WALLET, Some(&wallet.member.session));
     let reserved: crate::api::StampChallenge =
         serde_json::from_value(client.call("stamp_challenge", json!({})).await.unwrap()).unwrap();
-    let challenge = cpsd::IssuanceChallenge::from_bytes(reserved.challenge.clone().try_into().unwrap());
+    let challenge =
+        cpsd::IssuanceChallenge::from_bytes(reserved.challenge.clone().try_into().unwrap());
     let key = cpsd::StampPublicKey::from_bytes(&reserved.key).unwrap();
     let request = wallet
         .holder
@@ -1068,7 +1106,12 @@ async fn the_birth_session_issues_the_first_stamp_without_an_assertion_once() {
 async fn after_a_normal_stamp_no_session_issues_an_assertion_free_stamp() {
     let global = configured_wallet(100).await;
     let mut wallet = wallet(&global, 65).await;
-    stamp(&global, &mut wallet, &[(scope("alpha"), join_action(&[9; 32], [9; 32]))]).await;
+    stamp(
+        &global,
+        &mut wallet,
+        &[(scope("alpha"), join_action(&[9; 32], [9; 32]))],
+    )
+    .await;
     let client = client(&global, WALLET, Some(&wallet.member.session));
     let (body, _, _, _) = stamp_request(&global, &mut wallet, 10).await;
     assert!(client.call("stamp_issue", body).await.is_err());

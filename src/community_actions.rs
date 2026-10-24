@@ -133,7 +133,11 @@ impl Door {
             .garden_session_finish(request, ctx.now)
             .await
     }
-    pub(crate) async fn device_join(&self, ctx: Context, request: DeviceJoin) -> Result<DeviceJoined> {
+    pub(crate) async fn device_join(
+        &self,
+        ctx: Context,
+        request: DeviceJoin,
+    ) -> Result<DeviceJoined> {
         self.community_backend()?
             .lock()
             .await
@@ -147,7 +151,11 @@ impl Door {
             .device_pairing(crate::device_session::ADD_ACTION, request, ctx.now)
             .await
     }
-    pub(crate) async fn device_activate(&self, ctx: Context, request: DevicePairing) -> Result<Empty> {
+    pub(crate) async fn device_activate(
+        &self,
+        ctx: Context,
+        request: DevicePairing,
+    ) -> Result<Empty> {
         self.community_backend()?
             .lock()
             .await

@@ -19,8 +19,8 @@ mod account_tuning;
 mod accounting;
 mod admission;
 mod certificate;
-mod device_session;
 pub(crate) mod creation;
+mod device_session;
 mod enrollment;
 pub(crate) mod garden;
 mod held;
@@ -61,17 +61,17 @@ pub type Facade = cmty::Community<
 mod devices;
 
 #[cfg(all(test, feature = "development-gate"))]
+#[path = "community/tests/device_join.rs"]
+mod device_join_tests;
+#[cfg(all(test, feature = "development-gate"))]
+#[path = "community/tests/device_session.rs"]
+mod device_session_tests;
+#[cfg(all(test, feature = "development-gate"))]
 #[path = "community/tests/negative.rs"]
 mod negative;
 #[cfg(all(test, feature = "development-gate"))]
 #[path = "community/tests/publication.rs"]
 mod publication_tests;
-#[cfg(all(test, feature = "development-gate"))]
-#[path = "community/tests/device_session.rs"]
-mod device_session_tests;
-#[cfg(all(test, feature = "development-gate"))]
-#[path = "community/tests/device_join.rs"]
-mod device_join_tests;
 #[cfg(all(test, feature = "development-gate"))]
 #[path = "community/tests/step_up.rs"]
 mod step_up_tests;
@@ -1179,7 +1179,10 @@ impl CommunityService {
             passport_required: true,
             role,
             upcoming: lobby_upcoming::changes(
-                &policy.rulebook(now).await.map_err(Error::Unavailable.redact())?,
+                &policy
+                    .rulebook(now)
+                    .await
+                    .map_err(Error::Unavailable.redact())?,
                 &policy
                     .upcoming(now, lobby_upcoming::LOOKAHEAD)
                     .await
@@ -1256,8 +1259,7 @@ impl CommunityService {
         // Never trust an issuer flag or a role: skipping sign-off will be a proven
         // property of the Issue presentation (standing >= the rulebook threshold).
         // Until then the default decides: multi-use links always need sign-off.
-        self.register_link(&member, false, request, now)
-            .await
+        self.register_link(&member, false, request, now).await
     }
     /// Development only: register a link for a member who is not yet admitted,
     /// so fixtures can bootstrap the first admissions.

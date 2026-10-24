@@ -3,7 +3,8 @@
 //! Renewal is the same exchange. Every refusal after the nonce lookup is the same `Unauthorized`.
 use super::*;
 use crate::device_session::{
-    ACTIVATE_ACTION, ADD_ACTION, JOIN_ACTION, NONCE_LEN, NONCE_SECONDS, join_message, join_payload, message, pairing_payload,
+    ACTIVATE_ACTION, ADD_ACTION, JOIN_ACTION, NONCE_LEN, NONCE_SECONDS, join_message, join_payload,
+    message, pairing_payload,
 };
 use ed25519_dalek::{Signature, VerifyingKey};
 

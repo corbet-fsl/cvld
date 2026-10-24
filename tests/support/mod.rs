@@ -573,7 +573,11 @@ async fn community_unfounded_with(
     let dir = tempfile::tempdir().unwrap();
     let mut config = community_config(dir.path(), name, public, burst);
     adjust(&mut config);
-    write(dir.path(), "config.json", &serde_json::to_vec(&config).unwrap());
+    write(
+        dir.path(),
+        "config.json",
+        &serde_json::to_vec(&config).unwrap(),
+    );
     let clock = Arc::new(TestClock(AtomicU64::new(NOW)));
     let door = Door::community(config, clock.clone()).await.unwrap();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -947,7 +951,8 @@ pub async fn wallet_config_at(dir: &Path, burst: u32, now: u64) -> Config {
         )
         .unwrap();
         key.to_secret_bytes()
-    }).unwrap();
+    })
+    .unwrap();
     config.wallet = Some(cvld::config::WalletConfig {
         signing_seed_file: seed.to_str().unwrap().into(),
         publication_file: settings.to_str().unwrap().into(),

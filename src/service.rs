@@ -293,8 +293,16 @@ impl Door {
         let sources = source_buckets(config.throttle_burst, config.throttle_interval_ms)?;
         let proxies = crate::bucket::Proxies::new(&config.trusted_proxies).ok_or(Error::Invalid)?;
         let names: Vec<String> = hosts.keys().cloned().collect();
-        let hub_slot: Arc<std::sync::OnceLock<Arc<dyn CommunityHub>>> = Arc::new(std::sync::OnceLock::new());
-        let ohttp = crate::ohttp::build(config.ohttp.as_ref(), &names, &db, "ohttp", Some(hub_slot.clone())).await?;
+        let hub_slot: Arc<std::sync::OnceLock<Arc<dyn CommunityHub>>> =
+            Arc::new(std::sync::OnceLock::new());
+        let ohttp = crate::ohttp::build(
+            config.ohttp.as_ref(),
+            &names,
+            &db,
+            "ohttp",
+            Some(hub_slot.clone()),
+        )
+        .await?;
         Ok(Self {
             inner: Arc::new(Inner {
                 requests: Arc::new(Mutex::new(())),
@@ -529,7 +537,8 @@ impl Door {
                 crate::bucket::Proxies::new(&config.trusted_proxies).ok_or(Error::Invalid)?;
             let names: Vec<String> = hosts.keys().cloned().collect();
             let ohttp =
-                crate::ohttp::build(config.ohttp.as_ref(), &names, &db, &config.community, None).await?;
+                crate::ohttp::build(config.ohttp.as_ref(), &names, &db, &config.community, None)
+                    .await?;
             Ok(Self {
                 inner: Arc::new(Inner {
                     hub: Arc::new(std::sync::OnceLock::new()),
@@ -1011,10 +1020,12 @@ impl Door {
         let auth = auth.lock().await;
         let passkeys = auth.passkeys.clone();
         let (user, credential) = (grant.user, grant.credential.clone());
-        tokio::task::spawn_blocking(move || passkeys.registered_public_credential(user, &credential))
-            .await
-            .map_err(Error::Unavailable.redact())?
-            .map_err(Error::Unauthorized.redact())
+        tokio::task::spawn_blocking(move || {
+            passkeys.registered_public_credential(user, &credential)
+        })
+        .await
+        .map_err(Error::Unavailable.redact())?
+        .map_err(Error::Unauthorized.redact())
     }
     /// The one human confirmation of a stamp: a user-verifying assertion of THIS session's
     /// wallet passkey whose WebAuthn challenge is exactly the request's confirmation challenge.

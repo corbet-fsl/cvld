@@ -28,7 +28,9 @@ async fn born(auth: &mut Auth, device: &mut Resident) -> Session {
         .register_finish_wallet_live(finish, NOW, &clock, None, true)
         .await
         .unwrap();
-    let session = registered.session.expect("the wallet registration mints a session");
+    let session = registered
+        .session
+        .expect("the wallet registration mints a session");
     assert_eq!(session.user, registered.user);
     session
 }
@@ -45,13 +47,17 @@ async fn the_registration_session_holds_the_birth_grant_until_t_birth() {
     assert_eq!(grant.uv_at, Some(NOW));
     assert_eq!(grant.user.to_string(), session.user);
     // Each use rechecks: at T_birth still granted, one second later refused for good.
-    auth.birth_grant(&session.token, NOW + window).await.unwrap();
+    auth.birth_grant(&session.token, NOW + window)
+        .await
+        .unwrap();
     assert!(matches!(
         auth.birth_grant(&session.token, NOW + window + 1).await,
         Err(Error::Forbidden)
     ));
     // The session itself is untouched by the refusal.
-    auth.authenticate(&session.token, NOW + window + 1).await.unwrap();
+    auth.authenticate(&session.token, NOW + window + 1)
+        .await
+        .unwrap();
     // A restart's wallet login is a fresh user verification and opens a new window.
     let finish = login(&mut auth, &mut device).await;
     let login = auth.login_finish(finish, NOW + 100).await.unwrap();
