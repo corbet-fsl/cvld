@@ -325,6 +325,7 @@ impl CommunityService {
                     &presentation,
                     now,
                 )
+                .map_err(Error::Refused.redact_at("community/device_session.rs:join-verify-stamp"))
                 .ok()
             });
         let Some(verified) = verified else {
@@ -341,11 +342,14 @@ impl CommunityService {
                 Ok(Some(record)) => Ok(DeviceJoined {
                     user: record.user().to_string(),
                 }),
-                _ => Err(Error::Refused),
+                _ => Err(Error::Refused
+                    .noted("community/device_session.rs:join-no-valid-stamp-not-applied")),
             };
         };
         if verified.pseudonym().to_hex() != passport.member_id() {
-            return Err(Error::Refused);
+            return Err(
+                Error::Refused.noted("community/device_session.rs:join-stamp-pseudonym-mismatch")
+            );
         }
         ledger
             .prune(now)
@@ -355,7 +359,11 @@ impl CommunityService {
         let fresh = match ledger.record(&verified, now).await {
             Ok(()) => true,
             Err(cpsd::Error::StampReplayed) => false,
-            Err(_) => return Err(Error::Unavailable),
+            Err(_) => {
+                return Err(
+                    Error::Unavailable.noted("community/device_session.rs:join-stamp-record")
+                );
+            }
         };
         match self
             .facade
