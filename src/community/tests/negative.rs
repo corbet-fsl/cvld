@@ -435,7 +435,9 @@ async fn login_capacity_expiry_and_session_credential_binding_fail_closed() {
     community.config.pending_capacity = 1;
     // The community's creator holds a session of its own from setup; this test is
     // about the capacity of exactly one, so only the member's session stays.
-    community.sessions.retain(|token, _| *token == member.session);
+    community
+        .sessions
+        .retain(|token, _| *token == member.session);
     let request = || LoginStart {
         user: member.user.clone(),
         credential: member.credential.clone(),

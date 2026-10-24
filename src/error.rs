@@ -120,7 +120,10 @@ mod tests {
     fn an_expiry_is_409_refused_with_the_reason_expired() {
         assert_eq!(Error::Expired.http_status(), 409);
         let wire = serde_json::to_value(ErrorBody::from(Error::Expired)).unwrap();
-        assert_eq!(wire, serde_json::json!({"error": "refused", "reason": "expired"}));
+        assert_eq!(
+            wire,
+            serde_json::json!({"error": "refused", "reason": "expired"})
+        );
         let body: ErrorBody = serde_json::from_value(wire).unwrap();
         assert_eq!(body.error(), Some(Error::Expired));
         // A plain refusal carries no reason and stays a plain refusal.
@@ -133,6 +136,8 @@ mod tests {
             serde_json::from_value(serde_json::json!({"error": "reconcile", "reason": "expired"}))
                 .unwrap();
         assert_eq!(body.error(), None);
-        assert!(serde_json::from_value::<ErrorBody>(serde_json::json!({"error": "expired"})).is_err());
+        assert!(
+            serde_json::from_value::<ErrorBody>(serde_json::json!({"error": "expired"})).is_err()
+        );
     }
 }
