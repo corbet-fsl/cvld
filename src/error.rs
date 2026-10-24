@@ -111,6 +111,15 @@ impl Error {
         }
     }
 
+    /// Like `redact_at` for a refusal that has no dropped cause (a missing entry, an absent
+    /// value): under the development gate it prints `cause: <site> -> <Error> (none)`.
+    #[allow(unused_variables)]
+    pub fn noted(self, site: &'static str) -> Self {
+        #[cfg(feature = "development-gate")]
+        eprintln!("cause: {site} -> {self:?} (none)");
+        self
+    }
+
     /// The owner's original status for this redacted error category.
     pub fn http_status(self) -> u16 {
         match self {
@@ -176,6 +185,7 @@ mod tests {
         let _ = Error::Unauthorized.redact_at("probe")(Secret {
             token: "hunter2-secret".into(),
         });
+        let _ = Error::Refused.noted("probe-none");
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -189,6 +199,11 @@ mod tests {
         assert!(out.status.success());
         let err = String::from_utf8_lossy(&out.stderr);
         assert!(!err.contains("hunter2"), "a field value was printed: {err}");
+        assert_eq!(
+            err.contains("cause: probe-none -> Refused (none)"),
+            cfg!(feature = "development-gate"),
+            "the noted print must exist exactly in a development-gate build: {err}"
+        );
         assert_eq!(
             err.contains("cause: probe -> Unauthorized (Secret)"),
             cfg!(feature = "development-gate"),

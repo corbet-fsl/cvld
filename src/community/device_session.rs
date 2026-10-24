@@ -250,11 +250,11 @@ impl CommunityService {
         self.refresh_global(now).await?;
         self.prune(now);
         let input = request.passport;
-        let challenge = self
-            .challenges
-            .remove(&input.challenge)
-            .ok_or(Error::Refused)?;
-        crate::service::publication::expires_at(challenge.until)?;
+        let challenge = self.challenges.remove(&input.challenge).ok_or_else(|| {
+            Error::Refused.noted("community/device_session.rs:join-challenge-missing")
+        })?;
+        crate::service::publication::expires_at(challenge.until)
+            .map_err(|e| e.noted("community/device_session.rs:join-publication-deadline"))?;
         if challenge.owner.is_some() || challenge.value.root_board_request().is_some() {
             return Err(Error::Forbidden);
         }
@@ -286,11 +286,9 @@ impl CommunityService {
             .map_err(Error::Refused.redact_at("community/device_session.rs:18"))?;
         let global = crate::global_trust::load(&self.db, &self.config, now).await?;
         let stamp_key = cpsd::StampPublicKey::from_bytes(
-            global
-                .status
-                .stamp_public_key
-                .as_deref()
-                .ok_or(Error::Refused)?,
+            global.status.stamp_public_key.as_deref().ok_or_else(|| {
+                Error::Refused.noted("community/device_session.rs:join-no-stamp-key")
+            })?,
         )
         .map_err(Error::Refused.redact_at("community/device_session.rs:19"))?;
         let params = cpsd::StampParams::new(
