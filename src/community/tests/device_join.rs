@@ -289,7 +289,11 @@ async fn stamp(
         .unwrap();
     wallet
         .holder
-        .finish_stamp(&cpsd::BlindStamp::from_bytes(&blind.bytes).unwrap(), epoch, NOW)
+        .finish_stamp(
+            &cpsd::BlindStamp::from_bytes(&blind.bytes).unwrap(),
+            epoch,
+            NOW,
+        )
         .unwrap();
 }
 
