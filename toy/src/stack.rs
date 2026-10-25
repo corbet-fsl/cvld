@@ -848,7 +848,6 @@ fn start_forum(
         "initial_backoff_seconds": 1,
         "maximum_backoff_seconds": 10,
         "maximum_staleness_seconds": 3_600,
-        "maximum_snapshot_age": 3_600,
         "storage": {"kind": "memory"},
         "storage_limits": {
             "records": 65_536,
