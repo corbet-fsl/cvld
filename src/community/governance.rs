@@ -43,9 +43,9 @@
 //! is test-only; production signing goes through ckmg's typed signer
 //! (wiring comes later, not in this module).
 
-use ed25519_dalek::VerifyingKey;
 #[cfg(test)]
 use ed25519_dalek::Signer as _;
+use ed25519_dalek::VerifyingKey;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 use std::collections::BTreeSet;
