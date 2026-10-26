@@ -15,11 +15,22 @@
 //! (`TICK_SECONDS = 15`); every validity interval is half-open `[start, end)`
 //! with equality to `end` meaning expired.
 //!
+//! The checkpoint signer is the community's PUBLISHING key held by the cvld
+//! service, never a founder's device key: a founder is mostly offline and
+//! cannot sign a tick every 15 s. Authority is the existing per-community
+//! publishing key chain (`csgn`): cfrm pins the publishing root key from
+//! deployment configuration and every later ring must be signed by the
+//! currently installed one (STATUS.md "feed key continuity", 2026-10-01).
+//! Checkpoints are accepted only from a key the resolved ring authorizes;
+//! ring transitions are walked with `verify_transition_at_issue`, so no clock
+//! is needed.
+//!
 //! Cryptography is reused, not invented: checkpoints and facts are signed
 //! with `ed25519_dalek` (the key type already used for listing keys and
-//! enrollment operators) and digested with `sha2::Sha256` (already used for
-//! claim and payload digests).
+//! enrollment operators), ring authority is `csgn`, and digests use
+//! `sha2::Sha256` (already used for claim and payload digests).
 
+use csgn::KeyRing;
 use ed25519_dalek::{Signer as _, SigningKey, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
@@ -43,6 +54,10 @@ pub enum Error {
     EmptyCommunity,
     #[error("checkpoint signature invalid")]
     BadCheckpointSignature,
+    #[error("publishing ring proof invalid")]
+    BadRingProof,
+    #[error("publishing ring transition does not chain to the installed ring")]
+    RingNotChained,
     #[error("checkpoint community mismatch")]
     CommunityMismatch,
     #[error("checkpoint sequence gap: expected {expected}, got {got}")]
@@ -188,7 +203,7 @@ impl Checkpoint {
     }
 }
 
-/// A checkpoint with the founder's signature over its canonical bytes.
+/// A checkpoint with the publishing key's signature over its canonical bytes.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SignedCheckpoint {
     checkpoint: Checkpoint,
@@ -196,8 +211,13 @@ pub struct SignedCheckpoint {
 }
 
 impl SignedCheckpoint {
-    pub fn sign(checkpoint: Checkpoint, founder: &SigningKey) -> Self {
-        let signature = founder.sign(&checkpoint.canonical_bytes()).to_bytes();
+    /// Sign with the community's current publishing key: the cvld service
+    /// derives this Ed25519 key from the same seed as the `csgn` secret key
+    /// it holds (`csgn::SecretKey` never exports, so the seam takes the key).
+    pub fn sign(checkpoint: Checkpoint, publishing_key: &SigningKey) -> Self {
+        let signature = publishing_key
+            .sign(&checkpoint.canonical_bytes())
+            .to_bytes();
         Self {
             checkpoint,
             signature,
@@ -208,19 +228,29 @@ impl SignedCheckpoint {
         &self.checkpoint
     }
 
-    /// Signature check only; chain continuity is [`verify_chain`].
-    pub fn verify_signature(&self, founder: &VerifyingKey) -> Result<(), Error> {
+    /// Signature check against the resolved publishing ring: accepts a
+    /// checkpoint signed by any key the ring authorizes, and reports which
+    /// one. Chain continuity is [`verify_chain`]; ring resolution is
+    /// [`resolve_ring`].
+    pub fn verify_signature(&self, ring: &KeyRing) -> Result<[u8; 32], Error> {
+        let bytes = self.checkpoint.canonical_bytes();
         let signature = ed25519_dalek::Signature::from_bytes(&self.signature);
-        founder
-            .verify_strict(&self.checkpoint.canonical_bytes(), &signature)
-            .map_err(|_| Error::BadCheckpointSignature)
+        for entry in ring.keys() {
+            let key = VerifyingKey::from_bytes(&entry.public_key())
+                .map_err(|_| Error::BadCheckpointSignature)?;
+            if key.verify_strict(&bytes, &signature).is_ok() {
+                return Ok(entry.public_key());
+            }
+        }
+        Err(Error::BadCheckpointSignature)
     }
 }
 
 /// A checkpoint whose signature and chain position are already established.
 ///
 /// Carrying this (rather than a [`SignedCheckpoint`]) is what authorizes an
-/// evaluator to treat the checkpoint as agreed community time.
+/// evaluator to treat the checkpoint as agreed community time. `signer` is
+/// the publishing key that authorized it, resolved from the ring.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VerifiedCheckpoint {
     checkpoint: Checkpoint,
@@ -242,8 +272,10 @@ impl VerifiedCheckpoint {
     }
 }
 
-/// Verify signature, scope, key chain and chain continuity.
+/// Verify signature, scope, ring authority and chain continuity.
 ///
+/// `ring` is the publishing ring resolved by [`resolve_ring`] from the pinned
+/// root: the candidate must be signed by a key that ring authorizes.
 /// `None` admits a genesis checkpoint (sequence 0, tick 0, zero parent
 /// digest). Otherwise the candidate must advance both sequence and tick by
 /// exactly one: no skipped or backwards ticks, no gap, no replay, and
@@ -252,9 +284,9 @@ impl VerifiedCheckpoint {
 pub fn verify_chain(
     previous: Option<&VerifiedCheckpoint>,
     candidate: &SignedCheckpoint,
-    founder: &VerifyingKey,
+    ring: &KeyRing,
 ) -> Result<VerifiedCheckpoint, Error> {
-    candidate.verify_signature(founder)?;
+    let signer = candidate.verify_signature(ring)?;
     let content = candidate.checkpoint();
     if content.community().is_empty() {
         return Err(Error::EmptyCommunity);
@@ -272,7 +304,7 @@ pub fn verify_chain(
         return Ok(VerifiedCheckpoint {
             digest: content.digest(),
             checkpoint: content.clone(),
-            signer: founder.to_bytes(),
+            signer,
         });
     };
     let last = previous.checkpoint();
@@ -329,8 +361,29 @@ pub fn verify_chain(
     Ok(VerifiedCheckpoint {
         digest: content.digest(),
         checkpoint: content.clone(),
-        signer: founder.to_bytes(),
+        signer,
     })
+}
+
+/// Resolve the current publishing ring from the pinned root.
+///
+/// Walks `transitions` in order starting at `pinned_root` (the publishing
+/// root key from deployment configuration, never from a feed response): each
+/// proof must verify against the currently installed ring at its own issue
+/// time, and must endorse exactly that ring as its predecessor. Revisions
+/// never go down: a proof for any other predecessor is refused. Pure: the
+/// issue-time walk needs no clock.
+pub fn resolve_ring(pinned_root: &KeyRing, transitions: &[Vec<u8>]) -> Result<KeyRing, Error> {
+    let mut current = pinned_root.clone();
+    for proof in transitions {
+        let transition =
+            csgn::verify_transition_at_issue(&current, proof).map_err(|_| Error::BadRingProof)?;
+        if transition.previous() != &current {
+            return Err(Error::RingNotChained);
+        }
+        current = transition.next().clone();
+    }
+    Ok(current)
 }
 
 /// Canonical fact envelope, design §3: `(type, version, community, scope,
@@ -530,26 +583,53 @@ pub trait StateEvaluator {
 mod tests {
     use super::*;
 
-    fn founder_key() -> SigningKey {
-        SigningKey::from_bytes(&[9; 32])
+    /// Fixed caller-supplied times for the `csgn` fixtures: constants, never a
+    /// device clock.
+    const PUBLISHER_NOW: u64 = 1_000;
+    const PUBLISHER_MAX_VALIDITY: u64 = 86_400;
+
+    /// The community publishing key held by the cvld service: a `csgn` signer
+    /// plus the Ed25519 key derived from the same seed for checkpoint signing
+    /// (`csgn::SecretKey` never exports, so the seam takes the key).
+    struct Publisher {
+        signer: csgn::Signer,
+        key: SigningKey,
+    }
+
+    impl Publisher {
+        fn new(seed: u8) -> Self {
+            let mut seed_bytes = [seed; 32];
+            let secret = csgn::SecretKey::from_seed(&mut seed_bytes);
+            let key = SigningKey::from_bytes(&[seed; 32]);
+            assert_eq!(secret.public_key(), key.verifying_key().to_bytes());
+            let signer =
+                csgn::Signer::new("toyalpha01", secret, PUBLISHER_NOW, PUBLISHER_MAX_VALIDITY)
+                    .expect("publisher signer");
+            Self { signer, key }
+        }
+
+        fn ring(&self) -> csgn::KeyRing {
+            self.signer.key_ring().clone()
+        }
     }
 
     fn author_key(byte: u8) -> SigningKey {
         SigningKey::from_bytes(&[byte; 32])
     }
 
-    fn founder() -> VerifyingKey {
-        founder_key().verifying_key()
-    }
-
-    fn genesis_candidate() -> SignedCheckpoint {
+    fn genesis_candidate(publisher: &Publisher) -> SignedCheckpoint {
         let checkpoint =
             Checkpoint::new("toyalpha01", 0, GENESIS_PREVIOUS_DIGEST, 0, vec![], [7; 32])
                 .expect("valid genesis content");
-        SignedCheckpoint::sign(checkpoint, &founder_key())
+        SignedCheckpoint::sign(checkpoint, &publisher.key)
     }
 
-    fn next_candidate(previous: &VerifiedCheckpoint, sequence: u64, tick: u64) -> SignedCheckpoint {
+    fn next_candidate(
+        publisher: &Publisher,
+        previous: &VerifiedCheckpoint,
+        sequence: u64,
+        tick: u64,
+    ) -> SignedCheckpoint {
         let checkpoint = Checkpoint::new(
             "toyalpha01",
             sequence,
@@ -559,7 +639,7 @@ mod tests {
             [7; 32],
         )
         .expect("valid checkpoint content");
-        SignedCheckpoint::sign(checkpoint, &founder_key())
+        SignedCheckpoint::sign(checkpoint, &publisher.key)
     }
 
     fn fact_at(author: &SigningKey, commitment_byte: u8, tick: u64) -> VerifiedFact {
@@ -611,13 +691,20 @@ mod tests {
         }
     }
 
+    fn setup() -> (Publisher, csgn::KeyRing) {
+        let publisher = Publisher::new(9);
+        let ring = publisher.ring();
+        (publisher, ring)
+    }
+
     #[test]
     fn genesis_verifies_and_chain_advances_one_tick() {
-        let genesis = verify_chain(None, &genesis_candidate(), &founder()).expect("genesis");
+        let (publisher, ring) = setup();
+        let genesis = verify_chain(None, &genesis_candidate(&publisher), &ring).expect("genesis");
         assert_eq!(genesis.checkpoint().sequence(), 0);
         assert_eq!(genesis.checkpoint().tick(), 0);
-        let next = next_candidate(&genesis, 1, 1);
-        let verified = verify_chain(Some(&genesis), &next, &founder()).expect("child");
+        let next = next_candidate(&publisher, &genesis, 1, 1);
+        let verified = verify_chain(Some(&genesis), &next, &ring).expect("child");
         assert_eq!(verified.checkpoint().sequence(), 1);
         assert_eq!(verified.checkpoint().tick(), 1);
         assert_eq!(verified.digest(), &verified.checkpoint().digest());
@@ -625,10 +712,11 @@ mod tests {
 
     #[test]
     fn chain_rejects_sequence_gap() {
-        let genesis = verify_chain(None, &genesis_candidate(), &founder()).expect("genesis");
-        let gap = next_candidate(&genesis, 2, 1);
+        let (publisher, ring) = setup();
+        let genesis = verify_chain(None, &genesis_candidate(&publisher), &ring).expect("genesis");
+        let gap = next_candidate(&publisher, &genesis, 2, 1);
         assert_eq!(
-            verify_chain(Some(&genesis), &gap, &founder()),
+            verify_chain(Some(&genesis), &gap, &ring),
             Err(Error::SequenceGap {
                 expected: 1,
                 got: 2
@@ -638,10 +726,11 @@ mod tests {
 
     #[test]
     fn chain_rejects_tick_gap() {
-        let genesis = verify_chain(None, &genesis_candidate(), &founder()).expect("genesis");
-        let gap = next_candidate(&genesis, 1, 2);
+        let (publisher, ring) = setup();
+        let genesis = verify_chain(None, &genesis_candidate(&publisher), &ring).expect("genesis");
+        let gap = next_candidate(&publisher, &genesis, 1, 2);
         assert_eq!(
-            verify_chain(Some(&genesis), &gap, &founder()),
+            verify_chain(Some(&genesis), &gap, &ring),
             Err(Error::TickGap {
                 expected: 1,
                 got: 2
@@ -651,91 +740,164 @@ mod tests {
 
     #[test]
     fn chain_rejects_backwards_movement() {
-        let genesis = verify_chain(None, &genesis_candidate(), &founder()).expect("genesis");
-        let one = verify_chain(Some(&genesis), &next_candidate(&genesis, 1, 1), &founder())
-            .expect("child");
-        let backwards = next_candidate(&one, 0, 0);
+        let (publisher, ring) = setup();
+        let genesis = verify_chain(None, &genesis_candidate(&publisher), &ring).expect("genesis");
+        let one = verify_chain(
+            Some(&genesis),
+            &next_candidate(&publisher, &genesis, 1, 1),
+            &ring,
+        )
+        .expect("child");
+        let backwards = next_candidate(&publisher, &one, 0, 0);
         assert_eq!(
-            verify_chain(Some(&one), &backwards, &founder()),
+            verify_chain(Some(&one), &backwards, &ring),
             Err(Error::SequenceBackwards { last: 1, got: 0 })
         );
-        let tick_back = next_candidate(&one, 2, 0);
+        let tick_back = next_candidate(&publisher, &one, 2, 0);
         assert_eq!(
-            verify_chain(Some(&one), &tick_back, &founder()),
+            verify_chain(Some(&one), &tick_back, &ring),
             Err(Error::TickBackwards { last: 1, got: 0 })
         );
     }
 
     #[test]
     fn chain_rejects_replay() {
-        let genesis = verify_chain(None, &genesis_candidate(), &founder()).expect("genesis");
-        let candidate = next_candidate(&genesis, 1, 1);
-        let one = verify_chain(Some(&genesis), &candidate, &founder()).expect("child");
+        let (publisher, ring) = setup();
+        let genesis = verify_chain(None, &genesis_candidate(&publisher), &ring).expect("genesis");
+        let candidate = next_candidate(&publisher, &genesis, 1, 1);
+        let one = verify_chain(Some(&genesis), &candidate, &ring).expect("child");
         assert_eq!(
-            verify_chain(Some(&one), &candidate, &founder()),
+            verify_chain(Some(&one), &candidate, &ring),
             Err(Error::SequenceReplay { got: 1 })
         );
-        let same_tick = next_candidate(&one, 2, 1);
+        let same_tick = next_candidate(&publisher, &one, 2, 1);
         assert_eq!(
-            verify_chain(Some(&one), &same_tick, &founder()),
+            verify_chain(Some(&one), &same_tick, &ring),
             Err(Error::TickReplay { got: 1 })
         );
     }
 
     #[test]
-    fn chain_rejects_forged_signature() {
-        let genesis = verify_chain(None, &genesis_candidate(), &founder()).expect("genesis");
+    fn checkpoint_signed_by_unknown_key_is_refused() {
+        let (publisher, ring) = setup();
+        let genesis = verify_chain(None, &genesis_candidate(&publisher), &ring).expect("genesis");
         let checkpoint = Checkpoint::new("toyalpha01", 1, *genesis.digest(), 1, vec![], [7; 32])
             .expect("valid content");
         let forged = SignedCheckpoint::sign(checkpoint, &author_key(77));
         assert_eq!(
-            verify_chain(Some(&genesis), &forged, &founder()),
+            verify_chain(Some(&genesis), &forged, &ring),
             Err(Error::BadCheckpointSignature)
         );
     }
 
     #[test]
+    fn checkpoint_signed_by_current_ring_key_is_accepted() {
+        let (publisher, ring) = setup();
+        let pinned = publisher.ring();
+        let resolved = resolve_ring(&pinned, &[]).expect("empty walk keeps the pinned root");
+        assert_eq!(resolved, pinned);
+        assert_eq!(resolved, ring);
+        let genesis =
+            verify_chain(None, &genesis_candidate(&publisher), &resolved).expect("genesis");
+        assert_eq!(genesis.signer(), &publisher.key.verifying_key().to_bytes());
+    }
+
+    #[test]
+    fn publishing_rotation_advances_checkpoint_authority() {
+        let (mut publisher, ring) = setup();
+        let mut rotation_seed = [11; 32];
+        let proof = publisher
+            .signer
+            .rotate_with_proof(
+                csgn::SecretKey::from_seed(&mut rotation_seed),
+                PUBLISHER_NOW,
+                PUBLISHER_NOW + 1_000,
+            )
+            .expect("rotation proof");
+        let rotated = resolve_ring(&ring, std::slice::from_ref(&proof)).expect("rotation resolves");
+        assert_ne!(rotated, ring);
+        let rotated_key = SigningKey::from_bytes(&[11; 32]);
+        let checkpoint =
+            Checkpoint::new("toyalpha01", 0, GENESIS_PREVIOUS_DIGEST, 0, vec![], [7; 32])
+                .expect("valid content");
+        let rotated_signed = SignedCheckpoint::sign(checkpoint, &rotated_key);
+        assert_eq!(
+            verify_chain(None, &rotated_signed, &ring),
+            Err(Error::BadCheckpointSignature)
+        );
+        let accepted = verify_chain(None, &rotated_signed, &rotated).expect("rotated key accepted");
+        assert_eq!(accepted.signer(), &rotated_key.verifying_key().to_bytes());
+        let legacy = verify_chain(None, &genesis_candidate(&publisher), &rotated)
+            .expect("retired key still listed");
+        assert_eq!(legacy.signer(), &publisher.key.verifying_key().to_bytes());
+    }
+
+    #[test]
+    fn ring_not_chained_to_pinned_root_is_refused() {
+        let (mut publisher, ring) = setup();
+        let mut stranger = Publisher::new(77);
+        let mut stranger_seed = [78; 32];
+        let stranger_proof = stranger
+            .signer
+            .rotate_with_proof(
+                csgn::SecretKey::from_seed(&mut stranger_seed),
+                PUBLISHER_NOW,
+                PUBLISHER_NOW + 1_000,
+            )
+            .expect("stranger rotation proof");
+        assert_eq!(
+            resolve_ring(&ring, std::slice::from_ref(&stranger_proof)),
+            Err(Error::BadRingProof)
+        );
+        let mut rotation_seed = [11; 32];
+        let proof = publisher
+            .signer
+            .rotate_with_proof(
+                csgn::SecretKey::from_seed(&mut rotation_seed),
+                PUBLISHER_NOW,
+                PUBLISHER_NOW + 1_000,
+            )
+            .expect("rotation proof");
+        let advanced =
+            resolve_ring(&ring, std::slice::from_ref(&proof)).expect("rotation resolves");
+        assert_eq!(
+            resolve_ring(&advanced, std::slice::from_ref(&proof)),
+            Err(Error::RingNotChained)
+        );
+    }
+
+    #[test]
     fn chain_rejects_wrong_previous_digest() {
-        let genesis = verify_chain(None, &genesis_candidate(), &founder()).expect("genesis");
+        let (publisher, ring) = setup();
+        let genesis = verify_chain(None, &genesis_candidate(&publisher), &ring).expect("genesis");
         let checkpoint =
             Checkpoint::new("toyalpha01", 1, [55; 32], 1, vec![], [7; 32]).expect("valid content");
-        let tampered = SignedCheckpoint::sign(checkpoint, &founder_key());
+        let tampered = SignedCheckpoint::sign(checkpoint, &publisher.key);
         assert_eq!(
-            verify_chain(Some(&genesis), &tampered, &founder()),
+            verify_chain(Some(&genesis), &tampered, &ring),
             Err(Error::PreviousDigestMismatch)
         );
     }
 
     #[test]
     fn genesis_rejects_nonzero_start() {
+        let (publisher, ring) = setup();
         let seq = Checkpoint::new("toyalpha01", 1, GENESIS_PREVIOUS_DIGEST, 0, vec![], [7; 32])
             .expect("valid content");
         assert_eq!(
-            verify_chain(
-                None,
-                &SignedCheckpoint::sign(seq, &founder_key()),
-                &founder()
-            ),
+            verify_chain(None, &SignedCheckpoint::sign(seq, &publisher.key), &ring),
             Err(Error::GenesisSequence)
         );
         let tick = Checkpoint::new("toyalpha01", 0, GENESIS_PREVIOUS_DIGEST, 3, vec![], [7; 32])
             .expect("valid content");
         assert_eq!(
-            verify_chain(
-                None,
-                &SignedCheckpoint::sign(tick, &founder_key()),
-                &founder()
-            ),
+            verify_chain(None, &SignedCheckpoint::sign(tick, &publisher.key), &ring),
             Err(Error::GenesisTick)
         );
         let parent =
             Checkpoint::new("toyalpha01", 0, [1; 32], 0, vec![], [7; 32]).expect("valid content");
         assert_eq!(
-            verify_chain(
-                None,
-                &SignedCheckpoint::sign(parent, &founder_key()),
-                &founder()
-            ),
+            verify_chain(None, &SignedCheckpoint::sign(parent, &publisher.key), &ring),
             Err(Error::GenesisPreviousDigest)
         );
     }
@@ -792,9 +954,14 @@ mod tests {
 
     #[test]
     fn evaluator_gives_different_results_for_different_frontiers() {
-        let genesis = verify_chain(None, &genesis_candidate(), &founder()).expect("genesis");
-        let checkpoint = verify_chain(Some(&genesis), &next_candidate(&genesis, 1, 1), &founder())
-            .expect("child");
+        let (publisher, ring) = setup();
+        let genesis = verify_chain(None, &genesis_candidate(&publisher), &ring).expect("genesis");
+        let checkpoint = verify_chain(
+            Some(&genesis),
+            &next_candidate(&publisher, &genesis, 1, 1),
+            &ring,
+        )
+        .expect("child");
         let author = author_key(5);
         let frontier_a = vec![fact_at(&author, 11, 1)];
         let frontier_b = vec![fact_at(&author, 11, 1), fact_at(&author, 12, 1)];
@@ -815,9 +982,14 @@ mod tests {
 
     #[test]
     fn evaluator_refuses_facts_beyond_the_checkpoint() {
-        let genesis = verify_chain(None, &genesis_candidate(), &founder()).expect("genesis");
-        let checkpoint = verify_chain(Some(&genesis), &next_candidate(&genesis, 1, 1), &founder())
-            .expect("child");
+        let (publisher, ring) = setup();
+        let genesis = verify_chain(None, &genesis_candidate(&publisher), &ring).expect("genesis");
+        let checkpoint = verify_chain(
+            Some(&genesis),
+            &next_candidate(&publisher, &genesis, 1, 1),
+            &ring,
+        )
+        .expect("child");
         let future = vec![fact_at(&author_key(5), 11, 5)];
         assert_eq!(
             CountingEvaluator.evaluate(&future, &checkpoint, &policy()),

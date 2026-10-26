@@ -105,6 +105,9 @@ tempfile = "3"
 webauthn-authenticator-rs = { version = "0.5.5", default-features = false, features = ["softtoken"] }
 # A real Keys `Created` receipt for genesis stamp evidence in the device-join tests.
 ckmg = { git = "https://git.corbet.ch/corbet-foss/ckmg.git", branch = "main" }
+# The low-level publishing signer for the state-seam rotation tests only;
+# production code verifies against published rings and never signs.
+csgn = { git = "https://git.corbet.ch/corbet-foss/csgn", branch = "main", features = ["volatile-signer"] }
 blake3 = "1"
 
 [profile.dev.package."*"]
