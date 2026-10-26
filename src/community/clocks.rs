@@ -128,7 +128,10 @@ impl std::fmt::Display for PolicyError {
                 "clock_days {days} outside {MIN_CLOCK_DAYS}..={MAX_CLOCK_DAYS}"
             ),
             PolicyError::EventExtraOutOfRange { days } => {
-                write!(f, "event_extra_days {days} outside 0..={MAX_EVENT_EXTRA_DAYS}")
+                write!(
+                    f,
+                    "event_extra_days {days} outside 0..={MAX_EVENT_EXTRA_DAYS}"
+                )
             }
             PolicyError::AbuseCapOutOfRange { days } => write!(
                 f,
@@ -566,12 +569,14 @@ mod tests {
             assert!(evaluate(&bad, MEMBER, &facts, t0).is_err());
         }
         for days in [30, 31, 364, 365] {
-            assert!(ClockPolicy {
-                clock_days: days,
-                ..policy()
-            }
-            .validate()
-            .is_ok());
+            assert!(
+                ClockPolicy {
+                    clock_days: days,
+                    ..policy()
+                }
+                .validate()
+                .is_ok()
+            );
         }
     }
 
@@ -779,7 +784,12 @@ mod tests {
         assert!(admin_link_usable(issued, expires, None, demote - 1));
         // From the demotion tick on the link redeems nothing.
         assert!(!admin_link_usable(issued, expires, Some(demote), demote));
-        assert!(!admin_link_usable(issued, expires, Some(demote), demote + 1));
+        assert!(!admin_link_usable(
+            issued,
+            expires,
+            Some(demote),
+            demote + 1
+        ));
         // Half-open link validity is untouched otherwise.
         assert!(!admin_link_usable(issued, expires, None, issued - 1));
         assert!(!admin_link_usable(issued, expires, None, expires));
