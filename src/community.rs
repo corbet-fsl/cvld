@@ -23,6 +23,7 @@ pub(crate) mod creation;
 mod device_session;
 mod enrollment;
 pub(crate) mod garden;
+pub(crate) mod governance;
 mod held;
 mod legal;
 mod lobby_upcoming;
