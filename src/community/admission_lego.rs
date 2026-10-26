@@ -129,7 +129,34 @@ pub const ADMIN_VOUCH_STRENGTH: Strength = 2_500;
 /// The manifest for an alpha proof kind: which properties it establishes, how
 /// strongly, and whether the evidence is permanent.
 pub fn alpha_manifest(kind: ProofKind) -> Manifest {
-    todo!()
+    match kind {
+        ProofKind::PersonalVoucher => Manifest {
+            contributions: vec![
+                Contribution {
+                    property: Property::new(PROPERTY_VOUCHED),
+                    strength: PERSONAL_VOUCH_STRENGTH,
+                },
+                Contribution {
+                    property: Property::new(PROPERTY_VOUCHED_PERSONAL),
+                    strength: PERSONAL_VOUCH_STRENGTH,
+                },
+            ],
+            permanent: true,
+        },
+        ProofKind::AdminVoucher => Manifest {
+            contributions: vec![
+                Contribution {
+                    property: Property::new(PROPERTY_VOUCHED),
+                    strength: ADMIN_VOUCH_STRENGTH,
+                },
+                Contribution {
+                    property: Property::new(PROPERTY_VOUCHED_ADMIN),
+                    strength: ADMIN_VOUCH_STRENGTH,
+                },
+            ],
+            permanent: false,
+        },
+    }
 }
 
 /// One presented proof with its validity as decided by the caller from signed
@@ -168,7 +195,36 @@ pub enum EvidenceClass {
 /// property never adds to another. Invalid proofs contribute nothing, and
 /// duplicated proof ids contribute once (first occurrence wins).
 pub fn score(property: &Property, evidence: &[Evidence], class: EvidenceClass) -> Strength {
-    todo!()
+    let mut seen: BTreeSet<&str> = BTreeSet::new();
+    let mut components: BTreeMap<Option<&str>, Strength> = BTreeMap::new();
+    for e in evidence {
+        // Duplicated proofs contribute once; the first occurrence wins.
+        if !seen.insert(e.id.as_str()) {
+            continue;
+        }
+        if !e.valid {
+            continue;
+        }
+        let manifest = alpha_manifest(e.kind);
+        if matches!(class, EvidenceClass::Permanent) && !manifest.permanent {
+            continue;
+        }
+        let best = manifest
+            .contributions
+            .iter()
+            .filter(|c| &c.property == property)
+            .map(|c| c.strength)
+            .max()
+            .unwrap_or(0);
+        let slot = components.entry(e.independence.as_deref()).or_insert(0);
+        *slot = (*slot).max(best);
+    }
+    components
+        .values()
+        .fold(0u32, |sum, s| sum + Strength::from(*s))
+        .min(Strength::from(STRENGTH_MAX))
+        .try_into()
+        .unwrap_or(STRENGTH_MAX)
 }
 
 /// A community requirement expression: `all_of` / `any_of` / `at_least(k)`
@@ -195,7 +251,14 @@ pub enum Requirement {
 /// properties score 0 and are therefore not satisfied by default (unless the
 /// leaf minimum is 0, which is vacuous).
 pub fn satisfies(req: &Requirement, score: &dyn Fn(&Property) -> Strength) -> bool {
-    todo!()
+    match req {
+        Requirement::Property { property, minimum } => score(property) >= *minimum,
+        Requirement::AllOf(children) => children.iter().all(|c| satisfies(c, score)),
+        Requirement::AnyOf(children) => children.iter().any(|c| satisfies(c, score)),
+        Requirement::AtLeast { k, children } => {
+            children.iter().filter(|c| satisfies(c, score)).count() >= *k
+        }
+    }
 }
 
 /// One allowed anchor: an anchor-listed property at the platform threshold.
@@ -216,7 +279,9 @@ pub struct Anchor {
 impl Anchor {
     /// Whether any anchor entry is met by the given scores.
     pub fn satisfied(&self, score: &dyn Fn(&Property) -> Strength) -> bool {
-        todo!()
+        self.any_of
+            .iter()
+            .any(|e| score(&e.property) >= e.minimum)
     }
 }
 
@@ -272,7 +337,35 @@ pub struct AdmissionPolicy {
 /// The alpha community policy: personal voucher → permanent, admin voucher →
 /// on the admin clock, nothing else admitted.
 pub fn alpha_policy() -> AdmissionPolicy {
-    todo!()
+    AdmissionPolicy {
+        permanent_anchor: Anchor {
+            any_of: vec![AnchorEntry {
+                property: Property::new(PROPERTY_VOUCHED),
+                minimum: PERSONAL_VOUCH_STRENGTH,
+            }],
+        },
+        temporal_floor: Anchor {
+            any_of: vec![AnchorEntry {
+                property: Property::new(PROPERTY_VOUCHED),
+                minimum: ADMIN_VOUCH_STRENGTH,
+            }],
+        },
+        permanent_if: Requirement::Property {
+            property: Property::new(PROPERTY_VOUCHED),
+            minimum: PERSONAL_VOUCH_STRENGTH,
+        },
+        temporal_if: Some(Requirement::Property {
+            property: Property::new(PROPERTY_VOUCHED),
+            minimum: ADMIN_VOUCH_STRENGTH,
+        }),
+        temporal_path: ALPHA_TEMPORAL_PATH.to_string(),
+        allow_reentry: false,
+        clock: ClockRule {
+            duration_ticks: ALPHA_CLOCK_TICKS,
+            min_ticks: MIN_CLOCK_TICKS,
+            max_ticks: MAX_CLOCK_TICKS,
+        },
+    }
 }
 
 /// Platform anchor bounds a community policy is validated against. Community
@@ -288,7 +381,16 @@ pub struct PlatformBounds {
 
 /// Alpha platform bounds: the anchor minima the alpha policy meets exactly.
 pub fn alpha_platform_bounds() -> PlatformBounds {
-    todo!()
+    PlatformBounds {
+        permanent_anchor_min: vec![AnchorEntry {
+            property: Property::new(PROPERTY_VOUCHED),
+            minimum: PERSONAL_VOUCH_STRENGTH,
+        }],
+        temporal_floor_min: vec![AnchorEntry {
+            property: Property::new(PROPERTY_VOUCHED),
+            minimum: ADMIN_VOUCH_STRENGTH,
+        }],
+    }
 }
 
 /// Which path class an unguarded branch belongs to.
@@ -344,6 +446,176 @@ impl ValidatedPolicy {
     }
 }
 
+/// One satisfiable branch: conjunctive `(property, minimum)` constraints with
+/// at most one minimum per property (the strongest wins on merge).
+type Branch = Vec<(Property, Strength)>;
+
+/// Merge two conjunctive branches, keeping the stronger minimum per property.
+fn merge_branches(a: &Branch, b: &Branch) -> Branch {
+    let mut merged: BTreeMap<&Property, Strength> = BTreeMap::new();
+    for (p, m) in a.iter().chain(b.iter()) {
+        let slot = merged.entry(p).or_insert(0);
+        *slot = (*slot).max(*m);
+    }
+    merged
+        .into_iter()
+        .map(|(p, m)| (p.clone(), m))
+        .collect()
+}
+
+/// Conjunctive product of two branch sets (for `all_of` and `at_least`
+/// subsets): every combination of one branch from each side, merged.
+fn product_branches(left: Vec<Branch>, right: Vec<Branch>) -> Vec<Branch> {
+    let mut out = Vec::with_capacity(left.len() * right.len());
+    for a in &left {
+        for b in &right {
+            out.push(merge_branches(a, b));
+        }
+    }
+    out
+}
+
+/// Index combinations: all `k`-subsets of `0..n`, in lexicographic order.
+fn combinations(n: usize, k: usize) -> Vec<Vec<usize>> {
+    fn go(start: usize, n: usize, k: usize, prefix: &mut Vec<usize>, out: &mut Vec<Vec<usize>>) {
+        if k == 0 {
+            out.push(prefix.clone());
+            return;
+        }
+        for i in start..n {
+            prefix.push(i);
+            go(i + 1, n, k - 1, prefix, out);
+            prefix.pop();
+        }
+    }
+    let mut out = Vec::new();
+    go(0, n, k, &mut Vec::new(), &mut out);
+    out
+}
+
+/// Enumerate every satisfiable branch of a requirement expression. An
+/// `at_least(0)` or empty `all_of` yields one empty branch (satisfied by
+/// everything, entailing nothing — rejected as unguarded by the caller).
+/// Dead expressions (empty `any_of`, `k` above the child count) are rejected.
+fn branches(req: &Requirement) -> Result<Vec<Branch>, PolicyError> {
+    match req {
+        Requirement::Property { property, minimum } => {
+            Ok(vec![vec![(property.clone(), *minimum)]])
+        }
+        Requirement::AllOf(children) => {
+            let mut out = vec![Vec::new()];
+            for c in children {
+                out = product_branches(out, branches(c)?);
+            }
+            Ok(out)
+        }
+        Requirement::AnyOf(children) => {
+            if children.is_empty() {
+                return Err(PolicyError::UnsatisfiableRequirement);
+            }
+            let mut out = Vec::new();
+            for c in children {
+                out.extend(branches(c)?);
+            }
+            Ok(out)
+        }
+        Requirement::AtLeast { k, children } => {
+            if *k > children.len() {
+                return Err(PolicyError::UnsatisfiableRequirement);
+            }
+            let mut out = Vec::new();
+            for subset in combinations(children.len(), *k) {
+                let mut product = vec![Vec::new()];
+                for i in subset {
+                    product = product_branches(product, branches(&children[i])?);
+                }
+                out.extend(product);
+            }
+            Ok(out)
+        }
+    }
+}
+
+/// Whether a branch entails an anchor: some leaf on an anchor-listed property
+/// with a minimum at or above the anchor threshold.
+fn branch_entails_anchor(branch: &Branch, anchor: &Anchor) -> bool {
+    anchor.any_of.iter().any(|e| {
+        branch
+            .iter()
+            .any(|(p, m)| p == &e.property && *m >= e.minimum)
+    })
+}
+
+fn is_legal(p: &Property) -> bool {
+    p.0 == PROPERTY_LEGAL
+}
+
+/// Check one anchor list: entries must be in range, non-empty, and never
+/// name `legal`.
+fn check_anchor_entries(anchor: &Anchor) -> Result<(), PolicyError> {
+    if anchor.any_of.is_empty() {
+        return Err(PolicyError::EmptyAnchor);
+    }
+    for e in &anchor.any_of {
+        if is_legal(&e.property) {
+            return Err(PolicyError::LegalNeverAnchor);
+        }
+        if e.minimum > STRENGTH_MAX {
+            return Err(PolicyError::StrengthOutOfRange);
+        }
+    }
+    Ok(())
+}
+
+/// Check one requirement expression's leaves: `legal` is never scored and
+/// minima must be reachable on the fixed scale.
+fn check_requirement_leaves(req: &Requirement) -> Result<(), PolicyError> {
+    match req {
+        Requirement::Property { property, minimum } => {
+            if is_legal(property) {
+                return Err(PolicyError::LegalNotScored);
+            }
+            if *minimum > STRENGTH_MAX {
+                return Err(PolicyError::StrengthOutOfRange);
+            }
+            Ok(())
+        }
+        Requirement::AllOf(children) | Requirement::AnyOf(children) => {
+            children.iter().try_for_each(check_requirement_leaves)
+        }
+        Requirement::AtLeast { children, .. } => {
+            children.iter().try_for_each(check_requirement_leaves)
+        }
+    }
+}
+
+/// Community anchor minima may strengthen but never weaken a platform bound:
+/// for every platform-listed property the policy must carry an entry with a
+/// minimum at or above the platform's (a missing entry counts as weakened
+/// to 0).
+fn check_not_weakened(
+    policy_anchor: &Anchor,
+    platform_min: &[AnchorEntry],
+) -> Result<(), PolicyError> {
+    for bound in platform_min {
+        let community_minimum = policy_anchor
+            .any_of
+            .iter()
+            .filter(|e| e.property == bound.property)
+            .map(|e| e.minimum)
+            .max()
+            .unwrap_or(0);
+        if community_minimum < bound.minimum {
+            return Err(PolicyError::WeakenedAnchor {
+                property: bound.property.clone(),
+                platform_minimum: bound.minimum,
+                community_minimum,
+            });
+        }
+    }
+    Ok(())
+}
+
 /// Branch-complete anchor validation: every satisfiable permanent branch must
 /// entail the permanent anchor, every satisfiable temporal branch the
 /// temporal floor; `legal` is refused as anchor and leaf; community minima
@@ -353,7 +625,40 @@ pub fn validate_policy(
     policy: &AdmissionPolicy,
     platform: &PlatformBounds,
 ) -> Result<ValidatedPolicy, PolicyError> {
-    todo!()
+    check_anchor_entries(&policy.permanent_anchor)?;
+    check_anchor_entries(&policy.temporal_floor)?;
+    check_requirement_leaves(&policy.permanent_if)?;
+    if let Some(temporal_if) = &policy.temporal_if {
+        check_requirement_leaves(temporal_if)?;
+    }
+    check_not_weakened(&policy.permanent_anchor, &platform.permanent_anchor_min)?;
+    check_not_weakened(&policy.temporal_floor, &platform.temporal_floor_min)?;
+    for branch in branches(&policy.permanent_if)? {
+        if !branch_entails_anchor(&branch, &policy.permanent_anchor) {
+            return Err(PolicyError::UnguardedBranch {
+                side: PathSide::Permanent,
+            });
+        }
+    }
+    if let Some(temporal_if) = &policy.temporal_if {
+        for branch in branches(temporal_if)? {
+            if !branch_entails_anchor(&branch, &policy.temporal_floor) {
+                return Err(PolicyError::UnguardedBranch {
+                    side: PathSide::Temporal,
+                });
+            }
+        }
+    }
+    if policy.clock.duration_ticks == 0
+        || policy.clock.duration_ticks < policy.clock.min_ticks
+        || policy.clock.duration_ticks > policy.clock.max_ticks
+        || policy.clock.min_ticks > policy.clock.max_ticks
+    {
+        return Err(PolicyError::BadClock);
+    }
+    Ok(ValidatedPolicy {
+        policy: policy.clone(),
+    })
 }
 
 /// Which legal scope is red.
@@ -416,12 +721,101 @@ pub enum Admission {
     },
 }
 
+/// Membership class without the deadline (for load-bearing analysis).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum MembershipClass {
+    Permanent,
+    OnTheClock,
+    Excluded(ExclusionReason),
+}
+
+/// Shared classification over already-usable evidence: legal scopes, then the
+/// anchor over the matching evidence classes, then permanent before temporal.
+/// Usable evidence is valid and its half-open boundary is still in the future.
+fn classify(
+    policy: &AdmissionPolicy,
+    usable: &[Evidence],
+    input: &EvaluationInput<'_>,
+) -> MembershipClass {
+    if !input.legal_member_green {
+        return MembershipClass::Excluded(ExclusionReason::LegalRed(LegalScope::Member));
+    }
+    if !input.legal_community_green {
+        return MembershipClass::Excluded(ExclusionReason::LegalRed(LegalScope::Community));
+    }
+    let permanent = |p: &Property| score(p, usable, EvidenceClass::Permanent);
+    let current = |p: &Property| score(p, usable, EvidenceClass::Current);
+    let anchor_proven = policy.permanent_anchor.satisfied(&permanent);
+    let floor_proven = policy.temporal_floor.satisfied(&current);
+    if !anchor_proven && !floor_proven {
+        return MembershipClass::Excluded(ExclusionReason::AnchorUnproven);
+    }
+    if satisfies(&policy.permanent_if, &permanent) {
+        return MembershipClass::Permanent;
+    }
+    let clock_end = input
+        .admission_start
+        .saturating_add(policy.clock.duration_ticks);
+    let clock_expired = input.now >= clock_end;
+    let temporal_satisfied = policy
+        .temporal_if
+        .as_ref()
+        .is_some_and(|req| satisfies(req, &current));
+    if !temporal_satisfied {
+        return MembershipClass::Excluded(ExclusionReason::NoSatisfiedPath);
+    }
+    if input.spent_paths.contains(&policy.temporal_path) && !policy.allow_reentry {
+        return MembershipClass::Excluded(ExclusionReason::NoSatisfiedPath);
+    }
+    if clock_expired {
+        return MembershipClass::Excluded(ExclusionReason::ClockExpired);
+    }
+    MembershipClass::OnTheClock
+}
+
 /// Evaluate current admission under a validated policy: legal scopes first
 /// (either red excludes), then the anchor (neither anchor proven excludes),
 /// then the paths (permanent before temporal). The deadline of an
 /// on-the-clock admission is the earliest class-changing boundary.
 pub fn evaluate(policy: &ValidatedPolicy, input: &EvaluationInput<'_>) -> Admission {
-    todo!()
+    let policy = policy.policy();
+    let usable: Vec<Evidence> = input
+        .evidence
+        .iter()
+        .filter(|e| e.valid && e.valid_until.is_none_or(|end| input.now < end))
+        .cloned()
+        .collect();
+    match classify(policy, &usable, input) {
+        MembershipClass::Permanent => Admission::Permanent,
+        MembershipClass::Excluded(reason) => Admission::Excluded { reason },
+        MembershipClass::OnTheClock => {
+            // Earliest future boundary whose crossing changes the membership
+            // class: a proof whose removal flips the class is load-bearing.
+            // OR branches survive one branch's expiry: a proof whose removal
+            // leaves the class unchanged is not load-bearing. The clock end
+            // always bounds a temporal admission.
+            let clock_end = input
+                .admission_start
+                .saturating_add(policy.clock.duration_ticks);
+            let mut deadline = clock_end;
+            for (i, proof) in usable.iter().enumerate() {
+                let Some(boundary) = proof.valid_until else {
+                    continue;
+                };
+                if boundary <= input.now {
+                    continue;
+                }
+                let mut without = usable.clone();
+                without.remove(i);
+                if classify(policy, &without, input) != MembershipClass::OnTheClock {
+                    deadline = deadline.min(boundary);
+                }
+            }
+            Admission::OnTheClock {
+                valid_until: deadline,
+            }
+        }
+    }
 }
 
 /// Trust-bar colour per property: green = required threshold met by current
@@ -458,7 +852,25 @@ pub fn trust_status(
     current_score: Strength,
     temporal_boundary: Option<Tick>,
 ) -> TrustStatus {
-    todo!()
+    if permanent_score >= required {
+        TrustStatus {
+            color: TrustColor::Green,
+            evidence: EvidenceKind::Permanent,
+            valid_until: None,
+        }
+    } else if current_score >= required {
+        TrustStatus {
+            color: TrustColor::Yellow,
+            evidence: EvidenceKind::Temporal,
+            valid_until: temporal_boundary,
+        }
+    } else {
+        TrustStatus {
+            color: TrustColor::Red,
+            evidence: EvidenceKind::None,
+            valid_until: None,
+        }
+    }
 }
 
 /// A requirement expression evaluated to colours, preserving per-check
@@ -494,7 +906,12 @@ pub enum TrustNode {
 impl TrustNode {
     /// The aggregate colour of this node.
     pub fn color(&self) -> TrustColor {
-        todo!()
+        match self {
+            TrustNode::Leaf { status, .. } => status.color,
+            TrustNode::All { color, .. }
+            | TrustNode::Any { color, .. }
+            | TrustNode::AtLeast { color, .. } => *color,
+        }
     }
 }
 
@@ -507,13 +924,84 @@ pub fn trust_tree(
     current: &dyn Fn(&Property) -> Strength,
     boundary: &dyn Fn(&Property) -> Option<Tick>,
 ) -> TrustNode {
-    todo!()
+    match req {
+        Requirement::Property { property, minimum } => TrustNode::Leaf {
+            property: property.clone(),
+            required: *minimum,
+            status: trust_status(
+                *minimum,
+                permanent(property),
+                current(property),
+                boundary(property),
+            ),
+        },
+        Requirement::AllOf(children) => {
+            let children: Vec<TrustNode> =
+                children.iter().map(|c| trust_tree(c, permanent, current, boundary)).collect();
+            // AND = worst required colour (Red > Yellow > Green).
+            let color = children
+                .iter()
+                .map(TrustNode::color)
+                .max()
+                .unwrap_or(TrustColor::Green);
+            TrustNode::All { children, color }
+        }
+        Requirement::AnyOf(children) => {
+            let children: Vec<TrustNode> =
+                children.iter().map(|c| trust_tree(c, permanent, current, boundary)).collect();
+            // OR = best satisfied branch; red with no selection when none is.
+            let mut selected: Option<usize> = None;
+            let mut color = TrustColor::Red;
+            for (i, child) in children.iter().enumerate() {
+                let c = child.color();
+                if c != TrustColor::Red && (selected.is_none() || c < color) {
+                    selected = Some(i);
+                    color = c;
+                }
+            }
+            TrustNode::Any {
+                children,
+                selected,
+                color,
+            }
+        }
+        Requirement::AtLeast { k, children } => {
+            let children: Vec<TrustNode> =
+                children.iter().map(|c| trust_tree(c, permanent, current, boundary)).collect();
+            let mut satisfied: Vec<TrustColor> = children
+                .iter()
+                .map(TrustNode::color)
+                .filter(|c| *c != TrustColor::Red)
+                .collect();
+            satisfied.sort();
+            let color = if *k == 0 {
+                TrustColor::Green
+            } else if satisfied.len() >= *k {
+                satisfied[*k - 1]
+            } else {
+                TrustColor::Red
+            };
+            TrustNode::AtLeast {
+                k: *k,
+                children,
+                color,
+            }
+        }
+    }
 }
 
 /// Legality contributes green/red to authorization (a hidden legal property
 /// never exposes an order or invents a public legal-details panel).
 pub fn legal_trust(green: bool) -> TrustStatus {
-    todo!()
+    TrustStatus {
+        color: if green {
+            TrustColor::Green
+        } else {
+            TrustColor::Red
+        },
+        evidence: EvidenceKind::None,
+        valid_until: None,
+    }
 }
 
 #[cfg(test)]
