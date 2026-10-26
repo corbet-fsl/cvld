@@ -36,9 +36,13 @@
 //! agreed sequence. Multi-sponsor corners not decided in STATUS are marked M
 //! below: a further admin admission while already on the clock records the
 //! sponsor (so a later demotion of that admin still bites) but starts no new
-//! path, so re-invites cannot stretch the clock; a fresh event admission
-//! after an exclusion starts a new episode, because each event is its own
-//! path while the re-entry block governs the admin pool.
+//! path, so re-invites cannot stretch the clock; a demotion of any recorded
+//! sponsor acts on every admin-pool path of the episode, because the
+//! episode holds one member clock; a fact arriving after every path has run
+//! out sees the episode as over, i.e. like an exclusion (so the re-entry
+//! block applies); a fresh event admission after an exclusion starts a new
+//! episode, because each event is its own path while the re-entry block
+//! governs the admin pool.
 //!
 //! Out of scope: legality (clbs), voucher allowance/accounting, and the
 //! trust-bar display, which only reads the status derived here.
@@ -273,28 +277,44 @@ enum Fold {
 }
 
 impl Fold {
+    /// Whether the episode still has an unexpired path at `tick`. An
+    /// `OnClock` fold whose paths have all run out is effectively over:
+    /// later facts treat it like an exclusion.
+    fn alive(&self, tick: u64) -> bool {
+        match self {
+            Fold::OnClock { paths, .. } => paths.iter().any(|p| p.expiry > tick),
+            _ => false,
+        }
+    }
+
+    fn fresh_admin(policy: &ClockPolicy, admin: AdminId, tick: u64) -> Fold {
+        Fold::OnClock {
+            paths: vec![Path {
+                expiry: tick.saturating_add(policy.clock_ticks()),
+                sponsor: Some(admin),
+            }],
+            sponsors: vec![admin],
+            restart_used: false,
+        }
+    }
+
     fn admit_admin(&mut self, policy: &ClockPolicy, admin: AdminId, tick: u64) {
         match self {
             Fold::Absent => {
-                *self = Fold::OnClock {
-                    paths: vec![Path {
-                        expiry: tick.saturating_add(policy.clock_ticks()),
-                        sponsor: Some(admin),
-                    }],
-                    sponsors: vec![admin],
-                    restart_used: false,
-                };
+                *self = Self::fresh_admin(policy, admin, tick);
             }
             Fold::Excluded => {
                 if !policy.block_same_path_reentry {
-                    *self = Fold::OnClock {
-                        paths: vec![Path {
-                            expiry: tick.saturating_add(policy.clock_ticks()),
-                            sponsor: Some(admin),
-                        }],
-                        sponsors: vec![admin],
-                        restart_used: false,
-                    };
+                    *self = Self::fresh_admin(policy, admin, tick);
+                }
+            }
+            Fold::OnClock { .. } if !self.alive(tick) => {
+                // The old episode ran out before this admission: same as
+                // an exclusion (re-entry block applies).
+                if !policy.block_same_path_reentry {
+                    *self = Self::fresh_admin(policy, admin, tick);
+                } else {
+                    *self = Fold::Excluded;
                 }
             }
             Fold::OnClock { sponsors, .. } => {
@@ -308,13 +328,23 @@ impl Fold {
         }
     }
 
-    fn admit_event(&mut self, policy: &ClockPolicy, event_end: u64) {
+    fn admit_event(&mut self, policy: &ClockPolicy, event_end: u64, tick: u64) {
         let expiry = event_end.saturating_add(policy.event_extra_ticks());
         match self {
             // M: each event is its own path, so a fresh event admission
             // after an exclusion starts a new episode; the re-entry block
             // governs the admin-pool path only.
             Fold::Absent | Fold::Excluded => {
+                *self = Fold::OnClock {
+                    paths: vec![Path {
+                        expiry,
+                        sponsor: None,
+                    }],
+                    sponsors: Vec::new(),
+                    restart_used: false,
+                };
+            }
+            Fold::OnClock { .. } if !self.alive(tick) => {
                 *self = Fold::OnClock {
                     paths: vec![Path {
                         expiry,
@@ -335,6 +365,9 @@ impl Fold {
     }
 
     fn demote(&mut self, policy: &ClockPolicy, admin: AdminId, tick: u64, for_abuse: bool) {
+        if !self.alive(tick) {
+            return;
+        }
         let Fold::OnClock {
             paths,
             sponsors,
@@ -346,16 +379,19 @@ impl Fold {
         if !sponsors.contains(&admin) {
             return;
         }
+        // The episode holds one member clock: a sponsor's demotion acts on
+        // every admin-pool path in it, not only on paths that sponsor
+        // opened (re-invites open no new path).
         if for_abuse {
             // L1621: remaining time capped at the abuse cap. The once-only
             // restart budget is moot here: shortening is not restarting.
             let cap = tick.saturating_add(policy.abuse_cap_ticks());
-            for path in paths.iter_mut().filter(|p| p.sponsor == Some(admin)) {
+            for path in paths.iter_mut().filter(|p| p.sponsor.is_some()) {
                 path.expiry = path.expiry.min(cap);
             }
         } else if policy.normal_demotion == NormalDemotion::Restart && !*restart_used {
             // L1599: at most one demotion-triggered restart per episode.
-            for path in paths.iter_mut().filter(|p| p.sponsor == Some(admin)) {
+            for path in paths.iter_mut().filter(|p| p.sponsor.is_some()) {
                 path.expiry = tick.saturating_add(policy.clock_ticks());
             }
             *restart_used = true;
@@ -407,9 +443,10 @@ pub fn evaluate(
             Fact::EventAdmitted {
                 member: m,
                 event_end,
+                tick,
                 ..
             } if m == member => {
-                fold.admit_event(policy, event_end);
+                fold.admit_event(policy, event_end, tick);
             }
             Fact::PersonalInvited { member: m, .. } if m == member => {
                 fold = Fold::Permanent;
@@ -724,7 +761,13 @@ mod tests {
                 tick: invite,
             },
         ];
-        assert_eq!(at(&policy(), &facts, expired), Status::Permanent);
+        assert_eq!(
+            at(&policy(), &facts, expired),
+            Status::Excluded {
+                reason: ExitReason::ClockExpired
+            },
+            "the invite is a future fact at the expiry tick"
+        );
         assert_eq!(at(&policy(), &facts, invite), Status::Permanent);
     }
 
