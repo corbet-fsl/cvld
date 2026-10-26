@@ -581,6 +581,12 @@ impl Door {
         Ok(community.public.clone())
     }
     pub(crate) async fn trust_feed(&self, _: Context, _: Empty) -> Result<TrustFeed> {
+        // A legally red community is excluded from discovery: its publication
+        // is not served. Lock-free: public snapshots never wait on the
+        // backend mutex, so this reads through the door's own store handle.
+        if let Some(legal) = self.community_legal_store() {
+            crate::community::refuse_if_community_red(&legal).await?;
+        }
         Ok(self.community_public()?.borrow().as_ref().clone())
     }
     pub(crate) async fn trust_changes(&self, _: Context, request: Since) -> Result<Announcement> {

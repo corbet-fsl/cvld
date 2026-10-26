@@ -43,11 +43,20 @@ pub fn community_migrations() -> Vec<crlt::Migration<'static>> {
         ("stamp-uses", crate::stamp_uses::SCHEMA),
         ("cmbr-device-pairing", cmbr::DEVICE_PAIRING_SCHEMA),
     ]);
-    schemas
+    let mut migrations: Vec<crlt::Migration<'static>> = schemas
         .iter()
         .enumerate()
         .map(|(i, (name, sql))| crlt::Migration::new(i as u32 + 1, name, sql))
-        .collect()
+        .collect();
+    // Community legal scope (P4b): order scope survives the store round-trip.
+    // Appended last: migration history is immutable, so existing ledgers keep
+    // their versions and only this new entry is applied.
+    migrations.push(crlt::Migration::new(
+        migrations.len() as u32 + 1,
+        "clbs-scope",
+        cgts::legal_storage::SCOPE_SCHEMA,
+    ));
+    migrations
 }
 
 /// Original contiguous global migration history, including host-owned tables.

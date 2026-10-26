@@ -28,6 +28,7 @@ pub(crate) mod garden;
 pub(crate) mod governance;
 mod held;
 mod legal;
+pub(crate) use legal::refuse_if_community_red;
 mod lobby_upcoming;
 mod payments;
 mod pin_change;
@@ -1470,6 +1471,9 @@ impl CommunityService {
         if challenge.owner != Some(auth.member()) {
             return Err(Error::Forbidden);
         }
+        // A legally red community admits nobody and renews nothing. The
+        // challenge stays consumed, like every other pre-admission refusal.
+        self.refuse_if_community_red().await?;
         let date = chrono::DateTime::from_timestamp(now as i64, 0)
             .ok_or(Error::Invalid)?
             .checked_add_months(chrono::Months::new(self.config.lease_months))

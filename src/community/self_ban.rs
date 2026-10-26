@@ -43,6 +43,7 @@ impl CommunityService {
             reference: "member-confirmed-termination".into(),
             entered_by: row.subject().into(),
             kind: clbs::OrderKind::SelfBan,
+            scope: clbs::Scope::Member,
         };
         let (options, value) = crate::service::at(
             now,

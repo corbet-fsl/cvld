@@ -67,6 +67,7 @@ async fn absent_legal_authority_and_unrepresentable_time_fail_closed() {
             reference: "opaque-reference".into(),
             entered_by: "opaque-member".into(),
             kind: clbs::OrderKind::SelfBan,
+            scope: clbs::Scope::Member,
         },
         proof: b"untrusted-private-authorization".to_vec(),
     };
@@ -862,6 +863,7 @@ async fn a_verified_legal_veto_after_authentication_prevents_credential_issuance
         kind: clbs::OrderKind::Legal {
             authority: "fixture-authority".into(),
         },
+        scope: clbs::Scope::Member,
     };
     let key = SigningKey::from_bytes(&[41; 32]);
     let proof = key
@@ -911,6 +913,205 @@ async fn a_verified_legal_veto_after_authentication_prevents_credential_issuance
         serde_json::to_value(crate::error::ErrorBody::from(error)).unwrap(),
         json!({"error":"forbidden"})
     );
+}
+
+/// Fixture legal authority for community-scope orders. Production stays
+/// fail-closed (`CommunityAuthority::verify_legal` denies); tests authenticate
+/// a complete order through this fixture instead. Verification is unchanged:
+/// the same authority and verifier path as member orders, only the scope
+/// differs.
+struct CommunityFixtureAuthority(ed25519_dalek::VerifyingKey);
+
+impl clbs::Verifier for CommunityFixtureAuthority {
+    async fn verify_legal(&self, signed: &clbs::SignedOrder) -> clbs::Result<()> {
+        if signed.order.entered_by != "fixture-root"
+            || signed.order.kind
+                != (clbs::OrderKind::Legal {
+                    authority: "fixture-authority".into(),
+                })
+        {
+            return Err(clbs::Error::Denied);
+        }
+        let signature =
+            ed25519_dalek::Signature::from_slice(&signed.proof).map_err(|_| clbs::Error::Denied)?;
+        self.0
+            .verify_strict(&signed.order.signing_payload()?, &signature)
+            .map_err(|_| clbs::Error::Denied)
+    }
+
+    async fn verify_self_ban(&self, _: &clbs::SignedOrder) -> clbs::Result<()> {
+        Err(clbs::Error::Denied)
+    }
+}
+
+/// Record a community-scope legal order for "alpha" through the owning legal
+/// gate and prove the stored records report Red.
+async fn record_community_order(community: &CommunityService, id: &str) {
+    use ed25519_dalek::{Signer as _, SigningKey};
+    let order = clbs::Order {
+        community: "alpha".into(),
+        id: id.into(),
+        subject: "alpha".into(),
+        reference: "private-authority-reference".into(),
+        entered_by: "fixture-root".into(),
+        kind: clbs::OrderKind::Legal {
+            authority: "fixture-authority".into(),
+        },
+        scope: clbs::Scope::Community,
+    };
+    let key = SigningKey::from_bytes(&[41; 32]);
+    let proof = key
+        .sign(&order.signing_payload().unwrap())
+        .to_bytes()
+        .to_vec();
+    let store = cgts::legal_storage::LibsqlStore::new(&community.db, "alpha").unwrap();
+    let authority = clbs::Gate::new(
+        store.clone(),
+        CommunityFixtureAuthority(key.verifying_key()),
+    );
+    assert_eq!(
+        authority
+            .record_legal(&clbs::SignedOrder { order, proof })
+            .await
+            .unwrap(),
+        clbs::Append::Inserted
+    );
+    let records = clbs::Store::orders(&store, "alpha").await.unwrap();
+    assert!(matches!(
+        clbs::community_legal_state("alpha", &records),
+        clbs::State::Red(_)
+    ));
+}
+
+/// Pass the lobby and voucher gates so the test reaches the admission decision.
+async fn prepare_admission(service: &Running, member: &Member, handle: &str, voucher_id: &str) {
+    let c = client(service, HOST, Some(&member.session));
+    c.call("handle_reserve", json!({"handle": handle}))
+        .await
+        .unwrap();
+    let lobby: Lobby = serde_json::from_value(c.call("lobby", json!({})).await.unwrap()).unwrap();
+    c.voucher_redeem(voucher("alpha", &lobby.member_id, voucher_id, NOW + 86_400))
+        .await
+        .unwrap();
+}
+
+async fn credential_issue_call(
+    service: &Running,
+    member: &Member,
+    proof: PresentationInput,
+) -> u16 {
+    call_status(
+        service,
+        HOST,
+        Some(&member.session),
+        "credential_issue",
+        json!({"presentation": proof, "devices": [member.signing_key]}),
+    )
+    .await
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_red_community_refuses_admission() {
+    let global = global(100).await;
+    let (_, passport, public) = wallet_passport(&global).await;
+    let service = community("alpha", &public).await;
+    let member = enrol_community(&service, HOST, &passport).await;
+    prepare_admission(&service, &member, "red_admit", "red-admit-voucher").await;
+    // Fetch the presentation while the community is still green: building it
+    // reads the discovery feed, which is also gone once the community is red.
+    let proof = presentation(&service, HOST, Some(&member.session), &passport).await;
+    {
+        let community = service.door.community_backend().unwrap().lock().await;
+        record_community_order(&community, "community-block").await;
+    }
+    // Lobby and voucher gates still run under a red community; only the
+    // admission decision itself is refused.
+    assert_eq!(credential_issue_call(&service, &member, proof).await, 403);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_red_community_refuses_credential_renewal() {
+    let global = global(100).await;
+    let (_, passport, public) = wallet_passport(&global).await;
+    let service = community("alpha", &public).await;
+    let member = enrol_community(&service, HOST, &passport).await;
+    prepare_admission(&service, &member, "red_renew", "red-renew-voucher").await;
+    assert!(
+        issue_community(&service, HOST, &member, &passport)
+            .await
+            .credential
+            .is_some()
+    );
+    // Fetch the renewal presentation while green; renewing under Red is refused.
+    let proof = presentation(&service, HOST, Some(&member.session), &passport).await;
+    {
+        let community = service.door.community_backend().unwrap().lock().await;
+        record_community_order(&community, "community-block").await;
+    }
+    // The member was admitted while green; renewing under Red is refused.
+    assert_eq!(credential_issue_call(&service, &member, proof).await, 403);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_red_community_is_excluded_from_the_trust_feed() {
+    let global = global(100).await;
+    let (_, passport, public) = wallet_passport(&global).await;
+    let service = community("alpha", &public).await;
+    let member = enrol_community(&service, HOST, &passport).await;
+    client(&service, HOST, Some(&member.session))
+        .call("trust_feed", json!({}))
+        .await
+        .unwrap();
+    {
+        let community = service.door.community_backend().unwrap().lock().await;
+        record_community_order(&community, "community-block").await;
+    }
+    assert_eq!(
+        call_status(
+            &service,
+            HOST,
+            Some(&member.session),
+            "trust_feed",
+            json!({})
+        )
+        .await,
+        403
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_green_community_admits_renews_and_lists_unchanged() {
+    let global = global(100).await;
+    let (_, passport, public) = wallet_passport(&global).await;
+    let service = community("alpha", &public).await;
+    let member = enrol_community(&service, HOST, &passport).await;
+    prepare_admission(&service, &member, "green_member", "green-voucher").await;
+    // A member-scope order for someone else never reddens the community.
+    {
+        let community = service.door.community_backend().unwrap().lock().await;
+        let store = cgts::legal_storage::LibsqlStore::new(&community.db, "alpha").unwrap();
+        let records = clbs::Store::orders(&store, "alice").await.unwrap();
+        assert_eq!(
+            clbs::community_legal_state("alpha", &records),
+            clbs::State::Green
+        );
+    }
+    assert!(
+        issue_community(&service, HOST, &member, &passport)
+            .await
+            .credential
+            .is_some()
+    );
+    assert!(
+        issue_community(&service, HOST, &member, &passport)
+            .await
+            .credential
+            .is_some()
+    );
+    client(&service, HOST, Some(&member.session))
+        .call("trust_feed", json!({}))
+        .await
+        .unwrap();
 }
 
 /// A newly created community's charter settings project into Forum's settings without

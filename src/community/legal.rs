@@ -5,12 +5,46 @@
 //! clbs verifier consumes it once, authenticating the complete immutable order.
 //! A consumed capability does not prove that the subsequent append committed:
 //! errors/cancellation require exact trusted-record reconciliation by the host.
+//!
+//! A community whose stored legal records report Red admits nobody, serves no
+//! discovery feed and renews no membership credential. The verifier path is
+//! unchanged: production still denies unqualified legal authority.
+use super::CommunityService;
 use crate::{
     error::{Error, Result},
     service::Clock,
 };
 use cmty::cmbr;
 use std::{collections::HashMap, sync::Arc};
+
+impl CommunityService {
+    /// Refuse when this community itself is legally Red. Admissions, renewals
+    /// and the discovery feed pass through here; every other action is
+    /// unaffected. A store failure fails closed without claiming a verdict.
+    pub(crate) async fn refuse_if_community_red(&self) -> Result<()> {
+        let store = cmty::cgts::legal_storage::LibsqlStore::new(&self.db, &self.config.community)
+            .map_err(Error::Unavailable.redact_at("community/legal.rs:1"))?;
+        refuse_if_community_red(&store).await
+    }
+}
+
+/// Refuse when the stored legal records of the store's community report Red.
+/// Lock-free: the store handle shares the database pool, so public snapshots
+/// can use this without waiting on the backend mutex.
+pub(crate) async fn refuse_if_community_red(
+    store: &cmty::cgts::legal_storage::LibsqlStore,
+) -> Result<()> {
+    use clbs::Store as _;
+    let community = store.community();
+    let records = store
+        .orders(community)
+        .await
+        .map_err(Error::Unavailable.redact_at("community/legal.rs:2"))?;
+    match clbs::community_legal_state(community, &records) {
+        clbs::State::Green => Ok(()),
+        clbs::State::Red(_) => Err(Error::Forbidden),
+    }
+}
 
 /// Cloneable shared verifier for one community, without raw WebAuthn evidence.
 #[derive(Clone)]

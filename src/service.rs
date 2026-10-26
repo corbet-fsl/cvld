@@ -114,6 +114,10 @@ struct Inner {
     member_host: Option<String>,
     community_garden_host: Option<String>,
     root_board_admin_host: Option<String>,
+    /// Lock-free community legality read for public snapshots: the store
+    /// handle shares the community database pool, so it observes committed
+    /// orders without waiting on the backend mutex. None on global doors.
+    community_legal: Option<cmty::cgts::legal_storage::LibsqlStore>,
     /// Per network source and action, RAM only: no global refusal.
     sources: crate::bucket::Keyed<(std::net::IpAddr, &'static str)>,
     proxies: crate::bucket::Proxies,
@@ -318,6 +322,7 @@ impl Door {
                 member_host: None,
                 community_garden_host: None,
                 root_board_admin_host: None,
+                community_legal: None,
                 sources,
                 proxies,
                 clock,
@@ -545,6 +550,11 @@ impl Door {
             let ohttp =
                 crate::ohttp::build(config.ohttp.as_ref(), &names, &db, &config.community, None)
                     .await?;
+            // Lock-free legality read for the public snapshot below. Fail
+            // closed: without a store handle the door cannot be built.
+            let community_legal =
+                cmty::cgts::legal_storage::LibsqlStore::new(&db, config.community.clone())
+                    .map_err(Error::Unavailable.redact_at("service.rs:8"))?;
             Ok(Self {
                 inner: Arc::new(Inner {
                     hub: Arc::new(std::sync::OnceLock::new()),
@@ -560,6 +570,7 @@ impl Door {
                     member_host: Some(member_host),
                     community_garden_host: Some(community_garden_host),
                     root_board_admin_host,
+                    community_legal: Some(community_legal),
                     sources,
                     proxies,
                     clock,
@@ -982,6 +993,10 @@ impl Door {
             Published::Community(public) => Ok(public.clone()),
             _ => Err(Error::WrongHost),
         }
+    }
+    /// Lock-free legal store handle for public snapshots; None on global doors.
+    pub(crate) fn community_legal_store(&self) -> Option<cmty::cgts::legal_storage::LibsqlStore> {
+        self.inner.community_legal.clone()
     }
     pub(crate) async fn passport_challenge(&self, ctx: Context, _: Empty) -> Result<Bytes> {
         let global = self.global_backend()?.lock().await;

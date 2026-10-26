@@ -31,6 +31,7 @@ fn order(id: &str) -> clbs::Order {
         reference: "member-confirmed-termination".into(),
         entered_by: SUBJECT.into(),
         kind: clbs::OrderKind::SelfBan,
+        scope: clbs::Scope::Member,
     }
 }
 impl Fixture {
@@ -50,6 +51,10 @@ impl Fixture {
             .chain([
                 &("device-registry", cmbr::DEVICE_REGISTRY_SCHEMA),
                 &("device-pairing", cmbr::DEVICE_PAIRING_SCHEMA),
+                // Test-only tail matching production: order scope survives the
+                // store round-trip (P4b). Production registers this at the end
+                // of the real community migration history.
+                &("clbs-scope", cmty::cgts::legal_storage::SCOPE_SCHEMA),
             ])
             .enumerate()
             .map(|(index, (name, sql))| crlt::Migration::new(index as u32 + 1, name, sql))
