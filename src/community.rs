@@ -18,6 +18,7 @@ mod account_rotation;
 mod account_tuning;
 mod accounting;
 mod admission;
+mod admission_lego;
 mod certificate;
 pub(crate) mod creation;
 mod device_session;
