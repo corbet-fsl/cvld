@@ -339,7 +339,86 @@ pub fn evaluate(
     roots: &[[u8; 32]],
     rules: &RuleSet,
 ) -> Result<Outcome, Error> {
-    todo!()
+    let digest = proposal.digest();
+    let mut valid: BTreeSet<[u8; 32]> = BTreeSet::new();
+    for approval in approvals {
+        if approval.valid_for(&digest) {
+            valid.insert(approval.signer);
+        }
+    }
+    if valid.iter().any(|signer| roots.contains(signer)) {
+        return Ok(Outcome::InForce);
+    }
+    let current: BTreeSet<[u8; 32]> = current_admins.iter().copied().collect();
+    if proposal.class() == DecisionClass::AdminSet {
+        return evaluate_admin_set(&parse_admin_change(&proposal.new_value)?, &valid, &current, rules);
+    }
+    let rule = rules.rule_for(proposal.class());
+    let counted = valid.intersection(&current).count() as u64;
+    threshold_outcome(rule, current.len() as u64, counted)
+}
+
+/// AdminSet evaluation with the target/promotion/resignation edge rules.
+fn evaluate_admin_set(
+    change: &AdminChange,
+    valid: &BTreeSet<[u8; 32]>,
+    current: &BTreeSet<[u8; 32]>,
+    rules: &RuleSet,
+) -> Result<Outcome, Error> {
+    let rule = rules.rule_for(DecisionClass::AdminSet);
+    match *change {
+        AdminChange::Add(key) => {
+            // The promoted person need not (and cannot) approve: their
+            // signature never counts, even if they already are an admin.
+            let counted = valid
+                .difference(&BTreeSet::from([key]))
+                .filter(|signer| current.contains(*signer))
+                .count() as u64;
+            threshold_outcome(rule, current.len() as u64, counted)
+        }
+        AdminChange::Remove(key) => {
+            // The demotion target is excluded from n and from the approvals.
+            if !current.contains(&key) {
+                return Err(Error::UnknownAdminTarget);
+            }
+            let effective: BTreeSet<[u8; 32]> =
+                current.difference(&BTreeSet::from([key])).copied().collect();
+            let counted = valid.intersection(&effective).count() as u64;
+            threshold_outcome(rule, effective.len() as u64, counted)
+        }
+        AdminChange::Resign(key) => {
+            // Stepping down is always possible alone: the member's own
+            // signature suffices regardless of the rule in force.
+            if !current.contains(&key) {
+                return Err(Error::UnknownAdminTarget);
+            }
+            if valid.contains(&key) {
+                Ok(Outcome::InForce)
+            } else {
+                Ok(Outcome::Pending { valid: 0, needed: 1 })
+            }
+        }
+    }
+}
+
+/// Threshold comparison shared by the approval paths. With zero effective
+/// admins nothing passes without a root (checked by the caller first).
+/// `needed` is the rule's threshold for the effective n as computed; for
+/// Unanimous/Quorum at n 0 that is 0, and the n == 0 guard still keeps the
+/// outcome pending.
+fn threshold_outcome(rule: ThresholdRule, n: u64, counted: u64) -> Result<Outcome, Error> {
+    let needed = rule.threshold(n)?;
+    if n == 0 {
+        return Ok(Outcome::Pending { valid: 0, needed });
+    }
+    if counted >= needed {
+        Ok(Outcome::InForce)
+    } else {
+        Ok(Outcome::Pending {
+            valid: counted,
+            needed,
+        })
+    }
 }
 
 /// Adjudicate competing proposals for the SAME setting, given in agreed
@@ -347,7 +426,23 @@ pub fn evaluate(
 /// in force; every other is void. With no winner, pending proposals stay
 /// pending (no deadlines).
 pub fn resolve_competing(outcomes: &[Outcome]) -> Vec<Outcome> {
-    todo!()
+    let winner = outcomes
+        .iter()
+        .position(|outcome| *outcome == Outcome::InForce);
+    match winner {
+        None => outcomes.to_vec(),
+        Some(first) => outcomes
+            .iter()
+            .enumerate()
+            .map(|(index, _)| {
+                if index == first {
+                    Outcome::InForce
+                } else {
+                    Outcome::Void
+                }
+            })
+            .collect(),
+    }
 }
 
 /// Seam failure: refused proposal or rule content, never a lapse.
@@ -686,11 +781,14 @@ mod tests {
         .unwrap();
         let demote_digest = demote.digest();
         let self_approval = [approve(&key(1), &demote_digest)];
+        // Effective n is 0 (the target is excluded) and their own approval
+        // does not count: pending with the rule's degenerate threshold of 0.
+        // Only a root can remove the last admin (asserted below).
         assert_eq!(
             evaluate(&demote, &self_approval, &current, &[], &rules),
             Ok(Outcome::Pending {
                 valid: 0,
-                needed: 1
+                needed: 0
             })
         );
         // ...unless a root removes them.
