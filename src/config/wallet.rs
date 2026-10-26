@@ -14,14 +14,31 @@ pub struct WalletConfig {
     /// never the passport key. Absent: the wallet issues no stamps.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stamp_key_file: Option<String>,
-    /// Stamps per member and window (rulebook setting; default 20).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub stamp_limit: Option<u32>,
-    /// Stamp budget window in seconds (default one day).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub stamp_period_seconds: Option<u64>,
     /// How long the same stamp request is answered again with the same stamp (default ten
     /// minutes; 0 disables it).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stamp_replay_seconds: Option<u64>,
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    #[test]
+    fn removed_stamp_budget_settings_are_refused_as_unknown_keys() {
+        let base = json!({
+            "signing_seed_file": "seed",
+            "publication_file": "publication",
+            "signer_max_seconds": 8640000,
+        });
+        assert!(serde_json::from_value::<super::WalletConfig>(base.clone()).is_ok());
+        for field in ["stamp_limit", "stamp_period_seconds"] {
+            let mut value = base.clone();
+            value[field] = json!(20);
+            assert!(
+                serde_json::from_value::<super::WalletConfig>(value).is_err(),
+                "{field}"
+            );
+        }
+    }
 }

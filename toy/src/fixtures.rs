@@ -155,8 +155,6 @@ pub fn wallet(dir: &Path) -> cvld::config::WalletConfig {
             .unwrap();
             key.to_secret_bytes()
         })),
-        stamp_limit: None,
-        stamp_period_seconds: None,
         stamp_replay_seconds: None,
     }
 }
@@ -311,9 +309,9 @@ pub fn community_with(
         Some((account, rules)) => (Some(account), rules),
         None => (None, community_rules()),
     };
-    let session_seconds = accounting
-        .as_ref()
-        .map_or(SESSION_SECONDS, |account| grant_seconds(&account.ledger_policy_file));
+    let session_seconds = accounting.as_ref().map_or(SESSION_SECONDS, |account| {
+        grant_seconds(&account.ledger_policy_file)
+    });
     let config = CommunityConfig {
         stamp_cohort_seconds: None,
         founding_seed: None,
@@ -324,11 +322,7 @@ pub fn community_with(
         database_url: format!("file://{}", dir.join("community.db").display()),
         database_token_file: None,
         signing_seed_file: write(dir, "signer", &cpsd::rand::random::<[u8; 32]>()),
-        rulebook_file: write(
-            dir,
-            "rulebook",
-            &serde_json::to_vec(&rules).unwrap(),
-        ),
+        rulebook_file: write(dir, "rulebook", &serde_json::to_vec(&rules).unwrap()),
         schema_file: write(
             dir,
             "schema",

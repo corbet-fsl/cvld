@@ -114,10 +114,6 @@ impl GlobalService {
                 .attach_stamps(
                     key,
                     cgbl::StampRate {
-                        limit: wallet.stamp_limit.unwrap_or(defaults.limit),
-                        period_seconds: wallet
-                            .stamp_period_seconds
-                            .unwrap_or(defaults.period_seconds),
                         replay_seconds: wallet
                             .stamp_replay_seconds
                             .unwrap_or(defaults.replay_seconds),
