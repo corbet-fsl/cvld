@@ -36,6 +36,7 @@ pub(crate) mod root_issuance;
 mod self_ban;
 mod self_ban_status;
 mod session_authority;
+pub(crate) mod state;
 mod step_up;
 use legal::CommunityAuthority;
 use payments::PaymentClock;
