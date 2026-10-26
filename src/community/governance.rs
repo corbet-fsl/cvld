@@ -10,7 +10,12 @@
 //!
 //! - A proposal is a fact over a digest of
 //!   `(community, class, setting, new_value, base_revision)`.
-//! - An approval is a current admin's signature over the same digest.
+//! - An approval is a current admin's DEVICE-key signature over the framed
+//!   message `tag || digest`, with `tag = b"cvld.admin-approval.v1\0"`
+//!   (`ckmg::DeviceFormat::AdminApproval`, Admitted class only). A raw
+//!   signature over the bare digest is never accepted (finding H2): since
+//!   ckmg S1 a device key signs only a registered `DeviceFormat` through
+//!   ckmg's typed signer.
 //! - The change is IN FORCE when the valid approvals from CURRENT admins
 //!   reach `threshold(class, n)`, or when a root signed it (root override).
 //! - Rules per decision class (community settings): Alone = 1,
@@ -32,16 +37,29 @@
 //! - Approvals from admins who are no longer current do not count.
 //!
 //! Cryptography is reused, not invented: `ed25519_dalek` signatures are
-//! verified with `verify_strict` (as in `super::state`) and digests use
-//! `sha2::Sha256`. No new key types, no new primitives.
+//! verified with `verify_strict` (as in `super::state`) over the ckmg
+//! `AdminApproval` framing, and digests use `sha2::Sha256`. No new key types,
+//! no new primitives, and no raw signing in production: [`Approval::sign`]
+//! is test-only; production signing goes through ckmg's typed signer
+//! (wiring comes later, not in this module).
 
-use ed25519_dalek::{Signer as _, VerifyingKey};
+use ed25519_dalek::VerifyingKey;
+#[cfg(test)]
+use ed25519_dalek::Signer as _;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 use std::collections::BTreeSet;
 
 /// Domain separator for the proposal-digest canonical bytes.
 const GOVERNANCE_DOMAIN: &[u8] = b"cmtymeet.governance.v1\0";
+
+/// Framing tag of the approved message: `tag || proposal_digest`.
+///
+/// Mirrors `ckmg::DeviceFormat::AdminApproval::tag()` (Admitted class only).
+/// The bytes are repeated here so this module takes no dependency on ckmg;
+/// they are frozen by ckmg's prefix-free registry test — never change them
+/// without changing that registry in lockstep.
+const ADMIN_APPROVAL_TAG: &[u8] = b"cvld.admin-approval.v1\0";
 
 /// Decision classes. A class without its own rule in [`RuleSet`] uses
 /// [`DecisionClass::Default`].
@@ -237,22 +255,32 @@ pub struct Approval {
 }
 
 impl Approval {
-    /// Sign `digest` as `signer`.
+    /// Test-only raw signer over the framed message. Production code has no
+    /// raw signer: approvals are signed by the admin's device key through
+    /// ckmg's typed signer (class Admitted, `DeviceFormat::AdminApproval`).
+    #[cfg(test)]
     pub fn sign(signer: &ed25519_dalek::SigningKey, digest: &[u8; 32]) -> Self {
+        let mut message = Vec::with_capacity(ADMIN_APPROVAL_TAG.len() + digest.len());
+        message.extend_from_slice(ADMIN_APPROVAL_TAG);
+        message.extend_from_slice(digest);
         Self {
             signer: signer.verifying_key().to_bytes(),
-            signature: signer.sign(digest).to_bytes(),
+            signature: signer.sign(&message).to_bytes(),
         }
     }
 
-    /// Verify strictly against `digest`. A bad key or a bad signature is not
-    /// an error here: the approval simply does not count.
+    /// Verify strictly against the framed message `tag || digest`. A bad key,
+    /// a bad signature, a bare-digest signature or another format's framing
+    /// is not an error here: the approval simply does not count.
     fn valid_for(&self, digest: &[u8; 32]) -> bool {
         let Ok(key) = VerifyingKey::from_bytes(&self.signer) else {
             return false;
         };
+        let mut message = Vec::with_capacity(ADMIN_APPROVAL_TAG.len() + digest.len());
+        message.extend_from_slice(ADMIN_APPROVAL_TAG);
+        message.extend_from_slice(digest);
         let signature = ed25519_dalek::Signature::from_bytes(&self.signature);
-        key.verify_strict(digest, &signature).is_ok()
+        key.verify_strict(&message, &signature).is_ok()
     }
 }
 
@@ -473,6 +501,7 @@ pub enum Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ed25519_dalek::Signer as _;
     use ed25519_dalek::SigningKey;
 
     fn key(byte: u8) -> SigningKey {
@@ -671,6 +700,53 @@ mod tests {
             Ok(Outcome::Pending {
                 valid: 1,
                 needed: 2
+            })
+        );
+    }
+
+    #[test]
+    fn bare_digest_approval_refused() {
+        // A raw device-key signature over the bare digest (no format tag) is
+        // never an approval, even from a current admin (finding H2).
+        let signer = key(1);
+        let prop = proposal(DecisionClass::Gates, "entry");
+        let digest = prop.digest();
+        let bare = Approval {
+            signer: public(1),
+            signature: signer.sign(&digest).to_bytes(),
+        };
+        let current = admins(&[1]);
+        let rules = RuleSet::new(ThresholdRule::Alone);
+        assert_eq!(
+            evaluate(&prop, &[bare], &current, &[], &rules),
+            Ok(Outcome::Pending {
+                valid: 0,
+                needed: 1
+            })
+        );
+    }
+
+    #[test]
+    fn wrong_format_tag_approval_refused() {
+        // Another ckmg format's tag (PairingApproval, from ckmg's registry)
+        // framing the same digest is not an admin approval.
+        const OTHER_TAG: &[u8] = b"cvld.device-pairing-approval.v1\0";
+        let signer = key(1);
+        let prop = proposal(DecisionClass::Gates, "entry");
+        let digest = prop.digest();
+        let mut message = OTHER_TAG.to_vec();
+        message.extend_from_slice(&digest);
+        let wrong = Approval {
+            signer: public(1),
+            signature: signer.sign(&message).to_bytes(),
+        };
+        let current = admins(&[1]);
+        let rules = RuleSet::new(ThresholdRule::Alone);
+        assert_eq!(
+            evaluate(&prop, &[wrong], &current, &[], &rules),
+            Ok(Outcome::Pending {
+                valid: 0,
+                needed: 1
             })
         );
     }
