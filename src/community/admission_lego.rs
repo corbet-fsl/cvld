@@ -221,8 +221,8 @@ pub fn score(property: &Property, evidence: &[Evidence], class: EvidenceClass) -
     }
     components
         .values()
-        .fold(0u32, |sum, s| sum + Strength::from(*s))
-        .min(Strength::from(STRENGTH_MAX))
+        .fold(0u32, |sum, s| sum + u32::from(*s))
+        .min(u32::from(STRENGTH_MAX))
         .try_into()
         .unwrap_or(STRENGTH_MAX)
 }
