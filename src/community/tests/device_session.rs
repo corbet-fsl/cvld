@@ -287,3 +287,58 @@ async fn a_device_session_is_a_full_member_session_except_for_human_confirmation
     );
     assert!(device.call("passkey_list", json!({})).await.is_err());
 }
+
+/// The record source and every other lease probe uses `lobby` (a Member read that device-key
+/// and passkey sessions may both make): it answers 401 once the session's lease or its device
+/// is no longer current, and it grants nothing the session did not already have.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_lobby_read_is_a_lease_probe_for_device_and_passkey_sessions() {
+    let (service, member, _) = fixture().await;
+    let anonymous = client(&service, HOST, None);
+    let challenge: DeviceSessionChallenge = serde_json::from_value(
+        anonymous
+            .call("device_session_begin", json!({}))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let request = finish("alpha", &challenge, &member.user, &key(13));
+    let session: Session = serde_json::from_value(
+        anonymous
+            .call(
+                "device_session_finish",
+                serde_json::to_value(&request).unwrap(),
+            )
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let device = client(&service, HOST, Some(&session.token));
+    let passkey = client(&service, HOST, Some(&member.session));
+    assert!(device.call("lobby", json!({})).await.is_ok());
+    assert!(passkey.call("lobby", json!({})).await.is_ok());
+    // An expired lease is refused.
+    {
+        let mut community = service.door.community_backend().unwrap().lock().await;
+        assert!(
+            community
+                .authenticate(&session.token, session.expires)
+                .await
+                .is_err()
+        );
+    }
+    // A revoked device is refused although its session was opened while it was active.
+    {
+        let mut community = service.door.community_backend().unwrap().lock().await;
+        device_registry::put(
+            &community.db,
+            "alpha",
+            &member.user,
+            &joined(),
+            State::Revoked,
+        )
+        .await
+        .unwrap();
+    }
+    assert!(device.call("lobby", json!({})).await.is_err());
+}
