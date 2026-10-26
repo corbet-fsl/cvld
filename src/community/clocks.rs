@@ -139,7 +139,22 @@ impl std::error::Error for PolicyError {}
 impl ClockPolicy {
     /// Check the community settings against the platform bounds.
     pub fn validate(&self) -> Result<(), PolicyError> {
-        todo!("P3c red: validate not implemented yet")
+        if !(MIN_CLOCK_DAYS..=MAX_CLOCK_DAYS).contains(&self.clock_days) {
+            return Err(PolicyError::ClockDaysOutOfRange {
+                days: self.clock_days,
+            });
+        }
+        if self.event_extra_days > MAX_EVENT_EXTRA_DAYS {
+            return Err(PolicyError::EventExtraOutOfRange {
+                days: self.event_extra_days,
+            });
+        }
+        if !(MIN_ABUSE_CAP_DAYS..=MAX_ABUSE_CAP_DAYS).contains(&self.abuse_cap_days) {
+            return Err(PolicyError::AbuseCapOutOfRange {
+                days: self.abuse_cap_days,
+            });
+        }
+        Ok(())
     }
 
     fn clock_ticks(&self) -> u64 {
@@ -378,8 +393,36 @@ pub fn evaluate(
     now: u64,
 ) -> Result<Status, PolicyError> {
     policy.validate()?;
-    let _ = (member, facts, now);
-    todo!("P3c red: evaluate not implemented yet")
+    let mut ordered: Vec<&Fact> = facts.iter().filter(|f| f.tick() <= now).collect();
+    // Stable: same-tick facts keep the caller's agreed sequence.
+    ordered.sort_by_key(|f| f.tick());
+    let mut fold = Fold::Absent;
+    for fact in ordered {
+        match *fact {
+            Fact::AdminAdmitted {
+                member: m,
+                admin,
+                tick,
+            } if m == member => fold.admit_admin(policy, admin, tick),
+            Fact::EventAdmitted {
+                member: m,
+                event_end,
+                ..
+            } if m == member => {
+                fold.admit_event(policy, event_end);
+            }
+            Fact::PersonalInvited { member: m, .. } if m == member => {
+                fold = Fold::Permanent;
+            }
+            Fact::AdminDemoted {
+                admin,
+                tick,
+                for_abuse,
+            } => fold.demote(policy, admin, tick, for_abuse),
+            _ => {}
+        }
+    }
+    Ok(fold.status(now))
 }
 
 /// Whether an unused admin-pool link is still redeemable at `now`.
@@ -394,8 +437,13 @@ pub fn admin_link_usable(
     issuer_demoted_at: Option<u64>,
     now: u64,
 ) -> bool {
-    let _ = (issued_tick, expires_tick, issuer_demoted_at, now);
-    todo!("P3c red: admin_link_usable not implemented yet")
+    if now < issued_tick || now >= expires_tick {
+        return false;
+    }
+    match issuer_demoted_at {
+        Some(demoted) => now < demoted,
+        None => true,
+    }
 }
 
 #[cfg(test)]
