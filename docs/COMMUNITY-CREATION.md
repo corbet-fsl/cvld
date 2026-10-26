@@ -80,10 +80,12 @@ least seven days (`MIN_SHELL_SECONDS`), a repeat or a claim extends it by the sa
   hold the deletion happens when the hold passes (the address stays unavailable
   until then). `GET /registry/finished?since=N` lists ending and ended ids and
   returns the newest counter in `x-registry-cursor`.
-* `GET /registry/by-host?host=H` returns `{id, state, origins, trust_origin,
-  fingerprint}` for a serving community and 404 otherwise. Keys are not served
-  by the registry; they come from each community's signed feed, verified against
-  the fingerprint.
+* `GET /registry/by-host?host=H` returns `{id, community, state, origins,
+  trust_origin, fingerprint}` for a serving community and 404 otherwise. `id` names
+  only the forum's storage, throttle and state; `community` is the address the
+  community is signed under, and the forum installs the trust feed only if the
+  genesis carries exactly that name. Keys are not served by the registry; they come
+  from each community's signed feed, verified against the fingerprint.
 
 ## Security notes
 

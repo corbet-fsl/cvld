@@ -263,9 +263,17 @@ async fn token_creation_claim_admission_registry_and_termination() {
     assert_eq!(record["state"], "being_created");
     assert_eq!(record["fingerprint"], created.fingerprint);
     assert_eq!(record["id"], created.id);
+    // The record also names the community the genesis is signed under (its address):
+    // the forum uses that name for trust, the id only for storage, throttle and state.
+    assert_eq!(record["community"], "gardenclub");
+    assert_ne!(record["community"], record["id"]);
     assert_eq!(
         f.record(&created.vault_host).await.unwrap()["id"],
         created.id
+    );
+    assert_eq!(
+        f.record(&created.vault_host).await.unwrap()["community"],
+        "gardenclub"
     );
     // The OHTTP gateway serves LIVE communities only: a shell being created and an
     // unknown host are refused alike.
@@ -300,6 +308,7 @@ async fn token_creation_claim_admission_registry_and_termination() {
         .collect();
     assert_eq!(digest, created.fingerprint);
     assert_eq!(verified.community(), "gardenclub");
+    assert_eq!(verified.community(), record["community"].as_str().unwrap());
     let creator = enrol_community(&f.front, &host, &f.passport).await;
     let api = client(&f.front, &host, Some(&creator.session));
     let wrong = api

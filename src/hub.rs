@@ -725,10 +725,13 @@ impl CommunityHub for Arc<Hub> {
 
 /// The record the forum needs for one serving community. Keys are NOT served
 /// here: they come from the community's signed feed, verified against the
-/// fingerprint.
+/// fingerprint. `id` names only the forum's storage, throttle and state;
+/// `community` is the name everything is signed under (the genesis scope, the
+/// address), and the forum installs the feed only if the genesis carries it.
 #[derive(serde::Serialize)]
 struct Record {
     id: String,
+    community: String,
     state: &'static str,
     origins: Vec<String>,
     trust_origin: String,
@@ -760,6 +763,7 @@ async fn by_host(
             let hosts = Hostnames::new(&entry.address, &hub.base);
             let record = Record {
                 id: hex(&entry.id),
+                community: entry.address.clone(),
                 state: entry.state.code(),
                 origins: vec![
                     format!("https://{}", hosts.community),
