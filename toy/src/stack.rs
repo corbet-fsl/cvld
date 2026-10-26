@@ -209,6 +209,14 @@ fn hex_decode(text: &str) -> Result<Vec<u8>> {
         .collect()
 }
 
+/// The wave and outcome key group: the assembler writes it next to the account configuration
+/// (`wave-artifacts.json`, from the reviewed pin); it is a separate group from the extension one.
+fn wave_group(account_path: &std::ffi::OsStr) -> Result<serde_json::Value> {
+    let path = std::path::Path::new(account_path).with_file_name("wave-artifacts.json");
+    let bytes = fs::read(path).map_err(|_| "wave artifact group (wave-artifacts.json)")?;
+    serde_json::from_slice(&bytes).map_err(|_| "wave artifact group decoding".into())
+}
+
 #[tokio::main]
 async fn main() {
     if let Err(error) = run().await {
@@ -630,7 +638,7 @@ async fn run() -> Result<()> {
         None => None,
         Some(account_path) => {
             let account: serde_json::Value =
-                serde_json::from_slice(&fs::read(account_path).map_err(|_| "G5 configuration")?)
+                serde_json::from_slice(&fs::read(&account_path).map_err(|_| "G5 configuration")?)
                     .map_err(|_| "G5 configuration decoding")?;
             let feed = |base: String, action: &'static str| {
                 let roots = [cert_der.clone()];
@@ -666,6 +674,7 @@ async fn run() -> Result<()> {
                     .fingerprint(),
             );
             let artifacts = &account["extension_artifacts"];
+            let wave_artifacts = wave_group(&account_path)?;
             let ca = out.join("ca.der");
             let mut settings = json!({
                 "global": {
@@ -698,16 +707,16 @@ async fn run() -> Result<()> {
                     "keys_file": artifacts["keys_file"],
                     "srs_g1_file": artifacts["srs_g1_file"],
                     "srs_g2_file": artifacts["srs_g2_file"],
-                    // The extension group is one circuit and one key file for every member
-                    // (update, wave, outcome, record_epoch); the program selects the member,
-                    // and the group's authenticated digests bind all of them.
+                    // The extension group is one circuit and one key file for the audited
+                    // members (update, deposit, record, record_epoch); the wave and outcome
+                    // relations are their own authenticated group (wave_artifacts).
                     "record": {
                         "circuit_file": artifacts["circuit_file"],
                         "keys_file": artifacts["keys_file"],
                     },
                     "wave": {
-                        "circuit_file": artifacts["circuit_file"],
-                        "keys_file": artifacts["keys_file"],
+                        "circuit_file": wave_artifacts["circuit_file"],
+                        "keys_file": wave_artifacts["keys_file"],
                     },
                     "timeout_seconds": 300,
                 },
@@ -718,10 +727,10 @@ async fn run() -> Result<()> {
             // verifier is a separate binary, `czkp-bb-worker`) the wave stack stays off.
             if let Ok(verifier) = std::env::var("CMSG_NATIVE_VERIFIER_WORKER") {
                 settings["prover"]["verifier_executable"] = json!(verifier);
-                settings["prover"]["manifest_file"] = artifacts["manifest_file"].clone();
+                settings["prover"]["manifest_file"] = wave_artifacts["manifest_file"].clone();
                 settings["prover"]["outcome"] = json!({
-                    "circuit_file": artifacts["circuit_file"],
-                    "keys_file": artifacts["keys_file"],
+                    "circuit_file": wave_artifacts["circuit_file"],
+                    "keys_file": wave_artifacts["keys_file"],
                 });
             }
             let path = out.join("device.json");

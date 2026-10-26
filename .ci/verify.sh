@@ -58,6 +58,7 @@ cargo test --locked --lib --features development-gate,ohttp ohttp::
 # Native accounting operator configuration for community alpha at the suite's fixed NOW, assembled
 # from the write-once retained cblc artifacts by the reviewed assembler. Never hand-made.
 g5_config=$(mktemp -d)
+python3 -B tools/test_g5_account_config.py
 python3 -B tools/g5-account-config.py --community alpha --now 1800000000 --out "$g5_config" --exports > "$g5_config.env"
 # shellcheck disable=SC1090
 source "$g5_config.env"

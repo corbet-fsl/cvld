@@ -61,6 +61,18 @@ EXTENSION_GROUPS = {
         "manifestSha256": "73d26cccb5d835ab0101c3910d30c8e554c332e6514c69eab784a6abf9c7809d",
     },
 }
+# Peer-release wave and outcome relations: a separate group by design (never part of the audited
+# update group), built by cblc's CI check `wave-artifacts` (python3 -B .ci/check-native-sdk.py;
+# npm ci --ignore-scripts; node runtime/extensions/compile.mts --waves; node tests/wave-artifacts.mts
+# with CBLC_EXTENSION_DIRECTORY=<dir>, node 24.18.1 and bb 5.2.1 of the CI pin) and retained as
+# <group>/wave-artifacts. Same SRS as the extension group.
+WAVE_GROUPS = {
+    # wave-artifacts group built from cblc a8a4689 (circuits identical to main 1e4405e): wave 618 and
+    # outcome 651 public inputs, bb 5.2.1.
+    "a8a4689889a33c8edd0186ba64f5d65bd2a47e97": {
+        "manifestSha256": "e5342c4bddb3bcd2553662c22e85459733709aee2bcd3a96ca1cc1f526819c78",
+    },
+}
 ACCOUNT_CAPTURES = {
     # native-startup-fixture-retained capture of cblc 6232481 (account circuit).
     "f0731b7c62ff034c79965fa0c9016bf16b3fd5c2e38f32409cfa00682acb1407": {
@@ -157,6 +169,14 @@ def artifact_files(directory, pin, circuit, keys, label):
         "srs_g1_file": str(directory / "setup" / "g1.dat"),
         "srs_g2_file": str(directory / "setup" / "g2.dat"),
     }
+
+
+def wave_artifact_files(root, group, pins=None):
+    """The ArtifactFiles of the group's wave/outcome members, or None when the group has no reviewed pin or no retained wave group."""
+    pin = (WAVE_GROUPS if pins is None else pins).get(group)
+    if pin is None or not (root / group / "wave-artifacts").is_dir():
+        return None  # not retained here (CI does not retain it); a pinned directory present is always checked
+    return artifact_files(root / group / "wave-artifacts", pin["manifestSha256"], "circuits.json", "keys.json", "wave")
 
 
 def write_private(path, data):
@@ -342,6 +362,10 @@ def main():
         "max_request_bytes": 1024 * 1024,
     }
     (out / "account-config.json").write_text(json.dumps(config))
+    # AccountConfig refuses unknown fields; the devices' wave/outcome group is a sibling file.
+    wave = wave_artifact_files(root, args.group)
+    if wave is not None:
+        (out / "wave-artifacts.json").write_text(json.dumps(wave))
     summary = {
         "config": str(out / "account-config.json"), "probe": str(out / "activation-probe.json"),
         "probeSha256": base64.urlsafe_b64encode(hashlib.sha256(probe_bytes).digest()).rstrip(b"=").decode(),
