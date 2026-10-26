@@ -73,15 +73,6 @@ pub enum DecisionClass {
 }
 
 impl DecisionClass {
-    /// Every class, for table-driven tests.
-    pub const ALL: [DecisionClass; 5] = [
-        DecisionClass::Gates,
-        DecisionClass::AdminPool,
-        DecisionClass::AdminSet,
-        DecisionClass::Governance,
-        DecisionClass::Default,
-    ];
-
     fn tag(self) -> u8 {
         match self {
             DecisionClass::Gates => 1,
@@ -217,14 +208,6 @@ impl Proposal {
 
     pub fn class(&self) -> DecisionClass {
         self.class
-    }
-
-    pub fn setting(&self) -> &str {
-        &self.setting
-    }
-
-    pub fn base_revision(&self) -> u64 {
-        self.base_revision
     }
 
     fn canonical_bytes(&self) -> Vec<u8> {
@@ -501,7 +484,6 @@ pub enum Error {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ed25519_dalek::Signer as _;
     use ed25519_dalek::SigningKey;
 
     fn key(byte: u8) -> SigningKey {
