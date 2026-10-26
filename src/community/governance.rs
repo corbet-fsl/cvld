@@ -351,7 +351,12 @@ pub fn evaluate(
     }
     let current: BTreeSet<[u8; 32]> = current_admins.iter().copied().collect();
     if proposal.class() == DecisionClass::AdminSet {
-        return evaluate_admin_set(&parse_admin_change(&proposal.new_value)?, &valid, &current, rules);
+        return evaluate_admin_set(
+            &parse_admin_change(&proposal.new_value)?,
+            &valid,
+            &current,
+            rules,
+        );
     }
     let rule = rules.rule_for(proposal.class());
     let counted = valid.intersection(&current).count() as u64;
@@ -381,8 +386,10 @@ fn evaluate_admin_set(
             if !current.contains(&key) {
                 return Err(Error::UnknownAdminTarget);
             }
-            let effective: BTreeSet<[u8; 32]> =
-                current.difference(&BTreeSet::from([key])).copied().collect();
+            let effective: BTreeSet<[u8; 32]> = current
+                .difference(&BTreeSet::from([key]))
+                .copied()
+                .collect();
             let counted = valid.intersection(&effective).count() as u64;
             threshold_outcome(rule, effective.len() as u64, counted)
         }
@@ -395,7 +402,10 @@ fn evaluate_admin_set(
             if valid.contains(&key) {
                 Ok(Outcome::InForce)
             } else {
-                Ok(Outcome::Pending { valid: 0, needed: 1 })
+                Ok(Outcome::Pending {
+                    valid: 0,
+                    needed: 1,
+                })
             }
         }
     }
@@ -557,11 +567,19 @@ mod tests {
         assert_ne!(base.digest(), other_setting.digest());
         let other_class = proposal(DecisionClass::AdminPool, "entry");
         assert_ne!(base.digest(), other_class.digest());
-        let other_revision =
-            Proposal::new("toyalpha01", DecisionClass::Gates, "entry", b"value".to_vec(), 8)
-                .unwrap();
+        let other_revision = Proposal::new(
+            "toyalpha01",
+            DecisionClass::Gates,
+            "entry",
+            b"value".to_vec(),
+            8,
+        )
+        .unwrap();
         assert_ne!(base.digest(), other_revision.digest());
-        assert_eq!(Proposal::new("", DecisionClass::Gates, "s", vec![], 0), Err(Error::EmptyCommunity));
+        assert_eq!(
+            Proposal::new("", DecisionClass::Gates, "s", vec![], 0),
+            Err(Error::EmptyCommunity)
+        );
         assert_eq!(
             Proposal::new("c", DecisionClass::Gates, "", vec![], 0),
             Err(Error::EmptySetting)
@@ -877,8 +895,8 @@ mod tests {
         let current = admins(&[1, 2]);
         let rules = majority_rules();
         for raw in [vec![], vec![9u8; 33], vec![1u8; 32], vec![2u8; 34]] {
-            let prop = Proposal::new("toyalpha01", DecisionClass::AdminSet, "members", raw, 3)
-                .unwrap();
+            let prop =
+                Proposal::new("toyalpha01", DecisionClass::AdminSet, "members", raw, 3).unwrap();
             assert_eq!(
                 evaluate(&prop, &[], &current, &[], &rules),
                 Err(Error::BadAdminChange)
