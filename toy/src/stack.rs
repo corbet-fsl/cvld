@@ -101,6 +101,34 @@ impl ResolvesServerCert for Leaves {
     }
 }
 
+/// The first bytes of a response body for the diagnostics line. A binary body (the common
+/// account record) read lossily holds multi-byte replacement characters anywhere, so the cut
+/// must fall on a character boundary: slicing at a byte index panicked the relay task, the
+/// device never got its response and its 30 s client timeout surfaced as Reconcile.
+fn diagnostic_prefix(text: &str) -> &str {
+    let mut end = text.len().min(120);
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    &text[..end]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::diagnostic_prefix;
+
+    #[test]
+    fn a_binary_body_cut_inside_a_replacement_character_does_not_panic() {
+        // 119 ASCII bytes, then a 3-byte replacement character straddling byte 120.
+        let lossy =
+            String::from_utf8_lossy(&[[b'a'; 119].as_slice(), &[0xff, 0xfe, 0xfd]].concat())
+                .into_owned();
+        assert_eq!(lossy.len(), 119 + 9);
+        assert!(diagnostic_prefix(&lossy).len() <= 120);
+        assert!(diagnostic_prefix("short") == "short");
+    }
+}
+
 /// Forward HTTP/1.1 requests with a Content-Length body, replacing the Host
 /// header by the service's real virtual host: the client insists that its https
 /// host equals the host it sends, and a literal loopback address needs no DNS.
@@ -127,10 +155,7 @@ async fn relay(
             let text = String::from_utf8_lossy(&first[..read]);
             let status = text.lines().next().unwrap_or("");
             let error = text.split("\r\n\r\n").nth(1).unwrap_or("");
-            eprintln!(
-                "stack response: {status} {}",
-                &error[..error.len().min(120)]
-            );
+            eprintln!("stack response: {status} {}", diagnostic_prefix(error));
             if to_client.write_all(&first[..read]).await.is_err() {
                 break;
             }
