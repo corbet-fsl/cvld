@@ -20,6 +20,7 @@ mod accounting;
 mod admission;
 mod admission_lego;
 mod certificate;
+pub(crate) mod clocks;
 pub(crate) mod creation;
 mod device_session;
 mod enrollment;
