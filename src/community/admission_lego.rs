@@ -279,9 +279,7 @@ pub struct Anchor {
 impl Anchor {
     /// Whether any anchor entry is met by the given scores.
     pub fn satisfied(&self, score: &dyn Fn(&Property) -> Strength) -> bool {
-        self.any_of
-            .iter()
-            .any(|e| score(&e.property) >= e.minimum)
+        self.any_of.iter().any(|e| score(&e.property) >= e.minimum)
     }
 }
 
@@ -411,9 +409,7 @@ pub enum PolicyError {
     LegalNotScored,
     /// A satisfiable branch entails no allowed anchor (unguarded OR branch,
     /// vacuous `at_least(0)`, or empty `all_of`).
-    UnguardedBranch {
-        side: PathSide,
-    },
+    UnguardedBranch { side: PathSide },
     /// The expression can never be satisfied (empty `any_of`, or
     /// `at_least(k)` with `k` above the child count). Rejected loudly at
     /// policy time instead of silently excluding everyone.
@@ -457,10 +453,7 @@ fn merge_branches(a: &Branch, b: &Branch) -> Branch {
         let slot = merged.entry(p).or_insert(0);
         *slot = (*slot).max(*m);
     }
-    merged
-        .into_iter()
-        .map(|(p, m)| (p.clone(), m))
-        .collect()
+    merged.into_iter().map(|(p, m)| (p.clone(), m)).collect()
 }
 
 /// Conjunctive product of two branch sets (for `all_of` and `at_least`
@@ -499,9 +492,7 @@ fn combinations(n: usize, k: usize) -> Vec<Vec<usize>> {
 /// Dead expressions (empty `any_of`, `k` above the child count) are rejected.
 fn branches(req: &Requirement) -> Result<Vec<Branch>, PolicyError> {
     match req {
-        Requirement::Property { property, minimum } => {
-            Ok(vec![vec![(property.clone(), *minimum)]])
-        }
+        Requirement::Property { property, minimum } => Ok(vec![vec![(property.clone(), *minimum)]]),
         Requirement::AllOf(children) => {
             let mut out = vec![Vec::new()];
             for c in children {
@@ -936,8 +927,10 @@ pub fn trust_tree(
             ),
         },
         Requirement::AllOf(children) => {
-            let children: Vec<TrustNode> =
-                children.iter().map(|c| trust_tree(c, permanent, current, boundary)).collect();
+            let children: Vec<TrustNode> = children
+                .iter()
+                .map(|c| trust_tree(c, permanent, current, boundary))
+                .collect();
             // AND = worst required colour (Red > Yellow > Green).
             let color = children
                 .iter()
@@ -947,8 +940,10 @@ pub fn trust_tree(
             TrustNode::All { children, color }
         }
         Requirement::AnyOf(children) => {
-            let children: Vec<TrustNode> =
-                children.iter().map(|c| trust_tree(c, permanent, current, boundary)).collect();
+            let children: Vec<TrustNode> = children
+                .iter()
+                .map(|c| trust_tree(c, permanent, current, boundary))
+                .collect();
             // OR = best satisfied branch; red with no selection when none is.
             let mut selected: Option<usize> = None;
             let mut color = TrustColor::Red;
@@ -966,8 +961,10 @@ pub fn trust_tree(
             }
         }
         Requirement::AtLeast { k, children } => {
-            let children: Vec<TrustNode> =
-                children.iter().map(|c| trust_tree(c, permanent, current, boundary)).collect();
+            let children: Vec<TrustNode> = children
+                .iter()
+                .map(|c| trust_tree(c, permanent, current, boundary))
+                .collect();
             let mut satisfied: Vec<TrustColor> = children
                 .iter()
                 .map(TrustNode::color)
@@ -1105,7 +1102,9 @@ mod tests {
             "admin voucher establishes vouched weak"
         );
         assert!(
-            m.contributions.iter().any(|c| c.property == admin_property()),
+            m.contributions
+                .iter()
+                .any(|c| c.property == admin_property()),
             "admin voucher establishes vouched.admin"
         );
         assert!(
@@ -1153,7 +1152,13 @@ mod tests {
     #[test]
     fn stacking_caps_at_scale_max() {
         let many: Vec<Evidence> = (0..5)
-            .map(|i| admin(&format!("a{i}"), Some(&format!("role-{i}/link-{i}")), 9_999_999))
+            .map(|i| {
+                admin(
+                    &format!("a{i}"),
+                    Some(&format!("role-{i}/link-{i}")),
+                    9_999_999,
+                )
+            })
             .collect();
         assert_eq!(
             score(&vouched(), &many, EvidenceClass::Current),
@@ -1177,10 +1182,7 @@ mod tests {
 
     #[test]
     fn unknown_independence_merges_into_one_component() {
-        let unknown = vec![
-            admin("a1", None, 9_999_999),
-            admin("a2", None, 9_999_999),
-        ];
+        let unknown = vec![admin("a1", None, 9_999_999), admin("a2", None, 9_999_999)];
         assert_eq!(
             score(&vouched(), &unknown, EvidenceClass::Current),
             ADMIN_VOUCH_STRENGTH,
@@ -1278,9 +1280,15 @@ mod tests {
         let scores = const_scores(vec![(vouched(), 50)]);
         let f = score_fn(&scores);
         assert!(satisfies(&Requirement::AllOf(vec![leaf(10), leaf(50)]), &f));
-        assert!(!satisfies(&Requirement::AllOf(vec![leaf(10), leaf(51)]), &f));
+        assert!(!satisfies(
+            &Requirement::AllOf(vec![leaf(10), leaf(51)]),
+            &f
+        ));
         assert!(satisfies(&Requirement::AnyOf(vec![leaf(51), leaf(50)]), &f));
-        assert!(!satisfies(&Requirement::AnyOf(vec![leaf(51), leaf(52)]), &f));
+        assert!(!satisfies(
+            &Requirement::AnyOf(vec![leaf(51), leaf(52)]),
+            &f
+        ));
         let two_of_three = Requirement::AtLeast {
             k: 2,
             children: vec![leaf(50), leaf(50), leaf(51)],
@@ -1610,7 +1618,13 @@ mod tests {
         // evidence is temporal: still on the clock, never permanent.
         let policy = validated_alpha();
         let evidence: Vec<Evidence> = (0..4)
-            .map(|i| admin(&format!("a{i}"), Some(&format!("role-{i}/link-{i}")), 9_999_999))
+            .map(|i| {
+                admin(
+                    &format!("a{i}"),
+                    Some(&format!("role-{i}/link-{i}")),
+                    9_999_999,
+                )
+            })
             .collect();
         assert_eq!(
             score(&vouched(), &evidence, EvidenceClass::Current),
@@ -1756,8 +1770,7 @@ mod tests {
         assert_eq!(tree.color(), TrustColor::Yellow);
         match tree {
             TrustNode::Any {
-                selected: Some(1),
-                ..
+                selected: Some(1), ..
             } => {}
             other => panic!("OR must select the satisfied branch, got {other:?}"),
         }
