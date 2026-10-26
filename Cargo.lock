@@ -1288,7 +1288,7 @@ checksum = "f079e83a288787bcd14a6aea84cee5c87a67c5a3e660c30f557a3d24761b3527"
 [[package]]
 name = "cgbl"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cgbl.git?branch=main#b6f93a2c52ba30a00a0ade3f62fa4c10825d5bfb"
+source = "git+https://git.corbet.ch/corbet-libs/cgbl.git?branch=main#b03072771c74ebcd605ea044c349287ed1e3ff51"
 dependencies = [
  "cbcn",
  "ckyh",
