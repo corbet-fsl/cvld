@@ -1336,7 +1336,7 @@ dependencies = [
 [[package]]
 name = "cgts"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cgts?branch=main#edf86fad5d92c789e1e5145c76b485249429d0e8"
+source = "git+https://git.corbet.ch/corbet-libs/cgts?branch=main#a0ae9c10bc28e6157069825673cc6f563c8e91c8"
 dependencies = [
  "cblc",
  "cgrd",
@@ -1663,7 +1663,7 @@ dependencies = [
 [[package]]
 name = "cnrl"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-foss/cnrl?branch=main#44b29c6182ce5b088634cfe1527414c83c9aafcf"
+source = "git+https://git.corbet.ch/corbet-foss/cnrl?branch=main#95eebdbd7d67665da4f2206950320639717165d8"
 dependencies = [
  "chrono",
  "ckyh",
