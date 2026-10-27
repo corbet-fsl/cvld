@@ -342,3 +342,78 @@ async fn the_lobby_read_is_a_lease_probe_for_device_and_passkey_sessions() {
     }
     assert!(device.call("lobby", json!({})).await.is_err());
 }
+
+/// The lobby read answers a transient membership storage failure as `Unavailable` (503: the
+/// device retries and keeps its keys) and a genuine denial as `Refused`. A device turns a
+/// refused lobby into a lock of its keys, so a busy or failed store must never read as one.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_lobby_read_reports_a_transient_store_failure_as_unavailable() {
+    let (service, member, _) = fixture().await;
+    let anonymous = client(&service, HOST, None);
+    let challenge: DeviceSessionChallenge = serde_json::from_value(
+        anonymous
+            .call("device_session_begin", json!({}))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let request = finish("alpha", &challenge, &member.user, &key(13));
+    let session: Session = serde_json::from_value(
+        anonymous
+            .call(
+                "device_session_finish",
+                serde_json::to_value(&request).unwrap(),
+            )
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let mut community = service.door.community_backend().unwrap().lock().await;
+    let now = NOW;
+    let (_, auth) = community.authenticate(&session.token, now).await.unwrap();
+    assert!(community.lobby(&auth, now).await.is_ok());
+    // The member's enrolment row becomes unreadable for a moment (a failed store).
+    let mut tx = community.db.tx("alpha").await.unwrap();
+    let rows = tx
+        .query(
+            "SELECT payload FROM cnrl_enrolments WHERE user_id = ?1",
+            crlt::params![member.user.clone()],
+        )
+        .await
+        .unwrap();
+    let payload = rows[0].get_str(0).unwrap().to_owned();
+    tx.execute(
+        "UPDATE cnrl_enrolments SET payload = ?1 WHERE user_id = ?2",
+        crlt::params!["unreadable".to_owned(), member.user.clone()],
+    )
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    assert_eq!(
+        community.lobby(&auth, now).await.err(),
+        Some(Error::Unavailable)
+    );
+    let mut tx = community.db.tx("alpha").await.unwrap();
+    tx.execute(
+        "UPDATE cnrl_enrolments SET payload = ?1 WHERE user_id = ?2",
+        crlt::params![payload, member.user.clone()],
+    )
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    assert!(community.lobby(&auth, now).await.is_ok());
+    // A genuine denial stays a refusal: the key is revoked.
+    device_registry::put(
+        &community.db,
+        "alpha",
+        &member.user,
+        &joined(),
+        State::Revoked,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        community.lobby(&auth, now).await.err(),
+        Some(Error::Refused)
+    );
+}

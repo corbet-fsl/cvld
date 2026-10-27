@@ -1140,7 +1140,7 @@ impl CommunityService {
             .membership()
             .resume(auth)
             .await
-            .map_err(Error::Refused.redact_at("community.rs:54"))?;
+            .map_err(Error::Refused.redact_membership_at("community.rs:54"))?;
         let context = cgts::Context {
             snapshot: snapshot.settings(),
             subject: row.subject(),
@@ -1159,7 +1159,7 @@ impl CommunityService {
             .membership()
             .lobby(auth, &*policy, &snapshot, &gates, now)
             .await
-            .map_err(Error::Refused.redact_at("community.rs:56"))?;
+            .map_err(Error::Refused.redact_membership_at("community.rs:56"))?;
         let steps = self
             .facade
             .gates()
@@ -1171,7 +1171,7 @@ impl CommunityService {
             .membership()
             .handle(auth)
             .await
-            .map_err(Error::Refused.redact_at("community.rs:58"))?
+            .map_err(Error::Refused.redact_membership_at("community.rs:58"))?
             .map(|h| h.display().to_owned());
         // Only a member with an active role lease has a role. The read takes the member
         // lease after the policy lock, like every role read; a member held in the lobby
