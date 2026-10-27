@@ -110,6 +110,11 @@ async fn relay(
     host: &str,
 ) {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    // Every request and response is one small write that waits for its answer: with Nagle
+    // on, a write behind an unacknowledged one waits for the peer's delayed ACK (40 ms on
+    // Linux loopback), which made each call through this front cost about 90 ms.
+    let _ = client.get_ref().0.set_nodelay(true);
+    let _ = upstream.set_nodelay(true);
     let (mut from_client, mut to_client) = tokio::io::split(client);
     let (mut from_upstream, mut to_upstream) = upstream.into_split();
     let back = tokio::spawn(async move {
@@ -172,10 +177,9 @@ async fn relay(
             rewritten.push_str("\r\n");
         }
         rewritten.push_str("\r\n");
-        if to_upstream.write_all(rewritten.as_bytes()).await.is_err() {
-            break;
-        }
         buffer.drain(..head_end);
+        // Head and body leave in one write, as the client sent them.
+        let mut request = rewritten.into_bytes();
         let mut remaining = length;
         while remaining > 0 {
             if buffer.is_empty() {
@@ -186,11 +190,12 @@ async fn relay(
                 }
             }
             let take = remaining.min(buffer.len());
-            if to_upstream.write_all(&buffer[..take]).await.is_err() {
-                break 'requests;
-            }
+            request.extend_from_slice(&buffer[..take]);
             buffer.drain(..take);
             remaining -= take;
+        }
+        if to_upstream.write_all(&request).await.is_err() {
+            break;
         }
     }
     let _ = to_upstream.shutdown().await;
