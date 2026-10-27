@@ -249,7 +249,15 @@ async fn http_certificate_refuses_forward_expiry_and_rollback_during_actual_owne
             readings.len() > 1,
             "request must observe time beyond admission"
         );
-        assert!(matches!(status, 401 | 409));
+        if step > 0 {
+            // Forward expiry: the session outlives its grant during owner work.
+            assert!(matches!(status, 401 | 409));
+        } else {
+            // Rollback: the membership's monotonic observation floor poisons
+            // on the first backward step, so the request is refused
+            // fail-closed as Unavailable. No certificate bytes are issued.
+            assert_eq!(status, 503);
+        }
         assert!(body.get("bytes").is_none());
         assert!(body.get("error").is_some());
         if step > 0 {
