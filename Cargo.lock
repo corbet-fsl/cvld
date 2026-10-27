@@ -1245,7 +1245,7 @@ dependencies = [
 [[package]]
 name = "cdht"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-foss/cdht.git?branch=main#5e45502d3a3debfc969d1851d379b54cf4ce91b0"
+source = "git+https://git.corbet.ch/corbet-foss/cdht.git?branch=main#8b9c2f4468dfd9eb4ca3416fa8e306d6abe1487e"
 dependencies = [
  "blake3",
  "capnp",
@@ -1291,6 +1291,8 @@ version = "0.0.0"
 source = "git+https://git.corbet.ch/corbet-libs/cgbl.git?branch=main#b03072771c74ebcd605ea044c349287ed1e3ff51"
 dependencies = [
  "cbcn",
+ "cchr",
+ "ckmg",
  "ckyh",
  "cmbx",
  "cphn",
@@ -1444,7 +1446,7 @@ dependencies = [
 [[package]]
 name = "ckmg"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-foss/ckmg.git?branch=main#f57af1967fec868fdb9885d917c884d380c33833"
+source = "git+https://git.corbet.ch/corbet-foss/ckmg.git?branch=main#89de769ef93528a92dab9fbec651952cb77de960"
 dependencies = [
  "blake3",
  "cdht",
