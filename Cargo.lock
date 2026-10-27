@@ -1582,7 +1582,7 @@ dependencies = [
 [[package]]
 name = "cmbr"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-libs/cmbr?branch=main#e1029f9a0ec066456edbfd75308310c2e82e314b"
+source = "git+https://git.corbet.ch/corbet-libs/cmbr?branch=main#dbc12f30d5c292d7abdcac71cd192aa748f5eaeb"
 dependencies = [
  "cgrd",
  "cgts",
@@ -1663,7 +1663,7 @@ dependencies = [
 [[package]]
 name = "cnrl"
 version = "0.0.0"
-source = "git+https://git.corbet.ch/corbet-foss/cnrl?branch=main#95eebdbd7d67665da4f2206950320639717165d8"
+source = "git+https://git.corbet.ch/corbet-foss/cnrl?branch=main#44b29c6182ce5b088634cfe1527414c83c9aafcf"
 dependencies = [
  "chrono",
  "ckyh",
