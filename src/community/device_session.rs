@@ -3,8 +3,8 @@
 //! Renewal is the same exchange. Every refusal after the nonce lookup is the same `Unauthorized`.
 use super::*;
 use crate::device_session::{
-    ACTIVATE_ACTION, ADD_ACTION, JOIN_ACTION, NONCE_LEN, NONCE_SECONDS, PAIR_ACTION, join_message,
-    join_payload, message, pair_payload, pairing_message,
+    ACTIVATE_ACTION, ADD_ACTION, JOIN_ACTION, NONCE_LEN, NONCE_SECONDS, PAIR_ACTION,
+    approval_message, join_message, join_payload, message, pair_payload, pairing_message,
 };
 use ed25519_dalek::{Signature, VerifyingKey};
 
@@ -67,6 +67,12 @@ impl CommunityService {
             .map_err(Error::Unauthorized.redact_at("community/device_session.rs:5"))?
         {
             return Err(Error::Unauthorized);
+        }
+        // A delegated key opens community sessions only, never one of a platform host (D1).
+        if crate::hub::PLATFORM_HOST_LABELS.contains(&self.config.community.as_str())
+            && self.delegated(user, request.device_key).await?
+        {
+            return Err(Error::NeedsPasskey);
         }
         let expires = now
             .checked_add(self.config.session_seconds)
@@ -142,6 +148,10 @@ impl CommunityService {
             .checked_add(self.config.session_seconds)
             .ok_or(Error::Invalid)?;
         crate::service::publication::expires_at(expires)?;
+        // A delegated key never opens an admin session (D1).
+        if self.delegated(user, request.device_key).await? {
+            return Err(Error::NeedsPasskey);
+        }
         // Key active and member live, and the role is Admin or Root right now.
         let lease = self
             .garden_lease(&authentication, now, expires)
@@ -438,6 +448,12 @@ impl CommunityService {
     /// failed apply frees the digest. The PENDING key it registers carries the approval and
     /// expires after `PAIRING_PENDING_SECONDS`; `device_activate` needs no further stamp.
     pub async fn device_add(&mut self, request: DeviceAdd, now: u64) -> Result<Empty> {
+        // A platform host (wallet, root, ...) never registers a delegated key (D1).
+        if request.delegate.is_some()
+            && crate::hub::PLATFORM_HOST_LABELS.contains(&self.config.community.as_str())
+        {
+            return Err(Error::NeedsPasskey);
+        }
         let passport = self
             .pairing_passport(
                 ADD_ACTION,
@@ -473,15 +489,34 @@ impl CommunityService {
             params,
         )
         .map_err(Error::Refused.redact_at("community/device_session.rs:27"))?;
+        let digest = pair_payload(
+            &self.config.community,
+            passport.member_id(),
+            &request.device_key,
+            &request.session,
+            request.revision.as_ref(),
+        );
+        // A DELEGATED key (A9, option B): an ACTIVE full device of the same member approves
+        // exactly this pairing digest under the existing PairingApproval format; the membership
+        // checks the host's state and class. Never on a platform host (wallet, root, ...).
+        let host = match request.delegate.as_ref() {
+            None => None,
+            Some(delegate) => {
+                let host = VerifyingKey::from_bytes(&delegate.host_key)
+                    .map_err(Error::Refused.redact_at("community/device_session.rs:36"))?;
+                let signature = Signature::from_slice(&delegate.host_signature)
+                    .map_err(Error::Refused.redact_at("community/device_session.rs:37"))?;
+                host.verify_strict(
+                    &approval_message(&self.config.community, &digest),
+                    &signature,
+                )
+                .map_err(Error::Refused.redact_at("community/device_session.rs:38"))?;
+                Some(delegate.host_key)
+            }
+        };
         let action = cpsd::StampAction::new(
             cpsd::ActionKind::new(PAIR_ACTION).map_err(Error::Invalid.redact())?,
-            cpsd::PayloadDigest::from_bytes(pair_payload(
-                &self.config.community,
-                passport.member_id(),
-                &request.device_key,
-                &request.session,
-                request.revision.as_ref(),
-            )),
+            cpsd::PayloadDigest::from_bytes(digest),
             cpsd::StampSalt::from_bytes(request.salt),
         );
         let verified = cpsd::StampPresentation::from_bytes(&request.stamp)
@@ -510,11 +545,19 @@ impl CommunityService {
             Err(cpsd::Error::StampReplayed) => false,
             Err(_) => return Err(Error::Unavailable),
         };
-        match self
-            .facade
-            .add_device_key(passport, request.device_key, now)
-            .await
-        {
+        let added = match host {
+            None => {
+                self.facade
+                    .add_device_key(passport, request.device_key, now)
+                    .await
+            }
+            Some(host) => {
+                self.facade
+                    .add_delegated_device_key(passport, request.device_key, host, now)
+                    .await
+            }
+        };
+        match added {
             Ok(()) => Ok(Empty {}),
             Err(_) => {
                 if fresh {
@@ -557,6 +600,18 @@ impl CommunityService {
     }
 
     /// The founding key fingerprint of this community's verified genesis, if it has one.
+    /// Whether this member's registered device key is of class `Delegated` (community sessions
+    /// only). An unknown key is not delegated; its own checks refuse it.
+    pub(super) async fn delegated(&self, user: ckyh::Uuid, key: [u8; 32]) -> Result<bool> {
+        Ok(self
+            .facade
+            .membership()
+            .device_key_class(user, key)
+            .await
+            .map_err(Error::Unavailable.redact_at("community/device_session.rs:39"))?
+            == Some(cmbr::DeviceKeyClass::Delegated))
+    }
+
     fn founding_fingerprint(&self) -> Result<Option<[u8; 32]>> {
         match self.genesis.as_deref() {
             Some(genesis) => Ok(Some(
@@ -593,6 +648,10 @@ impl CommunityService {
                 None => Ok(None),
             };
         };
+        // The member's first publication is an account genesis: never by a delegated key (D1).
+        if self.delegated(authentication.member(), device_key).await? {
+            return Err(Error::NeedsPasskey);
+        }
         let evidence = bind.evidence.as_deref().ok_or(Error::Invalid)?;
         let membership = self.facade.membership();
         let bound = membership

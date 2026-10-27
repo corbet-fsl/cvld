@@ -1789,6 +1789,12 @@ export interface components {
                 expiresAt: number;
                 /** Format: uint64 */
                 issuedAt: number;
+                /**
+                 * Format: uint64
+                 * @description Lineage epoch of this recipient key. A replacement of the stored key must carry a strictly
+                 *     greater epoch than the stored one (an unreplaced legacy entry counts as epoch 0).
+                 */
+                lineageEpoch: number;
                 owner: number[];
                 recipientKey: number[];
                 signature: string;
@@ -2922,6 +2928,14 @@ export interface components {
             devices: number[][];
             presentation: components["schemas"]["PresentationInput"];
         };
+        /**
+         * @description A host device's approval of a delegated key: its key and its signature over
+         *     [`crate::device_session::approval_message`] of the pairing digest the stamp covers.
+         */
+        DelegateApproval: {
+            host_key: number[];
+            host_signature: number[];
+        };
         /** @description Member-owned root authorization. Eligibility issuers cannot create this proof. */
         DeviceAuthorization: {
             communityId: string;
@@ -3114,7 +3128,7 @@ export interface components {
          *     without reconciling: nothing was written, so it may prepare a fresh request.
          * @enum {string}
          */
-        RefusalReason: "expired";
+        RefusalReason: "expired" | "needs_passkey";
         /** @enum {string} */
         Role: "member" | "admin" | "root";
         /**
@@ -4412,6 +4426,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    delegate?: components["schemas"]["DelegateApproval"] | null;
                     device_key: number[];
                     passport: components["schemas"]["PresentationInput"];
                     /** @description Digest of the lineage revision planned for the key, when known at stamp time. */

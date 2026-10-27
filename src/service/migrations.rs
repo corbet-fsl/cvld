@@ -56,6 +56,12 @@ pub fn community_migrations() -> Vec<crlt::Migration<'static>> {
         "clbs-scope",
         cgts::legal_storage::SCOPE_SCHEMA,
     ));
+    // Device capability classes (A9, 2026-10-27): appended after the legal scope.
+    migrations.push(crlt::Migration::new(
+        migrations.len() as u32 + 1,
+        "cmbr-device-class",
+        cmbr::DEVICE_CLASS_SCHEMA,
+    ));
     migrations
 }
 

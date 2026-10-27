@@ -86,6 +86,19 @@ pub struct DeviceAdd {
     /// Digest of the lineage revision planned for the key, when known at stamp time.
     pub revision: Option<[u8; 32]>,
     pub signature: Vec<u8>,
+    /// Present for a DELEGATED key (community sessions only): an ACTIVE full device of the
+    /// same member approves exactly this pairing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delegate: Option<DelegateApproval>,
+}
+
+/// A host device's approval of a delegated key: its key and its signature over
+/// [`crate::device_session::approval_message`] of the pairing digest the stamp covers.
+#[derive(Clone, Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct DelegateApproval {
+    pub host_key: [u8; 32],
+    pub host_signature: Vec<u8>,
 }
 
 /// Pairing step two: a passport presentation over a challenge of this community and the new

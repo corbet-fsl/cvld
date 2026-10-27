@@ -5,8 +5,8 @@
 use super::device_session::DEFAULT_STAMP_COHORT_SECONDS;
 use super::*;
 use crate::device_session::{
-    ACTIVATE_ACTION, ADD_ACTION, JOIN_ACTION, PAIR_ACTION, join_message, join_payload, message,
-    pair_payload, pairing_message,
+    ACTIVATE_ACTION, ADD_ACTION, JOIN_ACTION, PAIR_ACTION, approval_message, garden_message,
+    join_message, join_payload, message, pair_payload, pairing_message,
 };
 use crate::test_support::*;
 use cmty::cmbr::PAIRING_PENDING_SECONDS;
@@ -1624,4 +1624,255 @@ fn the_pairing_message_is_the_one_the_guest_signs() {
     assert_ne!(add, join_message("alpha", "challenge", &key));
     assert_ne!(add, pairing_message("other", "alpha", "challenge", &key));
     assert!(add.starts_with(crate::device_session::POSSESSION_TAG));
+}
+
+/// The `delegate` member of a `device_add` body: `host` approves the pairing digest of `key`
+/// (the digest the stamp covers) under the PairingApproval format.
+async fn delegate_approval(
+    wallet: &Wallet,
+    host: &mut SigningKey,
+    key: &[u8; 32],
+    pairing: (&[u8; 32], Option<&[u8; 32]>),
+) -> Value {
+    let member = wallet
+        .holder
+        .pseudonym(&cpsd::CommunityId::new("alpha").unwrap())
+        .to_hex();
+    let digest = pair_payload("alpha", &member, key, pairing.0, pairing.1);
+    json!({
+        "host_key": host.key(),
+        "host_signature": host.sign(&approval_message("alpha", &digest)).await,
+    })
+}
+
+/// The registry's own revocation state for `key` (a lineage revision without it).
+async fn revoke_registry_key(service: &Running, key: &[u8; 32]) {
+    let backend = service.door.community_backend().unwrap().lock().await;
+    let mut tx = backend.db.community("alpha").unwrap().tx().await.unwrap();
+    tx.execute(
+        "UPDATE cvld_device_registry SET state = 'revoked', pending_until = NULL WHERE device_key = ?1",
+        crlt::params![key.to_vec()],
+    )
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+}
+
+async fn registry_class(service: &Running, key: &[u8; 32]) -> Option<String> {
+    let backend = service.door.community_backend().unwrap().lock().await;
+    let mut tx = backend.db.community("alpha").unwrap().tx().await.unwrap();
+    let rows = tx
+        .query(
+            "SELECT class FROM cvld_device_registry WHERE device_key = ?1",
+            crlt::params![key.to_vec()],
+        )
+        .await
+        .unwrap();
+    let class = rows.first().map(|row| row.get_str(0).unwrap().to_owned());
+    tx.rollback().await.unwrap();
+    class
+}
+
+/// A9 (option B, 2026-10-27): a delegated key is a registry row of class `Delegated`, added by
+/// the pairing path with an ACTIVE full device's approval; it opens community sessions only,
+/// never authorizes another device, and its revocation refuses the very next request.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_delegated_key_opens_community_sessions_only_until_its_row_is_revoked() {
+    let mut first = SigningKey::from_bytes(&[81; 32]);
+    let mut delegate = SigningKey::from_bytes(&[84; 32]);
+    let mut third = SigningKey::from_bytes(&[85; 32]);
+    let delegate_key = delegate.verifying_key().to_bytes();
+    let third_key = third.verifying_key().to_bytes();
+    let d = ([11; 32], Some([12; 32]), [13; 32]);
+    let t = ([14; 32], Some([15; 32]), [16; 32]);
+    let paired = paired_member(
+        &mut first,
+        &[
+            (delegate.clone(), d.0, d.1, d.2),
+            (third.clone(), t.0, t.1, t.2),
+        ],
+    )
+    .await;
+    let mut other = wallet(&paired.global, 66).await;
+    let Paired {
+        global,
+        wallet,
+        service,
+        joined,
+    } = &paired;
+    let anonymous = client(service, HOST, None);
+    // An unlisted key opens nothing.
+    assert!(
+        open_session(service, &joined.user, &mut delegate)
+            .await
+            .is_err()
+    );
+
+    // A foreign member's ACTIVE device cannot approve this member's delegate.
+    let mut other_first = SigningKey::from_bytes(&[87; 32]);
+    join_member(service, global, &mut other, "alpha", &mut other_first).await;
+    let mut foreign = add_body(
+        service,
+        wallet,
+        "alpha",
+        &mut delegate,
+        (&d.0, d.1.as_ref(), d.2),
+        NOW,
+    )
+    .await;
+    foreign["delegate"] = delegate_approval(
+        wallet,
+        &mut other_first,
+        &delegate_key,
+        (&d.0, d.1.as_ref()),
+    )
+    .await;
+    assert_eq!(
+        anonymous.call("device_add", foreign).await.unwrap_err(),
+        Error::Refused
+    );
+    // A host signature over another digest is refused.
+    let mut wrong = add_body(
+        service,
+        wallet,
+        "alpha",
+        &mut delegate,
+        (&d.0, d.1.as_ref(), d.2),
+        NOW,
+    )
+    .await;
+    wrong["delegate"] =
+        delegate_approval(wallet, &mut first, &delegate_key, (&t.0, t.1.as_ref())).await;
+    assert_eq!(
+        anonymous.call("device_add", wrong).await.unwrap_err(),
+        Error::Refused
+    );
+    assert_eq!(registry_state(service, "alpha", &delegate_key).await, None);
+
+    // The member's ACTIVE full device approves: PENDING, class delegated, then ACTIVE.
+    let mut add = add_body(
+        service,
+        wallet,
+        "alpha",
+        &mut delegate,
+        (&d.0, d.1.as_ref(), d.2),
+        NOW,
+    )
+    .await;
+    add["delegate"] =
+        delegate_approval(wallet, &mut first, &delegate_key, (&d.0, d.1.as_ref())).await;
+    anonymous.call("device_add", add).await.unwrap();
+    assert_eq!(
+        registry_class(service, &delegate_key).await.as_deref(),
+        Some("delegated")
+    );
+    let activate = activate_body(service, wallet, "alpha", &mut delegate, NOW).await;
+    anonymous.call("device_activate", activate).await.unwrap();
+    assert_eq!(
+        registry_state(service, "alpha", &delegate_key)
+            .await
+            .as_deref(),
+        Some("active")
+    );
+    // A listed delegate opens a community session and uses it.
+    let session = open_session(service, &joined.user, &mut delegate)
+        .await
+        .unwrap();
+    let member = client(service, HOST, Some(&session.token));
+    member.call("lobby", json!({})).await.unwrap();
+
+    // No delegation chains: the delegate cannot approve another device.
+    let mut chained = add_body(
+        service,
+        wallet,
+        "alpha",
+        &mut third,
+        (&t.0, t.1.as_ref(), t.2),
+        NOW,
+    )
+    .await;
+    chained["delegate"] =
+        delegate_approval(wallet, &mut delegate, &third_key, (&t.0, t.1.as_ref())).await;
+    assert_eq!(
+        anonymous.call("device_add", chained).await.unwrap_err(),
+        Error::Refused
+    );
+    assert_eq!(registry_state(service, "alpha", &third_key).await, None);
+
+    // An admin session needs the passkey: typed refusal before any stamp is looked at.
+    let challenge: DeviceSessionChallenge = serde_json::from_value(
+        anonymous
+            .call("device_session_begin", json!({}))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let garden = json!({
+        "nonce": challenge.nonce,
+        "user": joined.user,
+        "device_key": delegate_key,
+        "signature": delegate.sign(&garden_message("alpha", &challenge.nonce, challenge.issued)).await,
+        "stamp": vec![0u8; 4],
+        "salt": vec![0u8; 32],
+    });
+    assert_eq!(
+        client(service, "api.admin.alpha.example.test", None)
+            .call("garden_session_finish", garden)
+            .await
+            .unwrap_err(),
+        Error::NeedsPasskey
+    );
+
+    // Revocation: the open session's very next request and every new session are refused.
+    revoke_registry_key(service, &delegate_key).await;
+    assert!(member.call("lobby", json!({})).await.is_err());
+    assert!(
+        open_session(service, &joined.user, &mut delegate)
+            .await
+            .is_err()
+    );
+
+    // A revoked host approves nothing.
+    let first_key = first.verifying_key().to_bytes();
+    revoke_registry_key(service, &first_key).await;
+    let mut revoked = add_body(
+        service,
+        wallet,
+        "alpha",
+        &mut third,
+        (&t.0, t.1.as_ref(), t.2),
+        NOW,
+    )
+    .await;
+    revoked["delegate"] =
+        delegate_approval(wallet, &mut first, &third_key, (&t.0, t.1.as_ref())).await;
+    assert_eq!(
+        anonymous.call("device_add", revoked).await.unwrap_err(),
+        Error::Refused
+    );
+    assert_eq!(registry_state(service, "alpha", &third_key).await, None);
+}
+
+/// D1: "needs the passkey" is a typed refusal on the wire (`refused` + reason), which the
+/// client decodes back, so a delegated CLI can tell it from any other refusal.
+#[test]
+fn needs_the_passkey_is_a_typed_refusal_on_the_wire() {
+    let wire = serde_json::to_value(crate::error::ErrorBody::from(Error::NeedsPasskey)).unwrap();
+    assert_eq!(wire, json!({"error": "refused", "reason": "needs_passkey"}));
+    let body: crate::error::ErrorBody = serde_json::from_value(wire).unwrap();
+    assert_eq!(body.error(), Some(Error::NeedsPasskey));
+    assert_eq!(Error::NeedsPasskey.http_status(), 409);
+}
+
+/// The host approval of a delegated key is exactly the ckmg PairingApproval a full device
+/// signs; ckmg lets no delegate sign it.
+#[test]
+fn the_delegate_approval_is_the_one_a_full_host_device_signs() {
+    let digest = pair_payload("alpha", "member", &[5; 32], &[6; 32], Some(&[7; 32]));
+    assert_eq!(
+        approval_message("alpha", &digest),
+        ckmg::PairingApproval::new("alpha", &digest)
+            .unwrap()
+            .message()
+    );
 }

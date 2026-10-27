@@ -36,6 +36,11 @@ pub enum Error {
     #[error("operation refused: request window elapsed")]
     #[serde(skip)]
     Expired,
+    /// Refused because a delegated device key may not do this (D1): it needs the member's
+    /// passkey. On the wire it is `refused` with the reason `needs_passkey`.
+    #[error("operation refused: needs the passkey")]
+    #[serde(skip)]
+    NeedsPasskey,
 }
 
 /// Typed reason of a `refused` error. The only reason a client may act on
@@ -46,6 +51,8 @@ pub enum Error {
 pub enum RefusalReason {
     /// The signed request's acceptance window elapsed before commitment.
     Expired,
+    /// A delegated device key asked for an action that needs the member's passkey.
+    NeedsPasskey,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -65,6 +72,10 @@ impl From<Error> for ErrorBody {
                 error: Error::Refused,
                 reason: Some(RefusalReason::Expired),
             },
+            Error::NeedsPasskey => Self {
+                error: Error::Refused,
+                reason: Some(RefusalReason::NeedsPasskey),
+            },
             error => Self {
                 error,
                 reason: None,
@@ -78,7 +89,8 @@ impl ErrorBody {
     pub fn error(&self) -> Option<Error> {
         match (self.error, self.reason) {
             (Error::Refused, Some(RefusalReason::Expired)) => Some(Error::Expired),
-            (Error::Expired, _) | (_, Some(_)) => None,
+            (Error::Refused, Some(RefusalReason::NeedsPasskey)) => Some(Error::NeedsPasskey),
+            (Error::Expired | Error::NeedsPasskey, _) | (_, Some(_)) => None,
             (error, None) => Some(error),
         }
     }
@@ -144,7 +156,7 @@ impl Error {
             Self::Forbidden | Self::HeldInLobby => 403,
             Self::WrongHost => 421,
             Self::Throttled => 429,
-            Self::Refused | Self::Expired => 409,
+            Self::Refused | Self::Expired | Self::NeedsPasskey => 409,
             Self::Unavailable | Self::Reconcile => 503,
         }
     }

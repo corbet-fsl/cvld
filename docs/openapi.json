@@ -180,6 +180,12 @@
                     "minimum": 0,
                     "type": "integer"
                   },
+                  "lineageEpoch": {
+                    "description": "Lineage epoch of this recipient key. A replacement of the stored key must carry a strictly\ngreater epoch than the stored one (an unreplaced legacy entry counts as epoch 0).",
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
                   "owner": {
                     "items": {
                       "format": "uint8",
@@ -211,6 +217,7 @@
                   "owner",
                   "recipientKey",
                   "chatPublicKey",
+                  "lineageEpoch",
                   "issuedAt",
                   "expiresAt",
                   "signature"
@@ -4786,6 +4793,33 @@
         ],
         "type": "object"
       },
+      "DelegateApproval": {
+        "additionalProperties": false,
+        "description": "A host device's approval of a delegated key: its key and its signature over\n[`crate::device_session::approval_message`] of the pairing digest the stamp covers.",
+        "properties": {
+          "host_key": {
+            "items": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "host_signature": {
+            "items": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "host_key",
+          "host_signature"
+        ],
+        "type": "object"
+      },
       "DeviceAuthorization": {
         "additionalProperties": false,
         "description": "Member-owned root authorization. Eligibility issuers cannot create this proof.",
@@ -5495,7 +5529,8 @@
       "RefusalReason": {
         "description": "Typed reason of a `refused` error. The only reason a client may act on\nwithout reconciling: nothing was written, so it may prepare a fresh request.",
         "enum": [
-          "expired"
+          "expired",
+          "needs_passkey"
         ],
         "type": "string"
       },
@@ -8646,6 +8681,17 @@
                 "additionalProperties": false,
                 "description": "Pairing step one: a passport presentation over a challenge of this community, the\ncommunity's ONE pairing stamp slot (`device_pair`, payload\n[`crate::device_session::pair_payload`] of exactly this community, the passport's\npseudonym, `device_key`, `session` and `revision`) and the new key's signature over\n[`crate::device_session::pairing_message`] of step `device_add` (proof of possession). The\nserver registers the key PENDING and keeps the approval with it; activation needs no stamp.",
                 "properties": {
+                  "delegate": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/DelegateApproval",
+                        "description": "Present for a DELEGATED key (community sessions only): an ACTIVE full device of the\nsame member approves exactly this pairing."
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "device_key": {
                     "items": {
                       "format": "int32",

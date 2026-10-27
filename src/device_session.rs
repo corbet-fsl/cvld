@@ -124,6 +124,20 @@ pub const POSSESSION_TAG: &[u8] = b"cvld.device-pairing-possession.v1\0";
 /// exactly `ckmg::PairingPossession::message`, which the pairing guest signs; the step is in
 /// the message, so an add signature is no activate signature and neither is a join signature.
 /// An unknown `kind` yields a message no honest device signs.
+/// Format tag of a host device's pairing approval: exactly `ckmg::DeviceFormat::PairingApproval`.
+pub const APPROVAL_TAG: &[u8] = b"cvld.device-pairing-approval.v1\0";
+
+/// The bytes an ACTIVE full host device signs to approve a DELEGATED key: exactly
+/// `ckmg::PairingApproval::message` over the pairing `digest` ([`pair_payload`]) the stamp
+/// covers. ckmg signs it only with an admitted device key, never with a delegate's.
+pub fn approval_message(community: &str, digest: &[u8; 32]) -> Vec<u8> {
+    let mut message = APPROVAL_TAG.to_vec();
+    message.extend_from_slice(&(community.len() as u16).to_be_bytes());
+    message.extend_from_slice(community.as_bytes());
+    message.extend_from_slice(digest);
+    message
+}
+
 pub fn pairing_message(
     kind: &str,
     community: &str,
