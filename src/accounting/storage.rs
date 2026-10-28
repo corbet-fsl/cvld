@@ -63,7 +63,9 @@ struct HostTransaction {
 }
 impl HostTransaction {
     fn transaction(&mut self) -> &mut crlt::Transaction {
-        self.transaction.as_mut().expect("live account transaction")
+        self.transaction
+            .as_mut()
+            .expect("taken only by the consuming commit/rollback")
     }
 }
 fn blob(row: &crlt::Row, column: usize) -> Result<Vec<u8>, Error> {
@@ -166,7 +168,10 @@ impl AtomicTransaction for HostTransaction {
     }
 
     fn commit(mut self: Box<Self>) -> Result<(), Error> {
-        let tx = self.transaction.take().expect("live account transaction");
+        let tx = self
+            .transaction
+            .take()
+            .expect("consuming commit takes it exactly once");
         self.runtime
             .block_on(tx.commit())
             .map_err(|_| Error::Storage)
@@ -182,7 +187,10 @@ impl AtomicTransaction for HostTransaction {
     }
 
     fn rollback(mut self: Box<Self>) -> Result<(), Error> {
-        let tx = self.transaction.take().expect("live account transaction");
+        let tx = self
+            .transaction
+            .take()
+            .expect("consuming rollback takes it exactly once");
         self.runtime
             .block_on(tx.rollback())
             .map_err(|_| Error::Storage)

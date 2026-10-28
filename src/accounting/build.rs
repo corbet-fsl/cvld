@@ -122,7 +122,11 @@ impl Task {
                     // The native body and its result/drop ownership have ended.
                     // std documents is_finished -> join as a nonblocking join;
                     // only the brief final thread-local teardown may remain.
-                    let joined = worker.take().expect("finished native owner").join().is_ok();
+                    let joined = worker
+                        .take()
+                        .expect("finished while holding the worker lock, so still stored")
+                        .join()
+                        .is_ok();
                     self.phase.send_replace(Completion::Joined(joined));
                     Some(joined)
                 } else {
