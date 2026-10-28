@@ -41,6 +41,13 @@ pub enum Error {
     #[error("operation refused: needs the passkey")]
     #[serde(skip)]
     NeedsPasskey,
+    /// Refused because this delegated device key's registry row is no longer active (revoked
+    /// or the member is gone): the delegation is dead and the client asks for the passkey.
+    /// On the wire it is `refused` with the reason `delegate_revoked`. A plain unauthorized
+    /// (an expired session, a wrong user) never reads as a revocation.
+    #[error("operation refused: delegation revoked")]
+    #[serde(skip)]
+    DelegateRevoked,
 }
 
 /// Typed reason of a `refused` error. The only reason a client may act on
@@ -53,6 +60,8 @@ pub enum RefusalReason {
     Expired,
     /// A delegated device key asked for an action that needs the member's passkey.
     NeedsPasskey,
+    /// A delegated device key was refused because its registry row is revoked.
+    DelegateRevoked,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -76,6 +85,10 @@ impl From<Error> for ErrorBody {
                 error: Error::Refused,
                 reason: Some(RefusalReason::NeedsPasskey),
             },
+            Error::DelegateRevoked => Self {
+                error: Error::Refused,
+                reason: Some(RefusalReason::DelegateRevoked),
+            },
             error => Self {
                 error,
                 reason: None,
@@ -90,7 +103,10 @@ impl ErrorBody {
         match (self.error, self.reason) {
             (Error::Refused, Some(RefusalReason::Expired)) => Some(Error::Expired),
             (Error::Refused, Some(RefusalReason::NeedsPasskey)) => Some(Error::NeedsPasskey),
-            (Error::Expired | Error::NeedsPasskey, _) | (_, Some(_)) => None,
+            (Error::Refused, Some(RefusalReason::DelegateRevoked)) => Some(Error::DelegateRevoked),
+            (Error::Expired | Error::NeedsPasskey | Error::DelegateRevoked, _) | (_, Some(_)) => {
+                None
+            }
             (error, None) => Some(error),
         }
     }
@@ -156,7 +172,7 @@ impl Error {
             Self::Forbidden | Self::HeldInLobby => 403,
             Self::WrongHost => 421,
             Self::Throttled => 429,
-            Self::Refused | Self::Expired | Self::NeedsPasskey => 409,
+            Self::Refused | Self::Expired | Self::NeedsPasskey | Self::DelegateRevoked => 409,
             Self::Unavailable | Self::Reconcile => 503,
         }
     }

@@ -1826,11 +1826,11 @@ async fn a_delegated_key_opens_community_sessions_only_until_its_row_is_revoked(
     // Revocation: the open session's very next request and every new session are refused.
     revoke_registry_key(service, &delegate_key).await;
     assert!(member.call("lobby", json!({})).await.is_err());
-    assert!(
-        open_session(service, &joined.user, &mut delegate)
-            .await
-            .is_err()
-    );
+    // The revoked delegate is told so, with the distinct reason; nobody else is.
+    assert!(matches!(
+        open_session(service, &joined.user, &mut delegate).await,
+        Err(Error::DelegateRevoked)
+    ));
 
     // A revoked host approves nothing.
     let first_key = first.verifying_key().to_bytes();
@@ -1862,6 +1862,22 @@ fn needs_the_passkey_is_a_typed_refusal_on_the_wire() {
     let body: crate::error::ErrorBody = serde_json::from_value(wire).unwrap();
     assert_eq!(body.error(), Some(Error::NeedsPasskey));
     assert_eq!(Error::NeedsPasskey.http_status(), 409);
+}
+
+#[test]
+fn a_revoked_delegate_is_a_typed_refusal_on_the_wire() {
+    let wire = serde_json::to_value(crate::error::ErrorBody::from(Error::DelegateRevoked)).unwrap();
+    assert_eq!(
+        wire,
+        json!({"error": "refused", "reason": "delegate_revoked"})
+    );
+    let body: crate::error::ErrorBody = serde_json::from_value(wire).unwrap();
+    assert_eq!(body.error(), Some(Error::DelegateRevoked));
+    // The reason is not valid on any other category.
+    let bad: crate::error::ErrorBody =
+        serde_json::from_value(json!({"error": "unauthorized", "reason": "delegate_revoked"}))
+            .unwrap();
+    assert_eq!(bad.error(), None);
 }
 
 /// The host approval of a delegated key is exactly the ckmg PairingApproval a full device

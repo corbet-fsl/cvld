@@ -66,6 +66,19 @@ impl CommunityService {
             .await
             .map_err(Error::Unauthorized.redact_at("community/device_session.rs:5"))?
         {
+            // A delegated key whose row is revoked is told so (distinct reason); every
+            // other refusal stays a plain unauthorized.
+            if self.delegated(user, request.device_key).await?
+                && self
+                    .facade
+                    .membership()
+                    .device_key_state(user, request.device_key)
+                    .await
+                    .map_err(Error::Unavailable.redact_at("community/device_session.rs:40"))?
+                    == Some(cmbr::DeviceKeyState::Revoked)
+            {
+                return Err(Error::DelegateRevoked);
+            }
             return Err(Error::Unauthorized);
         }
         // A delegated key opens community sessions only, never one of a platform host (D1).

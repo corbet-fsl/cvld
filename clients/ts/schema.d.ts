@@ -3128,7 +3128,7 @@ export interface components {
          *     without reconciling: nothing was written, so it may prepare a fresh request.
          * @enum {string}
          */
-        RefusalReason: "expired" | "needs_passkey";
+        RefusalReason: "expired" | "needs_passkey" | "delegate_revoked";
         /** @enum {string} */
         Role: "member" | "admin" | "root";
         /**

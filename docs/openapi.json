@@ -5530,7 +5530,8 @@
         "description": "Typed reason of a `refused` error. The only reason a client may act on\nwithout reconciling: nothing was written, so it may prepare a fresh request.",
         "enum": [
           "expired",
-          "needs_passkey"
+          "needs_passkey",
+          "delegate_revoked"
         ],
         "type": "string"
       },
