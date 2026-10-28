@@ -41,6 +41,57 @@ impl CommunityService {
         }
         Ok(now)
     }
+    /// Attach the community-signed Balance publication that names the epoch
+    /// descriptor an accepted join-time ancestry sits under. The ledger certifies
+    /// that ancestry under its retained anchor, while a newcomer's own
+    /// authenticated material may carry no frozen frontier: this publication is
+    /// what lets the device check the join-time record leaf. It is the same
+    /// publication the community publishes, verified here exactly as the device
+    /// verifies it, and attached only when its descriptor names this ancestry's
+    /// epoch and root. Nothing is attached otherwise: the acceptance is already
+    /// durable and never depends on this evidence.
+    async fn join_publication(
+        &self,
+        value: cblc::accounting_service::AccountServiceResponse,
+        now: u64,
+    ) -> cblc::accounting_service::AccountServiceResponse {
+        let mut value = value;
+        let cblc::accounting_service::AccountServiceResponse::ApplyExtended {
+            ancestry: Some(ancestry),
+            join_publication,
+            ..
+        } = &mut value
+        else {
+            return value;
+        };
+        if join_publication.is_some() {
+            return value;
+        }
+        let policy = self.facade.policy().lock().await;
+        let Some(bytes) = policy.balance_publication(now).await.ok().flatten() else {
+            return value;
+        };
+        let material = policy
+            .key_ring()
+            .ok()
+            .and_then(|ring| ring.verify(&bytes, csgn::Kind::SettingsSnapshot, now).ok())
+            .and_then(|signed| {
+                serde_json::from_slice::<cblc::publication::PublicVerifierMaterial>(
+                    signed.payload(),
+                )
+                .ok()
+            })
+            .filter(|material| material.validate_at(&self.config.community, now).is_ok());
+        if material
+            .and_then(|material| material.record_epoch)
+            .is_some_and(|descriptor| {
+                descriptor.epoch == ancestry.epoch && descriptor.root == ancestry.root
+            })
+        {
+            *join_publication = Some(cblc::contracts::JoinPublication(bytes));
+        }
+        value
+    }
     pub(crate) async fn account_credential_issue(
         &mut self,
         bearer: &str,
@@ -139,6 +190,7 @@ impl CommunityService {
                     cmty::Error::AccountExpired => Error::Expired,
                     _ => Error::Refused,
                 })?;
+            let value = self.join_publication(value, now).await;
             let result = async {
                 now = self.account_time(runtime, now.max(runtime.floor()), grant.expires)?;
                 let (current, auth) = self.authenticate_current(bearer, now).await?;
