@@ -2627,6 +2627,14 @@ export interface components {
                         acceptedAt: number;
                         signature: number[];
                     };
+                    /**
+                     * @description Community-signed Balance publication the accepting operator attached when
+                     *     this ancestry's record epoch is the one it publishes. The ledger holds no
+                     *     community signing key, so the accepting service fills it exactly as it does
+                     *     on the answer itself. Opaque and unsigned here: the holder authenticates it
+                     *     with the community ring and never trusts it for being present.
+                     */
+                    joinPublication?: string | null;
                 } | null;
                 /** Format: uint64 */
                 observedAt: number;
@@ -2774,6 +2782,14 @@ export interface components {
                     acceptedAt: number;
                     signature: number[];
                 };
+                /**
+                 * @description Community-signed publication that names exactly the epoch and root the
+                 *     ancestry sits under, so a newcomer whose own material carries no frozen
+                 *     frontier can check its join-time record leaf. Not covered by the
+                 *     acceptance signature: it carries its own community signature, like
+                 *     `AccountStatusResponse.extended`.
+                 */
+                join_publication?: string | null;
             };
         } | {
             /** @enum {string} */
