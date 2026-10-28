@@ -49,24 +49,32 @@ impl CommunityService {
     /// publication the community publishes, verified here exactly as the device
     /// verifies it, and attached only when its descriptor names this ancestry's
     /// epoch and root. Nothing is attached otherwise: the acceptance is already
-    /// durable and never depends on this evidence.
+    /// durable and never depends on this evidence. It rides on the answer and on
+    /// the authenticated status alike, so a device that lost the answer can still
+    /// verify the same acceptance it reads back.
     async fn join_publication(
         &self,
-        value: cblc::accounting_service::AccountServiceResponse,
+        mut value: cblc::accounting_service::AccountServiceResponse,
         now: u64,
     ) -> cblc::accounting_service::AccountServiceResponse {
-        let mut value = value;
-        let cblc::accounting_service::AccountServiceResponse::ApplyExtended {
-            ancestry: Some(ancestry),
-            join_publication,
-            ..
-        } = &mut value
-        else {
+        // The ancestry this response carries, when no publication is attached yet.
+        let naming = match &value {
+            cblc::accounting_service::AccountServiceResponse::ApplyExtended {
+                ancestry: Some(ancestry),
+                join_publication,
+                ..
+            } if join_publication.is_none() => Some((ancestry.epoch, ancestry.root)),
+            cblc::accounting_service::AccountServiceResponse::Status(status) => status
+                .extended
+                .as_ref()
+                .filter(|evidence| evidence.join_publication.is_none())
+                .and_then(|evidence| evidence.ancestry.as_ref())
+                .map(|ancestry| (ancestry.epoch, ancestry.root)),
+            _ => None,
+        };
+        let Some((epoch, root)) = naming else {
             return value;
         };
-        if join_publication.is_some() {
-            return value;
-        }
         let policy = self.facade.policy().lock().await;
         let Some(bytes) = policy.balance_publication(now).await.ok().flatten() else {
             return value;
@@ -82,13 +90,24 @@ impl CommunityService {
                 .ok()
             })
             .filter(|material| material.validate_at(&self.config.community, now).is_ok());
-        if material
+        if !material
             .and_then(|material| material.record_epoch)
-            .is_some_and(|descriptor| {
-                descriptor.epoch == ancestry.epoch && descriptor.root == ancestry.root
-            })
+            .is_some_and(|descriptor| descriptor.epoch == epoch && descriptor.root == root)
         {
-            *join_publication = Some(cblc::contracts::JoinPublication(bytes));
+            return value;
+        }
+        let publication = cblc::contracts::JoinPublication(bytes);
+        match &mut value {
+            cblc::accounting_service::AccountServiceResponse::ApplyExtended {
+                join_publication,
+                ..
+            } => *join_publication = Some(publication),
+            cblc::accounting_service::AccountServiceResponse::Status(status) => {
+                if let Some(evidence) = status.extended.as_mut() {
+                    evidence.join_publication = Some(publication);
+                }
+            }
+            _ => {}
         }
         value
     }
