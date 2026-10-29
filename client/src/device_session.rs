@@ -16,6 +16,47 @@ pub fn message(community: &str, nonce: &[u8; NONCE_LEN], issued: u64) -> Vec<u8>
     message
 }
 
+/// Domain tag of a wallet session renewal by the wallet device key K (secure convenience, 3.1).
+pub const WALLET_SESSION_TAG: &[u8] = b"cvld.wallet-session.v1\0";
+
+/// Signed message of a wallet session renewal: tag, wallet host, account, session family,
+/// nonce, issue time. Its own tag and K's own "wallet" derivation keep it apart from every
+/// community device-session, join and salt signature.
+pub fn wallet_message(
+    host: &str,
+    account: &[u8; 16],
+    family: &[u8; 32],
+    nonce: &[u8; NONCE_LEN],
+    issued: u64,
+) -> Vec<u8> {
+    let mut message = WALLET_SESSION_TAG.to_vec();
+    message.extend_from_slice(&(host.len() as u16).to_be_bytes());
+    message.extend_from_slice(host.as_bytes());
+    message.extend_from_slice(account);
+    message.extend_from_slice(family);
+    message.extend_from_slice(nonce);
+    message.extend_from_slice(&issued.to_be_bytes());
+    message
+}
+
+#[cfg(test)]
+mod wallet_message_tests {
+    use super::*;
+
+    #[test]
+    fn the_wallet_message_has_its_own_tag_and_fixed_layout() {
+        let message = wallet_message("w", &[1; 16], &[2; 32], &[3; NONCE_LEN], 7);
+        assert!(message.starts_with(WALLET_SESSION_TAG));
+        let rest = &message[WALLET_SESSION_TAG.len()..];
+        assert_eq!(&rest[..3], &[0, 1, b'w']);
+        assert_eq!(&rest[3..19], &[1; 16]);
+        assert_eq!(&rest[19..51], &[2; 32]);
+        assert_eq!(&rest[51..83], &[3; 32]);
+        assert_eq!(&rest[83..], &7u64.to_be_bytes());
+        assert_ne!(&message[..8], &self::message("w", &[3; 32], 7)[..8]);
+    }
+}
+
 /// Signed message of an admin session: like [`message`] with its own domain tag, so a signature
 /// for a member session never opens an admin session.
 pub fn garden_message(community: &str, nonce: &[u8; NONCE_LEN], issued: u64) -> Vec<u8> {
