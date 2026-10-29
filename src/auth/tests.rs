@@ -17,6 +17,8 @@ mod family;
 mod global_self_ban;
 #[path = "tests/passkey_management.rs"]
 mod passkey_management;
+#[path = "tests/renew.rs"]
+mod renew;
 
 async fn database() -> (tempfile::TempDir, crlt::Db) {
     let directory = tempfile::tempdir().unwrap();
