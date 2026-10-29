@@ -44,6 +44,7 @@ impl Auth {
                 },
                 authentication: Arc::new(authentication),
                 family: session_id,
+                generation: 0,
             },
         );
         Ok(Session {

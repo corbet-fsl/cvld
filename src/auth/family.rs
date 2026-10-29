@@ -30,7 +30,9 @@ impl Auth {
         let members = self
             .sessions
             .values()
-            .filter(|session| session.family == parent.family)
+            .filter(|session| {
+                session.family == parent.family && session.generation == parent.generation
+            })
             .count();
         if members >= SESSION_FAMILY_LIMIT {
             return Err(Error::Refused);

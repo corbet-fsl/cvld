@@ -13,6 +13,7 @@ mod family;
 pub use family::SESSION_FAMILY_LIMIT;
 pub(crate) mod global_self_ban;
 mod passkeys;
+pub(crate) mod renew;
 mod step_up;
 pub(crate) mod wallet;
 
@@ -29,6 +30,7 @@ pub struct Auth {
     additions: HashMap<String, passkeys::PendingAddition>,
     self_bans: HashMap<String, global_self_ban::PendingSelfBan>,
     step_ups: crate::step_up::StepUps<PendingAuthentication>,
+    renewals: renew::Renewals,
     capacity: usize,
     lifetime: u64,
 }
@@ -55,6 +57,9 @@ struct SessionState {
     authentication: Arc<ckyh::Authentication>,
     /// The `session_id` of the login that opened the family.
     family: [u8; 32],
+    /// 0 for the login and its forks; each device-key renewal (A13) mints the next generation.
+    /// Members of one generation end together; a later generation outlives an earlier one.
+    generation: u32,
 }
 enum LoginCeremony {
     Credential(PendingAuthentication),
@@ -110,6 +115,7 @@ impl Auth {
             additions: HashMap::new(),
             self_bans: HashMap::new(),
             step_ups: Default::default(),
+            renewals: Default::default(),
             capacity,
             lifetime,
         })
@@ -118,14 +124,17 @@ impl Auth {
         self.registrations
             .retain(|_, p| p.expires > now && std::time::Instant::now() < p.deadline);
         self.logins.retain(|_, p| p.expires > now);
-        // The expiry of any member ends its whole family.
-        let ended: std::collections::HashSet<[u8; 32]> = self
+        // The expiry of any member ends its whole generation of the family (the whole family
+        // when it was never renewed).
+        let ended: std::collections::HashSet<([u8; 32], u32)> = self
             .sessions
             .values()
             .filter(|p| p.grant.expires <= now)
-            .map(|p| p.family)
+            .map(|p| (p.family, p.generation))
             .collect();
-        self.sessions.retain(|_, p| !ended.contains(&p.family));
+        self.sessions
+            .retain(|_, p| !ended.contains(&(p.family, p.generation)));
+        self.renewals.prune(now);
         self.additions.retain(|_, p| p.until > now);
         self.self_bans.retain(|_, p| p.until > now);
         self.step_ups.prune(now);
@@ -410,6 +419,7 @@ impl Auth {
                 },
                 authentication: Arc::new(authentication),
                 family: session_id,
+                generation: 0,
             },
         );
         Ok(Session {
@@ -429,10 +439,16 @@ impl Auth {
             )
         });
         self.prune(now);
-        let grant = self
+        let (grant, family, device) = self
             .sessions
             .get(token)
-            .map(|session| session.grant.clone())
+            .map(|session| {
+                (
+                    session.grant.clone(),
+                    session.family,
+                    session.authentication.device_key(),
+                )
+            })
             .ok_or_else(|| {
                 use crate::refusal::{Reason, note_for, refuse};
                 match held {
@@ -448,6 +464,13 @@ impl Auth {
                     None => refuse(Reason::SessionMissing),
                 }
             })?;
+        // A device-key (renewed) session lives only while its family's anchor does.
+        if grant.origin == ckyh::Origin::DeviceKey
+            && !device.is_some_and(|key| self.renewals.anchored(grant.user, key, &family))
+        {
+            self.logout(token);
+            return Err(Error::Unauthorized);
+        }
         let passkeys = self.passkeys.clone();
         let user = grant.user;
         let credential = grant.credential.clone();
@@ -475,12 +498,14 @@ impl Auth {
     /// End this session's whole family: the login and every fork of it.
     pub fn logout(&mut self, token: &str) {
         if let Some(family) = self.sessions.get(token).map(|session| session.family) {
+            self.renewals.forget_family(&family);
             self.sessions.retain(|_, session| session.family != family);
             self.retain_live();
         }
     }
 
     pub(crate) fn logout_account(&mut self, user: Uuid) {
+        self.renewals.forget_member(user);
         self.sessions
             .retain(|_, session| session.grant.user != user);
         self.retain_live();

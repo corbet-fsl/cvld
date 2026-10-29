@@ -8,8 +8,20 @@ use ed25519_dalek::{Signer, SigningKey};
 
 const HOST: &str = "wallet.example.test";
 
+/// A wallet host's Auth: its passkey community is "wallet", as in production.
+fn wallet_auth(db: &crlt::Db) -> Auth {
+    let passkeys = Passkeys::new(
+        LibsqlStore::new(db, "wallet", tokio::runtime::Handle::current()).unwrap(),
+        "wallet",
+        "auth.example.test",
+        &[ckyh::Url::parse(ORIGIN).unwrap()],
+    )
+    .unwrap();
+    Auth::new(passkeys, Role::Member, None, None, 16, 600).unwrap()
+}
+
 async fn member(db: &crlt::Db) -> (Auth, Session, [u8; 32]) {
-    let mut member = auth(db, None, 16);
+    let mut member = wallet_auth(db);
     let mut device = Resident::default();
     let begin = member.register_begin(start(None), NOW).await.unwrap();
     let finish = registration(&mut device, begin).await;
@@ -54,7 +66,12 @@ async fn an_anchored_device_key_renews_the_wallet_session_without_a_prompt() {
     let at = session.expires - 60;
     let challenge = auth.wallet_renew_begin(at).await.unwrap();
     let renewed = auth
-        .wallet_renew(HOST, renewal(&key, &session, family, &challenge), at, &bound_to(&key))
+        .wallet_renew(
+            HOST,
+            renewal(&key, &session, family, &challenge),
+            at,
+            &bound_to(&key),
+        )
         .await
         .unwrap();
     assert_ne!(renewed.token, session.token);
@@ -98,9 +115,14 @@ async fn a_revoked_device_key_is_refused() {
     let at = session.expires - 60;
     let challenge = auth.wallet_renew_begin(at).await.unwrap();
     assert_eq!(
-        auth.wallet_renew(HOST, renewal(&key, &session, family, &challenge), at, &bound_to(&key))
-            .await
-            .err(),
+        auth.wallet_renew(
+            HOST,
+            renewal(&key, &session, family, &challenge),
+            at,
+            &bound_to(&key)
+        )
+        .await
+        .err(),
         Some(Error::Unauthorized)
     );
     // Revocation also ends the families the key renewed.
@@ -206,4 +228,49 @@ async fn renewal_keeps_the_binding_and_refuses_an_unbound_key() {
         .err(),
         Some(Error::Unauthorized)
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_renewed_session_needs_the_passkey_for_passkey_only_wallet_actions() {
+    let (_directory, db) = database().await;
+    let (mut auth, session, family) = member(&db).await;
+    let key = SigningKey::from_bytes(&[7; 32]);
+    auth.anchor_wallet_device(&session.token, key.verifying_key().to_bytes(), NOW)
+        .await
+        .unwrap();
+    let at = session.expires - 60;
+    let clock = crate::auth::enrollment::FixedClock(at);
+    // The passkey session reaches the passkey-only paths (devices, certificate).
+    let grant = auth.authenticate(&session.token, at).await.unwrap();
+    let mut wallet = auth
+        .wallet_session(&session.token, &grant, at, &clock)
+        .await
+        .unwrap();
+    wallet
+        .check(&mut auth, &session.token, at, &clock)
+        .await
+        .unwrap();
+    assert!(wallet.passkey_member().is_ok());
+    // The K-renewed session is a wallet session, but those paths answer NeedsPasskey (step-up).
+    let challenge = auth.wallet_renew_begin(at).await.unwrap();
+    let renewed = auth
+        .wallet_renew(
+            HOST,
+            renewal(&key, &session, family, &challenge),
+            at,
+            &bound_to(&key),
+        )
+        .await
+        .unwrap();
+    let grant = auth.authenticate(&renewed.token, at).await.unwrap();
+    let mut wallet = auth
+        .wallet_session(&renewed.token, &grant, at, &clock)
+        .await
+        .unwrap();
+    wallet
+        .check(&mut auth, &renewed.token, at, &clock)
+        .await
+        .unwrap();
+    assert!(wallet.member().is_ok());
+    assert_eq!(wallet.passkey_member().err(), Some(Error::NeedsPasskey));
 }

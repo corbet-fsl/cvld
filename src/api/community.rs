@@ -566,6 +566,18 @@ pub struct DeviceSessionChallenge {
     /// Issue time, part of the signed message (see `device_session::message`).
     pub issued: u64,
 }
+/// Renews a wallet session by the wallet device key K: K's signature over
+/// `device_session::wallet_message` for this wallet host, account, session family and one-use
+/// nonce. Only a family anchored to K at a passkey login renews; only revocation ends the chain.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct WalletSessionRenew {
+    pub account: String,
+    pub family: [u8; 32],
+    pub device_key: [u8; 32],
+    pub nonce: [u8; 32],
+    pub signature: Vec<u8>,
+}
 /// The device key's signature over the challenge, from the member's registered key.
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]

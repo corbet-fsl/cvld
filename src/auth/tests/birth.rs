@@ -84,7 +84,8 @@ async fn a_second_passkey_or_a_session_without_birth_origin_is_refused() {
         auth.birth_grant(&login.token, NOW).await,
         Err(Error::Forbidden)
     ));
-    // A device-key origin never carries it either.
+    // A device-key origin never carries it either: a device-key wallet session without a renewal
+    // anchor of its own key is not even a session (A13), so it ends as Unauthorized.
     {
         let state = auth.sessions.get_mut(&login.token).unwrap();
         state.grant.uv_at = Some(NOW);
@@ -92,7 +93,7 @@ async fn a_second_passkey_or_a_session_without_birth_origin_is_refused() {
     }
     assert!(matches!(
         auth.birth_grant(&login.token, NOW).await,
-        Err(Error::Forbidden)
+        Err(Error::Unauthorized)
     ));
     auth.birth_grant(&session.token, NOW).await.unwrap();
     // A second live passkey ends the birth grant of every session of the account, including

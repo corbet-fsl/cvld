@@ -13,6 +13,16 @@ impl WalletSession {
         self.floor.ok_or(Error::Unauthorized)?;
         Ok(&self.authentication)
     }
+    /// The member for cgbl's passkey-only wallet paths (device add/remove, certificate): a
+    /// session renewed by the device key K answers `NeedsPasskey` there (a step-up with a fresh
+    /// passkey assertion), never a generic refusal.
+    pub(crate) fn passkey_member(&self) -> Result<&ckyh::Authentication> {
+        let member = self.member()?;
+        if member.origin() != ckyh::Origin::Passkey {
+            return Err(Error::NeedsPasskey);
+        }
+        Ok(member)
+    }
     pub(crate) fn expires(&self) -> u64 {
         self.grant.expires
     }

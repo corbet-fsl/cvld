@@ -58,7 +58,7 @@ impl GlobalService {
         self.facade
             .wallet_passkey_certificate(
                 self.wallet.as_mut().ok_or(Error::Forbidden)?,
-                session.member()?,
+                session.passkey_member()?,
                 session.expires(),
                 &|| clock.now(),
             )
@@ -78,7 +78,7 @@ impl GlobalService {
                 .facade
                 .authorize_wallet_birth_device(
                     wallet,
-                    session.member()?,
+                    session.passkey_member()?,
                     device,
                     signature,
                     session.expires(),
@@ -91,7 +91,7 @@ impl GlobalService {
                 .facade
                 .authorize_wallet_device(
                     wallet,
-                    session.member()?,
+                    session.passkey_member()?,
                     device,
                     session.expires(),
                     &|| clock.now(),
@@ -100,9 +100,12 @@ impl GlobalService {
                 .map_err(Error::Reconcile.redact()),
             (None, None) => self
                 .facade
-                .wallet_devices(wallet, session.member()?, session.expires(), &|| {
-                    clock.now()
-                })
+                .wallet_devices(
+                    wallet,
+                    session.passkey_member()?,
+                    session.expires(),
+                    &|| clock.now(),
+                )
                 .await
                 .map_err(Error::Refused.redact()),
         }
@@ -176,7 +179,7 @@ impl GlobalService {
         self.facade
             .signal_wallet_key_mutation(
                 wallet,
-                session.member()?,
+                session.passkey_member()?,
                 mutation,
                 session.expires(),
                 &|| clock.now(),
