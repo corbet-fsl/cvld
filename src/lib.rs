@@ -45,6 +45,8 @@ pub mod hub;
 #[cfg(feature = "server")]
 mod identity;
 #[cfg(feature = "server")]
+mod join_publication_store;
+#[cfg(feature = "server")]
 pub mod mcp;
 #[cfg(feature = "server")]
 mod ohttp;

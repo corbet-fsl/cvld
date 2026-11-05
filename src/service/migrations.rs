@@ -62,6 +62,13 @@ pub fn community_migrations() -> Vec<crlt::Migration<'static>> {
         "cmbr-device-class",
         cmbr::DEVICE_CLASS_SCHEMA,
     ));
+    // The publication that named each record epoch (row 16, 2026-11-05): appended
+    // after the device classes.
+    migrations.push(crlt::Migration::new(
+        migrations.len() as u32 + 1,
+        "join-publication",
+        crate::join_publication_store::SCHEMA,
+    ));
     migrations
 }
 

@@ -45,13 +45,21 @@ impl CommunityService {
     /// descriptor an accepted join-time ancestry sits under. The ledger certifies
     /// that ancestry under its retained anchor, while a newcomer's own
     /// authenticated material may carry no frozen frontier: this publication is
-    /// what lets the device check the join-time record leaf. It is the same
-    /// publication the community publishes, verified here exactly as the device
-    /// verifies it, and attached only when its descriptor names this ancestry's
-    /// epoch and root. Nothing is attached otherwise: the acceptance is already
-    /// durable and never depends on this evidence. It rides on the answer and on
-    /// the authenticated status alike, so a device that lost the answer can still
-    /// verify the same acceptance it reads back.
+    /// what lets the device check the join-time record leaf. It is a publication
+    /// the community published, verified here exactly as the device verifies it,
+    /// and attached only when its descriptor names this ancestry's epoch and root.
+    /// Nothing is attached otherwise: the acceptance is already durable and never
+    /// depends on this evidence. It rides on the answer and on the authenticated
+    /// status alike, so a device that lost the answer can still verify the same
+    /// acceptance it reads back.
+    ///
+    /// The current publication is used while it names that epoch, and the answer
+    /// that issues an ancestry retains it per epoch. Once the community publishes
+    /// a later epoch, the retained publication of the ancestry's own epoch is
+    /// served instead, so a device that reads its acceptance back after the
+    /// window can still check it (the device checks the descriptor at the signed
+    /// acceptance time). A retained publication is verified again before it is
+    /// attached; one whose signature no longer verifies is not attached.
     async fn join_publication(
         &self,
         mut value: cblc::accounting_service::AccountServiceResponse,
@@ -75,27 +83,61 @@ impl CommunityService {
         let Some((epoch, root)) = naming else {
             return value;
         };
-        let policy = self.facade.policy().lock().await;
-        let Some(bytes) = policy.balance_publication(now).await.ok().flatten() else {
+        let (current, ring) = {
+            let policy = self.facade.policy().lock().await;
+            let current = policy.balance_publication(now).await.ok().flatten();
+            (current, policy.key_ring().ok().cloned())
+        };
+        let Some(ring) = ring else {
             return value;
         };
-        let material = policy
-            .key_ring()
-            .ok()
-            .and_then(|ring| ring.verify(&bytes, csgn::Kind::SettingsSnapshot, now).ok())
-            .and_then(|signed| {
-                serde_json::from_slice::<cblc::publication::PublicVerifierMaterial>(
-                    signed.payload(),
-                )
+        // The revision of a publication that verifies now and names exactly this
+        // ancestry's descriptor.
+        let names = |bytes: &[u8]| {
+            ring.verify(bytes, csgn::Kind::SettingsSnapshot, now)
                 .ok()
-            })
-            .filter(|material| material.validate_at(&self.config.community, now).is_ok());
-        if !material
-            .and_then(|material| material.record_epoch)
-            .is_some_and(|descriptor| descriptor.epoch == epoch && descriptor.root == root)
+                .and_then(|signed| {
+                    serde_json::from_slice::<cblc::publication::PublicVerifierMaterial>(
+                        signed.payload(),
+                    )
+                    .ok()
+                })
+                .filter(|material| material.validate_at(&self.config.community, now).is_ok())
+                .filter(|material| {
+                    material.record_epoch.as_ref().is_some_and(|descriptor| {
+                        descriptor.epoch == epoch && descriptor.root == root
+                    })
+                })
+                .map(|material| material.revision)
+        };
+        let mut attached = current.filter(|bytes| names(bytes).is_some());
+        if let (Some(bytes), cblc::accounting_service::AccountServiceResponse::ApplyExtended { .. }) =
+            (&attached, &value)
+            && let Some(revision) = names(bytes)
         {
-            return value;
+            // Public, already signed data kept for a later read of this acceptance.
+            // A failed write changes nothing about the acceptance or this answer.
+            let _ = crate::join_publication_store::retain(
+                &self.db,
+                &self.config.community,
+                epoch,
+                &root,
+                revision,
+                bytes,
+            )
+            .await;
         }
+        if attached.is_none() {
+            attached =
+                crate::join_publication_store::load(&self.db, &self.config.community, epoch, &root)
+                    .await
+                    .ok()
+                    .flatten()
+                    .filter(|bytes| names(bytes).is_some());
+        }
+        let Some(bytes) = attached else {
+            return value;
+        };
         let publication = cblc::contracts::JoinPublication(bytes);
         match &mut value {
             cblc::accounting_service::AccountServiceResponse::ApplyExtended {
