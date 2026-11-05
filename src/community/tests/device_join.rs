@@ -399,7 +399,6 @@ async fn open_session(service: &Running, user: &str, device: &mut impl Device) -
         )
         .await
         .map(|value| serde_json::from_value(value).unwrap())
-        .map_err(|_| Error::Unauthorized)
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -1835,6 +1834,11 @@ async fn a_delegated_key_opens_community_sessions_only_until_its_row_is_revoked(
     // A revoked host approves nothing.
     let first_key = first.verifying_key().to_bytes();
     revoke_registry_key(service, &first_key).await;
+    // The distinct reason is the delegate's: a revoked FULL key gets the plain refusal.
+    assert_eq!(
+        open_session(service, &joined.user, &mut first).await.err(),
+        Some(Error::Unauthorized)
+    );
     let mut revoked = add_body(
         service,
         wallet,

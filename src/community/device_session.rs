@@ -52,6 +52,23 @@ impl CommunityService {
         let user = ckyh::Uuid::parse_str(&request.user)
             .map_err(Error::Unauthorized.redact_at("community/device_session.rs:4"))?;
         let member = user.to_string();
+        // The signature verified, so the caller holds this key and may learn its state: a
+        // delegated key whose registry row was revoked is told so (distinct reason). The
+        // state and class are read FIRST because a revoked row is never ACTIVE, and the
+        // activity check below answers it with its plain refusal; every other state, class
+        // or unknown key takes that path.
+        let delegated = self.delegated(user, request.device_key).await?;
+        if delegated
+            && self
+                .facade
+                .membership()
+                .device_key_state(user, request.device_key)
+                .await
+                .map_err(Error::Unavailable.redact_at("community/device_session.rs:40"))?
+                == Some(cmbr::DeviceKeyState::Revoked)
+        {
+            return Err(Error::DelegateRevoked);
+        }
         // The membership checks that the key is ACTIVE for this member in this community and
         // that the member is live and unrestricted; it rechecks both on every request.
         let authentication = Arc::new(ckyh::Authentication::from_device_key(
@@ -66,25 +83,10 @@ impl CommunityService {
             .await
             .map_err(Error::Unauthorized.redact_at("community/device_session.rs:5"))?
         {
-            // A delegated key whose row is revoked is told so (distinct reason); every
-            // other refusal stays a plain unauthorized.
-            if self.delegated(user, request.device_key).await?
-                && self
-                    .facade
-                    .membership()
-                    .device_key_state(user, request.device_key)
-                    .await
-                    .map_err(Error::Unavailable.redact_at("community/device_session.rs:40"))?
-                    == Some(cmbr::DeviceKeyState::Revoked)
-            {
-                return Err(Error::DelegateRevoked);
-            }
             return Err(Error::Unauthorized);
         }
         // A delegated key opens community sessions only, never one of a platform host (D1).
-        if crate::hub::PLATFORM_HOST_LABELS.contains(&self.config.community.as_str())
-            && self.delegated(user, request.device_key).await?
-        {
+        if delegated && crate::hub::PLATFORM_HOST_LABELS.contains(&self.config.community.as_str()) {
             return Err(Error::NeedsPasskey);
         }
         let expires = now
