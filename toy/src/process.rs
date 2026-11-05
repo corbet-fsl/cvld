@@ -147,6 +147,14 @@ impl Cli {
 /// The service's own refusal text for a start that crossed a second boundary (cvld `Error::Reconcile`).
 const RECONCILE_START: &str = "outcome unknown; reconcile current state before another operation";
 const RECONCILE_RESTARTS: u32 = 5;
+/// Whether a service's diagnostics are its labelled second-boundary start refusal: the label as
+/// the last line, and before it nothing but the redacted causes a development-gate build prints
+/// (`cause: <site> -> <Error> (<kind>)`, cvld error.rs `redact_at`). Any other text is another
+/// failure and is never restarted.
+fn is_reconcile_start(diagnostic: &str) -> bool {
+    let mut lines = diagnostic.trim().lines().rev();
+    lines.next() == Some(RECONCILE_START) && lines.all(|line| line.starts_with("cause: "))
+}
 pub struct Service {
     pub cli: Cli,
     child: Child,
@@ -248,7 +256,7 @@ impl Service {
                 // The service refuses a start whose clock reading moved to another second while it
                 // verified its signed documents ("a new second requires retry"); on a loaded host that
                 // happens. Only this exact, labelled category is started again; any other exit fails.
-                if diagnostic.trim() == RECONCILE_START && restarts < RECONCILE_RESTARTS {
+                if is_reconcile_start(&diagnostic) && restarts < RECONCILE_RESTARTS {
                     restarts += 1;
                     eprintln!(
                         "INFRA: {} service start hit the second-boundary reconcile refusal; start {} of {}",
@@ -314,4 +322,41 @@ pub fn clock_offset(path: &Path, offset: &str) {
     let tmp = path.with_extension("next");
     fs::write(&tmp, offset).unwrap();
     fs::rename(tmp, path).unwrap();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{RECONCILE_START, is_reconcile_start};
+
+    #[test]
+    fn the_labelled_start_refusal_is_recognised_with_the_development_gate_causes_before_it() {
+        // A plain build prints the label alone.
+        assert!(is_reconcile_start(&format!("{RECONCILE_START}\n")));
+        // A development-gate build prints the redacted cause first (cvld error.rs `redact_at`):
+        // journey row 13, 2026-11-05 00:31, platform service.
+        assert!(is_reconcile_start(&format!(
+            "cause: community.rs:25 -> Reconcile (Reconcile)\n{RECONCILE_START}\n"
+        )));
+        assert!(is_reconcile_start(&format!(
+            "cause: a.rs:1 -> Unavailable (Unavailable)\ncause: b.rs:2 -> Reconcile (none)\n{RECONCILE_START}"
+        )));
+    }
+
+    #[test]
+    fn every_other_exit_is_not_restarted() {
+        assert!(!is_reconcile_start(""));
+        assert!(!is_reconcile_start(
+            "cause: community.rs:25 -> Reconcile (Reconcile)\n"
+        ));
+        assert!(!is_reconcile_start(&format!(
+            "{RECONCILE_START}\nthread 'main' panicked"
+        )));
+        assert!(!is_reconcile_start(&format!(
+            "thread 'main' panicked\n{RECONCILE_START}"
+        )));
+        assert!(!is_reconcile_start(&format!(
+            "cause: community.rs:25 -> Reconcile (Reconcile)\nstorage unavailable\n{RECONCILE_START}"
+        )));
+        assert!(!is_reconcile_start("service storage unavailable"));
+    }
 }
