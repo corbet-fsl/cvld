@@ -1059,6 +1059,10 @@ impl CommunityService {
         now: u64,
         garden: bool,
     ) -> Result<Session> {
+        // Only the wallet's login anchors a wallet device key (A13 M2).
+        if request.device_proof.is_some() {
+            return Err(Error::Invalid);
+        }
         self.prune(now);
         if self.sessions.len() >= self.config.pending_capacity {
             return Err(Error::Throttled);
@@ -1145,6 +1149,7 @@ impl CommunityService {
             user: user.to_string(),
             role,
             expires,
+            family: None,
         })
     }
     pub fn logout(&mut self, token: &str) {

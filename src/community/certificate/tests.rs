@@ -56,6 +56,7 @@ impl Fixture {
                 LoginFinish {
                     ceremony: begin.ceremony,
                     credential: credential.into(),
+                    device_proof: None,
                 },
                 NOW,
             )

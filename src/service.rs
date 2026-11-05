@@ -281,17 +281,23 @@ impl Door {
             } else {
                 None
             };
-            hosts.insert(
-                host,
-                Arc::new(Mutex::new(Auth::new(
-                    passkeys,
-                    role,
-                    operator,
-                    bootstrap,
-                    config.pending_capacity,
-                    config.session_seconds,
-                )?)),
-            );
+            let mut auth = Auth::new(
+                passkeys,
+                role,
+                operator,
+                bootstrap,
+                config.pending_capacity,
+                config.session_seconds,
+            )?;
+            if operator.is_none() {
+                // A13 M1: the wallet host's renewal anchors are durable (global database), so
+                // a restart never ends a renewal chain.
+                auth = auth.with_wallet_anchors(
+                    db.community("global")
+                        .map_err(Error::Invalid.redact_at("service.rs:20"))?,
+                );
+            }
+            hosts.insert(host, Arc::new(Mutex::new(auth)));
         }
         let wallet_auth = hosts
             .get(&format!("wallet.{}", config.domain))
@@ -998,7 +1004,8 @@ impl Door {
         self.auth(&ctx.host)?
             .lock()
             .await
-            .logout(ctx.token.as_deref().ok_or(Error::Unauthorized)?);
+            .logout(ctx.token.as_deref().ok_or(Error::Unauthorized)?)
+            .await?;
         Ok(Empty {})
     }
     pub(crate) async fn global_public(&self, _: Context, _: Empty) -> Result<GlobalPublic> {

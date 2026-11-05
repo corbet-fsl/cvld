@@ -283,3 +283,104 @@ async fn cancelled_real_http_sdk_worker_blocks_publication_and_original_total_sh
         );
     }
 }
+
+/// A13 (ALPHA-CRYPTO-GAPS row A13): a long wallet operation crosses the wallet session lifetime
+/// four times with 0 passkey prompts. The bind on the passkey session anchors its family to the
+/// bound wallet device key K; before each deadline K renews the family over the real HTTP door
+/// (nonce, signature, anchor, cgbl binding). The renewed session forks for the leases, while a
+/// passkey-only wallet path answers the typed `needs_passkey` step-up refusal.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_long_operation_crosses_the_wallet_lifetime_with_no_prompt() {
+    use ed25519_dalek::Signer as _;
+    let f = running().await;
+    let mut member = support::enrol(&f, WALLET, None).await;
+    let key = ed25519_dalek::SigningKey::from_bytes(&[21; 32]);
+    let device = key.verifying_key().to_bytes();
+    let body = support::proven(
+        &f,
+        WALLET,
+        &member.session,
+        &mut member.authenticator,
+        json!({"kind":"device_authorize","key":device}),
+        json!({"key":device}),
+    )
+    .await;
+    let login = support::client(&f, WALLET, Some(&member.session));
+    let bound: DeviceKeys =
+        serde_json::from_value(login.call("wallet_device_authorize", body).await.unwrap()).unwrap();
+    let family = bound
+        .family
+        .expect("the bind anchors the passkey session's family to K");
+    // A fork of the anchored login names the same family.
+    let fork: Session =
+        serde_json::from_value(login.call("session_fork", json!({})).await.unwrap()).unwrap();
+    assert_eq!(fork.family, Some(family));
+    // The passkey is gone from here on: nothing below can prompt.
+    drop(member.authenticator);
+    let account = *uuid::Uuid::parse_str(&member.user).unwrap().as_bytes();
+    let anonymous = support::client(&f, WALLET, None);
+    let renew = async |now: u64| -> crate::error::Result<Session> {
+        f.clock.set(now);
+        let challenge: DeviceSessionChallenge =
+            serde_json::from_value(anonymous.call("wallet_session_begin", json!({})).await?)
+                .unwrap();
+        let message = crate::device_session::wallet_message(
+            WALLET,
+            &account,
+            &family,
+            &challenge.nonce,
+            challenge.issued,
+        );
+        let renewed = anonymous
+            .call(
+                "wallet_session_renew",
+                json!({"account":member.user,"family":family,"device_key":device,
+                    "nonce":challenge.nonce,"signature":key.sign(&message).to_bytes().to_vec()}),
+            )
+            .await?;
+        Ok(serde_json::from_value(renewed).unwrap())
+    };
+    let mut token = member.session.clone();
+    let mut expires = NOW + 600;
+    for _ in 0..4 {
+        // The operation works on the current session up to 60 s before its deadline ...
+        let now = expires - 60;
+        f.clock.set(now);
+        let sibling: Session = serde_json::from_value(
+            support::client(&f, WALLET, Some(&token))
+                .call("session_fork", json!({}))
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(sibling.family, Some(family));
+        // ... and the device renews by K, silently.
+        let renewed = renew(now).await.unwrap();
+        assert_eq!(renewed.user, member.user);
+        assert_eq!(renewed.family, Some(family));
+        assert_eq!(renewed.expires, now + 600);
+        token = renewed.token;
+        expires = renewed.expires;
+    }
+    // Four renewals carried the chain past four lifetimes of the login, which expired long ago.
+    let now = expires - 60;
+    f.clock.set(now);
+    assert!(now > NOW + 4 * 500);
+    assert_eq!(
+        support::client(&f, WALLET, Some(&member.session))
+            .call("session_fork", json!({}))
+            .await
+            .unwrap_err(),
+        Error::Unauthorized
+    );
+    // The renewed session is no passkey session: the passkey-only device path asks for it.
+    assert_eq!(
+        support::client(&f, WALLET, Some(&token))
+            .call("wallet_device_keys", json!({}))
+            .await
+            .unwrap_err(),
+        Error::NeedsPasskey
+    );
+    // A renewal before the window (more than 300 s left) is refused.
+    assert_eq!(renew(expires - 400).await.err(), Some(Error::Unauthorized));
+}

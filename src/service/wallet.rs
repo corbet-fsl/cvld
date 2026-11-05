@@ -2,6 +2,62 @@
 use super::*;
 
 impl Door {
+    /// The wallet's own member host: wallet session renewal (A13) exists nowhere else.
+    async fn wallet_member_host(&self, ctx: &Context) -> Result<Arc<Mutex<Auth>>> {
+        let authentication = self.auth(&ctx.host)?;
+        let member_host = {
+            let auth = authentication.lock().await;
+            auth.role == Role::Member && auth.operator.is_none()
+        };
+        if self.inner.scope != Scope::Global || !member_host {
+            return Err(Error::WrongHost);
+        }
+        Ok(authentication)
+    }
+    /// A13: a one-use nonce for renewing a wallet session by the wallet device key.
+    pub(crate) async fn wallet_session_begin(
+        &self,
+        ctx: Context,
+        _: Empty,
+    ) -> Result<DeviceSessionChallenge> {
+        self.wallet_member_host(&ctx)
+            .await?
+            .lock()
+            .await
+            .wallet_renew_begin(ctx.now)
+            .await
+    }
+    /// A13: renew an anchored wallet session family by K's signed nonce, with no prompt. The
+    /// binding read (M4) runs inside `wallet_renew` after the nonce, signature and anchor checks.
+    pub(crate) async fn wallet_session_renew(
+        &self,
+        ctx: Context,
+        request: WalletSessionRenew,
+    ) -> Result<Session> {
+        let authentication = self.wallet_member_host(&ctx).await?;
+        let mut auth = authentication.lock().await;
+        let global = self.global_backend()?;
+        let session = auth
+            .wallet_renew(
+                &ctx.host,
+                request,
+                ctx.now,
+                async |member, credential, device| {
+                    global
+                        .lock()
+                        .await
+                        .wallet_device_bound(member, credential.as_ref(), device)
+                        .await
+                },
+            )
+            .await?;
+        let completed = self.inner.clock.now();
+        if completed < ctx.now || completed >= session.expires {
+            auth.logout(&session.token).await?;
+            return Err(Error::Unauthorized);
+        }
+        Ok(session)
+    }
     pub(crate) async fn wallet_passkey_certificate(
         &self,
         ctx: Context,
@@ -168,9 +224,21 @@ impl Door {
             let completed = session
                 .check(&mut auth, token, completed, self.inner.clock.as_ref())
                 .await?;
+            // A13: a bind (only ever on a passkey session) ends the families of C's previous
+            // keys and anchors this session's family to the bound K.
+            let family = match (device, ctx.grant.as_ref()) {
+                (Some(key), Some(grant)) => {
+                    auth.rebind_wallet_device(grant.user, &grant.credential, key)
+                        .await?;
+                    // Anchoring is convenience: without it the session only cannot renew.
+                    auth.anchor_wallet_device(token, key, completed).await.ok()
+                }
+                _ => None,
+            };
             session.check_sync(&auth, token, completed, self.inner.clock.as_ref())?;
             Ok(DeviceKeys {
                 keys: observation.devices().to_vec(),
+                family,
             })
         }
         .await;
@@ -344,11 +412,14 @@ impl Door {
             .grant
             .as_ref()
             .is_some_and(|grant| grant.credential == revoked);
+        let member = session.member()?.member();
         let result = auth
-            .revoke_passkey_wallet(token, revoked, session.checked_at()?, mutation)
+            .revoke_passkey_wallet(token, revoked.clone(), session.checked_at()?, mutation)
             .await;
         let finish = async {
             result?;
+            // A13: every family anchored through the revoked passkey ends and never renews.
+            auth.revoke_wallet_credential(member, &revoked).await?;
             // Even current-key revocation publishes its actual tombstone before
             // reporting uncertainty; no ended session grants further authority.
             let now = self.inner.clock.now();
@@ -445,10 +516,24 @@ impl Door {
         }
         let mut global = self.global_backend()?.lock().await;
         let mutation = global.wallet_mutation().await?;
-        let session = auth.login_finish_wallet(request, ctx.now, mutation).await?;
+        let global = &*global;
+        // A13 M2: a K proof anchors the login's family inside the login (M4 binding read).
+        let session = auth
+            .login_finish_wallet(
+                request,
+                ctx.now,
+                mutation,
+                &ctx.host,
+                async |member, credential, device| {
+                    global
+                        .wallet_device_bound(member, credential.as_ref(), device)
+                        .await
+                },
+            )
+            .await?;
         let completed = self.inner.clock.now();
         if completed < ctx.now || completed >= session.expires {
-            auth.logout(&session.token);
+            auth.logout(&session.token).await?;
             return Err(Error::Unauthorized);
         }
         Ok(session)

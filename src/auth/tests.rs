@@ -83,6 +83,7 @@ async fn login(auth: &mut Auth, device: &mut Resident) -> LoginFinish {
     LoginFinish {
         ceremony: begin.ceremony,
         credential: serde_json::from_value(response).unwrap(),
+        device_proof: None,
     }
 }
 
@@ -290,7 +291,7 @@ async fn session_capacity_logout_and_revocation_preserve_real_authentication() {
         member.login_finish(finish, NOW).await,
         Err(Error::Throttled)
     ));
-    member.logout(&first.token);
+    member.logout(&first.token).await.unwrap();
     assert!(matches!(
         member.authenticate(&first.token, NOW).await,
         Err(Error::Unauthorized)

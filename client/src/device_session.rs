@@ -39,9 +39,30 @@ pub fn wallet_message(
     message
 }
 
+/// K's proof of possession at a wallet passkey login (A13 M2): the renewal message for this
+/// wallet host with SHA-256 of the login ceremony id as its nonce. Account and family are all
+/// zero (the one-use ceremony already names the member, whose passkey assertion it needs, and
+/// the server picks the family after the login; no anchor ever has the zero family), and the
+/// issue time is 0 (the ceremony expires after 300 s).
+pub fn wallet_login_message(host: &str, ceremony: &str) -> Vec<u8> {
+    use sha2::Digest as _;
+    let nonce: [u8; NONCE_LEN] = sha2::Sha256::digest(ceremony.as_bytes()).into();
+    wallet_message(host, &[0; 16], &[0; 32], &nonce, 0)
+}
+
 #[cfg(test)]
 mod wallet_message_tests {
     use super::*;
+
+    #[test]
+    fn the_login_proof_is_the_wallet_message_of_the_ceremony_digest_with_no_account_or_family() {
+        use sha2::Digest as _;
+        let digest: [u8; 32] = sha2::Sha256::digest(b"ceremony").into();
+        assert_eq!(
+            wallet_login_message("w", "ceremony"),
+            wallet_message("w", &[0; 16], &[0; 32], &digest, 0)
+        );
+    }
 
     #[test]
     fn the_wallet_message_has_its_own_tag_and_fixed_layout() {

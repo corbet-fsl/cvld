@@ -475,6 +475,10 @@ pub struct DeviceRevoke {
 #[serde(deny_unknown_fields)]
 pub struct DeviceKeys {
     pub keys: Vec<[u8; 32]>,
+    /// Wallet device binds only (A13): the caller's session family, now anchored to the bound
+    /// wallet device key, which may renew it without a prompt.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub family: Option<[u8; 32]>,
 }
 
 /// Both phases of one session-bound additional-passkey operation.

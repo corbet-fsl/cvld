@@ -106,13 +106,16 @@ impl Door {
             )
             .await
             .map_err(Error::Reconcile.redact())?;
-        auth.logout_account(confirmed.user());
+        // The sessions end at once. If deleting the renewal anchors fails, no renewal follows
+        // anyway: a burned account has no bound device key (cgbl `wallet_device_bound`).
+        let ended = auth.logout_account(confirmed.user()).await;
         // The block has committed even if publishing the advanced epoch fails.
         global.publish_wallet(self.inner.clock.now()).await?;
         global
             .refresh(self.inner.clock.now())
             .await
             .map_err(Error::Reconcile.redact())?;
+        ended.map_err(Error::Reconcile.redact())?;
         Ok(Empty {})
     }
 }

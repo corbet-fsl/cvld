@@ -111,5 +111,11 @@ pub fn global_migrations() -> Vec<crlt::Migration<'static>> {
             cpsd::storage::libsql::STAMP_ISSUANCE_SCHEMA,
         ),
         crlt::Migration::new(15, "legal-hold", crate::registry::HELD_SCHEMA),
+        // Wallet session anchors (A13 M1, 2026-10-29): the renewal chain survives a restart.
+        crlt::Migration::new(
+            16,
+            "wallet-session-anchors",
+            crate::wallet_session_anchors::SCHEMA,
+        ),
     ]
 }

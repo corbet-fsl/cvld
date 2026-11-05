@@ -252,7 +252,7 @@ async fn expired_logged_out_or_externally_revoked_authorizers_cannot_add_keys() 
             "ceremony-expiry" => NOW + 300,
             "session-expiry" => NOW + 600,
             "logout" => {
-                auth.logout(&session.token);
+                auth.logout(&session.token).await.unwrap();
                 NOW
             }
             "revocation" => {

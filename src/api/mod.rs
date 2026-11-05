@@ -162,6 +162,19 @@ pub struct LoginFinish {
     pub ceremony: String,
     #[schema(value_type = std::collections::BTreeMap<String, Value>, additional_properties = true)]
     pub credential: ckyh::PublicKeyCredential,
+    /// Wallet logins only (A13 M2): the wallet device key's proof of possession. When K is the
+    /// credential's current binding, the login's session family is anchored to K and the
+    /// session names it, so K renews it without a prompt. Every other host refuses it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub device_proof: Option<WalletDeviceProof>,
+}
+/// The wallet device key K's signature over `device_session::wallet_login_message` for this
+/// wallet host and the login ceremony.
+#[derive(Serialize, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct WalletDeviceProof {
+    pub device_key: [u8; 32],
+    pub signature: Vec<u8>,
 }
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
@@ -170,6 +183,10 @@ pub struct Session {
     pub user: String,
     pub role: Role,
     pub expires: u64,
+    /// The wallet session family (A13): present only when a wallet login, device bind or
+    /// renewal anchored it to the wallet device key, which may renew it without a prompt.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub family: Option<[u8; 32]>,
 }
 #[derive(Serialize, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
@@ -348,6 +365,8 @@ actions! {
     member_role_set(SetMemberRole) -> Empty, Admin, Community, Record, Forward, lobby 1, "Change a role under current garden membership authority";
     wallet_trust_feed(Empty) -> TrustFeed, Public, Global, Check, Forward, "Read the isolated wallet original trust snapshots";
     wallet_trust_changes(Since) -> Announcement, Public, Global, Check, Forward, "Read the isolated wallet whole-view revision hint";
+    wallet_session_begin(Empty) -> DeviceSessionChallenge, Public, Global, Record, Forward, "Issue a one-use nonce for renewing a wallet session with the wallet device key";
+    wallet_session_renew(WalletSessionRenew) -> Session, Public, Global, Record, Trusted, "Renew a wallet session of an anchored family by the wallet device key's signed nonce";
     wallet_device_keys(Empty) -> DeviceKeys, Member, Global, Check, Forward, "Read this wallet member's current public device bindings";
     wallet_device_authorize(DeviceKey) -> DeviceKeys, Member, Global, Record, Forward, "Bind the wallet device to the exact authenticated passkey (step-up, or the birth signature under the birth grant)";
     wallet_birth_genesis(BirthGenesis) -> BirthStatement, Member, Global, Record, Forward, "Sign the account's one BirthStatement for the wallet genesis receipt digest under the birth grant";

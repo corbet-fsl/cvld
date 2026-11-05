@@ -328,6 +328,10 @@ pub struct SessionInfo {
     pub role: String,
     /// Exclusive server session deadline.
     pub expires: u64,
+    /// The wallet session family (A13), present only on a wallet login or renewal: the device
+    /// key may renew this family without a prompt.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub family: Option<[u8; 32]>,
 }
 
 /// Portable generated-contract client; runtime credentials stay in its transport.
@@ -381,6 +385,12 @@ impl<T: SessionTransport> Client<T> {
             .await?;
         sibling.transport.adopt_session(token);
         Ok(info)
+    }
+    /// Renew the wallet session by the wallet device key's signed nonce (A13
+    /// `wallet_session_renew`) and adopt the new session of the same family. No passkey: the
+    /// request carries K's signature over `device_session::wallet_message`.
+    pub async fn renew_wallet(&mut self, request: Value) -> Result<SessionInfo> {
+        self.adopt("wallet_session_renew", request).await
     }
     /// Open an admin session from a device key's signed nonce and one confirmation stamp.
     pub async fn authenticate_garden(&mut self, request: Value) -> Result<SessionInfo> {

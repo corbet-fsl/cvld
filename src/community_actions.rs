@@ -716,7 +716,7 @@ impl Door {
             .current_device_keys(auth)
             .await
             .map_err(Error::Refused.redact_at("community_actions.rs:16"))?;
-        Ok(DeviceKeys { keys })
+        Ok(DeviceKeys { keys, family: None })
     }
 
     /// Pairing: bind the new device's key to the new device's own passkey as PENDING. It
@@ -748,7 +748,7 @@ impl Door {
             .current_device_keys(auth)
             .await
             .map_err(Error::Refused.redact_at("community_actions.rs:18"))?;
-        Ok(DeviceKeys { keys })
+        Ok(DeviceKeys { keys, family: None })
     }
 
     /// Pairing: the existing device approves a pending key, with a fresh step-up for that
@@ -772,7 +772,7 @@ impl Door {
             .current_device_keys(auth)
             .await
             .map_err(Error::Refused.redact_at("community_actions.rs:20"))?;
-        Ok(DeviceKeys { keys })
+        Ok(DeviceKeys { keys, family: None })
     }
 
     /// Pairing: make this passkey's pending key live once its lineage revision is published.
@@ -792,7 +792,7 @@ impl Door {
             .current_device_keys(auth)
             .await
             .map_err(Error::Refused.redact_at("community_actions.rs:22"))?;
-        Ok(DeviceKeys { keys })
+        Ok(DeviceKeys { keys, family: None })
     }
 
     /// Remove a device key (a lost device), live or pending, behind a fresh step-up.
@@ -827,7 +827,7 @@ impl Door {
             .current_device_keys(auth)
             .await
             .map_err(Error::Refused.redact_membership_at("community_actions.rs:25"))?;
-        Ok(DeviceKeys { keys })
+        Ok(DeviceKeys { keys, family: None })
     }
 
     pub(crate) async fn device_keys(&self, ctx: Context, _: Empty) -> Result<DeviceKeys> {
@@ -838,7 +838,7 @@ impl Door {
             .current_device_keys(ctx.member()?)
             .await
             .map_err(Error::Refused.redact_membership_at("community_actions.rs:26"))?;
-        Ok(DeviceKeys { keys })
+        Ok(DeviceKeys { keys, family: None })
     }
 
     pub(crate) async fn passkey_revoke(

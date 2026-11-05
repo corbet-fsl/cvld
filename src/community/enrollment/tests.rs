@@ -170,6 +170,7 @@ async fn original_login(service: &mut CommunityService, member: &mut Member, now
                 ceremony: start.ceremony,
                 credential: serde_json::from_value(serde_json::to_value(credential).unwrap())
                     .unwrap(),
+                device_proof: None,
             },
             now,
         )

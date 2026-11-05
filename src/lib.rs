@@ -73,6 +73,8 @@ mod signals;
 mod stamp_uses;
 #[cfg(feature = "server")]
 mod step_up;
+#[cfg(feature = "server")]
+mod wallet_session_anchors;
 
 // The client-facing contract lives in `cvld-client`; its modules keep their `cvld::` paths.
 #[cfg(feature = "client")]

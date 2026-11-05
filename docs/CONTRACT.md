@@ -285,6 +285,8 @@ service host; `Authenticated` means the session's exact host-selected role.
 | login_finish | Public | Both | Record |
 | logout | Authenticated | Both | Check |
 | session_fork | Member | Global | Record |
+| wallet_session_begin | Public | Global | Record |
+| wallet_session_renew | Public | Global | Record |
 | global_public | Public | Global | Check |
 | passport_challenge | Member | Global | Record |
 | passport_issue | Member | Global | Record |
@@ -415,6 +417,32 @@ creation channel and one spare; a protocol constant, not a setting). Logout of a
 ends the whole family. Per-action user verification (step-ups, stamps) stays per session. The
 fork adds no authority, because the parent's bearer can already do everything the sibling can;
 it exists because a device's recovery lease holds its session exclusively.
+
+## Wallet session renewal by the wallet device key (A13)
+
+A wallet session renews without a prompt by the wallet device key K (`device_seed(prf, "wallet")`,
+the key the wallet binds to passkey C). Its family is anchored to (member, C, K) in the durable
+table `cvld_wallet_session_anchors` (global database), so a restart keeps every chain:
+
+- by a wallet `login_finish` carrying `device_proof {device_key, signature}`: K's signature over
+  `device_session::wallet_login_message(host, ceremony)`; when K is C's current binding (cgbl
+  `wallet_device_bound`) the login's `Session` names its `family`. Every other host refuses a proof.
+- by `wallet_device_authorize` on a passkey session: the bind answers `DeviceKeys.family`.
+
+`wallet_session_begin({})` returns `{nonce, issued}` (one use, 60 seconds). K signs
+`device_session::wallet_message(host, account, family, nonce, issued)` and
+`wallet_session_renew({account, family, device_key, nonce, signature})` returns a NEW session of
+the same family (next generation, full lifetime; no token is extended), checked in this order: the
+nonce (spent whatever follows), the strict Ed25519 signature, the anchor of exactly (member, K,
+family), the cgbl binding of K to C for an unburned account, C not revoked, and the window: the
+family's newest generation has at most `RENEW_WINDOW_SECONDS` = 300 left or is gone. Every refusal
+is `Unauthorized` (a storage failure is `Unavailable`). A renewed session (origin `DeviceKey`)
+lives only while its anchor does (one indexed read per request), carries no birth grant, and
+cgbl's passkey-only wallet paths (device bindings, certificate) answer `needs_passkey`. Only
+revocation ends a chain: logout (the explicit lock) deletes the family's anchor, revoking C or
+rebinding C to another key ends the anchored families at once, a self-ban ends the member's; there
+is no age or count limit. At most `ANCHORS_PER_KEY` = 4 families per K (installs sharing one synced
+passkey); a further one evicts the oldest. A fork names the family while it is anchored.
 
 ## Device-key sessions
 

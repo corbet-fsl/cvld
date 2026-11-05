@@ -31,6 +31,7 @@ fn login_response(member: &mut Member, ceremony: Ceremony) -> LoginFinish {
     LoginFinish {
         ceremony: ceremony.ceremony,
         credential: credential.into(),
+        device_proof: None,
     }
 }
 

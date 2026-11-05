@@ -119,6 +119,7 @@ impl CommunityService {
             user: member,
             role: Role::Member,
             expires,
+            family: None,
         })
     }
 
@@ -263,6 +264,7 @@ impl CommunityService {
             user: request.user,
             role,
             expires,
+            family: None,
         })
     }
 

@@ -354,9 +354,47 @@ impl Auth {
         })
     }
     pub async fn login_finish(&mut self, request: LoginFinish, now: u64) -> Result<Session> {
-        self.login_finish_wallet(request, now, None).await
+        // Only the wallet's own login anchors a device key (A13 M2).
+        if request.device_proof.is_some() {
+            return Err(Error::Invalid);
+        }
+        self.login_finish_passkey(request, now, None).await
     }
+    /// The wallet passkey login. With K's proof of possession (M2) whose K is the credential's
+    /// current binding (`bound`, M4), the login's family is anchored to K inside this call and
+    /// returned in the session, so K renews it without a prompt.
     pub(crate) async fn login_finish_wallet(
+        &mut self,
+        mut request: LoginFinish,
+        now: u64,
+        mutation: Option<cgbl::WalletMutation>,
+        host: &str,
+        bound: impl AsyncFnOnce(Uuid, ckyh::CredentialID, [u8; 32]) -> Result<bool>,
+    ) -> Result<Session> {
+        let proof = request.device_proof.take();
+        let ceremony = request.ceremony.clone();
+        let mut session = self.login_finish_passkey(request, now, mutation).await?;
+        let Some(proof) = proof else {
+            return Ok(session);
+        };
+        match self
+            .anchor_login(&session.token, host, &ceremony, proof, now, bound)
+            .await
+        {
+            Ok(family) => {
+                session.family = family;
+                Ok(session)
+            }
+            Err(error) => {
+                let family = self.end_session(&session.token);
+                if let Some(family) = family {
+                    let _ = self.renewals.anchors.forget_family(&family).await;
+                }
+                Err(error)
+            }
+        }
+    }
+    async fn login_finish_passkey(
         &mut self,
         request: LoginFinish,
         now: u64,
@@ -427,6 +465,7 @@ impl Auth {
             user: user.to_string(),
             role: self.role,
             expires,
+            family: None,
         })
     }
     pub async fn authenticate(&mut self, token: &str, now: u64) -> Result<Grant> {
@@ -464,12 +503,21 @@ impl Auth {
                     None => refuse(Reason::SessionMissing),
                 }
             })?;
-        // A device-key (renewed) session lives only while its family's anchor does.
-        if grant.origin == ckyh::Origin::DeviceKey
-            && !device.is_some_and(|key| self.renewals.anchored(grant.user, key, &family))
-        {
-            self.logout(token);
-            return Err(Error::Unauthorized);
+        // A device-key (renewed) session lives only while its family's anchor does (one indexed
+        // read of the durable anchor).
+        if grant.origin == ckyh::Origin::DeviceKey {
+            let anchored = match device {
+                Some(key) => self
+                    .renewals
+                    .anchored(grant.user, key, &family)
+                    .await?
+                    .is_some(),
+                None => false,
+            };
+            if !anchored {
+                self.end_session(token);
+                return Err(Error::Unauthorized);
+            }
         }
         let passkeys = self.passkeys.clone();
         let user = grant.user;
@@ -490,25 +538,35 @@ impl Auth {
                 &grant.user,
                 &grant.session_id,
             );
-            self.logout(token);
+            // C is revoked: its sessions end; the renewal refuses a revoked C by itself.
+            self.end_session(token);
             return Err(Error::Unauthorized);
         }
         Ok(grant)
     }
-    /// End this session's whole family: the login and every fork of it.
-    pub fn logout(&mut self, token: &str) {
-        if let Some(family) = self.sessions.get(token).map(|session| session.family) {
-            self.renewals.forget_family(&family);
-            self.sessions.retain(|_, session| session.family != family);
-            self.retain_live();
+    /// End this session's whole family in memory (the login, every fork and renewal of it) and
+    /// return the family.
+    fn end_session(&mut self, token: &str) -> Option<[u8; 32]> {
+        let family = self.sessions.get(token).map(|session| session.family)?;
+        self.sessions.retain(|_, session| session.family != family);
+        self.retain_live();
+        Some(family)
+    }
+    /// End this session's whole family: the login and every fork of it. On the wallet this is
+    /// the explicit lock: the family's anchor is deleted, so K can never renew it. The sessions
+    /// end first, so a storage failure leaves no session alive.
+    pub async fn logout(&mut self, token: &str) -> Result<()> {
+        match self.end_session(token) {
+            Some(family) => self.renewals.anchors.forget_family(&family).await,
+            None => Ok(()),
         }
     }
 
-    pub(crate) fn logout_account(&mut self, user: Uuid) {
-        self.renewals.forget_member(user);
+    pub(crate) async fn logout_account(&mut self, user: Uuid) -> Result<()> {
         self.sessions
             .retain(|_, session| session.grant.user != user);
         self.retain_live();
+        self.renewals.anchors.forget_member(user).await
     }
 
     /// Drop pending additions, self-bans and step-ups of sessions that ended.

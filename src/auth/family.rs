@@ -43,6 +43,10 @@ impl Auth {
         sibling.grant.session_id = rand::random();
         let grant = sibling.grant.clone();
         crate::service::publication::expires_at(grant.expires)?;
+        // A fork never renews by itself, but it names its family exactly as the parent's
+        // response did: only while the family is anchored to a wallet device key (A13).
+        let family = sibling.family;
+        let anchored = self.renewals.anchors.get(&family).await?.is_some();
         let token = super::token();
         self.sessions.insert(token.clone(), sibling);
         Ok(Session {
@@ -50,6 +54,7 @@ impl Auth {
             user: grant.user.to_string(),
             role: grant.role,
             expires: grant.expires,
+            family: anchored.then_some(family),
         })
     }
 }

@@ -50,6 +50,28 @@ impl GlobalService {
         );
         Ok(())
     }
+    /// A13 M4: K is C's current binding for `member` (and the account is not burned), read
+    /// through cgbl's server-internal accessor. A storage failure is `Unavailable` (the device
+    /// retries); every other refusal is `Unauthorized`, like the renewal's own checks.
+    pub(crate) async fn wallet_device_bound(
+        &self,
+        member: ckyh::Uuid,
+        credential: &[u8],
+        device: [u8; 32],
+    ) -> Result<bool> {
+        self.facade
+            .wallet_device_bound(
+                self.wallet.as_ref().ok_or(Error::Unauthorized)?,
+                member,
+                credential,
+                device,
+            )
+            .await
+            .map_err(|error| match error {
+                cgbl::Error::Storage => Error::Unavailable,
+                _ => Error::Unauthorized,
+            })
+    }
     pub(crate) async fn wallet_certificate(
         &mut self,
         session: &WalletSession,

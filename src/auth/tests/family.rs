@@ -107,7 +107,7 @@ async fn logout_of_any_member_ends_the_whole_family_and_no_other() {
     let other = auth.login_finish(finish, NOW).await.unwrap();
     let sibling = auth.fork(&parent.token, NOW).await.unwrap();
     let grandchild = auth.fork(&sibling.token, NOW).await.unwrap();
-    auth.logout(&grandchild.token);
+    auth.logout(&grandchild.token).await.unwrap();
     for token in [&parent.token, &sibling.token, &grandchild.token] {
         assert!(matches!(
             auth.authenticate(token, NOW).await,

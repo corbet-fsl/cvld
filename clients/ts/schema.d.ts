@@ -1687,6 +1687,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/wallet_session_begin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Issue a one-use nonce for renewing a wallet session with the wallet device key */
+        post: operations["wallet_session_begin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/wallet_session_renew": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Renew a wallet session of an anchored family by the wallet device key's signed nonce */
+        post: operations["wallet_session_renew"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/wallet_trust_changes": {
         parameters: {
             query?: never;
@@ -3157,6 +3191,11 @@ export interface components {
         Session: {
             /** Format: int64 */
             expires: number;
+            /**
+             * @description The wallet session family (A13): present only when a wallet login, device bind or
+             *     renewal anchored it to the wallet device key, which may renew it without a prompt.
+             */
+            family?: number[] | null;
             role: components["schemas"]["Role"];
             token: string;
             user: string;
@@ -3256,6 +3295,14 @@ export interface components {
             member: string;
             /** @description Sealed to the issuer's device, lowercase hex. */
             notice: string;
+        };
+        /**
+         * @description The wallet device key K's signature over `device_session::wallet_login_message` for this
+         *     wallet host and the login ceremony.
+         */
+        WalletDeviceProof: {
+            device_key: number[];
+            signature: number[];
         };
         /** @description The public signed fields of one user-verifying WebAuthn assertion of the wallet passkey. */
         WebAuthnAssertion: {
@@ -4504,6 +4551,11 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /**
+                         * @description Wallet device binds only (A13): the caller's session family, now anchored to the bound
+                         *     wallet device key, which may renew it without a prompt.
+                         */
+                        family?: number[] | null;
                         keys: number[][];
                     };
                 };
@@ -4551,6 +4603,11 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /**
+                         * @description Wallet device binds only (A13): the caller's session family, now anchored to the bound
+                         *     wallet device key, which may renew it without a prompt.
+                         */
+                        family?: number[] | null;
                         keys: number[][];
                     };
                 };
@@ -4591,6 +4648,11 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /**
+                         * @description Wallet device binds only (A13): the caller's session family, now anchored to the bound
+                         *     wallet device key, which may renew it without a prompt.
+                         */
+                        family?: number[] | null;
                         keys: number[][];
                     };
                 };
@@ -4680,6 +4742,11 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /**
+                         * @description Wallet device binds only (A13): the caller's session family, now anchored to the bound
+                         *     wallet device key, which may renew it without a prompt.
+                         */
+                        family?: number[] | null;
                         keys: number[][];
                     };
                 };
@@ -4727,6 +4794,11 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /**
+                         * @description Wallet device binds only (A13): the caller's session family, now anchored to the bound
+                         *     wallet device key, which may renew it without a prompt.
+                         */
+                        family?: number[] | null;
                         keys: number[][];
                     };
                 };
@@ -4768,6 +4840,11 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /**
+                         * @description Wallet device binds only (A13): the caller's session family, now anchored to the bound
+                         *     wallet device key, which may renew it without a prompt.
+                         */
+                        family?: number[] | null;
                         keys: number[][];
                     };
                 };
@@ -4856,6 +4933,11 @@ export interface operations {
                     "application/json": {
                         /** Format: int64 */
                         expires: number;
+                        /**
+                         * @description The wallet session family (A13): present only when a wallet login, device bind or
+                         *     renewal anchored it to the wallet device key, which may renew it without a prompt.
+                         */
+                        family?: number[] | null;
                         role: components["schemas"]["Role"];
                         token: string;
                         user: string;
@@ -4908,6 +4990,11 @@ export interface operations {
                     "application/json": {
                         /** Format: int64 */
                         expires: number;
+                        /**
+                         * @description The wallet session family (A13): present only when a wallet login, device bind or
+                         *     renewal anchored it to the wallet device key, which may renew it without a prompt.
+                         */
+                        family?: number[] | null;
                         role: components["schemas"]["Role"];
                         token: string;
                         user: string;
@@ -5577,6 +5664,7 @@ export interface operations {
                     credential: {
                         [key: string]: unknown;
                     };
+                    device_proof?: components["schemas"]["WalletDeviceProof"] | null;
                 };
             };
         };
@@ -5590,6 +5678,11 @@ export interface operations {
                     "application/json": {
                         /** Format: int64 */
                         expires: number;
+                        /**
+                         * @description The wallet session family (A13): present only when a wallet login, device bind or
+                         *     renewal anchored it to the wallet device key, which may renew it without a prompt.
+                         */
+                        family?: number[] | null;
                         role: components["schemas"]["Role"];
                         token: string;
                         user: string;
@@ -6817,6 +6910,11 @@ export interface operations {
                     "application/json": {
                         /** Format: int64 */
                         expires: number;
+                        /**
+                         * @description The wallet session family (A13): present only when a wallet login, device bind or
+                         *     renewal anchored it to the wallet device key, which may renew it without a prompt.
+                         */
+                        family?: number[] | null;
                         role: components["schemas"]["Role"];
                         token: string;
                         user: string;
@@ -7614,6 +7712,11 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /**
+                         * @description Wallet device binds only (A13): the caller's session family, now anchored to the bound
+                         *     wallet device key, which may renew it without a prompt.
+                         */
+                        family?: number[] | null;
                         keys: number[][];
                     };
                 };
@@ -7652,6 +7755,11 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /**
+                         * @description Wallet device binds only (A13): the caller's session family, now anchored to the bound
+                         *     wallet device key, which may renew it without a prompt.
+                         */
+                        family?: number[] | null;
                         keys: number[][];
                     };
                 };
@@ -7696,6 +7804,102 @@ export interface operations {
                 content: {
                     "application/json": {
                         session?: components["schemas"]["Session"] | null;
+                        user: string;
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
+                    };
+                };
+            };
+        };
+    };
+    wallet_session_begin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * Format: int64
+                         * @description Issue time, part of the signed message (see `device_session::message`).
+                         */
+                        issued: number;
+                        nonce: number[];
+                    };
+                };
+            };
+            /** @description Fixed redacted error category */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        error: components["schemas"]["Error"];
+                        reason?: components["schemas"]["RefusalReason"] | null;
+                    };
+                };
+            };
+        };
+    };
+    wallet_session_renew: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    account: string;
+                    device_key: number[];
+                    family: number[];
+                    nonce: number[];
+                    signature: number[];
+                };
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: int64 */
+                        expires: number;
+                        /**
+                         * @description The wallet session family (A13): present only when a wallet login, device bind or
+                         *     renewal anchored it to the wallet device key, which may renew it without a prompt.
+                         */
+                        family?: number[] | null;
+                        role: components["schemas"]["Role"];
+                        token: string;
                         user: string;
                     };
                 };

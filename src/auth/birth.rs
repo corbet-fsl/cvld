@@ -52,6 +52,7 @@ impl Auth {
             user: user.to_string(),
             role: self.role,
             expires,
+            family: None,
         })
     }
 

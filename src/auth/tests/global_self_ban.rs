@@ -168,11 +168,11 @@ async fn expired_logged_out_revoked_and_rolled_back_ceremonies_cannot_confirm() 
             "ceremony-expiry" => NOW + 300,
             "session-expiry" => NOW + 600,
             "logout" => {
-                auth.logout(&session.token);
+                auth.logout(&session.token).await.unwrap();
                 NOW
             }
             "account-logout" => {
-                auth.logout_account(grant.user);
+                auth.logout_account(grant.user).await.unwrap();
                 NOW
             }
             "revocation" => {

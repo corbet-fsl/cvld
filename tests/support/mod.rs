@@ -153,6 +153,27 @@ pub async fn global(burst: u32) -> Running {
     active::register(&running).await;
     running
 }
+/// A Global door with the literal wallet attached (`wallet_config_at`): device bindings,
+/// certificates and the wallet session renewal by the wallet device key (A13) work here.
+pub async fn wallet_global(burst: u32) -> Running {
+    let dir = tempfile::tempdir().unwrap();
+    let config = wallet_config_at(dir.path(), burst, NOW).await;
+    let clock = Arc::new(TestClock(AtomicU64::new(NOW)));
+    let door = Door::global(config, clock.clone()).await.unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let router = cvld::api::router(door.clone());
+    let task = tokio::spawn(async move {
+        axum::serve(listener, router).await.unwrap();
+    });
+    Running {
+        base,
+        door,
+        clock,
+        task,
+        dir,
+    }
+}
 pub fn client(service: &Running, host: &str, token: Option<&str>) -> Client {
     Client::new(service.base.clone(), host.into(), token.map(str::to_owned)).unwrap()
 }

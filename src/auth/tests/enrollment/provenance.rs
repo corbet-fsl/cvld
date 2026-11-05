@@ -48,7 +48,7 @@ async fn actual_current_key_queries_and_equal_cas_retries_preserve_the_first_pub
         .await
         .unwrap();
     assert_eq!(current.publication, Some([2; 32]));
-    auth.logout(&session.token);
+    auth.logout(&session.token).await.unwrap();
     assert!(matches!(
         auth.initial_creation(&session.token, None, NOW, &clock)
             .await,
@@ -114,6 +114,7 @@ async fn actual_committed_publication_with_expired_reply_is_reconcile_and_fresh_
             LoginFinish {
                 ceremony: begin.ceremony,
                 credential: serde_json::from_value(credential).unwrap(),
+                device_proof: None,
             },
             NOW + 601,
         )
@@ -266,6 +267,7 @@ async fn committed_registration_with_lost_reply_preserves_seed_and_cannot_retry_
             LoginFinish {
                 ceremony: begin.ceremony,
                 credential: serde_json::from_value(credential).unwrap(),
+                device_proof: None,
             },
             NOW + 301,
         )
