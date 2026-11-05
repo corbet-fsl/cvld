@@ -1073,6 +1073,18 @@ type PairSlot = (SigningKey, [u8; 32], Option<[u8; 32]>, [u8; 32]);
 /// The shared setup of the pairing tests: join `first`, with ONE confirmation that also covers
 /// the one pairing slot of every `(key, session, revision, salt)` in `pairs`.
 async fn paired_member(first: &mut SigningKey, pairs: &[PairSlot]) -> Paired {
+    let keys: Vec<KeySlot> = pairs
+        .iter()
+        .map(|(key, session, revision, salt)| (key.key(), *session, *revision, *salt))
+        .collect();
+    paired_member_keys(first, &keys).await
+}
+
+/// One pairing slot by public key only (a key whose secret this test never holds).
+type KeySlot = ([u8; 32], [u8; 32], Option<[u8; 32]>, [u8; 32]);
+
+/// [`paired_member`] for slots named by public key.
+async fn paired_member_keys(first: &mut SigningKey, pairs: &[KeySlot]) -> Paired {
     let global = configured_wallet(100).await;
     let mut wallet = wallet(&global, 61).await;
     let public: GlobalPublic = serde_json::from_value(
@@ -1089,14 +1101,7 @@ async fn paired_member(first: &mut SigningKey, pairs: &[PairSlot]) -> Paired {
     for (key, session, revision, salt) in pairs {
         actions.push((
             scope.clone(),
-            pair_action(
-                &wallet,
-                "alpha",
-                &key.key(),
-                session,
-                revision.as_ref(),
-                *salt,
-            ),
+            pair_action(&wallet, "alpha", key, session, revision.as_ref(), *salt),
         ));
     }
     stamp(&global, &mut wallet, &actions).await;
@@ -1855,6 +1860,217 @@ async fn a_delegated_key_opens_community_sessions_only_until_its_row_is_revoked(
         Error::Refused
     );
     assert_eq!(registry_state(service, "alpha", &third_key).await, None);
+}
+
+/// The CLI's community sessions after the A11 ceremony: the opened delegation's `K_d` signs
+/// the server's session message. ckmg's delegation signer prepends the DeviceSession tag
+/// itself, so the tag is taken off first, and a message without it is refused.
+struct CliSession(ckmg::DeviceDelegation);
+impl Device for CliSession {
+    fn key(&self) -> [u8; 32] {
+        *self.0.device_public_key().value()
+    }
+    async fn sign(&mut self, message: &[u8]) -> Vec<u8> {
+        let payload = message
+            .strip_prefix(ckmg::DeviceFormat::DeviceSession.tag())
+            .expect("a device-session message");
+        self.0.sign_device_session(payload).unwrap().to_vec()
+    }
+}
+
+/// The double-tagged signature of pkA10a's M1: the whole message handed to the delegation
+/// signer, which tags it again. The server's verifier must refuse it.
+struct DoubleTagged<'a>(&'a ckmg::DeviceDelegation);
+impl Device for DoubleTagged<'_> {
+    fn key(&self) -> [u8; 32] {
+        *self.0.device_public_key().value()
+    }
+    async fn sign(&mut self, message: &[u8]) -> Vec<u8> {
+        self.0.sign_device_session(message).unwrap().to_vec()
+    }
+}
+
+/// The member's full custody of its `alpha` lineage on the wallet device (real ckmg, test
+/// authority of one binding), and the PRF it was opened with.
+async fn lineage_custody(
+    member: &str,
+) -> (
+    ckmg::Keys<KeysStore, KeysClock, ckmg::SystemEntropy, KeysAuthority>,
+    [u8; 32],
+) {
+    let prf_bytes = [29; 32];
+    let prf = ckmg::passkey::PrfOutput::from_bytes(&prf_bytes).unwrap();
+    let binding = ckmg::Binding::new("alpha", member).unwrap();
+    let mut keys = ckmg::Keys::new(
+        KeysStore::default(),
+        KeysClock,
+        ckmg::SystemEntropy,
+        KeysAuthority(binding.clone()),
+    );
+    let receipt = keys
+        .create_scope(
+            &prf,
+            binding,
+            ckmg::DeviceInfo::new("wallet", &[7; 16]).unwrap(),
+            b"fixture",
+        )
+        .await
+        .unwrap();
+    keys.acknowledge(receipt.operation).await.unwrap();
+    (keys, prf_bytes)
+}
+
+fn contains(haystack: &[u8], needle: &[u8]) -> bool {
+    haystack
+        .windows(needle.len())
+        .any(|window| window == needle)
+}
+
+/// A11 end to end at the community server (D2, D3, option B): `K_d` and the one-time HPKE key
+/// are made ON the CLI; the wallet's custody enrols `K_d` as a delegate and seals the material
+/// to the CLI; the community registers `K_d` through the SAME pairing path (one stamp slot,
+/// the CLI's own possession proofs) as a `Delegated` row approved by the member's ACTIVE full
+/// device; afterwards the CLI opens and renews community sessions with no further prompt, its
+/// session signature checked by the server's own `verify_strict`, and it never holds the PRF.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_cli_delegated_through_the_pairing_path_opens_sessions_with_no_prompt() {
+    // The CLI: K_d and the recipient key from its own entropy; only the offer crosses.
+    let cli = ckmg::DelegationRequest::new(&mut ckmg::SystemEntropy, None).unwrap();
+    let offer = cli.offer();
+    let cli_key = *offer.device.value();
+    // The wallet's one confirmation is the DelegateDevice evidence: enrol K_d, seal to the CLI.
+    let (mut custody, prf) = lineage_custody("member").await;
+    let board = ckmg::Purpose::new(ckmg::Scope::Member, "board", 1).unwrap();
+    let (receipt, sealed) = custody
+        .delegate_remote_device(&offer, std::slice::from_ref(&board), b"the ceremony")
+        .await
+        .unwrap();
+    custody.acknowledge(receipt.operation).await.unwrap();
+    let revision = receipt.passkey_challenge().unwrap();
+    // ... and its one stamp covers the pairing slot of exactly K_d in exactly this revision.
+    let mut first = SigningKey::from_bytes(&[91; 32]);
+    let (session, salt) = ([21; 32], [23; 32]);
+    let paired = paired_member_keys(&mut first, &[(cli_key, session, Some(revision), salt)]).await;
+    let Paired {
+        wallet,
+        service,
+        joined,
+        ..
+    } = &paired;
+    let anonymous = client(service, HOST, None);
+    // An unregistered K_d opens nothing.
+    let mut early = CliSession(cli.open(&sealed).unwrap());
+    assert!(
+        open_session(service, &joined.user, &mut early)
+            .await
+            .is_err()
+    );
+
+    // Add: the CLI proves possession over the community's challenge (typed ckmg signer, class
+    // DelegateCandidate); the member's ACTIVE full device approves the pairing digest.
+    let (id, passport, genesis) = pairing_passport(service, wallet, "alpha", NOW).await;
+    let possession =
+        ckmg::PairingPossession::new("alpha", ckmg::PairingStep::Add, &id, &cli_key).unwrap();
+    let stamp = wallet
+        .holder
+        .present_stamp(
+            &mut cpsd::rand::rngs::OsRng,
+            &scope_of("alpha", genesis.as_deref()),
+            &pair_action(wallet, "alpha", &cli_key, &session, Some(&revision), salt),
+            NOW,
+        )
+        .unwrap()
+        .to_bytes();
+    let mut add = json!({
+        "passport": passport,
+        "stamp": stamp,
+        "salt": salt,
+        "device_key": cli_key,
+        "session": session,
+        "revision": revision,
+        "signature": cli.sign_possession(&possession).unwrap().to_vec(),
+    });
+    add["delegate"] =
+        delegate_approval(wallet, &mut first, &cli_key, (&session, Some(&revision))).await;
+    anonymous.call("device_add", add).await.unwrap();
+    assert_eq!(
+        registry_class(service, &cli_key).await.as_deref(),
+        Some("delegated")
+    );
+
+    // The sealed material opens only with the CLI's one-time key, into a delegation of K_d.
+    let stranger = ckmg::DelegationRequest::new(&mut ckmg::SystemEntropy, None).unwrap();
+    assert!(stranger.open(&sealed).is_err());
+    let delegation = cli.open(&sealed).unwrap();
+    assert_eq!(delegation.device_public_key(), offer.device);
+    assert!(delegation.lineage().delegates.contains(&offer.device));
+    assert!(!delegation.lineage().devices.contains(&offer.device));
+
+    // Activate: no stamp, the CLI's possession over the activation challenge.
+    let (id, passport, _) = pairing_passport(service, wallet, "alpha", NOW).await;
+    let possession =
+        ckmg::PairingPossession::new("alpha", ckmg::PairingStep::Activate, &id, &cli_key).unwrap();
+    anonymous
+        .call(
+            "device_activate",
+            json!({
+                "passport": passport,
+                "device_key": cli_key,
+                "signature": cli.sign_possession(&possession).unwrap().to_vec(),
+            }),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        registry_state(service, "alpha", &cli_key).await.as_deref(),
+        Some("active")
+    );
+    drop(cli);
+
+    // 0 further prompts: K_d alone opens and renews sessions; no stamp is used. The server
+    // verifies the session signature with its own verify_strict (device_session_finish).
+    let uses = stamp_uses(service).await;
+    let mut cli = CliSession(delegation);
+    for _ in 0..2 {
+        let session = open_session(service, &joined.user, &mut cli).await.unwrap();
+        client(service, HOST, Some(&session.token))
+            .call("lobby", json!({}))
+            .await
+            .unwrap();
+    }
+    assert_eq!(stamp_uses(service).await, uses);
+    // The double-tagged signature is refused by the same verifier.
+    assert!(
+        open_session(service, &joined.user, &mut DoubleTagged(&cli.0))
+            .await
+            .is_err()
+    );
+
+    // The CLI never held the PRF or the root: neither its stored form nor what it was sent
+    // holds the PRF, and its custody is Delegated, where every root operation refuses.
+    let resume = cli.0.to_sealed_bytes().unwrap();
+    let wire = serde_json::to_vec(&sealed).unwrap();
+    assert!(!contains(&resume, &prf) && !contains(&wire, &prf));
+    let mut delegated = ckmg::Keys::new(
+        KeysStore::default(),
+        KeysClock,
+        ckmg::SystemEntropy,
+        KeysAuthority(ckmg::Binding::new("alpha", "member").unwrap()),
+    );
+    delegated.unlock_delegated(&cli.0).unwrap();
+    assert_eq!(delegated.state(), ckmg::State::Delegated);
+    assert!(
+        delegated
+            .delegate_device(std::slice::from_ref(&board), b"the ceremony")
+            .await
+            .is_err()
+    );
+    assert!(
+        delegated
+            .delegate_remote_device(&stranger.offer(), &[board], b"the ceremony")
+            .await
+            .is_err()
+    );
 }
 
 /// D1: "needs the passkey" is a typed refusal on the wire (`refused` + reason), which the
