@@ -219,7 +219,27 @@ mod committed_contract_tests {
     /// names the two account answers a newcomer's join acceptance travels on.
     #[test]
     fn the_committed_contract_matches_the_generated_one() {
-        let generated = serde_json::to_value(crate::api::openapi()).unwrap();
+        #[allow(unused_mut)]
+        let mut generated = serde_json::to_value(crate::api::openapi()).unwrap();
+        // The checked document is the release contract: CI emits it with the
+        // default features, and `development-gate` is the only feature that adds
+        // registry actions. Remove exactly those actions (asserting each was
+        // the one named) so the comparison stays byte-exact for the
+        // feature-independent document instead of pinning development-only
+        // paths into the release schema, or skipping the check whenever the
+        // feature is on.
+        #[cfg(feature = "development-gate")]
+        {
+            let paths = generated["paths"]
+                .as_object_mut()
+                .expect("the generated contract declares paths");
+            for action in ["development_gate", "development_voucher_link"] {
+                let operation = paths.remove(&format!("/v1/{action}")).unwrap_or_else(|| {
+                    panic!("the development feature declares the {action} action")
+                });
+                assert_eq!(operation["post"]["operationId"], action);
+            }
+        }
         let committed: Value = serde_json::from_str(include_str!("../docs/openapi.json")).unwrap();
         let account_variant = |document: &Value, action: &str| {
             document["components"]["schemas"]["AccountServiceResponse"]["oneOf"]
