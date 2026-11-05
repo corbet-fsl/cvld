@@ -178,7 +178,15 @@ def wave_artifact_files(root, group, pins=None):
     pin = (WAVE_GROUPS if pins is None else pins).get(group)
     if pin is None or not (root / group / "wave-artifacts").is_dir():
         return None  # not retained here (CI does not retain it); a pinned directory present is always checked
-    return artifact_files(root / group / "wave-artifacts", pin["manifestSha256"], "circuits.json", "keys.json", "wave")
+    files = artifact_files(root / group / "wave-artifacts", pin["manifestSha256"], "circuits.json", "keys.json", "wave")
+    # The device trusts the wave and outcome keys only through these release pins (cmsg ProverArtifacts.wave_pins):
+    # the reviewed manifest pin, and the circuit and key digests that pinned manifest names.
+    manifest = json.loads(read_bounded(Path(files["manifest_file"]), 65536))
+    circuit, keys = manifest.get("circuitSha256"), manifest.get("vkSha256")
+    if not all(isinstance(value, str) and len(value) == 64 for value in (circuit, keys)):
+        fail("wave manifest names no circuit and key digests")
+    files["wave_pins"] = {"circuit_sha256": circuit, "keys_sha256": keys, "manifest_sha256": pin["manifestSha256"]}
+    return files
 
 
 def write_private(path, data):

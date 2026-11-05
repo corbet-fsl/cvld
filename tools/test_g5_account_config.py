@@ -27,13 +27,22 @@ class WaveGroup(unittest.TestCase):
         self.assertIn(GROUP, g5.WAVE_GROUPS)
         self.assertEqual(len(g5.WAVE_GROUPS[GROUP]["manifestSha256"]), 64)
 
-    def test_pinned_manifest_yields_wave_files(self):
-        manifest = b"{}"
+    def test_pinned_manifest_yields_wave_files_and_release_pins(self):
+        manifest = json.dumps({"circuitSha256": "a" * 64, "vkSha256": "b" * 64}).encode()
         root = self.retained(manifest)
         pin = {GROUP: {"manifestSha256": hashlib.sha256(manifest).hexdigest()}}
         files = g5.wave_artifact_files(root, GROUP, pin)
         self.assertTrue(files["keys_file"].endswith(f"{GROUP}/wave-artifacts/keys.json"))
         self.assertTrue(files["circuit_file"].endswith("wave-artifacts/circuits.json"))
+        self.assertEqual(files["wave_pins"], {"circuit_sha256": "a" * 64, "keys_sha256": "b" * 64,
+                                              "manifest_sha256": pin[GROUP]["manifestSha256"]})
+
+    def test_a_pinned_manifest_without_file_digests_refuses(self):
+        manifest = b"{}"
+        root = self.retained(manifest)
+        pin = {GROUP: {"manifestSha256": hashlib.sha256(manifest).hexdigest()}}
+        with self.assertRaises(SystemExit):
+            g5.wave_artifact_files(root, GROUP, pin)
 
     def test_other_manifest_refuses(self):
         root = self.retained(b"{}")

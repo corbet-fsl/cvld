@@ -752,12 +752,14 @@ async fn run() -> Result<()> {
                 },
             });
             // With the owned verifier worker the device also checks a counterpart's wave
-            // and outcome proofs: it then carries the outcome circuit and the group's
-            // manifest, which the community's wave policy pins. Without the worker (the
+            // and outcome proofs: it then carries the outcome circuit, the group's
+            // manifest and the release pins of the group. Without the worker (the
             // verifier is a separate binary, `czkp-bb-worker`) the wave stack stays off.
             if let Ok(verifier) = std::env::var("CMSG_NATIVE_VERIFIER_WORKER") {
                 settings["prover"]["verifier_executable"] = json!(verifier);
                 settings["prover"]["manifest_file"] = wave_artifacts["manifest_file"].clone();
+                // The release pins the verifier trusts the wave and outcome keys by.
+                settings["prover"]["wave_pins"] = wave_artifacts["wave_pins"].clone();
                 settings["prover"]["outcome"] = json!({
                     "circuit_file": wave_artifacts["circuit_file"],
                     "keys_file": wave_artifacts["keys_file"],
