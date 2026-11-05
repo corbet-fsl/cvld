@@ -74,7 +74,7 @@ impl Fixture {
                 origins: vec![ckyh::Url::parse(ORIGIN).unwrap()],
             },
             authority.clone(),
-            CommunityClock(clock.clone()),
+            CommunityClock::new(clock.clone()),
         )
         .unwrap();
         let mut device = Resident::default();

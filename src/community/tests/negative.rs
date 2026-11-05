@@ -87,10 +87,10 @@ async fn absent_legal_authority_and_unrepresentable_time_fail_closed() {
         Err(clbs::Error::Denied)
     ));
     let clock = Arc::new(TestClock(AtomicU64::new(i64::MAX as u64)));
-    assert_eq!(CommunityClock(clock.clone()).now().unwrap(), i64::MAX);
+    assert_eq!(CommunityClock::new(clock.clone()).now().unwrap(), i64::MAX);
     clock.set(i64::MAX as u64 + 1);
     assert!(matches!(
-        CommunityClock(clock).now(),
+        CommunityClock::new(clock).now(),
         Err(clbs::Error::Denied)
     ));
 }

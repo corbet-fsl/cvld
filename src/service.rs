@@ -48,13 +48,19 @@ tokio::task_local! {
 pub(crate) async fn at<T>(now: u64, operation: impl std::future::Future<Output = T>) -> T {
     OPERATION_TIME.scope(now, operation).await
 }
+/// The time an operation observes: its scoped operation time, else the live clock. The membership
+/// clock (`community::CommunityClock`) composes `scoped_operation_time` with its own floor.
+#[cfg(test)]
 pub(crate) fn operation_time(clock: &dyn Clock) -> u64 {
+    scoped_operation_time().unwrap_or_else(|| clock.now())
+}
+/// The operation time in scope, or None where the live clock applies (no operation, or a
+/// `with_live_clock` block inside one).
+pub(crate) fn scoped_operation_time() -> Option<u64> {
     if LIVE_TIME.try_with(|_| ()).is_ok() {
-        return clock.now();
+        return None;
     }
-    OPERATION_TIME
-        .try_with(|time| *time)
-        .unwrap_or_else(|_| clock.now())
+    OPERATION_TIME.try_with(|time| *time).ok()
 }
 /// Lifecycle work without an original proof timestamp observes the live clock
 /// through its own awaited owner calls. Ordinary proof composition stays bound

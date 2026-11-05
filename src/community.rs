@@ -42,13 +42,50 @@ mod step_up;
 use legal::CommunityAuthority;
 use payments::PaymentClock;
 use root_board::root_descriptor;
+/// The clock of the membership facade and its legal gate. cmbr keeps ONE observation floor per
+/// facade and refuses for good after a backwards observation (cmbr CONTRACT), so this clock never
+/// goes back unless its source does. A request runs at the operation time the door captured when
+/// it authorized the request; requests finish out of that order (they wait for the body, the
+/// request guard and the community lock) and live samples (session authentication, lifecycle
+/// work) interleave with them. The clock therefore returns the operation time raised to the
+/// latest time it already returned: a time the source has already reached. Only the source can
+/// still go back, and that stays fatal: a live sample below an earlier live sample refuses this
+/// clock for good, whatever operation time is in scope.
 #[derive(Clone)]
-pub struct CommunityClock(pub Arc<dyn Clock>);
+pub struct CommunityClock {
+    source: Arc<dyn Clock>,
+    seen: Arc<std::sync::Mutex<Seen>>,
+}
+#[derive(Default)]
+struct Seen {
+    live: u64,
+    returned: u64,
+    regressed: bool,
+}
+impl CommunityClock {
+    pub fn new(source: Arc<dyn Clock>) -> Self {
+        Self {
+            source,
+            seen: Default::default(),
+        }
+    }
+}
 impl clbs::Clock for CommunityClock {
     fn now(&self) -> clbs::Result<i64> {
-        crate::service::operation_time(self.0.as_ref())
-            .try_into()
-            .map_err(|_| clbs::Error::Denied)
+        // Sampling is synchronous and serialized, so scheduling cannot reorder two samples.
+        let mut seen = self.seen.lock().map_err(|_| clbs::Error::Clock)?;
+        let live = self.source.now();
+        i64::try_from(live).map_err(|_| clbs::Error::Denied)?;
+        if seen.regressed || live < seen.live {
+            seen.regressed = true;
+            return Err(clbs::Error::Clock);
+        }
+        seen.live = live;
+        let time = crate::service::scoped_operation_time()
+            .unwrap_or(live)
+            .max(seen.returned);
+        seen.returned = time;
+        time.try_into().map_err(|_| clbs::Error::Denied)
     }
 }
 type Rules = cmty::adapters::SharedRulebook<crbk::LibsqlStore>;
@@ -65,6 +102,9 @@ pub type Facade = cmty::Community<
 >;
 mod devices;
 
+#[cfg(test)]
+#[path = "community/tests/clock.rs"]
+mod clock_tests;
 #[cfg(all(test, feature = "development-gate"))]
 #[path = "community/tests/device_join.rs"]
 mod device_join_tests;
@@ -482,7 +522,7 @@ impl CommunityService {
                 ],
             },
             authority.clone(),
-            CommunityClock(owner_clock),
+            CommunityClock::new(owner_clock),
         )
         .map_err(Error::Invalid.redact())?;
         // One process owns this database. cmbr serializes member operations;

@@ -230,7 +230,12 @@ which verify using the published community key ring.
 
 The door serializes composed writes and maintenance in its process. Deploy one
 writer process per database. Every request uses one trusted operation timestamp;
-this timestamp is transient and never a member activity record. A failed or
+this timestamp is transient and never a member activity record. Requests finish
+out of the order in which their timestamps were taken, so the membership clock
+returns a request's timestamp raised to the latest time it already returned (a
+time the clock had reached): cmbr's single observation floor never sees a
+backwards step from that ordering. A live source clock that goes backwards still
+refuses the membership facade for good. A failed or
 ambiguous operation returns a redacted error, never an earlier credential.
 Retrying issuance needs a fresh presentation. Maintenance delegates pending
 expiry, handle retention/release and challenge pruning to the facades.
