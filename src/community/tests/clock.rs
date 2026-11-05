@@ -95,10 +95,16 @@ async fn a_source_clock_that_goes_back_still_refuses_the_membership_for_good() {
     assert_eq!(live(&membership).await, Ok(true));
     // The source itself goes back: no operation time may hide that, live or scoped.
     clock.set(NOW);
-    assert_eq!(at(NOW + 5, &membership).await, Err(cmbr::Error::Unavailable));
+    assert_eq!(
+        at(NOW + 5, &membership).await,
+        Err(cmbr::Error::Unavailable)
+    );
     assert_eq!(live(&membership).await, Err(cmbr::Error::Unavailable));
     // A later correction does not clear it (cmbr CONTRACT: the floor refuses for good).
     clock.set(NOW + 10);
     assert_eq!(live(&membership).await, Err(cmbr::Error::Unavailable));
-    assert_eq!(at(NOW + 10, &membership).await, Err(cmbr::Error::Unavailable));
+    assert_eq!(
+        at(NOW + 10, &membership).await,
+        Err(cmbr::Error::Unavailable)
+    );
 }
