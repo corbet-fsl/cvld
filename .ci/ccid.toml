@@ -41,8 +41,7 @@ cache = false
 cache_outputs = ["Cargo.lock"]
 
 [render]
-tool_revision = "4cd68908acb198a0b01886a3d8d1dfe8155b1453"
-tool_sha256 = "1f6587637f6db365d9caae9e27e3da716aefc634ff0812ba0a377a9468f15900"
+render_schema = 2
 [jobs.verify]
 # Cold native, Wasm, release, toy and instrumented application checks share one job.
 # Preserve the full suite with a bounded two-hour budget.
