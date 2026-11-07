@@ -11,7 +11,7 @@ publish = false
 default = ["server"]
 server = ["client-http", "dep:cpmt", "dep:crpt", "dep:x402-types", "dep:cmty", "dep:cvch", "dep:clbs", "dep:cphn", "dep:cmbx", "dep:cfbk", "dep:ed25519-dalek", "dep:ed25519-dalek-v2", "dep:cblc", "dep:czkp", "dep:cssr", "dep:cpsd", "dep:crlt", "dep:csgn", "dep:cchr", "dep:hpke", "dep:cgbl", "dep:ckyh", "dep:governor", "dep:axum", "dep:tower-http", "dep:utoipa", "dep:schemars", "dep:clap", "dep:rmcp", "dep:tokio", "dep:uuid", "dep:chrono", "dep:rand", "dep:subtle", "dep:hkdf", "dep:tower", "dep:openssl"]
 client = ["dep:jsonschema", "dep:blind-rsa-signatures"]
-client-http = ["client", "dep:reqwest", "dep:url"]
+client-http = ["client", "dep:reqwest", "dep:url", "dep:rustls"]
 client-ohttp = ["client", "dep:url", "dep:cblv", "cblv/client"]
 client-browser = ["client", "dep:url", "dep:gloo-timers", "dep:web-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys"]
 development-gate = ["server", "cgbl/development-gate"]
@@ -51,7 +51,8 @@ utoipa = { version = "6.0.0", optional = true }
 schemars = { version = "1", optional = true }
 clap = { version = "4.6.7", features = ["derive", "env", "string"], optional = true }
 rmcp = { version = "3.5.0", features = ["server", "client", "transport-io", "transport-child-process"], optional = true }
-reqwest = { version = "0.12.28", default-features = false, features = ["json", "rustls-tls"], optional = true }
+reqwest = { version = "0.12.28", default-features = false, features = ["json", "rustls-tls-webpki-roots-no-provider"], optional = true }
+rustls = { version = "0.23", default-features = false, features = ["ring"], optional = true }
 serde = { version = "1", features = ["derive"] }
 any_ascii = "0.3"
 blind-rsa-signatures = { version = "0.18", default-features = false, optional = true }

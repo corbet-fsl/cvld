@@ -203,6 +203,7 @@ impl Door {
         clock: Arc<dyn Clock>,
         transport: Option<crate::contact_gates::transport::AnyTransport>,
     ) -> Result<Self> {
+        crate::client::install_crypto_provider();
         config.shutdown_budget()?;
         if config.domain.is_empty()
             || !config
@@ -433,6 +434,7 @@ impl Door {
         root_board: Option<cpsd::RootBoardPublicKey>,
         construction: NativeConstruction,
     ) -> Result<Self> {
+        crate::client::install_crypto_provider();
         config.shutdown_budget()?;
         if config.domain.is_empty()
             || !config

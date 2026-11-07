@@ -71,6 +71,7 @@ impl HttpTransport {
         {
             return Err(Error::Configuration);
         }
+        crate::client::install_crypto_provider();
         let client = reqwest::Client::builder()
             .https_only(true)
             .no_proxy()

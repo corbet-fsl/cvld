@@ -25,6 +25,7 @@ impl HttpClient {
         roots: &[Vec<u8>],
     ) -> Result<Self> {
         super::origin(&base, &host)?;
+        super::install_crypto_provider();
         if roots.len() > 32
             || roots
                 .iter()
@@ -189,5 +190,73 @@ impl super::AuthenticatedTransport for HttpClient {
             return Err(Error::Reconcile);
         }
         Ok(bytes)
+    }
+}
+
+#[cfg(test)]
+mod tls_tests {
+    use super::*;
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+    use std::sync::Arc;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    /// A real TLS handshake with a self-signed loopback certificate: no
+    /// network, no name resolution, and the certificate is an explicit root
+    /// of the product client.
+    async fn tls_server() -> (SocketAddr, Vec<u8>) {
+        let key = rcgen::KeyPair::generate().expect("key");
+        let mut params = rcgen::CertificateParams::new(Vec::new()).expect("params");
+        params.subject_alt_names = vec![rcgen::SanType::IpAddress(IpAddr::V4(Ipv4Addr::LOCALHOST))];
+        params
+            .distinguished_name
+            .push(rcgen::DnType::CommonName, "cvld-handshake");
+        let cert = params.self_signed(&key).expect("self-signed");
+        let der = cert.der().to_vec();
+        let config = tokio_rustls::rustls::ServerConfig::builder_with_provider(Arc::new(
+            tokio_rustls::rustls::crypto::ring::default_provider(),
+        ))
+        .with_safe_default_protocol_versions()
+        .expect("versions")
+        .with_no_client_auth()
+        .with_single_cert(
+            vec![der.clone().into()],
+            tokio_rustls::rustls::pki_types::PrivateKeyDer::Pkcs8(key.serialize_der().into()),
+        )
+        .expect("server config");
+        let acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(config));
+        let listener = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+            .await
+            .expect("listener");
+        let addr = listener.local_addr().expect("address");
+        tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.expect("accept");
+            let mut stream = acceptor.accept(stream).await.expect("handshake");
+            let mut request = [0u8; 4096];
+            let _ = stream.read(&mut request).await.expect("request");
+            stream
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 2\r\nconnection: close\r\n\r\nok",
+                )
+                .await
+                .expect("response");
+            stream.shutdown().await.expect("close");
+        });
+        (addr, der)
+    }
+
+    #[tokio::test]
+    async fn the_product_client_completes_a_real_tls_handshake() {
+        let (addr, der) = tls_server().await;
+        let base = format!("https://127.0.0.1:{}", addr.port());
+        let http =
+            HttpClient::with_roots(base.clone(), "127.0.0.1".into(), None, &[der]).expect("client");
+        let response = http
+            .client
+            .get(format!("{base}/probe"))
+            .send()
+            .await
+            .expect("request");
+        assert_eq!(response.status(), reqwest::StatusCode::OK);
+        assert_eq!(response.text().await.expect("body"), "ok");
     }
 }

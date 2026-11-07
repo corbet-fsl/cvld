@@ -22,6 +22,16 @@ mod http;
 #[cfg(all(feature = "client-http", not(target_arch = "wasm32")))]
 pub use http::HttpClient;
 
+/// The HTTPS client is built with `rustls-no-provider`, so the process default
+/// must be selected before a client is built. Keep an embedding application's
+/// provider; otherwise pick the maintained ring provider.
+#[cfg(all(feature = "client-http", not(target_arch = "wasm32")))]
+pub(crate) fn install_crypto_provider() {
+    if rustls::crypto::CryptoProvider::get_default().is_none() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    }
+}
+
 #[cfg(feature = "client-ohttp")]
 #[path = "client_ohttp.rs"]
 mod ohttp;

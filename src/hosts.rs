@@ -86,6 +86,7 @@ impl CloudflareProvisioner {
         community_worker: String,
         vault_worker: String,
     ) -> Result<Self> {
+        crate::client::install_crypto_provider();
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(20))
             .build()
