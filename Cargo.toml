@@ -3,7 +3,7 @@ name = "cvld"
 version = "0.2.0"
 edition = "2024"
 license = "FSL-1.1-ALv2"
-repository = "https://git.corbet.ch/corbet-libs/cvld"
+repository = "https://git.corbet.ch/corbet-fsl/cvld.git"
 description = "The permanent door of the cmtymeet trust stack"
 publish = false
 
@@ -21,29 +21,29 @@ development-gate-client = ["client"]
 ohttp = ["server", "dep:cblv", "cblv/gateway"]
 
 [dependencies]
-cblv = { git = "https://git.corbet.ch/corbet-foss/cblv.git", branch = "main", optional = true }
+cblv = { git = "https://git.corbet.ch/corbet-libre/cblv.git", branch = "main", optional = true }
 url = { version = "2.5", optional = true }
 jsonschema = { version = "0.58", default-features = false, optional = true }
-cmty = { git = "https://git.corbet.ch/corbet-libs/cmty", branch = "main", optional = true }
-cvch = { git = "https://git.corbet.ch/corbet-foss/cvch", branch = "main", optional = true }
-cpmt = { git = "https://git.corbet.ch/corbet-foss/cpmt", branch = "main", optional = true }
-crpt = { git = "https://git.corbet.ch/corbet-foss/crpt", branch = "main", features = ["http"], optional = true }
+cmty = { git = "https://git.corbet.ch/corbet-fsl/cmty.git", branch = "main", optional = true }
+cvch = { git = "https://git.corbet.ch/corbet-foss/cvch.git", branch = "main", optional = true }
+cpmt = { git = "https://git.corbet.ch/corbet-libre/cpmt.git", branch = "main", optional = true }
+crpt = { git = "https://git.corbet.ch/corbet-libre/crpt.git", branch = "main", features = ["http"], optional = true }
 x402-types = { version = "2", optional = true }
-clbs = { git = "https://git.corbet.ch/corbet-foss/clbs", branch = "main", optional = true }
-cphn = { git = "https://git.corbet.ch/corbet-foss/cphn", branch = "main", optional = true }
-cmbx = { git = "https://git.corbet.ch/corbet-foss/cmbx", branch = "main", optional = true }
-cfbk = { git = "https://git.corbet.ch/corbet-foss/cfbk", branch = "main", optional = true }
+clbs = { git = "https://git.corbet.ch/corbet-libre/clbs.git", branch = "main", optional = true }
+cphn = { git = "https://git.corbet.ch/corbet-libre/cphn.git", branch = "main", optional = true }
+cmbx = { git = "https://git.corbet.ch/corbet-libre/cmbx.git", branch = "main", optional = true }
+cfbk = { git = "https://git.corbet.ch/corbet-libre/cfbk.git", branch = "main", optional = true }
 ed25519-dalek = { version = "3", optional = true }
 ed25519-dalek-v2 = { package = "ed25519-dalek", version = "2.2", optional = true }
-cblc = { git = "https://git.corbet.ch/corbet-libs/cblc", branch = "main", features = ["schema", "publication"], optional = true }
-czkp = { git = "https://git.corbet.ch/corbet-foss/czkp", branch = "main", optional = true }
-cssr = { git = "https://git.corbet.ch/corbet-foss/cssr", branch = "main", optional = true }
-cpsd = { git = "https://git.corbet.ch/corbet-foss/cpsd", branch = "main", default-features = false, features = ["storage"], optional = true }
-crlt = { git = "https://git.corbet.ch/corbet-foss/crlt", branch = "main", optional = true }
-csgn = { git = "https://git.corbet.ch/corbet-foss/csgn", branch = "main", features = ["libsql"], optional = true }
-cchr = { git = "https://git.corbet.ch/corbet-foss/cchr.git", branch = "main", optional = true }
-cgbl = { git = "https://git.corbet.ch/corbet-libs/cgbl.git", branch = "main", optional = true }
-ckyh = { git = "https://git.corbet.ch/corbet-foss/ckyh", branch = "main", optional = true }
+cblc = { git = "https://git.corbet.ch/corbet-fsl/cblc.git", branch = "main", features = ["schema", "publication"], optional = true }
+czkp = { git = "https://git.corbet.ch/corbet-foss/czkp.git", branch = "main", optional = true }
+cssr = { git = "https://git.corbet.ch/corbet-libre/cssr.git", branch = "main", optional = true }
+cpsd = { git = "https://git.corbet.ch/corbet-libre/cpsd.git", branch = "main", default-features = false, features = ["storage"], optional = true }
+crlt = { git = "https://git.corbet.ch/corbet-libre/crlt.git", branch = "main", optional = true }
+csgn = { git = "https://git.corbet.ch/corbet-libre/csgn.git", branch = "main", features = ["libsql"], optional = true }
+cchr = { git = "https://git.corbet.ch/corbet-libre/cchr.git", branch = "main", optional = true }
+cgbl = { git = "https://git.corbet.ch/corbet-fsl/cgbl.git", branch = "main", optional = true }
+ckyh = { git = "https://git.corbet.ch/corbet-libre/ckyh.git", branch = "main", optional = true }
 governor = { version = "0.10.4", default-features = false, features = ["std"], optional = true }
 axum = { version = "0.8.9", optional = true }
 tower-http = { version = "0.6.11", features = ["cors"], optional = true }
@@ -92,30 +92,25 @@ gloo-net = { version = "0.7", default-features = false, features = ["http", "jso
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 openssl = "0.10"
 tower = { version = "0.5", features = ["util"] }
-crgs = { git = "https://git.corbet.ch/corbet-foss/crgs", branch = "main" }
-cvfy = { git = "https://git.corbet.ch/corbet-foss/cvfy", branch = "main" }
+crgs = { git = "https://git.corbet.ch/corbet-libre/crgs.git", branch = "main" }
+cvfy = { git = "https://git.corbet.ch/corbet-foss/cvfy.git", branch = "main" }
 rcgen = { version = "0.14", features = ["crypto"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
-cgrd = { git = "https://git.corbet.ch/corbet-foss/cgrd", branch = "main", default-features = false }
+cgrd = { git = "https://git.corbet.ch/corbet-libre/cgrd.git", branch = "main", default-features = false }
 futures-util = "0.3"
 passkey = "0.4"
 async-trait = "0.1"
-cvch = { git = "https://git.corbet.ch/corbet-foss/cvch", branch = "main" }
-cpns = { git = "https://git.corbet.ch/corbet-foss/cpns", branch = "main" }
+cvch = { git = "https://git.corbet.ch/corbet-foss/cvch.git", branch = "main" }
+cpns = { git = "https://git.corbet.ch/corbet-libre/cpns.git", branch = "main" }
 tempfile = "3"
 webauthn-authenticator-rs = { version = "0.5.5", default-features = false, features = ["softtoken"] }
 # A real Keys `Created` receipt for genesis stamp evidence in the device-join tests.
-ckmg = { git = "https://git.corbet.ch/corbet-foss/ckmg.git", branch = "main" }
+ckmg = { git = "https://git.corbet.ch/corbet-libre/ckmg.git", branch = "main" }
 # The low-level publishing signer for the state-seam rotation tests only;
 # production code verifies against published rings and never signs.
-csgn = { git = "https://git.corbet.ch/corbet-foss/csgn", branch = "main", features = ["volatile-signer"] }
+csgn = { git = "https://git.corbet.ch/corbet-libre/csgn.git", branch = "main", features = ["volatile-signer"] }
 blake3 = "1"
 
-[profile.dev.package."*"]
-opt-level = 3
-
-[profile.test]
-opt-level = 1
 
 [lints.rust]
 unsafe_code = "forbid"
