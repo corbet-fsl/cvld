@@ -87,3 +87,70 @@ async fn cli_client_refuses_unregistered_actions_before_dispatch() {
         ));
     }
 }
+
+#[cfg(all(test, feature = "server"))]
+mod committed_contract_tests {
+    use serde_json::Value;
+
+    /// The client validates every forwarded answer against the COMMITTED document, so a
+    /// file older than the server's DTOs refuses a genuine answer as malformed: the
+    /// consumer can only report that flat `Reconcile`, which reads as a transient refusal
+    /// and hides the acceptance the server already wrote. CI regenerates the file and
+    /// diffs it; this test is the same freshness check where a lane can read it, and it
+    /// names the two account answers a newcomer's join acceptance travels on.
+    #[test]
+    fn the_committed_contract_matches_the_generated_one() {
+        #[allow(unused_mut)]
+        let mut generated = serde_json::to_value(crate::api::openapi()).unwrap();
+        // The checked document is the release contract: CI emits it with the
+        // default features, and `development-gate` is the only feature that adds
+        // registry actions. Remove exactly those actions (asserting each was
+        // the one named) so the comparison stays byte-exact for the
+        // feature-independent document instead of pinning development-only
+        // paths into the release schema, or skipping the check whenever the
+        // feature is on.
+        #[cfg(feature = "development-gate")]
+        {
+            let paths = generated["paths"]
+                .as_object_mut()
+                .expect("the generated contract declares paths");
+            for action in ["development_gate", "development_voucher_link"] {
+                let operation = paths.remove(&format!("/v1/{action}")).unwrap_or_else(|| {
+                    panic!("the development feature declares the {action} action")
+                });
+                assert_eq!(operation["post"]["operationId"], action);
+            }
+        }
+        let committed: Value =
+            serde_json::from_str(include_str!("../../docs/openapi.json")).unwrap();
+        let account_variant = |document: &Value, action: &str| {
+            document["components"]["schemas"]["AccountServiceResponse"]["oneOf"]
+                .as_array()
+                .expect("the account response is a union of actions")
+                .iter()
+                .find(|variant| variant["properties"]["action"]["enum"][0] == action)
+                .unwrap_or_else(|| panic!("the account response declares {action}"))
+                .clone()
+        };
+        for document in [&committed, &generated] {
+            let extended = account_variant(document, "applyExtended");
+            assert!(
+                extended["properties"]["value"]["properties"]
+                    .get("join_publication")
+                    .is_some(),
+                "an accepted extended answer carries the community publication"
+            );
+            let status = account_variant(document, "status");
+            assert!(
+                status["properties"]["value"]["properties"]["extended"]["properties"]
+                    .get("joinPublication")
+                    .is_some(),
+                "a status answer carries it in the extended evidence"
+            );
+        }
+        assert_eq!(
+            committed, generated,
+            "docs/openapi.json is stale: regenerate it with `cargo run --locked -- openapi`"
+        );
+    }
+}

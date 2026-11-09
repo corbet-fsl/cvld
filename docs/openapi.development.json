@@ -3597,6 +3597,13 @@
                           "signature"
                         ],
                         "type": "object"
+                      },
+                      "joinPublication": {
+                        "description": "Community-signed Balance publication the accepting operator attached when\nthis ancestry's record epoch is the one it publishes. The ledger holds no\ncommunity signing key, so the accepting service fills it exactly as it does\non the answer itself. Opaque and unsigned here: the holder authenticates it\nwith the community ring and never trusts it for being present.",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
                       }
                     },
                     "required": [
@@ -4213,6 +4220,13 @@
                       "signature"
                     ],
                     "type": "object"
+                  },
+                  "join_publication": {
+                    "description": "Community-signed publication that names exactly the epoch and root the\nancestry sits under, so a newcomer whose own material carries no frozen\nfrontier can check its join-time record leaf. Not covered by the\nacceptance signature: it carries its own community signature, like\n`AccountStatusResponse.extended`.",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   }
                 },
                 "required": [
