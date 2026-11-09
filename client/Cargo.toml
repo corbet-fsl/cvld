@@ -42,7 +42,7 @@ sha2 = "0.10"
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 # The blind-signature client draws its blinding factor from the browser.
 getrandom = { version = "0.4", features = ["wasm_js"] }
-gloo-timers = { version = "0.3", optional = true }
+gloo-timers = { version = "0.4", optional = true }
 web-sys = { version = "0.3", features = ["AbortController", "AbortSignal", "Headers", "Request", "RequestInit", "RequestMode", "Response", "Window", "ReadableStream", "ReadableStreamDefaultReader", "RequestRedirect", "RequestCredentials", "RequestCache", "ReferrerPolicy"], optional = true }
 wasm-bindgen = { version = "0.2", optional = true }
 wasm-bindgen-futures = { version = "0.4", optional = true }
