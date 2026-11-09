@@ -1,8 +1,11 @@
 //! Resident software authenticator fixture; production crypto remains upstream.
 #![allow(dead_code)]
 use passkey::{
-    authenticator::{Authenticator, UserCheck, UserValidationMethod, extensions::HmacSecretConfig},
+    authenticator::{
+        Authenticator, UiHint, UserCheck, UserValidationMethod, extensions::HmacSecretConfig,
+    },
     client::{Client, DefaultClientData},
+    crypto::AvailableBackend,
     types::{
         Passkey,
         ctap2::{Aaguid, Ctap2Error},
@@ -16,7 +19,7 @@ impl UserValidationMethod for User {
     type PasskeyItem = Passkey;
     async fn check_user<'a>(
         &self,
-        _: Option<&'a Passkey>,
+        _: UiHint<'a, Passkey>,
         _: bool,
         _: bool,
     ) -> Result<UserCheck, Ctap2Error> {
@@ -53,9 +56,13 @@ impl Resident {
                 .remove("extensions");
         }
         assert_eq!(preserved, original);
-        let mut authenticator =
-            Authenticator::new(Aaguid::new_empty(), self.credential.take(), User)
-                .hmac_secret(HmacSecretConfig::new_with_uv_only().enable_on_make_credential());
+        let mut authenticator = Authenticator::new(
+            Aaguid::new_empty(),
+            self.credential.take(),
+            User,
+            AvailableBackend,
+        )
+        .hmac_secret(HmacSecretConfig::new_with_uv_only().enable_on_make_credential());
         authenticator.set_make_credentials_with_signature_counter(true);
         let mut client = Client::new(authenticator);
         let origin = ckyh::Url::parse(origin).unwrap();

@@ -95,7 +95,7 @@ rcgen = { version = "0.14", features = ["crypto"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
 cgrd = { git = "https://git.corbet.ch/corbet-libre/cgrd.git", branch = "main", default-features = false }
 futures-util = "0.3"
-passkey = "0.4"
+passkey = { version = "0.6", features = ["rust-crypto"] }
 async-trait = "0.1"
 cvch = { git = "https://git.corbet.ch/corbet-foss/cvch.git", branch = "main" }
 cpns = { git = "https://git.corbet.ch/corbet-libre/cpns.git", branch = "main" }
