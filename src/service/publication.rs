@@ -31,7 +31,11 @@ impl Publication {
     fn check(&self) -> Result<()> {
         let now = self.clock.now();
         let previous = self.observed.fetch_max(now, Ordering::SeqCst);
-        if now < previous || now >= self.deadline.load(Ordering::SeqCst) {
+        if now < previous {
+            crate::refusal::note(crate::refusal::Reason::ClockBehind);
+            self.invalid.store(true, Ordering::SeqCst);
+        } else if now >= self.deadline.load(Ordering::SeqCst) {
+            crate::refusal::note(crate::refusal::Reason::SessionExpired);
             self.invalid.store(true, Ordering::SeqCst);
         }
         if self.invalid.load(Ordering::SeqCst) {

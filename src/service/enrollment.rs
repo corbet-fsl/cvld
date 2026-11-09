@@ -40,7 +40,9 @@ impl Door {
                 .lock()
                 .await
                 .initial_creation(
-                    ctx.token.as_deref().ok_or(Error::Unauthorized)?,
+                    ctx.token
+                        .as_deref()
+                        .ok_or_else(|| crate::refusal::refuse(crate::refusal::Reason::NoToken))?,
                     None,
                     ctx.now,
                     self.inner.clock.as_ref(),
@@ -54,7 +56,9 @@ impl Door {
             .lock()
             .await
             .initial_creation(
-                ctx.token.as_deref().ok_or(Error::Unauthorized)?,
+                ctx.token
+                    .as_deref()
+                    .ok_or_else(|| crate::refusal::refuse(crate::refusal::Reason::NoToken))?,
                 None,
                 ctx.now,
             )
@@ -78,7 +82,9 @@ impl Door {
                 .lock()
                 .await
                 .initial_creation(
-                    ctx.token.as_deref().ok_or(Error::Unauthorized)?,
+                    ctx.token
+                        .as_deref()
+                        .ok_or_else(|| crate::refusal::refuse(crate::refusal::Reason::NoToken))?,
                     Some(request),
                     ctx.now,
                 )
@@ -99,7 +105,10 @@ impl Door {
         // only evidence accepted here is the wallet's own birth genesis evidence (C4), checked
         // below under the wallet key ring.
         let started = std::time::Instant::now();
-        let token = ctx.token.as_deref().ok_or(Error::Unauthorized)?;
+        let token = ctx
+            .token
+            .as_deref()
+            .ok_or_else(|| crate::refusal::refuse(crate::refusal::Reason::NoToken))?;
         // Original Auth -> Global lock ordering, as for holder self-ban.
         let authentication = self.auth(&ctx.host)?;
         let mut auth = authentication.lock().await;

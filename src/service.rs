@@ -699,7 +699,16 @@ impl Door {
     }
     fn current_time(&self, ctx: &Context) -> Result<u64> {
         let now = self.inner.clock.now();
-        if now < ctx.now || ctx.grant.as_ref().is_some_and(|grant| now >= grant.expires) {
+        if now < ctx.now {
+            crate::refusal::note(crate::refusal::Reason::ClockBehind);
+            return Err(Error::Unauthorized);
+        }
+        if let Some(grant) = ctx.grant.as_ref().filter(|grant| now >= grant.expires) {
+            crate::refusal::note_for(
+                crate::refusal::Reason::SessionExpired,
+                &grant.user,
+                &grant.session_id,
+            );
             return Err(Error::Unauthorized);
         }
         Ok(now)
@@ -841,7 +850,9 @@ impl Door {
         let allowed = match action.access {
             Access::Public => true,
             access => {
-                let grant = grant.as_ref().ok_or(Error::Unauthorized)?;
+                let grant = grant
+                    .as_ref()
+                    .ok_or_else(|| crate::refusal::refuse(crate::refusal::Reason::NoToken))?;
                 match access {
                     Access::Authenticated => true,
                     Access::Member => grant.role == Role::Member,

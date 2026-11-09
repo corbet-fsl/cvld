@@ -5,6 +5,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 #[path = "enrollment/provenance.rs"]
 mod provenance;
+#[path = "enrollment/refusal_lines.rs"]
+mod refusal_lines;
 
 fn continuation(ceremony: &str, seed: u8) -> GlobalInitialRegistrationContinue {
     GlobalInitialRegistrationContinue {

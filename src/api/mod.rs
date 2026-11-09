@@ -279,16 +279,21 @@ macro_rules! actions {
                 let body_limit = door.request_body_limit(action(stringify!($name)).expect("registered action"));
                 router = router.route(concat!("/v1/", stringify!($name)), post(
                     |State(door): State<Door>, request: Request| async move {
-                        let action = action(stringify!($name)).expect("registered action");
-                        let source = door.source_of_request(&request);
-                        let _permit = door.admit_source(action, source).await?;
-                        let ctx = door.authorize(action, request.headers()).await?;
-                        let Json(request) = tokio::time::timeout(door.body_timeout(action), Json::<$request>::from_request(request, &())).await.map_err(Error::Invalid.redact())?.map_err(Error::Invalid.redact())?;
-                        let _guard = door.request_guard(action).await;
-                        let ctx = door.complete_context(action, ctx).await?;
-                        let publication = door.publication(action, &ctx);
-                        let response: $response = publication.run(crate::service::at(ctx.now, door.$name(ctx, request))).await?;
-                        Ok::<_, Error>(Json(response))
+                        // A refused `initial_creation` names its refusing check (development gate only).
+                        // Boxed: nesting the route's future inline doubles its size, and debug test
+                        // runtimes overflow their worker stacks.
+                        crate::refusal::scope(stringify!($name), Box::pin(async move {
+                            let action = action(stringify!($name)).expect("registered action");
+                            let source = door.source_of_request(&request);
+                            let _permit = door.admit_source(action, source).await?;
+                            let ctx = door.authorize(action, request.headers()).await?;
+                            let Json(request) = tokio::time::timeout(door.body_timeout(action), Json::<$request>::from_request(request, &())).await.map_err(Error::Invalid.redact())?.map_err(Error::Invalid.redact())?;
+                            let _guard = door.request_guard(action).await;
+                            let ctx = door.complete_context(action, ctx).await?;
+                            let publication = door.publication(action, &ctx);
+                            let response: $response = publication.run(crate::service::at(ctx.now, door.$name(ctx, request))).await?;
+                            Ok::<_, Error>(Json(response))
+                        })).await
                     }
                 ).layer(DefaultBodyLimit::max(body_limit)));
             } )*

@@ -55,6 +55,8 @@ pub mod payments;
 #[cfg(feature = "server")]
 pub mod purge;
 #[cfg(feature = "server")]
+mod refusal;
+#[cfg(feature = "server")]
 pub mod registry;
 #[cfg(feature = "server")]
 pub mod service;

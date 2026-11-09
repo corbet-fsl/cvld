@@ -61,6 +61,13 @@ The `development-gate` Cargo feature enables the synthetic gate for development
 builds. A release build with that feature fails compilation. Default release
 schemas, routes, commands and tools omit it.
 
+Under the same feature (toy and test services only) a request to `initial_creation`
+that ends in 401 writes one stderr line naming the check that refused it:
+`refusal action=initial_creation reason=<reason> member=<h12|-> session=<h12|->`, where
+the ids are 12 hex digits of a domain-separated SHA-256 of the member UUID and the
+session id (`src/refusal.rs`). Tokens, keys, credentials and bodies never reach it, and
+the response is unchanged. A default build writes nothing.
+
 ## Runtime privacy and configuration
 
 No logging/tracing subscriber, request logger, member metrics or identifier labels

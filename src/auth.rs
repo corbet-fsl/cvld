@@ -420,12 +420,34 @@ impl Auth {
         })
     }
     pub async fn authenticate(&mut self, token: &str, now: u64) -> Result<Grant> {
+        // Before `prune` drops it: did this session expire, or did another member end its family?
+        let held = self.sessions.get(token).map(|session| {
+            (
+                session.grant.user,
+                session.grant.session_id,
+                session.grant.expires,
+            )
+        });
         self.prune(now);
         let grant = self
             .sessions
             .get(token)
             .map(|session| session.grant.clone())
-            .ok_or(Error::Unauthorized)?;
+            .ok_or_else(|| {
+                use crate::refusal::{Reason, note_for, refuse};
+                match held {
+                    Some((user, id, expires)) => {
+                        let reason = if expires <= now {
+                            Reason::SessionExpired
+                        } else {
+                            Reason::FamilyEnded
+                        };
+                        note_for(reason, &user, &id);
+                        Error::Unauthorized
+                    }
+                    None => refuse(Reason::SessionMissing),
+                }
+            })?;
         let passkeys = self.passkeys.clone();
         let user = grant.user;
         let credential = grant.credential.clone();
@@ -438,8 +460,13 @@ impl Auth {
         })
         .await
         .map_err(Error::Unavailable.redact())?
-        .map_err(Error::Unauthorized.redact())?;
+        .map_err(|_| crate::refusal::refuse(crate::refusal::Reason::PasskeyStore))?;
         if !live {
+            crate::refusal::note_for(
+                crate::refusal::Reason::CredentialRevoked,
+                &grant.user,
+                &grant.session_id,
+            );
             self.logout(token);
             return Err(Error::Unauthorized);
         }

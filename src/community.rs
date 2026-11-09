@@ -801,6 +801,16 @@ impl CommunityService {
         token: &str,
         now: u64,
     ) -> Result<(Grant, Arc<ckyh::Authentication>)> {
+        if let Some(session) = self.sessions.get(token)
+            && session.grant.expires <= now
+        {
+            // `prune` drops it below: name the expiry, not a missing session.
+            crate::refusal::note_for(
+                crate::refusal::Reason::SessionExpired,
+                &session.grant.user,
+                &session.grant.session_id,
+            );
+        }
         self.prune(now);
         self.authenticate_current(token, now).await
     }
@@ -809,27 +819,42 @@ impl CommunityService {
         token: &str,
         now: u64,
     ) -> Result<(Grant, Arc<ckyh::Authentication>)> {
+        use crate::refusal::{Reason, note_for, refuse};
         let session = self
             .sessions
             .get(token)
-            .filter(|session| {
-                !session.garden && session.started <= now && now < session.grant.expires
-            })
-            .ok_or(Error::Unauthorized)?;
+            .ok_or_else(|| refuse(Reason::SessionMissing))?;
+        let (user, id) = (&session.grant.user, &session.grant.session_id);
+        let refused = if session.garden {
+            Some(Reason::GardenSession)
+        } else if session.started > now {
+            Some(Reason::SessionNotStarted)
+        } else if now >= session.grant.expires {
+            Some(Reason::SessionExpired)
+        } else {
+            None
+        };
+        if let Some(reason) = refused {
+            note_for(reason, user, id);
+            return Err(Error::Unauthorized);
+        }
         let live = if session.grant.origin == ckyh::Origin::DeviceKey {
             self.facade
                 .membership()
                 .device_session_is_active(&session.authentication)
                 .await
+                .inspect_err(|_| note_for(Reason::MembershipCheck, user, id))
                 .map_err(Error::Unauthorized.redact_membership_at("community.rs:36"))?
         } else {
             self.facade
                 .membership()
                 .session_is_active(&session.authentication, &session.grant.credential)
                 .await
+                .inspect_err(|_| note_for(Reason::MembershipCheck, user, id))
                 .map_err(Error::Unauthorized.redact_membership_at("community.rs:37"))?
         };
         if !live {
+            note_for(Reason::SessionInactive, user, id);
             return Err(Error::Unauthorized);
         }
         Ok((session.grant.clone(), session.authentication.clone()))

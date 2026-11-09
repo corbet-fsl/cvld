@@ -14,16 +14,23 @@ impl Clock for FixedClock {
     }
 }
 pub(super) fn fresh(clock: &dyn Clock, floor: u64, until: u64, deadline: Instant) -> Result<u64> {
+    use crate::refusal::{Reason, refuse};
     let now = clock.now();
-    if now < floor
-        || now >= until
-        || Instant::now() >= deadline
-        || i64::try_from(now)
-            .ok()
-            .and_then(|n| chrono::DateTime::from_timestamp(n, 0))
-            .is_none()
+    if now < floor {
+        return Err(refuse(Reason::ClockBehind));
+    }
+    if now >= until {
+        return Err(refuse(Reason::SessionExpired));
+    }
+    if Instant::now() >= deadline {
+        return Err(refuse(Reason::DeadlinePassed));
+    }
+    if i64::try_from(now)
+        .ok()
+        .and_then(|n| chrono::DateTime::from_timestamp(n, 0))
+        .is_none()
     {
-        return Err(Error::Unauthorized);
+        return Err(refuse(Reason::TimeInvalid));
     }
     Ok(now)
 }

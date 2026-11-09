@@ -1,5 +1,6 @@
 //! Original enrollment provenance; no root, signing or ordinary use capability.
 use super::*;
+use crate::refusal::{Reason, note_for};
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests;
@@ -58,7 +59,9 @@ impl CommunityService {
             let until = grant.expires.min(snapshot.valid_until());
             crate::service::publication::expires_at(until)?;
             now = self.initial_time(now, until)?;
-            let expires_at = until.try_into().map_err(Error::Unauthorized.redact())?;
+            let expires_at = until
+                .try_into()
+                .map_err(|_| crate::refusal::refuse(crate::refusal::Reason::TimeInvalid))?;
             let writing = bind.is_some();
             // A device-key member's first bind records its genesis stamp before the CAS.
             let stamp_use = match &bind {
@@ -104,7 +107,11 @@ impl CommunityService {
             // withholds the receipt; it cannot establish that no write occurred.
             let result = async {
                 now = self.initial_time(now.max(initial_floor(state.observed_at())?), until)?;
-                if !state.is_current(now.try_into().map_err(Error::Unauthorized.redact())?) {
+                if !state.is_current(
+                    now.try_into()
+                        .map_err(|_| crate::refusal::refuse(crate::refusal::Reason::TimeInvalid))?,
+                ) {
+                    note_for(Reason::StateNotCurrent, &grant.user, &grant.session_id);
                     return Err(Error::Unauthorized);
                 }
                 let completed = self
@@ -118,15 +125,25 @@ impl CommunityService {
                         .max(initial_floor(state.observed_at())?),
                     until,
                 )?;
-                let current = self.sessions.get(bearer).ok_or(Error::Unauthorized)?;
+                let current = self
+                    .sessions
+                    .get(bearer)
+                    .ok_or_else(|| crate::refusal::refuse(Reason::SessionChanged))?;
                 if current.grant.session_id != grant.session_id
                     || current.grant.user != grant.user
                     || current.grant.credential != grant.credential
                     || current.grant.expires != grant.expires
                     || current.grant.role != grant.role
                     || !Arc::ptr_eq(&current.authentication, &authentication)
-                    || !state.is_current(now.try_into().map_err(Error::Unauthorized.redact())?)
                 {
+                    note_for(Reason::SessionChanged, &grant.user, &grant.session_id);
+                    return Err(Error::Unauthorized);
+                }
+                if !state.is_current(
+                    now.try_into()
+                        .map_err(|_| crate::refusal::refuse(crate::refusal::Reason::TimeInvalid))?,
+                ) {
+                    note_for(Reason::StateNotCurrent, &grant.user, &grant.session_id);
                     return Err(Error::Unauthorized);
                 }
                 Ok(InitialCreationResponse {
@@ -146,13 +163,20 @@ impl CommunityService {
 
     fn initial_time(&self, floor: u64, until: u64) -> Result<u64> {
         let now = self.clock.now();
-        if now < floor || now >= until || i64::try_from(now).is_err() {
-            return Err(Error::Unauthorized);
+        if now < floor {
+            return Err(crate::refusal::refuse(Reason::ClockBehind));
+        }
+        if now >= until {
+            return Err(crate::refusal::refuse(Reason::SessionExpired));
+        }
+        if i64::try_from(now).is_err() {
+            return Err(crate::refusal::refuse(Reason::TimeInvalid));
         }
         Ok(now)
     }
 }
 
 fn initial_floor(now: i64) -> Result<u64> {
-    now.try_into().map_err(Error::Unauthorized.redact())
+    now.try_into()
+        .map_err(|_| crate::refusal::refuse(Reason::TimeInvalid))
 }

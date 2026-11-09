@@ -13,26 +13,26 @@ impl Auth {
         if self.role != Role::Member || self.operator.is_some() {
             return Err(Error::Forbidden);
         }
+        use crate::refusal::{Reason, note_for, refuse};
         let started = Instant::now();
         let admitted = self
             .sessions
             .get(token)
-            .ok_or(Error::Unauthorized)?
+            .ok_or_else(|| refuse(Reason::SessionMissing))?
             .grant
             .clone();
+        let remaining = admitted.expires.checked_sub(admitted_at).ok_or_else(|| {
+            note_for(Reason::SessionExpired, &admitted.user, &admitted.session_id);
+            Error::Unauthorized
+        })?;
         let deadline = started
-            .checked_add(Duration::from_secs(
-                admitted
-                    .expires
-                    .checked_sub(admitted_at)
-                    .ok_or(Error::Unauthorized)?,
-            ))
-            .ok_or(Error::Unauthorized)?;
+            .checked_add(Duration::from_secs(remaining))
+            .ok_or_else(|| refuse(Reason::TimeInvalid))?;
         let grant = self.authenticate(token, admitted_at).await?;
         let original = self
             .sessions
             .get(token)
-            .ok_or(Error::Unauthorized)?
+            .ok_or_else(|| refuse(Reason::SessionChanged))?
             .authentication
             .clone();
         let now = fresh(clock, admitted_at, grant.expires, deadline)?;
@@ -66,13 +66,17 @@ impl Auth {
         let result = async {
             let now = fresh(clock, now, grant.expires, deadline)?;
             let current = self.authenticate(token, now).await?;
-            let session = self.sessions.get(token).ok_or(Error::Unauthorized)?;
+            let session = self
+                .sessions
+                .get(token)
+                .ok_or_else(|| refuse(Reason::SessionChanged))?;
             if current.user != grant.user
                 || current.credential != grant.credential
                 || current.session_id != grant.session_id
                 || current.expires != grant.expires
                 || !Arc::ptr_eq(&session.authentication, &original)
             {
+                note_for(Reason::SessionChanged, &grant.user, &grant.session_id);
                 return Err(Error::Unauthorized);
             }
             let checked_at = fresh(clock, now, grant.expires, deadline)?;
