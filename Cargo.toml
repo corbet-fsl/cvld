@@ -9,21 +9,25 @@ publish = false
 
 [features]
 default = ["server"]
-server = ["client-http", "dep:cpmt", "dep:crpt", "dep:x402-types", "dep:cmty", "dep:cvch", "dep:clbs", "dep:cphn", "dep:cmbx", "dep:cfbk", "dep:ed25519-dalek", "dep:ed25519-dalek-v2", "dep:cblc", "dep:czkp", "dep:cssr", "dep:cpsd", "dep:crlt", "dep:csgn", "dep:cchr", "dep:hpke", "dep:cgbl", "dep:ckyh", "dep:governor", "dep:axum", "dep:tower-http", "dep:utoipa", "dep:schemars", "dep:clap", "dep:rmcp", "dep:tokio", "dep:uuid", "dep:chrono", "dep:rand", "dep:subtle", "dep:hkdf", "dep:tower", "dep:openssl"]
-client = ["dep:jsonschema", "dep:blind-rsa-signatures"]
-client-http = ["client", "dep:reqwest", "dep:url", "dep:rustls"]
-client-ohttp = ["client", "dep:url", "dep:cblv", "cblv/client"]
-client-browser = ["client", "dep:url", "dep:gloo-timers", "dep:web-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys"]
-development-gate = ["server", "cgbl/development-gate"]
+server = ["client-http", "cvld-client/server", "dep:cpmt", "dep:crpt", "dep:x402-types", "dep:cmty", "dep:cvch", "dep:clbs", "dep:cphn", "dep:cmbx", "dep:cfbk", "dep:ed25519-dalek", "dep:ed25519-dalek-v2", "dep:cblc", "dep:czkp", "dep:cssr", "dep:cpsd", "dep:crlt", "dep:csgn", "dep:cchr", "dep:hpke", "dep:cgbl", "dep:ckyh", "dep:governor", "dep:axum", "dep:tower-http", "dep:utoipa", "dep:schemars", "dep:clap", "dep:rmcp", "dep:tokio", "dep:uuid", "dep:chrono", "dep:rand", "dep:subtle", "dep:hkdf", "dep:tower", "dep:openssl"]
+# The client features select those of `cvld-client` (callers depend on `cvld-client` itself;
+# these keep this repository's own CI and wasm browser test reaching its feature sets).
+client = ["cvld-client/client"]
+client-http = ["client", "cvld-client/client-http", "dep:reqwest", "dep:url", "dep:rustls"]
+client-ohttp = ["client", "cvld-client/client-ohttp"]
+client-browser = ["client", "cvld-client/client-browser"]
+development-gate = ["server", "cgbl/development-gate", "cvld-client/development-gate"]
 # Contract-only view of the development action for clients; links none of the server.
-development-gate-client = ["client"]
+development-gate-client = ["client", "cvld-client/development-gate-client"]
 # Oblivious HTTP gateway in front of the door handlers (off by default).
 ohttp = ["server", "dep:cblv", "cblv/gateway"]
 
 [dependencies]
+# The client-facing contract (address, client, creation-token protocol, device session, error);
+# re-exported unchanged, so the server and every caller keep the `cvld::` paths.
+cvld-client = { path = "client", default-features = false }
 cblv = { git = "https://git.corbet.ch/corbet-libre/cblv.git", branch = "main", optional = true }
 url = { version = "2.5", optional = true }
-jsonschema = { version = "0.58", default-features = false, optional = true }
 cmty = { git = "https://git.corbet.ch/corbet-fsl/cmty.git", branch = "main", optional = true }
 cvch = { git = "https://git.corbet.ch/corbet-foss/cvch.git", branch = "main", optional = true }
 cpmt = { git = "https://git.corbet.ch/corbet-libre/cpmt.git", branch = "main", optional = true }
@@ -54,9 +58,6 @@ rmcp = { version = "3.5.0", features = ["server", "client", "transport-io", "tra
 reqwest = { version = "0.12.28", default-features = false, features = ["json", "rustls-tls-webpki-roots-no-provider"], optional = true }
 rustls = { version = "0.23", default-features = false, features = ["ring"], optional = true }
 serde = { version = "1", features = ["derive"] }
-any_ascii = "0.3"
-blind-rsa-signatures = { version = "0.18", default-features = false, optional = true }
-rustrict = { version = "0.7", default-features = false, features = ["censor"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"], optional = true }
 uuid = { version = "1", features = ["v4", "serde"], optional = true }
@@ -76,15 +77,6 @@ name = "cvld"
 path = "src/main.rs"
 required-features = ["server"]
 
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-# The blind-signature client draws its blinding factor from the browser.
-getrandom = { version = "0.4", features = ["wasm_js"] }
-gloo-timers = { version = "0.3", optional = true }
-web-sys = { version = "0.3", features = ["AbortController", "AbortSignal", "Headers", "Request", "RequestInit", "RequestMode", "Response", "Window", "ReadableStream", "ReadableStreamDefaultReader", "RequestRedirect", "RequestCredentials", "RequestCache", "ReferrerPolicy"], optional = true }
-wasm-bindgen = { version = "0.2", optional = true }
-wasm-bindgen-futures = { version = "0.4", optional = true }
-js-sys = { version = "0.3", optional = true }
-
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "0.3.79"
 gloo-net = { version = "0.7", default-features = false, features = ["http", "json"] }
@@ -92,6 +84,7 @@ gloo-net = { version = "0.7", default-features = false, features = ["http", "jso
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 openssl = "0.10"
 tower = { version = "0.5", features = ["util"] }
+blind-rsa-signatures = { version = "0.18", default-features = false }
 crgs = { git = "https://git.corbet.ch/corbet-libre/crgs.git", branch = "main" }
 cvfy = { git = "https://git.corbet.ch/corbet-foss/cvfy.git", branch = "main" }
 rcgen = { version = "0.14", features = ["crypto"] }

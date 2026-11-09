@@ -4,10 +4,11 @@ Work in a lane (`~/agents/scratch/lane-new <lane>`); never edit `~/agents/scratc
 Run commands from the lane root (`<lane>/ws`); `<lane>` below is your lane name.
 
 Build and test (quote the verdict line, never infer from a pipe):
-- `~/agents/scratch/cbuild <lane> test -p cvld` — lib `121 passed`, second binary
-  `11 passed`, integration `56 passed` + 5 pre-existing `native_account_factory`
-  failures (fail identically on clean main, `tests/support/mod.rs:139`)
-- `~/agents/scratch/cbuild <lane> fmt -p cvld -- --check` — must be clean
+- `~/agents/scratch/cbuild <lane> test -p cvld -p cvld-client` — the client crate
+  (`client/`, package `cvld-client`) holds the client unit tests; the integration
+  binary has 5 pre-existing `native_account_factory` failures without the G5 config
+  (fail identically on clean main, `tests/support/mod.rs:139`)
+- `~/agents/scratch/cbuild <lane> fmt -p cvld -p cvld-client -- --check` — must be clean
 - Full gate (clippy matrix, wasm, coverage, generated-client sync, advisories)
   runs in CI only: `.ci/verify.sh` via `bash .ci/run-cached.sh`.
 
@@ -21,6 +22,11 @@ Invariants (rule -> enforcing test):
   -> `build.rs` panic + `tests/cases/build_policy.rs`, `tests/cases/production.rs`
 - Generated OpenAPI/TS client committed and in sync; portable client has no server graph
   -> CI `git diff --exit-code -- docs/openapi.json clients/ts/schema.d.ts`; `tests/cases/client_contract.rs`
+- The client (package `cvld-client`, dir `client/`) reads the committed contract of its feature
+  set, never the live registry; each copy equals the live `openapi()` byte for byte
+  -> `src/api/contract_tests.rs`. After an API change regenerate both, in the cvld checkout:
+  `cargo run --locked -- openapi > docs/openapi.json`
+  `cargo run --locked --features development-gate -- openapi > docs/openapi.development.json`
 - Hostile input refused (`deny_unknown_fields`, duplicate keys, secret config)
   -> `tests/cases/root_config.rs`, `tests/unit/client_json.rs`
 - Global/community DB, keys, auth isolated; DB identity refuses rebinding

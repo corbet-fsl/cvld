@@ -1,0 +1,58 @@
+[package]
+name = "cvld-client"
+version = "0.2.0"
+edition = "2024"
+license = "FSL-1.1-ALv2"
+repository = "https://git.corbet.ch/corbet-fsl/cvld.git"
+description = "The client-facing contract of the cvld door: wire types and the generated-contract client"
+publish = false
+
+[features]
+default = ["client-http"]
+client = ["dep:jsonschema", "dep:blind-rsa-signatures"]
+client-http = ["client", "dep:reqwest", "dep:url", "dep:rustls"]
+client-ohttp = ["client", "dep:url", "dep:cblv", "cblv/client"]
+client-browser = ["client", "dep:url", "dep:gloo-timers", "dep:web-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys"]
+# Contract-only view of the development action for clients; links none of the server.
+development-gate-client = ["client"]
+# The door's own development build (enabled by cvld's `development-gate`): the contract
+# generated with that feature set and the cause prints of `redact_at`/`noted`.
+development-gate = []
+# The door's trait impls on the contract types (enabled by cvld's `server`): OpenAPI schemas
+# and HTTP responses of the errors.
+server = ["dep:axum", "dep:utoipa"]
+
+[dependencies]
+cblv = { git = "https://git.corbet.ch/corbet-libre/cblv.git", branch = "main", optional = true }
+url = { version = "2.5", optional = true }
+jsonschema = { version = "0.58", default-features = false, optional = true }
+axum = { version = "0.8.9", optional = true }
+utoipa = { version = "6.0.0", optional = true }
+reqwest = { version = "0.12.28", default-features = false, features = ["json", "rustls-tls-webpki-roots-no-provider"], optional = true }
+rustls = { version = "0.23", default-features = false, features = ["ring"], optional = true }
+serde = { version = "1", features = ["derive"] }
+any_ascii = "0.3"
+blind-rsa-signatures = { version = "0.18", default-features = false, optional = true }
+rustrict = { version = "0.7", default-features = false, features = ["censor"] }
+serde_json = "1"
+thiserror = "2"
+zeroize = "1.9"
+sha2 = "0.10"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+# The blind-signature client draws its blinding factor from the browser.
+getrandom = { version = "0.4", features = ["wasm_js"] }
+gloo-timers = { version = "0.3", optional = true }
+web-sys = { version = "0.3", features = ["AbortController", "AbortSignal", "Headers", "Request", "RequestInit", "RequestMode", "Response", "Window", "ReadableStream", "ReadableStreamDefaultReader", "RequestRedirect", "RequestCredentials", "RequestCache", "ReferrerPolicy"], optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+js-sys = { version = "0.3", optional = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+# The real loopback TLS handshake of the product HTTPS client (client_http.rs).
+tokio = { version = "1", features = ["full"] }
+rcgen = { version = "0.14", features = ["crypto"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+
+[lints.rust]
+unsafe_code = "forbid"

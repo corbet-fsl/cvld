@@ -499,3 +499,6 @@ pub fn openapi_json() -> String {
     value.sort_all_objects();
     serde_json::to_string_pretty(&value).expect("OpenAPI is serializable")
 }
+
+#[cfg(test)]
+mod contract_tests;

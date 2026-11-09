@@ -1,7 +1,7 @@
 //! Role checks are generated from the action registry before these handlers run.
 use crate::{
     api::*,
-    error::{Error, Result},
+    error::{Error, MembershipRedact, Result},
     service::{Context, Door},
 };
 use cmty::{cplc, cplc::crbk};

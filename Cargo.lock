@@ -2178,7 +2178,6 @@ dependencies = [
 name = "cvld"
 version = "0.2.0"
 dependencies = [
- "any_ascii",
  "async-trait",
  "axum",
  "blake3",
@@ -2207,18 +2206,15 @@ dependencies = [
  "cssr",
  "cvch",
  "cvfy",
+ "cvld-client",
  "czkp",
  "ed25519-dalek 2.2.0",
  "ed25519-dalek 3.0.0",
  "futures-util",
- "getrandom 0.4.3",
  "gloo-net",
- "gloo-timers",
  "governor",
  "hkdf 0.12.4",
  "hpke",
- "js-sys",
- "jsonschema",
  "openssl",
  "passkey",
  "rand 0.8.8",
@@ -2226,7 +2222,6 @@ dependencies = [
  "reqwest 0.12.28",
  "rmcp",
  "rustls",
- "rustrict",
  "schemars 1.2.2",
  "serde",
  "serde_json",
@@ -2241,12 +2236,36 @@ dependencies = [
  "url",
  "utoipa",
  "uuid",
- "wasm-bindgen",
- "wasm-bindgen-futures",
  "wasm-bindgen-test",
- "web-sys",
  "webauthn-authenticator-rs",
  "x402-types",
+ "zeroize",
+]
+
+[[package]]
+name = "cvld-client"
+version = "0.2.0"
+dependencies = [
+ "any_ascii",
+ "axum",
+ "blind-rsa-signatures",
+ "cblv",
+ "getrandom 0.4.3",
+ "gloo-timers",
+ "js-sys",
+ "jsonschema",
+ "reqwest 0.12.28",
+ "rustls",
+ "rustrict",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "thiserror 2.0.21",
+ "url",
+ "utoipa",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
  "zeroize",
 ]
 

@@ -29,6 +29,20 @@ python3 .github/check-first-party.py
 python3 .github/test-source-coverage.py
 node --test .github/test-auto-merge.mjs
 
+# cvld-client (client/) is a path package of this repository, not a workspace member (a
+# [workspace] here would take cvld out of the cmtymeet integration workspace), so cargo can
+# neither test it nor choose its features from this root. Its own steps run with client/ as
+# the root on a copy of this repository's lock: cargo only drops the entries the client does
+# not use, and .ci/client-lock.py requires every remaining entry to equal this lock's.
+client_cargo() {
+    local sub=$1 status=0
+    shift
+    cp Cargo.lock client/Cargo.lock
+    CARGO_TARGET_DIR=target/client cargo "$sub" --manifest-path client/Cargo.toml "$@" || status=$?
+    python3 -B .ci/client-lock.py client/Cargo.lock Cargo.lock || return 1
+    return "$status"
+}
+
 # --- check job (ubuntu-24.04, CARGO_TERM_COLOR=never) ---
 export CARGO_TERM_COLOR=never
 rustc --version
@@ -37,23 +51,30 @@ bash .ci/update-our-crates.sh
 cargo metadata --locked --format-version 1 > dependency-metadata.json
 node .github/check-pins.mjs dependency-metadata.json
 cargo fmt --all --check
+cargo fmt --manifest-path client/Cargo.toml --check
 cargo clippy --locked --all-targets --features development-gate -- -D warnings
 cargo clippy --locked --all-targets --features development-gate,ohttp -- -D warnings
 cargo clippy --locked --no-default-features --features client --lib --target wasm32-unknown-unknown -- -D warnings
+client_cargo clippy --all-targets --features development-gate,client-ohttp,server -- -D warnings
+client_cargo clippy --no-default-features --features client,client-browser --lib --target wasm32-unknown-unknown -- -D warnings
 python3 -B .ci/test-time-controls.py
 python3 -B .ci/time-controls.py
 cargo run --locked -- openapi > docs/openapi.json
+cargo run --locked --features development-gate -- openapi > docs/openapi.development.json
 npm ci --prefix clients/ts
 npm run generate --prefix clients/ts
-# The client validates every response against the committed contract: a stale
+# The client validates every response against the committed contract of its feature set
+# (src/api/contract_tests.rs holds each equal to the live registry): a stale
 # document would otherwise surface as a silent reconcile in consumers.
-git ls-files --error-unmatch docs/openapi.json clients/ts/schema.d.ts
-git diff --exit-code -- docs/openapi.json clients/ts/schema.d.ts
+git ls-files --error-unmatch docs/openapi.json docs/openapi.development.json clients/ts/schema.d.ts
+git diff --exit-code -- docs/openapi.json docs/openapi.development.json clients/ts/schema.d.ts
 npm run check --prefix clients/ts
 npm test --prefix clients/ts
 # The client-only development feature must stay free of the server graph.
-cargo test --locked --lib --no-default-features --features client-http,development-gate-client client::
+client_cargo test --lib --no-default-features --features client-http,development-gate-client client::
 if cargo tree --locked --no-default-features --features client-http,development-gate-client -e normal | grep -E 'libsql|cpsd|axum'; then exit 1; fi
+client_cargo tree --no-default-features --features client-http,client-ohttp,development-gate-client -e normal > client-tree.txt
+if grep -E 'libsql|cpsd|axum' client-tree.txt; then exit 1; fi
 cargo test --locked --lib --features development-gate,ohttp ohttp::
 # Native accounting operator configuration for community alpha at the suite's fixed NOW, assembled
 # from the write-once retained cblc artifacts by the reviewed assembler. Never hand-made.
@@ -63,15 +84,19 @@ python3 -B tools/g5-account-config.py --community alpha --now 1800000000 --out "
 # shellcheck disable=SC1090
 source "$g5_config.env"
 cargo test --locked --features development-gate --no-fail-fast
+client_cargo test --features development-gate --no-fail-fast
 cargo test --locked --release
+client_cargo test --release
 if cargo check --locked --release --no-default-features --features client,development-gate-client > release-client-gate.log 2>&1; then exit 1; fi
 grep -q 'development-gate is forbidden in release builds' release-client-gate.log
+if client_cargo check --release --no-default-features --features client,development-gate-client > release-client-crate-gate.log 2>&1; then exit 1; fi
+grep -q 'development-gate is forbidden in release builds' release-client-crate-gate.log
 if cargo check --locked --release --features development-gate > release-gate.log 2>&1; then exit 1; fi
 grep -q 'development-gate is forbidden in release builds' release-gate.log
 if CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS=true cargo check --locked --release --features development-gate > release-debug-gate.log 2>&1; then exit 1; fi
 grep -q 'development-gate is forbidden in release builds' release-debug-gate.log
-git ls-files --error-unmatch docs/openapi.json clients/ts/schema.d.ts
-git diff --exit-code -- docs/openapi.json clients/ts/schema.d.ts
+git ls-files --error-unmatch docs/openapi.json docs/openapi.development.json clients/ts/schema.d.ts
+git diff --exit-code -- docs/openapi.json docs/openapi.development.json clients/ts/schema.d.ts
 
 # --- toy job (ubuntu-24.04, CARGO_TERM_COLOR=never) ---
 export CARGO_HTTP_USER_AGENT=cvld-toy-ci

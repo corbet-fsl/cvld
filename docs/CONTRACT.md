@@ -506,9 +506,17 @@ The vault-origin software test runs that top-level case; it is not iframe proof.
 
 ## Portable owner client
 
-Feature `client` exposes the original generated OpenAPI operations and a portable
-Client/Transport forwarding port without the server dependency graph. `server`
-remains the default feature and binary requirement. `client-http` reuses the
+The client is the package `cvld-client` (`client/` in this repository; callers depend on
+it, cvld depends on it and re-exports its `address`, `client`, `creation_token`,
+`device_session` and `error` modules unchanged). Feature `client` exposes the original
+generated OpenAPI operations and a portable Client/Transport forwarding port without the
+server dependency graph. `server` remains cvld's default feature and binary requirement.
+Every build of the client reads a committed generated contract, never the live registry:
+`docs/openapi.json`, or `docs/openapi.development.json` when cvld's `development-gate` is on.
+`src/api/contract_tests.rs` holds each copy byte-equal to the live `openapi()` of its feature
+set; after an API change regenerate both in the cvld checkout:
+`cargo run --locked -- openapi > docs/openapi.json` and
+`cargo run --locked --features development-gate -- openapi > docs/openapi.development.json`. `client-http` reuses the
 native HttpClient that the existing door CLI tests exercise. HTTPS binds the
 host to the selected origin; loopback HTTP supports the real service fixtures.
 The transport disables redirects and proxies, applies a deadline and a 16 MiB

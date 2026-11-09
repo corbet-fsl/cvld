@@ -8,7 +8,6 @@ compile_error!("development-gate is forbidden in release builds");
 
 #[cfg(feature = "server")]
 pub mod accounting;
-pub mod address;
 #[cfg(feature = "server")]
 pub mod api;
 #[cfg(feature = "server")]
@@ -17,8 +16,6 @@ mod auth;
 mod bucket;
 #[cfg(feature = "server")]
 pub mod cli;
-#[cfg(feature = "client")]
-pub mod client;
 #[cfg(feature = "server")]
 mod community;
 #[cfg(feature = "server")]
@@ -27,11 +24,11 @@ mod community_actions;
 pub mod config;
 #[cfg(feature = "server")]
 pub mod contact_gates;
-#[cfg(feature = "client")]
+#[cfg(feature = "server")]
 pub mod creation_token;
 #[cfg(feature = "server")]
 mod device_registry;
-pub mod device_session;
+#[cfg(feature = "server")]
 pub mod error;
 #[cfg(feature = "server")]
 mod genesis_store;
@@ -63,6 +60,15 @@ pub mod service;
 mod stamp_uses;
 #[cfg(feature = "server")]
 mod step_up;
+
+// The client-facing contract lives in `cvld-client`; its modules keep their `cvld::` paths.
+#[cfg(feature = "client")]
+pub use cvld_client::client;
+#[cfg(all(feature = "client", not(feature = "server")))]
+pub use cvld_client::creation_token;
+#[cfg(not(feature = "server"))]
+pub use cvld_client::error;
+pub use cvld_client::{address, device_session};
 
 #[cfg(test)]
 extern crate self as cvld;

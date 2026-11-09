@@ -1,8 +1,8 @@
 //! Fixed whole-object resource budget, independent of record verification.
 use crate::error::{Error, Result};
 
-pub(crate) const PATH: &str = "/v1/account_record_object";
-pub(crate) const RESOURCE: &str = "account-record-object";
+pub const PATH: &str = "/v1/account_record_object";
+pub const RESOURCE: &str = "account-record-object";
 // Original czkp::record::MAX_DOWNLOAD_BYTES. Client-only builds intentionally
 // do not import proof owners; the server checks the maintained owner constant.
 pub(crate) const MAXIMUM: usize = 64 * 1024 * 1024;

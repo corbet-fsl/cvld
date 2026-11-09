@@ -46,17 +46,9 @@ impl<W: Wire> OhttpClient<W> {
     }
 
     pub async fn call(&self, name: &str, request: Value) -> Result<Value> {
-        let known = {
-            #[cfg(feature = "server")]
-            {
-                crate::api::action(name).is_some()
-            }
-            #[cfg(not(feature = "server"))]
-            {
-                super::action(name).is_some()
-            }
-        };
-        if !known {
+        // The committed contract of this build equals the live registry; cvld's
+        // `contract_equals_live_registry` tests enforce it in every feature set.
+        if super::action(name).is_none() {
             return Err(Error::Invalid);
         }
         let body = serde_json::to_vec(&request).map_err(Error::Invalid.redact())?;

@@ -3,7 +3,7 @@ use crate::{
     api::*,
     auth::{Grant, token},
     config::{CommunityConfig, Config},
-    error::{Error, Result},
+    error::{Error, MembershipRedact, Result},
     service::Clock,
 };
 use cmty::cplc::crbk;

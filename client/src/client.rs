@@ -6,7 +6,8 @@ use serde_json::{Map, Value};
 use std::{collections::BTreeMap, future::Future, sync::LazyLock};
 
 #[path = "client_record.rs"]
-pub(crate) mod record;
+#[doc(hidden)]
+pub mod record;
 
 #[cfg(any(
     feature = "client-http",
@@ -26,7 +27,8 @@ pub use http::HttpClient;
 /// must be selected before a client is built. Keep an embedding application's
 /// provider; otherwise pick the maintained ring provider.
 #[cfg(all(feature = "client-http", not(target_arch = "wasm32")))]
-pub(crate) fn install_crypto_provider() {
+#[doc(hidden)]
+pub fn install_crypto_provider() {
     if rustls::crypto::CryptoProvider::get_default().is_none() {
         let _ = rustls::crypto::ring::default_provider().install_default();
     }
@@ -87,26 +89,33 @@ fn decode_response(name: &str, status: u16, body: &[u8]) -> Result<Value> {
     Ok(value)
 }
 
+/// The committed generated contract of this build. A server build reads the copy
+/// generated with its own feature set; cvld's `contract_equals_live_registry`
+/// tests require each committed copy to equal its live `api::openapi()` byte for byte.
+#[cfg(not(feature = "development-gate"))]
+const COMMITTED: &str = include_str!("../../docs/openapi.json");
+#[cfg(feature = "development-gate")]
+const COMMITTED: &str = include_str!("../../docs/openapi.development.json");
+
 static DOCUMENT: LazyLock<Value> = LazyLock::new(|| {
-    #[cfg(feature = "server")]
-    {
-        serde_json::to_value(crate::api::openapi()).expect("the owner contract is serializable")
-    }
-    #[cfg(not(feature = "server"))]
-    {
-        #[allow(unused_mut)]
-        let mut document: Value = serde_json::from_str(include_str!("../docs/openapi.json"))
-            .expect("the checked generated door contract is JSON");
-        #[cfg(feature = "development-gate-client")]
-        add_development_gate(&mut document);
-        document
-    }
+    #[allow(unused_mut)]
+    let mut document: Value =
+        serde_json::from_str(COMMITTED).expect("the checked generated door contract is JSON");
+    #[cfg(all(
+        feature = "development-gate-client",
+        not(any(feature = "server", feature = "development-gate"))
+    ))]
+    add_development_gate(&mut document);
+    document
 });
 
 /// The checked contract never contains the development action. Client-only
 /// development builds derive it from `logout`, which has the identical empty
 /// request and response, and replace exactly the server's declared metadata.
-#[cfg(all(feature = "development-gate-client", not(feature = "server")))]
+#[cfg(all(
+    feature = "development-gate-client",
+    not(any(feature = "server", feature = "development-gate"))
+))]
 fn add_development_gate(document: &mut Value) {
     let paths = document
         .get_mut("paths")
@@ -136,7 +145,11 @@ fn add_development_gate(document: &mut Value) {
     paths.insert("/v1/development_gate".into(), path);
 }
 
-#[cfg(all(test, feature = "development-gate-client", not(feature = "server")))]
+#[cfg(all(
+    test,
+    feature = "development-gate-client",
+    not(any(feature = "server", feature = "development-gate"))
+))]
 mod development_gate_client_tests {
     #[test]
     fn exposes_the_development_action_without_the_server() {
@@ -271,10 +284,10 @@ mod sealed {
 /// An arbitrary caller transport can forward operations and retain sessions, but
 /// cannot claim this owner capability for a live server observation.
 /// ```compile_fail
-/// use cvld::client::{AuthenticatedTransport, SessionTransport, Transport};
+/// use cvld_client::client::{AuthenticatedTransport, SessionTransport, Transport};
 /// struct CallerTransport;
 /// impl Transport for CallerTransport {
-///     async fn send(&mut self, _: &str, _: serde_json::Value) -> cvld::error::Result<serde_json::Value> {
+///     async fn send(&mut self, _: &str, _: serde_json::Value) -> cvld_client::error::Result<serde_json::Value> {
 ///         unreachable!()
 ///     }
 /// }
@@ -282,10 +295,10 @@ mod sealed {
 ///     fn adopt_session(&mut self, _: zeroize::Zeroizing<String>) {}
 /// }
 /// impl AuthenticatedTransport for CallerTransport {
-///     fn authenticated_origin(&self) -> cvld::error::Result<String> {
+///     fn authenticated_origin(&self) -> cvld_client::error::Result<String> {
 ///         unreachable!()
 ///     }
-///     async fn account_record_object(&mut self, _: usize) -> cvld::error::Result<Vec<u8>> {
+///     async fn account_record_object(&mut self, _: usize) -> cvld_client::error::Result<Vec<u8>> {
 ///         unreachable!()
 ///     }
 /// }
