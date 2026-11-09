@@ -1,11 +1,19 @@
 //! One trusted process links the global service to its explicitly listed communities.
-use super::root_issuer::{Service, config::host, lifecycle};
-use super::*;
-use cvld::service::NativeConstruction;
-#[path = "platform/hub.rs"]
+use crate::{
+    config::{CommunityConfig, Config, RootCommunityConfig},
+    error::{Error, Result},
+    root_issuer::{Service, config::host, lifecycle},
+    service::{Door, NativeConstruction, SystemClock},
+    signals,
+};
 mod hub;
 use serde::Deserialize;
-use std::{collections::BTreeSet, net::SocketAddr};
+use std::{
+    collections::BTreeSet,
+    net::SocketAddr,
+    sync::{Arc, OnceLock},
+    time::{Duration, Instant},
+};
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -84,7 +92,7 @@ async fn open_components(
         Option<(RootCommunityConfig, cpsd::IssuerKey)>,
         Option<hub::Prepared>,
     ),
-    clock: Arc<dyn cvld::service::Clock>,
+    clock: Arc<dyn crate::service::Clock>,
     construction: &NativeConstruction,
     services: &mut Vec<Service>,
     listeners: &mut Vec<tokio::net::TcpListener>,
@@ -234,5 +242,4 @@ fn bind(used: &mut BTreeSet<SocketAddr>, input: &str) -> Result<()> {
 }
 
 #[cfg(test)]
-#[path = "platform/tests.rs"]
 mod tests;

@@ -76,6 +76,10 @@ tower = { version = "0.5", features = ["util"], optional = true }
 name = "cvld"
 path = "src/main.rs"
 required-features = ["server"]
+# The binary is only an entry point: its runtime and tests live in the library
+# (runtime, platform, root_issuer, signals), so no second test harness links the
+# whole dependency closure.
+test = false
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "0.3.79"

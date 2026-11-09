@@ -1,10 +1,16 @@
 //! One trusted process owns the ROOT purpose key and explicitly linked sources.
-use super::*;
-use cvld::service::NativeConstruction;
+use crate::{
+    config::{CommunityConfig, RootCommunityConfig},
+    error::{Error, Result},
+    service::{Door, NativeConstruction, SystemClock},
+    signals,
+};
+use std::{
+    sync::{Arc, OnceLock},
+    time::Instant,
+};
 
-#[path = "root_issuer/config.rs"]
 pub(super) mod config;
-#[path = "root_issuer/lifecycle.rs"]
 pub(super) mod lifecycle;
 
 pub(super) struct Service {
@@ -13,7 +19,7 @@ pub(super) struct Service {
     /// Replaces the door's own router (the multi-tenant front).
     pub(super) router: Option<axum::Router>,
     /// Hosting hub whose dynamic doors this service fences, joins and maintains.
-    pub(super) hub: Option<Arc<cvld::hub::Hub>>,
+    pub(super) hub: Option<Arc<crate::hub::Hub>>,
 }
 impl Service {
     pub(super) fn new(address: String, door: Door) -> Self {
@@ -73,7 +79,7 @@ async fn open_components(
     root: RootCommunityConfig,
     sources: Vec<CommunityConfig>,
     key: cpsd::IssuerKey,
-    clock: Arc<dyn cvld::service::Clock>,
+    clock: Arc<dyn crate::service::Clock>,
     construction: &NativeConstruction,
     services: &mut Vec<Service>,
     listeners: &mut Vec<tokio::net::TcpListener>,
@@ -109,5 +115,4 @@ async fn open_components(
 }
 
 #[cfg(all(test, feature = "development-gate"))]
-#[path = "root_issuer/tests.rs"]
 mod tests;

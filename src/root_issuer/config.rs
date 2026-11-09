@@ -1,7 +1,10 @@
 //! Explicit operator-selected service roots; no host mux or credential migration.
-use super::*;
+use crate::{
+    config::{CommunityConfig, Config, RootCommunityConfig},
+    error::{Error, Result},
+};
 use serde::Deserialize;
-use std::{collections::BTreeSet, net::SocketAddr};
+use std::{collections::BTreeSet, net::SocketAddr, time::Duration};
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]

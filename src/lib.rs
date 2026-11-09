@@ -53,13 +53,22 @@ mod ohttp;
 #[cfg(feature = "server")]
 pub mod payments;
 #[cfg(feature = "server")]
+mod platform;
+#[cfg(feature = "server")]
 pub mod purge;
 #[cfg(feature = "server")]
 mod refusal;
 #[cfg(feature = "server")]
 pub mod registry;
 #[cfg(feature = "server")]
+mod root_issuer;
+#[cfg(feature = "server")]
+#[doc(hidden)]
+pub mod runtime;
+#[cfg(feature = "server")]
 pub mod service;
+#[cfg(feature = "server")]
+mod signals;
 #[cfg(feature = "server")]
 mod stamp_uses;
 #[cfg(feature = "server")]

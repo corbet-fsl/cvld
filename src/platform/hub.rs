@@ -1,14 +1,14 @@
 //! Multi-tenant hosting inside the platform process: the registry-backed hub
 //! replaces explicit community links. Nothing here is reachable from a request.
 use super::*;
-use cmty::cplc::crbk;
-use cvld::{
+use crate::{
     address::Reserved,
     creation_token::{Issuer, Limits},
     hosts::{CloudflareProvisioner, HostProvisioner, NoopProvisioner},
     hub::{Factory, Hub, HubParts},
     service::{Clock, NativeConstruction, RootBoardPurpose},
 };
+use cmty::cplc::crbk;
 use serde::Deserialize;
 use std::sync::OnceLock;
 
@@ -148,9 +148,9 @@ impl Factory for TemplateFactory {
         &'a self,
         address: &'a str,
         seed: [u8; 32],
-        plan: Option<cvld::config::CreationPlan>,
-        activation: Option<cvld::accounting::Activation>,
-    ) -> cvld::hosts::Boxed<'a, Result<Door>> {
+        plan: Option<crate::config::CreationPlan>,
+        activation: Option<crate::accounting::Activation>,
+    ) -> crate::hosts::Boxed<'a, Result<Door>> {
         Box::pin(async move {
             let mut config: CommunityConfig =
                 serde_json::from_slice(&self.template).map_err(Error::Invalid.redact())?;
@@ -203,7 +203,7 @@ impl Factory for TemplateFactory {
         })
     }
 
-    fn terms(&self, now: u64) -> Result<Option<cvld::accounting::AccountingTerms>> {
+    fn terms(&self, now: u64) -> Result<Option<crate::accounting::AccountingTerms>> {
         let config: CommunityConfig =
             serde_json::from_slice(&self.template).map_err(Error::Invalid.redact())?;
         match config.accounting {

@@ -1,6 +1,10 @@
 //! One signal owner spans startup, serving and the original shutdown budget.
-use super::*;
-use std::future::Future;
+use crate::error::{Error, Result};
+use std::{
+    future::Future,
+    sync::{Arc, OnceLock},
+    time::{Duration, Instant},
+};
 use tokio::sync::watch;
 
 pub(super) struct Signals {
@@ -87,5 +91,4 @@ pub(super) async fn open<T>(
 }
 
 #[cfg(test)]
-#[path = "signals/tests.rs"]
 mod tests;
