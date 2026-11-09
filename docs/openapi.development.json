@@ -5573,6 +5573,18 @@
             "minimum": 0,
             "type": "integer"
           },
+          "family": {
+            "description": "The wallet session family (A13): present only when a wallet login, device bind or\nrenewal anchored it to the wallet device key, which may renew it without a prompt.",
+            "items": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "role": {
             "$ref": "#/components/schemas/Role"
           },
@@ -5948,6 +5960,33 @@
         "required": [
           "member",
           "notice"
+        ],
+        "type": "object"
+      },
+      "WalletDeviceProof": {
+        "additionalProperties": false,
+        "description": "The wallet device key K's signature over `device_session::wallet_login_message` for this\nwallet host and the login ceremony.",
+        "properties": {
+          "device_key": {
+            "items": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "signature": {
+            "items": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "device_key",
+          "signature"
         ],
         "type": "object"
       },
@@ -9074,6 +9113,18 @@
                   "additionalProperties": false,
                   "description": "Current public signing keys; the authenticated passkey authorizes mutations.",
                   "properties": {
+                    "family": {
+                      "description": "Wallet device binds only (A13): the caller's session family, now anchored to the bound\nwallet device key, which may renew it without a prompt.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
                     "keys": {
                       "items": {
                         "items": {
@@ -9198,6 +9249,18 @@
                   "additionalProperties": false,
                   "description": "Current public signing keys; the authenticated passkey authorizes mutations.",
                   "properties": {
+                    "family": {
+                      "description": "Wallet device binds only (A13): the caller's session family, now anchored to the bound\nwallet device key, which may renew it without a prompt.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
                     "keys": {
                       "items": {
                         "items": {
@@ -9299,6 +9362,18 @@
                   "additionalProperties": false,
                   "description": "Current public signing keys; the authenticated passkey authorizes mutations.",
                   "properties": {
+                    "family": {
+                      "description": "Wallet device binds only (A13): the caller's session family, now anchored to the bound\nwallet device key, which may renew it without a prompt.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
                     "keys": {
                       "items": {
                         "items": {
@@ -9518,6 +9593,18 @@
                   "additionalProperties": false,
                   "description": "Current public signing keys; the authenticated passkey authorizes mutations.",
                   "properties": {
+                    "family": {
+                      "description": "Wallet device binds only (A13): the caller's session family, now anchored to the bound\nwallet device key, which may renew it without a prompt.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
                     "keys": {
                       "items": {
                         "items": {
@@ -9642,6 +9729,18 @@
                   "additionalProperties": false,
                   "description": "Current public signing keys; the authenticated passkey authorizes mutations.",
                   "properties": {
+                    "family": {
+                      "description": "Wallet device binds only (A13): the caller's session family, now anchored to the bound\nwallet device key, which may renew it without a prompt.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
                     "keys": {
                       "items": {
                         "items": {
@@ -9754,6 +9853,18 @@
                   "additionalProperties": false,
                   "description": "Current public signing keys; the authenticated passkey authorizes mutations.",
                   "properties": {
+                    "family": {
+                      "description": "Wallet device binds only (A13): the caller's session family, now anchored to the bound\nwallet device key, which may renew it without a prompt.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
                     "keys": {
                       "items": {
                         "items": {
@@ -9968,6 +10079,18 @@
                       "minimum": 0,
                       "type": "integer"
                     },
+                    "family": {
+                      "description": "The wallet session family (A13): present only when a wallet login, device bind or\nrenewal anchored it to the wallet device key, which may renew it without a prompt.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
                     "role": {
                       "$ref": "#/components/schemas/Role"
                     },
@@ -10112,6 +10235,18 @@
                       "format": "int64",
                       "minimum": 0,
                       "type": "integer"
+                    },
+                    "family": {
+                      "description": "The wallet session family (A13): present only when a wallet login, device bind or\nrenewal anchored it to the wallet device key, which may renew it without a prompt.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     },
                     "role": {
                       "$ref": "#/components/schemas/Role"
@@ -11685,6 +11820,17 @@
                   "credential": {
                     "additionalProperties": true,
                     "type": "object"
+                  },
+                  "device_proof": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/WalletDeviceProof",
+                        "description": "Wallet logins only (A13 M2): the wallet device key's proof of possession. When K is the\ncredential's current binding, the login's session family is anchored to K and the\nsession names it, so K renews it without a prompt. Every other host refuses it."
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -11708,6 +11854,18 @@
                       "format": "int64",
                       "minimum": 0,
                       "type": "integer"
+                    },
+                    "family": {
+                      "description": "The wallet session family (A13): present only when a wallet login, device bind or\nrenewal anchored it to the wallet device key, which may renew it without a prompt.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
                     },
                     "role": {
                       "$ref": "#/components/schemas/Role"
@@ -14686,6 +14844,18 @@
                       "minimum": 0,
                       "type": "integer"
                     },
+                    "family": {
+                      "description": "The wallet session family (A13): present only when a wallet login, device bind or\nrenewal anchored it to the wallet device key, which may renew it without a prompt.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
                     "role": {
                       "$ref": "#/components/schemas/Role"
                     },
@@ -16653,6 +16823,18 @@
                   "additionalProperties": false,
                   "description": "Current public signing keys; the authenticated passkey authorizes mutations.",
                   "properties": {
+                    "family": {
+                      "description": "Wallet device binds only (A13): the caller's session family, now anchored to the bound\nwallet device key, which may renew it without a prompt.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
                     "keys": {
                       "items": {
                         "items": {
@@ -16740,6 +16922,18 @@
                   "additionalProperties": false,
                   "description": "Current public signing keys; the authenticated passkey authorizes mutations.",
                   "properties": {
+                    "family": {
+                      "description": "Wallet device binds only (A13): the caller's session family, now anchored to the bound\nwallet device key, which may renew it without a prompt.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
                     "keys": {
                       "items": {
                         "items": {
@@ -16896,6 +17090,238 @@
         },
         "security": [],
         "summary": "Verify and store the wallet's first passkey and return its birth session (C1); never forwarded to a shell",
+        "x-client-access": "trusted",
+        "x-effect": "record",
+        "x-lobby": "false",
+        "x-role": "public",
+        "x-scope": "global"
+      }
+    },
+    "/v1/wallet_session_begin": {
+      "post": {
+        "operationId": "wallet_session_begin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "A one-use nonce for opening a community session with a device key.",
+                  "properties": {
+                    "issued": {
+                      "description": "Issue time, part of the signed message (see `device_session::message`).",
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "nonce": {
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "nonce",
+                    "issued"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [],
+        "summary": "Issue a one-use nonce for renewing a wallet session with the wallet device key",
+        "x-client-access": "forward",
+        "x-effect": "record",
+        "x-lobby": "false",
+        "x-role": "public",
+        "x-scope": "global"
+      }
+    },
+    "/v1/wallet_session_renew": {
+      "post": {
+        "operationId": "wallet_session_renew",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Renews a wallet session by the wallet device key K: K's signature over\n`device_session::wallet_message` for this wallet host, account, session family and one-use\nnonce. Only a family anchored to K at a passkey login renews; only revocation ends the chain.",
+                "properties": {
+                  "account": {
+                    "type": "string"
+                  },
+                  "device_key": {
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "family": {
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "nonce": {
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "signature": {
+                    "items": {
+                      "format": "int32",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "account",
+                  "family",
+                  "device_key",
+                  "nonce",
+                  "signature"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "expires": {
+                      "format": "int64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "family": {
+                      "description": "The wallet session family (A13): present only when a wallet login, device bind or\nrenewal anchored it to the wallet device key, which may renew it without a prompt.",
+                      "items": {
+                        "format": "int32",
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    },
+                    "role": {
+                      "$ref": "#/components/schemas/Role"
+                    },
+                    "token": {
+                      "type": "string"
+                    },
+                    "user": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "token",
+                    "user",
+                    "role",
+                    "expires"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    "reason": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/RefusalReason",
+                          "description": "Present only on `refused`."
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Fixed redacted error category"
+          }
+        },
+        "security": [],
+        "summary": "Renew a wallet session of an anchored family by the wallet device key's signed nonce",
         "x-client-access": "trusted",
         "x-effect": "record",
         "x-lobby": "false",
