@@ -12,10 +12,9 @@ FIRST_PARTY = re.compile(r"^(?:git\+)?https://(?:github\.com/(?:corbet-(?:foss|l
 SHA = re.compile(r"^[0-9a-f]{40}$")
 # These are the original transitive issuer owners, not alternative selectors
 # for product declarations. The maintained CBLC issuer still consumes them.
-ORIGINAL_ISSUERS = {
-    'cmbl': ('0.1.0', 'https://git.corbet.ch/corbet-foss/cmbl.git'),
-    'cmmr': ('0.1.0', 'https://git.corbet.ch/corbet-foss/cmmr.git'),
-}
+# The v01 original-issuer exceptions ended with the 2026-11 org move (every pin
+# is branch = main at its new owner); the map stays as the extension point.
+ORIGINAL_ISSUERS = {}
 
 
 def check_lock(packages):
@@ -91,8 +90,8 @@ def rejects(function, value):
     raise AssertionError(f'Invalid input accepted: {value!r}')
 
 
-def check_host_fixtures(host):
-    repo = f'https://{host}/corbet-foss/example'
+def check_host_fixtures(host, organization):
+    repo = f'https://{host}/{organization}/example'
     source = 'git+' + repo + '?branch=main#' + 'a' * 40
     package = {'name': 'example', 'source': source}
     check_lock([package])
@@ -115,8 +114,8 @@ def check_host_fixtures(host):
 
 
 def self_test():
-    for host in ['github.com', 'git.corbet.ch']:
-        check_host_fixtures(host)
+    for host, organization in [('github.com', 'corbet-foss'), ('git.corbet.ch', 'corbet-libre')]:
+        check_host_fixtures(host, organization)
     check_original_issuer_fixtures()
 
 
