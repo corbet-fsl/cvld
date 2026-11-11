@@ -25,7 +25,9 @@ import sys
 import time
 from pathlib import Path
 
-CBLC_NAMESPACE = "08a9478e457e604aa31f9a54"  # sha256("https://git.corbet.ch/corbet-libs/cblc")[:24]
+# First 24 hex digits of the sha256 of cblc's former canonical clone URL (host git.corbet.ch, owner corbet-libs,
+# repository cblc; that owner was retired in 2026-11). The value is a cache key: it stays so the existing caches stay valid.
+CBLC_NAMESPACE = "08a9478e457e604aa31f9a54"
 
 # Reviewed pins. Adding an artifact generation means adding its pins here in a
 # reviewed commit; a different byte anywhere refuses.
