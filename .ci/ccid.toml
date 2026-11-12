@@ -47,7 +47,7 @@ render_schema = 2
 # Preserve the full suite with a bounded two-hour budget.
 environment = { CI_TIMEOUT = "7200" }
 scheduler = "forgejo"
-runs_on = "heavy"
+runs_on = "linux"
 checks = ["verify", "advisories"]
 workflow = "ci"
 command = ["bash", ".ci/run-cached.sh"]
@@ -56,7 +56,7 @@ events = ["manual"]
 # Retain the reviewed integration graph before a separate locked verification.
 [jobs.resolve-dependencies]
 scheduler = "forgejo"
-runs_on = "heavy"
+runs_on = "linux"
 checks = ["resolve-dependencies"]
 workflow = "resolve-dependencies"
 command = ["bash", ".ci/run-cached.sh"]
