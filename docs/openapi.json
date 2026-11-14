@@ -181,7 +181,7 @@
                     "type": "integer"
                   },
                   "lineageEpoch": {
-                    "description": "Lineage epoch of this recipient key. A replacement of the stored key must carry a strictly\ngreater epoch than the stored one (an unreplaced legacy entry counts as epoch 0).",
+                    "description": "Lineage epoch the signing device claims for this key. Signed, but no authority: a\nreplacement needs a newer account root revision (`rotate_root`), never a larger claim\n(review-s4b N2: a still-current device could otherwise pin the recipient).",
                     "format": "uint64",
                     "minimum": 0,
                     "type": "integer"

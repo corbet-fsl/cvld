@@ -1825,8 +1825,9 @@ export interface components {
                 issuedAt: number;
                 /**
                  * Format: uint64
-                 * @description Lineage epoch of this recipient key. A replacement of the stored key must carry a strictly
-                 *     greater epoch than the stored one (an unreplaced legacy entry counts as epoch 0).
+                 * @description Lineage epoch the signing device claims for this key. Signed, but no authority: a
+                 *     replacement needs a newer account root revision (`rotate_root`), never a larger claim
+                 *     (review-s4b N2: a still-current device could otherwise pin the recipient).
                  */
                 lineageEpoch: number;
                 owner: number[];
