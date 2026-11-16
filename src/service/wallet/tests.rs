@@ -454,9 +454,13 @@ async fn a_held_expired_token_does_not_refuse_the_renewal() {
     );
     // A token that never existed is ignored the same way; only K's signature counts.
     let unknown = support::client(&f, WALLET, Some("never-issued-token"));
-    let challenge: DeviceSessionChallenge =
-        serde_json::from_value(unknown.call("wallet_session_begin", json!({})).await.unwrap())
-            .unwrap();
+    let challenge: DeviceSessionChallenge = serde_json::from_value(
+        unknown
+            .call("wallet_session_begin", json!({}))
+            .await
+            .unwrap(),
+    )
+    .unwrap();
     assert_eq!(
         unknown
             .call(
