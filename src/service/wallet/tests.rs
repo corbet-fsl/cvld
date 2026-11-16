@@ -384,3 +384,88 @@ async fn a_long_operation_crosses_the_wallet_lifetime_with_no_prompt() {
     // A renewal before the window (more than 300 s left) is refused.
     assert_eq!(renew(expires - 400).await.err(), Some(Error::Unauthorized));
 }
+
+/// A13 F1: the device's client sends its held token with every request, also when the session
+/// has expired (device asleep past the deadline, a device clock behind the wallet's) or the
+/// wallet restarted. The renewal pair is authenticated by K's signature over a one-use nonce and
+/// the anchor, never by that token, so a held token that no longer authenticates must not refuse
+/// it (as a sign-in ceremony ignores it): the chain renews without a prompt.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_held_expired_token_does_not_refuse_the_renewal() {
+    use ed25519_dalek::Signer as _;
+    let f = running().await;
+    let mut member = support::enrol(&f, WALLET, None).await;
+    let key = ed25519_dalek::SigningKey::from_bytes(&[22; 32]);
+    let device = key.verifying_key().to_bytes();
+    let body = support::proven(
+        &f,
+        WALLET,
+        &member.session,
+        &mut member.authenticator,
+        json!({"kind":"device_authorize","key":device}),
+        json!({"key":device}),
+    )
+    .await;
+    let bound: DeviceKeys = serde_json::from_value(
+        support::client(&f, WALLET, Some(&member.session))
+            .call("wallet_device_authorize", body)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let family = bound.family.expect("the bind anchors the family to K");
+    drop(member.authenticator);
+    let account = *uuid::Uuid::parse_str(&member.user).unwrap().as_bytes();
+    // 30 s past the deadline: the held token no longer authenticates anything.
+    let now = NOW + 630;
+    f.clock.set(now);
+    let held = support::client(&f, WALLET, Some(&member.session));
+    assert_eq!(
+        held.call("session_fork", json!({})).await.unwrap_err(),
+        Error::Unauthorized
+    );
+    let challenge: DeviceSessionChallenge =
+        serde_json::from_value(held.call("wallet_session_begin", json!({})).await.unwrap())
+            .unwrap();
+    let message = crate::device_session::wallet_message(
+        WALLET,
+        &account,
+        &family,
+        &challenge.nonce,
+        challenge.issued,
+    );
+    let renewed: Session = serde_json::from_value(
+        held.call(
+            "wallet_session_renew",
+            json!({"account":member.user,"family":family,"device_key":device,
+                "nonce":challenge.nonce,"signature":key.sign(&message).to_bytes().to_vec()}),
+        )
+        .await
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(renewed.family, Some(family));
+    assert_eq!(renewed.expires, now + 600);
+    assert!(
+        support::client(&f, WALLET, Some(&renewed.token))
+            .call("session_fork", json!({}))
+            .await
+            .is_ok()
+    );
+    // A token that never existed is ignored the same way; only K's signature counts.
+    let unknown = support::client(&f, WALLET, Some("never-issued-token"));
+    let challenge: DeviceSessionChallenge =
+        serde_json::from_value(unknown.call("wallet_session_begin", json!({})).await.unwrap())
+            .unwrap();
+    assert_eq!(
+        unknown
+            .call(
+                "wallet_session_renew",
+                json!({"account":member.user,"family":family,"device_key":device,
+                    "nonce":challenge.nonce,"signature":vec![0u8; 64]}),
+            )
+            .await
+            .unwrap_err(),
+        Error::Unauthorized
+    );
+}
