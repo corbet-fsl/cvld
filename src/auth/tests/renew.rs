@@ -376,6 +376,41 @@ async fn a_restart_keeps_the_chain_and_a_logout_ends_it_durably() {
     );
 }
 
+/// A renewed session refused because its family's anchor is gone names that check in the
+/// development-gate refusal line (main's journey row 13 notes): `device_key_unanchored`, with
+/// the grant's hashed ids and never the token. The outcome stays `Unauthorized`.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_renewed_session_without_its_anchor_names_the_check() {
+    use crate::refusal::{
+        scope,
+        tests::{assert_shape, taken},
+    };
+    let (_directory, db) = wallet_database().await;
+    let (mut auth, session, family) = member(&db).await;
+    let key = SigningKey::from_bytes(&[9; 32]);
+    auth.anchor_wallet_device(&session.token, key.verifying_key().to_bytes(), NOW)
+        .await
+        .unwrap();
+    let at = NOW + 360;
+    let renewed = renew(&mut auth, &key, &session, family, at).await.unwrap();
+    // Another process revokes K; this one still holds the renewed session in memory.
+    let user = Uuid::parse_str(&session.user).unwrap();
+    wallet_auth(&db)
+        .revoke_wallet_device(user, key.verifying_key().to_bytes())
+        .await
+        .unwrap();
+    taken();
+    let result = scope("initial_creation", auth.authenticate(&renewed.token, at)).await;
+    assert_eq!(result.err(), Some(Error::Unauthorized));
+    let lines = taken();
+    assert_eq!(lines.len(), 1, "{lines:?}");
+    let line = &lines[0];
+    assert_shape(line);
+    assert!(line.contains("reason=device_key_unanchored "), "{line}");
+    assert!(!line.contains("member=-"), "{line}");
+    assert!(!line.contains(&renewed.token), "{line}");
+}
+
 /// Register a member and begin its next passkey login.
 async fn wallet_login(db: &crlt::Db) -> (Auth, LoginFinish) {
     let mut auth = wallet_auth(db);

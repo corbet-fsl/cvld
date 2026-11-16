@@ -23,7 +23,8 @@ pub(crate) enum Reason {
     NoToken,
     /// No session for the token (never issued, logged out, or lost with a restart).
     SessionMissing,
-    /// The token's session existed and the expiry of a family member ended the family.
+    /// The token's session existed and the expiry of a family member ended the family (for a
+    /// renewed wallet family: the member's generation).
     FamilyEnded,
     /// The session's grant had expired at the request's time.
     SessionExpired,
@@ -33,6 +34,9 @@ pub(crate) enum Reason {
     GardenSession,
     /// The passkey of the session's credential is revoked or gone.
     CredentialRevoked,
+    /// A device-key (renewed) wallet session whose family anchor is gone (K revoked, the family
+    /// logged out or evicted in any process).
+    DeviceKeyUnanchored,
     /// The passkey store could not be read.
     PasskeyStore,
     /// The membership facade could not confirm the device session.
@@ -61,6 +65,7 @@ impl Reason {
             Self::SessionNotStarted => "session_not_started",
             Self::GardenSession => "garden_session",
             Self::CredentialRevoked => "credential_revoked",
+            Self::DeviceKeyUnanchored => "device_key_unanchored",
             Self::PasskeyStore => "passkey_store",
             Self::MembershipCheck => "membership_check",
             Self::SessionInactive => "session_inactive",

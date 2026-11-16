@@ -515,6 +515,11 @@ impl Auth {
                 None => false,
             };
             if !anchored {
+                crate::refusal::note_for(
+                    crate::refusal::Reason::DeviceKeyUnanchored,
+                    &grant.user,
+                    &grant.session_id,
+                );
                 self.end_session(token);
                 return Err(Error::Unauthorized);
             }

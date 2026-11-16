@@ -49,7 +49,7 @@ async fn each_global_refusal_names_its_check_and_no_secret() {
         line.contains("reason=session_missing member=- session=-"),
         "{line}"
     );
-    auth.logout(&token);
+    auth.logout(&token).await.unwrap();
     let line = refused(&mut auth, &token, NOW, NOW).await;
     assert!(line.contains("reason=session_missing "), "{line}");
 }

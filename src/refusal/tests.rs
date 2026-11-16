@@ -2,7 +2,7 @@
 use super::*;
 use crate::error::Error;
 
-const ALL: [Reason; 15] = [
+const ALL: [Reason; 16] = [
     Reason::NoToken,
     Reason::SessionMissing,
     Reason::FamilyEnded,
@@ -18,6 +18,7 @@ const ALL: [Reason; 15] = [
     Reason::TimeInvalid,
     Reason::SessionChanged,
     Reason::StateNotCurrent,
+    Reason::DeviceKeyUnanchored,
 ];
 
 /// Exhaustive: a new reason must be added to `ALL` (its index) or this does not compile.
@@ -38,6 +39,7 @@ fn index(reason: Reason) -> usize {
         Reason::TimeInvalid => 12,
         Reason::SessionChanged => 13,
         Reason::StateNotCurrent => 14,
+        Reason::DeviceKeyUnanchored => 15,
     }
 }
 
