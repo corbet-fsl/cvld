@@ -143,7 +143,9 @@ impl Auth {
         self.retain_live();
     }
 
-    /// Revoke K for `member`: every family anchored to it ends now and can never renew.
+    /// Revoke K for `member`: every family anchored to it ends now and can never renew. No wallet
+    /// action removes K except a rebind (`rebind_wallet_device`), so only the tests call this.
+    #[cfg(test)]
     pub(crate) async fn revoke_wallet_device(
         &mut self,
         member: Uuid,
