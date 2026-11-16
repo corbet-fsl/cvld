@@ -1935,14 +1935,20 @@ fn contains(haystack: &[u8], needle: &[u8]) -> bool {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_cli_delegated_through_the_pairing_path_opens_sessions_with_no_prompt() {
     // The CLI: K_d and the recipient key from its own entropy; only the offer crosses.
-    let cli = ckmg::DelegationRequest::new(&mut ckmg::SystemEntropy, None).unwrap();
+    let cli = ckmg::DelegationRequest::new(&mut ckmg::SystemEntropy, "alpha", None).unwrap();
     let offer = cli.offer();
     let cli_key = *offer.device.value();
-    // The wallet's one confirmation is the DelegateDevice evidence: enrol K_d, seal to the CLI.
+    // The wallet enrols K_d under the single-use DelegateDevice admission (its evidence is the
+    // pre-delegation lineage digest; the person's one confirmation is the stamp) and seals the
+    // material to the CLI.
     let (mut custody, prf) = lineage_custody("member").await;
     let board = ckmg::Purpose::new(ckmg::Scope::Member, "board", 1).unwrap();
     let (receipt, sealed) = custody
-        .delegate_remote_device(&offer, std::slice::from_ref(&board), b"the ceremony")
+        .delegate_remote_device(
+            &offer,
+            std::slice::from_ref(&board),
+            b"the pre-delegation lineage digest",
+        )
         .await
         .unwrap();
     custody.acknowledge(receipt.operation).await.unwrap();
@@ -1999,7 +2005,7 @@ async fn a_cli_delegated_through_the_pairing_path_opens_sessions_with_no_prompt(
     );
 
     // The sealed material opens only with the CLI's one-time key, into a delegation of K_d.
-    let stranger = ckmg::DelegationRequest::new(&mut ckmg::SystemEntropy, None).unwrap();
+    let stranger = ckmg::DelegationRequest::new(&mut ckmg::SystemEntropy, "alpha", None).unwrap();
     assert!(stranger.open(&sealed).is_err());
     let delegation = cli.open(&sealed).unwrap();
     assert_eq!(delegation.device_public_key(), offer.device);
@@ -2061,13 +2067,20 @@ async fn a_cli_delegated_through_the_pairing_path_opens_sessions_with_no_prompt(
     assert_eq!(delegated.state(), ckmg::State::Delegated);
     assert!(
         delegated
-            .delegate_device(std::slice::from_ref(&board), b"the ceremony")
+            .delegate_device(
+                std::slice::from_ref(&board),
+                b"the pre-delegation lineage digest"
+            )
             .await
             .is_err()
     );
     assert!(
         delegated
-            .delegate_remote_device(&stranger.offer(), &[board], b"the ceremony")
+            .delegate_remote_device(
+                &stranger.offer(),
+                &[board],
+                b"the pre-delegation lineage digest"
+            )
             .await
             .is_err()
     );
