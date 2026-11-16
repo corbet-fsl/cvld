@@ -436,7 +436,10 @@ the same family (next generation, full lifetime; no token is extended), checked 
 nonce (spent whatever follows), the strict Ed25519 signature, the anchor of exactly (member, K,
 family), the cgbl binding of K to C for an unburned account, C not revoked, and the window: the
 family's newest generation has at most `RENEW_WINDOW_SECONDS` = 300 left or is gone. Every refusal
-is `Unauthorized` (a storage failure is `Unavailable`). A renewed session (origin `DeviceKey`)
+is `Unauthorized` (a storage failure is `Unavailable`). Like a sign-in ceremony, the pair ignores
+a held bearer token: the session it names has often expired by then (device asleep, a device clock
+behind the wallet's, a wallet restart), and only K's signature authenticates a renewal (A13 F1).
+A renewed session (origin `DeviceKey`)
 lives only while its anchor does (one indexed read per request), carries no birth grant, and
 cgbl's passkey-only wallet paths (device bindings, certificate) answer `needs_passkey`. Only
 revocation ends a chain: logout (the explicit lock) deletes the family's anchor, revoking C or

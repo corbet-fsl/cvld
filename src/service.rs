@@ -824,6 +824,11 @@ impl Door {
                 | "login_begin"
                 | "login_discoverable_begin"
                 | "login_finish"
+                // The wallet session renewal (A13) opens the next session by K's signature over a
+                // one-use nonce, never by the held token, which has often expired by then (device
+                // asleep, a device clock behind the wallet's, a wallet restart).
+                | "wallet_session_begin"
+                | "wallet_session_renew"
         ) {
             None
         } else {
