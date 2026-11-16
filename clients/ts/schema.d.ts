@@ -1827,7 +1827,7 @@ export interface components {
                  * Format: uint64
                  * @description Lineage epoch the signing device claims for this key. Signed, but no authority: a
                  *     replacement needs a newer account root revision (`rotate_root`), never a larger claim
-                 *     (review-s4b N2: a still-current device could otherwise pin the recipient).
+                 *     (a still-current device could otherwise pin the recipient).
                  */
                 lineageEpoch: number;
                 owner: number[];

@@ -181,7 +181,7 @@
                     "type": "integer"
                   },
                   "lineageEpoch": {
-                    "description": "Lineage epoch the signing device claims for this key. Signed, but no authority: a\nreplacement needs a newer account root revision (`rotate_root`), never a larger claim\n(review-s4b N2: a still-current device could otherwise pin the recipient).",
+                    "description": "Lineage epoch the signing device claims for this key. Signed, but no authority: a\nreplacement needs a newer account root revision (`rotate_root`), never a larger claim\n(a still-current device could otherwise pin the recipient).",
                     "format": "uint64",
                     "minimum": 0,
                     "type": "integer"
